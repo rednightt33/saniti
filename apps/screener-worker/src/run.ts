@@ -156,18 +156,38 @@ export function effectiveLimits<T extends Record<ContextLimitName, number>>(own:
     whatever the plan, so the page's extra-column anchor (bars gt 0) needs no grant either. */
 export function definitionItems(definition: unknown, field = 'definition'): { kind: AllowKind; id: string; field: string }[] {
   const out: { kind: AllowKind; id: string; field: string }[] = [];
-  const walk = (x: unknown, f: string): void => {
-    if (Array.isArray(x)) { x.forEach((v, k) => walk(v, `${f}[${k}]`)); return }
-    if (!obj(x)) return;
-    if (x.kind === 'indicator' && typeof x.indicator === 'string') out.push({ kind: 'indicator', id: x.indicator, field: `${f}.indicator` });
-    else if (x.kind === 'flow' && typeof x.metric === 'string') out.push({ kind: 'flow_indicator', id: x.metric, field: `${f}.metric` });
-    else if (x.kind === 'pattern' && typeof x.type === 'string') out.push({ kind: CANDLE_IDS.includes(x.type) ? 'candle_pattern' : 'screener_metric', id: x.type, field: `${f}.type` });
-    else if (x.kind === 'xsection' && typeof x.metric === 'string') out.push({ kind: 'screener_metric', id: x.metric, field: `${f}.metric` });
-    else if (x.kind === 'universe' && typeof x.attr === 'string' && !SHOWN_ATTRIBUTES.has(x.attr)) out.push({ kind: 'screener_metric', id: x.attr, field: `${f}.attr` });
-    for (const [k, v] of Object.entries(x)) walk(v, `${f}.${k}`);
-  };
-  walk(definition, field);
+  eachObject(definition, field, (x, at) => {
+    if (x.kind === 'indicator' && typeof x.indicator === 'string') out.push({ kind: 'indicator', id: x.indicator, field: `${at()}.indicator` });
+    else if (x.kind === 'flow' && typeof x.metric === 'string') out.push({ kind: 'flow_indicator', id: x.metric, field: `${at()}.metric` });
+    else if (x.kind === 'pattern' && typeof x.type === 'string') out.push({ kind: CANDLE_IDS.includes(x.type) ? 'candle_pattern' : 'screener_metric', id: x.type, field: `${at()}.type` });
+    else if (x.kind === 'xsection' && typeof x.metric === 'string') out.push({ kind: 'screener_metric', id: x.metric, field: `${at()}.metric` });
+    else if (x.kind === 'universe' && typeof x.attr === 'string' && !SHOWN_ATTRIBUTES.has(x.attr)) out.push({ kind: 'screener_metric', id: x.attr, field: `${at()}.attr` });
+  });
   return out;
+}
+/** Every object of a JSON value in document order (an object before what it holds, list items and keys in their order),
+    each with its JSON path (`at`, built only when asked). The walk keeps its own list instead of calling itself, so a
+    request nested thousands of levels deep is read like a flat one: restrict reads the definition as sent, before the
+    normalizer refuses any shape (ERRORS M524: the walk that called itself overflowed the stack at about 2,000 levels and
+    answered 500, where the normalizer answers 422 naming the field). */
+function eachObject(root: unknown, field: string, visit: (x: Record<string, unknown>, at: () => string) => void): void {
+  interface Step { x: unknown; up: Step | null; key: string | number }
+  const at = (s: Step): string => {
+    const keys: (string | number)[] = [];
+    for (let t: Step | null = s; t && t.up; t = t.up) keys.push(t.key);
+    let f = field;
+    for (let i = keys.length - 1; i >= 0; i--) f += typeof keys[i] === 'number' ? `[${keys[i]}]` : `.${keys[i]}`;
+    return f;
+  };
+  const todo: Step[] = [{ x: root, up: null, key: '' }];
+  while (todo.length) {
+    const s = todo.pop()!;
+    if (Array.isArray(s.x)) { for (let k = s.x.length - 1; k >= 0; k--) todo.push({ x: s.x[k], up: s, key: k }); continue }
+    if (!obj(s.x)) continue;
+    visit(s.x, () => at(s));
+    const entries = Object.entries(s.x);
+    for (let k = entries.length - 1; k >= 0; k--) todo.push({ x: entries[k][1], up: s, key: entries[k][0] });
+  }
 }
 /** The distinct items a preset's definition reads ({kind, id}, sorted), by the allow check's own walk (C2 Phase 3b F1). */
 export function presetItems(definition: unknown): { kind: AllowKind; id: string }[] {
@@ -197,14 +217,10 @@ export function checkAllow(definition: unknown, allow: Allow, field = 'definitio
 /** The definition's references to an admin-only flow entry, refused without the right (CONDITION_RESTRICTED). */
 export function restrict(definition: unknown, rights: readonly string[], field = 'definition'): void {
   if (rights.includes(POINT_IN_TIME_RIGHT)) return;
-  const walk = (x: unknown, f: string): void => {
-    if (Array.isArray(x)) { x.forEach((v, k) => walk(v, `${f}[${k}]`)); return }
-    if (!obj(x)) return;
+  eachObject(definition, field, (x, at) => {
     const e = x.kind === 'flow' && typeof x.metric === 'string' ? FLOW_BY_ID[x.metric] : undefined;
-    if (e && flowAdminOnly(e)) throw refuse('CONDITION_RESTRICTED', `${f}: ${e.id} ${e.name} (the Screener's version) is available to admins only; remove this condition to run the screen.`, f);
-    for (const [k, v] of Object.entries(x)) walk(v, `${f}.${k}`);
-  };
-  walk(definition, field);
+    if (e && flowAdminOnly(e)) { const f = at(); throw refuse('CONDITION_RESTRICTED', `${f}: ${e.id} ${e.name} (the Screener's version) is available to admins only; remove this condition to run the screen.`, f) }
+  });
 }
 /** Both gates of a normalized definition, in this order: the admin-only flow versions (rights), then the plan (allow).
     Internal callers pass ALLOW_ALL; only the HTTP layer reads `allow` from the body. */

@@ -456,9 +456,11 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     const owner = ownerOf(req), deadlineAt = arrived + L.deadline_ms;
     /* EXEC-MU-ACCOUNTS Phase 3b (CONTRACT 8b "3b in detail"): the request's ceilings, min(SCREENER_*, context.limits),
        and the snapshot as normalize sees it with the plan's max_conditions and max_metric_filters (validate.ts reads
-       them from vctx.limits). Then gate (rights, then context.allow) right after normalize and before any cache read:
-       the result and counts caches are keyed by the publication and the definition only (6d.2), so a result an admin
-       filled is never served to a principal without one of its items. */
+       them from vctx.limits). The order on validate, run, preview and counts: restrict (the rights) on the definition
+       as sent, before normalize can name a parameter of an admin-only version (ERRORS M521); normalize; then gate
+       (restrict again, then context.allow, checkAllow), before any cache read: the result and counts caches are keyed
+       by the publication and the definition only (6d.2), so a result an admin filled is never served to a principal
+       without one of its items. */
     const limitsOf = (e: Envelope): Limits => effectiveLimits(L, e.limits);
     const forPlan = (s: Snap, lim: Limits): Snap => lim.max_conditions === L.max_conditions && lim.max_metric_filters === L.max_metric_filters ? s
       : { ...s, vctx: { ...s.vctx, limits: { ...s.vctx.limits, max_conditions: lim.max_conditions, max_metric_filters: lim.max_metric_filters } } };

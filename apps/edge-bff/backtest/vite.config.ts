@@ -49,19 +49,17 @@ function testEntry(mode: string): Plugin {
    keeps only the released items of the registries (shared/release-filter.mjs) and has no lab formula ('@edge-lab' is
    the Terminal's src/lab/none.ts); --mode lab keeps every item and the lab formulas, into dist-lab/, which edge-bff
    serves at /backtest-app/lab/ only to the admin on the beta. The test builds are public builds. */
-/** The build's configuration; `extra`, `labModule` and `outDir` are for the proof builds of the tests only (the
-    Terminal's tests/lab/: a fixture lab item that never enters the release file). */
-export function backtestConfig(mode: string, { extra = {}, labModule = undefined as string | undefined, outDir = '',
-                                              releases = undefined as string | undefined } = {}) {
+/** The build's configuration (tests/test_3f_public_bundles.py builds it as it is, on a copy whose registries hold fixture
+    items). */
+export function backtestConfig(mode: string) {
   const lab = mode === 'lab';
-  const filter = () => releaseFilter({ lab, extra, ...(releases ? { releases } : {}) });
   return {
     base: lab ? '/backtest-app/lab/' : '/backtest-app/',
-    plugins: [filter(), ...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd()],
+    plugins: [releaseFilter({ lab }), ...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd()],
     // the load worker's bundle takes only these (checker L1): the same filter
-    worker: { plugins: () => [filter()] },
-    resolve: { alias: labAlias({ lab, module: labModule }) },
-    build: { outDir: outDir || (ENTRY[mode] || lab ? `dist-${mode}` : 'dist'), emptyOutDir: true, assetsDir: 'assets', sourcemap: false,
+    worker: { plugins: () => [releaseFilter({ lab })] },
+    resolve: { alias: labAlias({ lab }) },
+    build: { outDir: ENTRY[mode] || lab ? `dist-${mode}` : 'dist', emptyOutDir: true, assetsDir: 'assets', sourcemap: false,
              target: 'es2022', cssCodeSplit: false, rollupOptions: { output: { format: 'iife' as const, inlineDynamicImports: true } } },
   };
 }

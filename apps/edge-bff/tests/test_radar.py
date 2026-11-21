@@ -245,7 +245,8 @@ def test_the_image_builds_the_radar_page_on_its_own():
     stage = text.split('FROM node:22-slim AS radar', 1)[1].split('\nFROM ', 1)[0]
     assert [line for line in stage.strip().splitlines() if line.strip() and not line.startswith('#')] == [
         'WORKDIR /build/radar', 'COPY radar/package.json radar/package-lock.json ./', 'RUN npm ci --no-audit --no-fund',
-        'COPY shared /build/shared', 'COPY radar/ ./', 'RUN npm run build']
+        # 3f round 2: every page build applies the release filter, which reads the release file
+        'COPY shared /build/shared', 'COPY catalog/releases.json /build/catalog/releases.json', 'COPY radar/ ./', 'RUN npm run build']
     assert 'COPY --from=radar /build/radar/dist ./static/radar-app\n' in text
     page = Path(__file__).resolve().parents[1] / 'radar' / 'src'
     for f in page.rglob('*.ts'):

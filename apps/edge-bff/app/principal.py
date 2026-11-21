@@ -394,7 +394,7 @@ class Auth:
 
         # named session and write as before Phase 1 (tests read the dependency names)
         cookie = cookie_name(SESSION_COOKIE, settings.secure_cookie)
-        self.session_cookie = cookie                     # 3f: lab_viewer reads the same cookie
+        self.session_cookie = cookie                     # 3f: lab_admin reads the same cookie
 
         async def signed_in(request: Request):
             """The principal of the request's session, or None when it has none (the caller answers 401, or the
@@ -511,21 +511,23 @@ class Auth:
         """The switch-off owner a new session is made for (main.py sign-in with EDGE_MULTIUSER off): EDGE_OWNER."""
         return self.settings.owner
 
-    async def lab_viewer(self, request):
-        """3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): whether the request is the admin's, who is served an app's
-        lab build (its lab items' definitions and formulas): a session of a principal holding admin.access that has
-        passed the second factor (switch on), on the beta only. The live site has no lab build (every lab item is
-        refused there, '*' included). Never raises: a visitor, a pending or an ended session is served the public build."""
+    async def lab_admin(self, request):
+        """3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): the principal of the admin's request, the only one lab
+        code may reach, or None: a session of a principal holding admin.access that has passed the second factor (switch
+        on), on the beta only. What it is then served is decided by what it holds (main.py page_app: a lab build only
+        with every item, catalog.holds_every_item; a lab tab only with the tab's own <tab>.view), so lab code never
+        reaches a principal the catalogs would not list it to. The live site has no lab code (every lab item and tab is
+        refused there, '*' included). Never raises: a visitor, a pending or an ended session gets None."""
         if self.settings.site == LIVE:
-            return False
+            return None
         token = request.cookies.get(self.session_cookie, '')
         if not token and self.session_cookie != SESSION_COOKIE and not self.settings.multiuser:
             token = request.cookies.get(SESSION_COOKIE, '')       # the old cookie name, as signed_in reads it (R2-22)
         try:
             p = await self.resolve(token)
         except Exception:                                         # noqa: BLE001 - fail closed: the public build
-            return False
-        return p is not None and p.mfa_ok and p.can(ADMIN_ACCESS)
+            return None
+        return p if p is not None and p.mfa_ok and p.can(ADMIN_ACCESS) else None
 
     async def resolve(self, token):
         """The Principal of a session token, or None (no, revoked, expired or idle session; a disabled account)."""

@@ -36,8 +36,9 @@ def test_every_capability_tab_and_page_of_the_shell_has_a_live_switch(database):
     assert tabs and pages >= {'terminal', 'backtest', 'screener'}, (tabs, pages)
     switched = set(releases.CURRENT.tabs()) | BETA_ONLY_TABS
     missing = sorted((tabs | pages) - switched)
-    assert not missing, (f'no live switch for {missing}: list each in catalog/releases.json "tabs" as "lab" (the beta '
-                         'only) or "released" (LIVE_PROMOTION.md)')
+    assert not missing, (f'no live switch for {missing}: list each in catalog/releases.json "tabs" as "released" with '
+                         'the user\'s go (LIVE_PROMOTION.md); no tab may be "lab" (the beta only) until LAB_TAB_HELD_UNTIL '
+                         'is closed (test_no_tab_is_at_the_lab_stage_yet)')
 
 
 # What still lets a lab tab reach visitors, after 3f (its ultracode checker, 2026-11-21, SERVE-3 and TR-13;
@@ -52,8 +53,10 @@ LAB_TAB_HELD_UNTIL = ("the shell builds its rail and routes from the principal's
 def test_no_tab_is_at_the_lab_stage_yet():
     assert releases.lab_tabs() == frozenset(), (f'{sorted(releases.lab_tabs())} at the lab stage: a lab tab waits until '
                                                 f'{LAB_TAB_HELD_UNTIL} (FUTURE_PLAN.md)')
-    assert {t for t, st in releases.CURRENT.tabs().items() if st == 'released'} == {
-        'terminal', 'backtest', 'screener', 'watchlist', 'radar', 'overview'}
+    released = {t for t, st in releases.CURRENT.tabs().items() if st == 'released'}
+    assert released == {'terminal', 'backtest', 'screener', 'watchlist', 'radar', 'overview'}, (
+        f'the released tabs are {sorted(released)}: a new tab enters "released" only with the user\'s go and with this '
+        'list (LIVE_PROMOTION.md section 3; 3f round 2, TRC2-8)')
 
 
 def lab(monkeypatch, tab='newpage'):

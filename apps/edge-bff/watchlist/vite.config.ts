@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
+import { releaseFilter } from '../shared/release-filter.mjs';
 
 /* As the Screener page (apps/edge-bff/screener/vite.config.ts): one classic IIFE script at the end of <body> (the sub-app
    CSP forbids inline scripts); base /watchlist-app/ (edge-bff serves it, the shell shows it in the Watchlist tab's frame).
@@ -35,7 +36,11 @@ function testEntry(mode: string): Plugin {
 }
 export default defineConfig(({ mode }) => ({
   base: '/watchlist-app/',
-  plugins: [...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd()],
+  // 3f (round 2 of its checker, 2026-11-21; CONTRACT.md 8 "Lab code"): every page build applies the release filter, a
+  // Web Worker's bundle included, so a registry the page comes to import never carries an item at the lab stage
+  // (tests/test_3f_public_bundles.py builds every page on a copy whose registries hold fixture items)
+  plugins: [releaseFilter({ lab: false }), ...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd()],
+  worker: { plugins: () => [releaseFilter({ lab: false })] },
   build: { outDir: ENTRY[mode] ? `dist-${mode}` : 'dist', emptyOutDir: true, assetsDir: 'assets', sourcemap: false, target: 'es2022',
            cssCodeSplit: false, rollupOptions: { output: { format: 'iife', inlineDynamicImports: true } } },
 }));

@@ -37,7 +37,7 @@ from .principal import Principal
 from .allow import NOTHING, context_of, digest, named
 from . import releases
 from .catalog import holds_entry, holds_every, tab_hidden, tab_kind
-from .rights import POINT_IN_TIME, refuse_context, rights_of
+from .rights import ADMIN_RIGHTS, POINT_IN_TIME, refuse_context, rights_of
 from .watchlist import LISTS, PER_LIST, WatchlistStore
 from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
                        dumps, error_of, loads, preview_order)
@@ -94,10 +94,23 @@ PRESET_KIND = 'screener_preset'                      # the release kind of the p
 METRIC_KINDS = ('flow_indicator', 'candle_pattern', 'screener_metric')
 
 
+def item_id(x):
+    """The id of something the worker sent (a catalog entry, a preset, a preset's item): its `id` when it is an object
+    whose id is a string, else None, so it is no item. Every reader of the worker's ids goes through it (3f checker
+    CAT-7: a list id raised a 500; round 2, CS-3: the same in a preset's items gave a 503 for every session without the
+    point-in-time right)."""
+    return x['id'] if isinstance(x, dict) and isinstance(x.get('id'), str) else None
+
+
+def listed(data, name):
+    """A list the worker's document holds under `name`, or [] when the document or the list is not one."""
+    value = data.get(name) if isinstance(data, dict) else None
+    return value if isinstance(value, list) else []
+
+
 def item_key(name, entry):
-    """(list name, id) of an item entry, or None for anything else (an entry whose id is not a string is no item:
-    3f checker CAT-7)."""
-    return (name, entry['id']) if isinstance(entry, dict) and isinstance(entry.get('id'), str) else None
+    """(list name, id) of an item entry, or None for anything else (item_id)."""
+    return (name, item_id(entry)) if item_id(entry) is not None else None
 ITEM_LISTS = (('indicators', ('indicator',), lambda e: 'indicator'),
               ('metrics', METRIC_KINDS, lambda e: 'flow_indicator' if e.get('kind') == 'flow' else 'screener_metric'),
               ('fundamentals', METRIC_KINDS, lambda e: 'flow_indicator' if e.get('kind') == 'flow' else 'screener_metric'))
@@ -166,17 +179,15 @@ def preset_reads(preset, ids):
     it (`items`, [{kind, id}], present since the worker's presetItems)."""
     if not isinstance(preset, dict):
         return False
-    items = preset.get('items')
-    return reads_any(preset.get('definition'), ids) or (isinstance(items, list) and any(
-        isinstance(it, dict) and it.get('id') in ids for it in items))
+    return reads_any(preset.get('definition'), ids) or any(item_id(it) in ids for it in listed(preset, 'items'))
 
 
 def held_item(allow, item):
     """Whether an allow ({kind: "*" | [ids]}) holds a preset item {kind, id}; an unknown kind is not held."""
-    if not isinstance(item, dict):
+    if item_id(item) is None:
         return False
     granted = allow.get(item.get('kind'))
-    return granted == '*' or (isinstance(granted, list) and item.get('id') in granted)
+    return granted == '*' or (isinstance(granted, list) and item_id(item) in granted)
 
 
 def presets_held(presets, allow):
@@ -919,7 +930,7 @@ class Screeners:
             if isinstance(data, dict) and isinstance(data.get('presets'), list):
                 gone = {i for _, i in out}
                 data['presets'] = [({**x, 'release': releases.LAB} if x['id'] in lab_presets_kept else x)
-                                   for x in data['presets'] if isinstance(x, dict) and isinstance(x.get('id'), str)
+                                   for x in data['presets'] if item_id(x) is not None
                                    and (held is None or x['id'] in held)
                                    # Stage C F6 (ERRORS M458): a preset that reads an entry left out would be refused
                                    # when run (CONDITION_RESTRICTED, CAPABILITY_REQUIRED), so it is left out too
@@ -939,10 +950,9 @@ class Screeners:
         found = self.restricted.get(key)
         if found is None:
             data = loads(doc.raw)
-            data = data if isinstance(data, dict) else {}
-            found = {'items': [(name, kinds, fallback, e) for name, kinds, fallback in ITEM_LISTS if isinstance(data.get(name), list)
-                               for e in data[name] if isinstance(e, dict) and isinstance(e.get('id'), str)],
-                     'presets': [x['id'] for x in data.get('presets') or [] if isinstance(x, dict) and isinstance(x.get('id'), str)]}
+            found = {'items': [(name, kinds, fallback, e) for name, kinds, fallback in ITEM_LISTS
+                               for e in listed(data, name) if item_id(e) is not None],
+                     'presets': [item_id(x) for x in listed(data, 'presets') if item_id(x) is not None]}
             if len(self.restricted) > 32:
                 self.restricted.clear()
             self.restricted[key] = found
@@ -1099,9 +1109,13 @@ class Screeners:
         for row in rows:
             review = []
             # Phase 3b (C2 F2): the validation made when the item was saved holds only for the registry versions and the
-            # plan of that moment; a principal that does not hold every item has the item checked again under its own
-            # context (kept per digest), so a lowered plan sees the item it can no longer run
-            narrowed = not all(v == '*' for v in (context.get('allow') or {}).values())
+            # plan of that moment; a context narrower than the widest one (every item, every admin right, no plan limit:
+            # the only one under which the saved validation stands for any context) has the item checked again under
+            # its own context (kept per digest), so a lowered plan, or a session without a right the item reads, sees
+            # the item it can no longer run (ERRORS M526: the rights were not read)
+            context_rights = context.get('rights') or ()
+            narrowed = (not all(v == '*' for v in (context.get('allow') or {}).values())
+                        or not set(ADMIN_RIGHTS) <= set(context_rights) or bool(context.get('limits')))
             if isinstance(current, dict) and (narrowed or (row['registry_version'], row['screener_registry_version']) != (
                     current.get('registry'), current.get('screener_registry'))):
                 key = (row['kind'], hashlib.sha256(dumps(row['definition'])).hexdigest(), current.get('registry'),

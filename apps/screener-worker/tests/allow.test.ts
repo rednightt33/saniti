@@ -8,6 +8,7 @@
    limits as min(the worker's own ceiling, the plan's); a result cached for a principal with the item still refused for
    one without it; /counts refusing per entry; the internal calls (presets, normalize) never gated. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { after, before, test } from 'node:test';
 import { SHOWN_ATTRIBUTES } from '../../edge-bff/screener/src/core/catalog.ts';
 import { ALLOW_ALL, checkAllow, definitionItems, effectiveLimits, parseContext } from '../src/run.ts';
@@ -62,11 +63,26 @@ const exact = () => Object.fromEntries(Object.keys(FAMILY).map(k => [k, idsOf(k)
 
 test('the walk names every item of a definition with its kind and JSON path; the transform metrics (hi52, lo52, rs, vol_ratio) and price fields have no id', () => {
   assert.deepEqual(definitionItems(FULL).map(i => [i.kind, i.id, i.field]), EXPECTED);
-  // hi52 reaches the wire as its transform (screener-metrics.json ref): nothing to gate by id
-  const hi52 = { kind: 'transform', fn: 'pct_distance', of: { kind: 'transform', fn: 'rolling_max', of: { kind: 'price', field: 'high' }, args: { length: 252 } }, args: {} };
-  assert.deepEqual(definitionItems({ universe: U, conditions: [{ id: 'a', enabled: true, test: { kind: 'value', metric: hi52, op: 'gt', value: 0 } }], logic: 'all' }), []);
   // a counts entry's path
   assert.equal(definitionItems(FULL, 'definitions[3].definition')[1].field, 'definitions[3].definition.conditions[0].test.metric.indicator');
+});
+
+/* 3f round 2 (TRC2-5, CS-5): which Screener metrics the walk names by id is read from the catalog's own fields, both
+   ways, for every entry: a metric with a reference template (`ref`: the core refuses its id, metricSpec `!x.ref`, so it
+   reaches the wire as the template, hi52 as pct_distance(rolling_max(high, 252))) and a universe attribute that names its
+   `row` (shown in every answer) are never named; every other entry is. edge-bff's tests/test_releases.py reads the same
+   two fields to refuse the lab stage for an item no worker gates by id. */
+const METRICS = (JSON.parse(readFileSync(new URL('../../edge-bff/screener/src/core/screener-metrics.json', import.meta.url), 'utf8')) as { metrics: Record<string, unknown>[] }).metrics;
+test('the walk names a Screener metric by its id exactly when its catalog entry has no ref and no row', () => {
+  const key: Record<string, string> = { pattern: 'type', xsection: 'metric', universe: 'attr', flow: 'metric' };
+  const asSent = (m: Record<string, unknown>) => m.ref ? m.ref : { kind: m.kind, [key[m.kind as string] ?? 'id']: m.id, params: {} };
+  const kinds = new Set<string>();
+  for (const m of METRICS) {
+    kinds.add(m.kind as string);
+    const def = { universe: U, conditions: [{ id: 'a', enabled: true, test: { kind: 'value', metric: asSent(m), op: 'gt', value: 0 } }], logic: 'all' };
+    assert.equal(definitionItems(def).some(it => it.id === m.id), !m.ref && m.row === undefined, `${m.id} (${m.kind}, ref ${!!m.ref}, row ${m.row !== undefined})`);
+  }
+  assert.ok(kinds.has('transform') && kinds.has('universe'), 'the catalog has entries of both halves');
 });
 
 test('a universe attribute every answer shows is not an item (O3b-2, R1-35 "1a"); any other universe attribute is', () => {

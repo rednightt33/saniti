@@ -74,25 +74,37 @@ what must be closed first (FUTURE_PLAN.md, "Before the first lab item or tab"):
 - `tests/test_releases.py` `LAB_ITEM_HELD_UNTIL`:
   - the Screener worker's refusals list and name items outside the principal's allow;
   - the workers and the registry generators do not load lab formulas;
-  - the live site's edge-bff predates 3f until `live` moves past it.
+  - the live site's edge-bff predates 3f until `live` moves past it;
+  - the Terminal deletes a saved chart entry whose definition its build lacks, so one public-build session of the
+    admin's own account (the live site always serves that build, and the preferences are shared) deletes the admin's
+    lab indicators from the synced layout (round 2, CRIT-1);
+  - an existing item named in page code or computed by a built-in without its id cannot be put back at the lab stage
+    by the release file alone (round 2, CRIT-3; below, "Items written in code").
 - `tests/test_live_switch.py` `LAB_TAB_HELD_UNTIL`: a lab tab's rail entry, route, frame wrapper and words are in the
   public shell, and `auth/config` names it.
 
 What is built:
 
-- **Page builds.** `npm run build` of the Terminal and the Backtest page makes two builds.
-  - The public build (`static/terminal-app`, `backtest/dist`) keeps only the released entries of every file that names
-    items (`apps/edge-bff/shared/release-filter.mjs`, in `plugins` and in `worker.plugins`, so the Web Worker files
-    too). An unlisted id is lab, and a missing release file stops the build.
-  - The lab build (`static/terminal-app-lab`, `backtest/dist-lab`) keeps every entry and the lab formulas.
-  - The Screener page is built with the same filter; it has no lab build.
-  - edge-bff serves the lab build from the same address to the admin on the beta only (`auth.lab_viewer`): with the
-    switch on, admin.access and the second factor passed; on today's beta, with the switch off, the owner's signed-in
-    session. Its files answer under `/<app>/lab/assets/` and 404 to everyone else and on the live site.
+- **Page builds.** Every page build applies the filter (`apps/edge-bff/shared/release-filter.mjs`, in `plugins` and
+  in `worker.plugins`, so the Web Worker files too): the public build keeps only the released entries of every file
+  that names items. An unlisted id is lab, a missing release file or a part of a registry that is missing stops the
+  build.
+  - `npm run build` of the Terminal and the Backtest page also makes a lab build (`static/terminal-app-lab`,
+    `backtest/dist-lab`), which keeps every entry and the lab formulas. The other pages have no lab build.
+  - edge-bff serves the lab build from the same address to the admin on the beta (`auth.lab_admin`: with the switch on,
+    admin.access and the second factor passed; on today's beta, with the switch off, the owner's signed-in session) who
+    holds every item of every kind (`catalog.holds_every_item`: the build carries them all). Its files answer under
+    `/<app>/lab/assets/` and 404 to everyone else and on the live site.
 - **Tab catalogs.** The Screener's and the Backtest's catalogs list a lab item only to a principal that holds it
   (`catalog.tab_list`, the rule of `/api/v1/catalog`), and a preset that reads an entry left out is left out too.
 - **Lab tabs.** A tab with its own page app (`<tab>-app`) at the lab stage is served, page and assets, to the admin on the
-  beta only. A new tab must be its own `<tab>-app`: a tab that is a page of the shell ships its whole code in the shell.
+  beta who holds the tab's own `<tab>.view`. A new tab must be its own `<tab>-app`: a tab that is a page of the shell
+  ships its whole code in the shell.
+- **Items no worker gates by id are never lab** (a standing rule, `test_releases.py`
+  test_an_item_no_worker_gates_by_id_is_never_lab): a Screener metric with a `ref` (hi52, lo52, rs, vol_ratio: it reaches
+  the wire as its composition of transforms) and a universe attribute every answer shows (`row`). Every principal
+  reads or runs them whatever its plan, so the lab stage could only hide a catalog row. A new one is staged in the lab
+  with an id the workers gate (an attribute without `row`, a pattern, cross-section metric or indicator).
 
 These tests enforce the switches:
 
@@ -103,15 +115,18 @@ These tests enforce the switches:
   for now (above).
 - `apps/edge-bff/tests/test_releases.py`: every registry id has an entry; no item is at the lab stage for now (above).
 - `apps/edge-bff/tests/test_3f_public_bundles.py` scans every file served without the admin check (each page's build,
-  its Web Worker files and the shell) for every lab item's id and formula key. Its proof builds list fixture lab items
-  in a release file: a technical indicator in both indicator registries and the comparison lag, and in the Terminal a
-  Flow indicator its Web Worker reads. The fixtures are in the lab builds and in no public file. With
+  its Web Worker files and the shell) for every lab item's id and formula key. Its proof builds (round 2 of the
+  checker) copy apps/edge-bff, write fixture items on disk into every registry the filter knows (one released, one lab,
+  one unlisted, each with a marker; `terminal/tests/lab/plant.mjs`), import them from every page and Web Worker entry,
+  and build every page there with its own configuration: each public bundle file carries the released ones only, each
+  lab one all of them, the lab formula only the lab builds, and each build names only its own files. With
   `EDGE_TEST_REQUIRE_NODE=1` (CI) a page not built fails the test instead of skipping it.
-- `apps/edge-bff/terminal/tests/lab/public-entries.test.mjs` walks every page and Web Worker entry: none reaches a
-  module under `terminal/src/lab/` but `none.ts`. `coverage.test.mjs` fails when a file a public entry reaches names an
-  item and the filter does not cover it.
-- `apps/edge-bff/tests/test_3f_lab_pages.py` (who is served a lab build and a lab tab) and `tests/test_3f_tab_catalogs.py`
-  (the catalogs, on the beta and the live site).
+- `apps/edge-bff/terminal/tests/lab/public-entries.test.mjs` walks every page and Web Worker entry, derived from each
+  `index.html` and each `new Worker(new URL(...))`: none reaches a module under `terminal/src/lab/` but `none.ts`.
+  `coverage.test.mjs` fails when a JSON file a public entry reaches is neither filtered nor written down as naming no
+  item, or when a part of a registry the filter leaves names an item.
+- `apps/edge-bff/tests/test_3f_lab_pages.py` (who is served a lab build and a lab tab; the repository's real lab builds
+  too) and `tests/test_3f_tab_catalogs.py` (the catalogs, on the beta and the live site, and both routes over HTTP).
 
 How a new piece of work enters:
 
@@ -134,6 +149,12 @@ How a new piece of work enters:
     catalogs leave it out.
   - Items written in code are not release items: the Terminal's netflow and netbuyline, the VOL row, the Backtest's
     legacy cards (fnet, broker, top5). The bundle scan fails if one of them is made lab, because the code names it.
+  - Nor can an existing item be put back at the lab stage by the release file alone when code names or computes it
+    (round 2, CRIT-3): every Flow indicator's formula is keyed by its id in `terminal/src/calc/flow.ts` (FL51's entry is
+    read with `find(...)!`, so filtering it out would break the page), the page modules name about 30 more ids
+    (`flowIndicators.ts` SINGLE_SECURITY, `indMenu.ts`, the Screener page's `builder.ts` and `extra-columns.ts`, the
+    Backtest's `core/catalog.ts`), and built-ins compute some without their id (the Backtest's rank items for I07, I35
+    and I13, the ATR stops for I30, the transform `ma`). Held: `LAB_ITEM_HELD_UNTIL`.
   - A released entry's text must not name a lab item.
 - **A change to a released tab.** This needs care: once `live` moves, the change is live. Either keep it off with its
   own new item or tab at the lab stage (once the guards are lifted), or tell the user it will be live when `live` moves
@@ -255,5 +276,5 @@ Update this table at every promotion: what is on each site, and since when.
 | The A2 fix (the account's own browser, a reset bound to its browser, the client's part of an address's day; ERRORS M517) | on the beta (`f8c872e0`, 2026-11-20) | not yet | Migrations `20261120_001` and `_002` applied on dev. Goes live on the user's request. The user chose (2026-11-21) to bring it live together with 3e and 3f, in one promotion, not alone |
 | The MFA lock names the way still open (ERRORS M519: with both ways locked, the `/mfa` page no longer offers the authenticator code) | on the beta (`d194981f`, 2026-11-21) | not yet | Additive (`details.use` "code"); no migration. It goes live with A2, 3e and 3f |
 | 3e without the example mode (CONTRACT 8b; every tab in the rail, `LockedTabPage`, the Terminal's locks in place) | on the beta (`d194981f`, 2026-11-21) | not yet | **Visible on the live site when `live` moves past it:** a visitor's rail gains Overview, Watchlist and Radar, and every tab but the Terminal shows a sign-in card. The Terminal shows "Broker data · Locked" as the Flow Timeline's head, the Events button with a lock, and IHSG Locked in Statistics, where the F1 stopgap hid them. A test account sees "not in your plan" on the paid tabs. A saved asset the visitor does not hold says Locked; the Broker activity button carries the lock. Not built: the example mode and the Monitor's example (D4) |
-| 3f, lab code out of the public bundles (CONTRACT 8 "Lab code", 8b "3f") | on the session branch | not yet | No visible change: the public builds are byte-identical, and no item or tab may be lab yet (section 3). It also fixes a defect older than 3f that acts on the live site once `live` moves: the Screener's catalog copies are kept per the presets held, so the admin and an account without presets never share one (ERRORS M522) |
-| The Screener worker: its catalog carries the admin mark (ERRORS M520), and the admin-only Flow versions are refused before their parameters are read (M521) | on the session branch | **visible on the live site as soon as screener-worker deploys from `main`**, before any promotion (a shared service) | The live Screener then lists FL18, FL19, FL20, FL23, FL44, FL45 and the preset `follow` to nobody, the admin included (nobody holds the point-in-time right on live). That is the intended rule. The Screener engine version changes once. Tell the user before `main` moves |
+| 3f, lab code out of the public bundles (CONTRACT 8 "Lab code", 8b "3f"), with both rounds of its checker | on the session branch | not yet | No visible change: every page's public build is byte-identical, and no item or tab may be lab yet (section 3). It also fixes defects older than 3f that act on the live site once `live` moves: the Screener's catalog copies are kept per the presets held, so the admin and an account without presets never share one (ERRORS M522); the image now builds the Backtest page as CI builds and tests it, so its bundle changes once (M525: the same source, its class fields compiled as ES2022); a saved screen is checked again under any context but the widest (M526; no deployed site's answer changes) |
+| The Screener worker: its catalog carries the admin mark (ERRORS M520), the admin-only Flow versions are refused before their parameters are read (M521), and a deeply nested request is answered 422 again, not 500 (M524) | on the session branch | **visible on the live site as soon as screener-worker deploys from `main`**, before any promotion (a shared service) | The live Screener then lists FL18, FL19, FL20, FL23, FL44, FL45 and the preset `follow` to nobody, the admin included (nobody holds the point-in-time right on live). That is the intended rule. The Screener engine version changes once per deploy that carries these. Tell the user before `main` moves |

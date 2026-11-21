@@ -7,7 +7,7 @@ WORKDIR /build/terminal
 COPY terminal/package.json terminal/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY shared /build/shared
-# 3f (CONTRACT.md 8a "Lab code"): the page build filters the registries by release stage (shared/release-filter.mjs) and
+# 3f (CONTRACT.md 8 "Lab code"): the page build filters the registries by release stage (shared/release-filter.mjs) and
 # stops without the release file; it builds the public page and the admin's lab page (static/terminal-app-lab)
 COPY catalog/releases.json /build/catalog/releases.json
 COPY terminal/ ./
@@ -24,6 +24,10 @@ COPY backtest/package.json backtest/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY terminal/src /build/terminal/src
 COPY screener/src /build/screener/src
+# 3f round 2 (CRIT-4, ERRORS M525): each copied source folder with its tsconfig.json, which esbuild reads for the files
+# under it (target ES2022: the class fields), so the page the image ships is the page CI builds and tests
+COPY terminal/tsconfig.json /build/terminal/tsconfig.json
+COPY screener/tsconfig.json /build/screener/tsconfig.json
 COPY shared /build/shared
 # 3f: the release file the page build filters by (shared/release-filter.mjs); dist/ is the public page, dist-lab/ the lab page
 COPY catalog/releases.json /build/catalog/releases.json
@@ -42,6 +46,9 @@ COPY screener/package.json screener/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY terminal/src /build/terminal/src
 COPY backtest/src /build/backtest/src
+# 3f round 2 (CRIT-4, ERRORS M525): each copied source folder with its tsconfig.json (the backtest stage's note)
+COPY terminal/tsconfig.json /build/terminal/tsconfig.json
+COPY backtest/tsconfig.json /build/backtest/tsconfig.json
 COPY shared /build/shared
 # 3f: the release file the page build filters the registries by (shared/release-filter.mjs, fail closed; checker B4)
 COPY catalog/releases.json /build/catalog/releases.json
@@ -56,6 +63,8 @@ WORKDIR /build/radar
 COPY radar/package.json radar/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY shared /build/shared
+# 3f round 2: every page build applies the release filter (shared/release-filter.mjs), which stops without this file
+COPY catalog/releases.json /build/catalog/releases.json
 COPY radar/ ./
 RUN npm run build
 
@@ -68,6 +77,8 @@ WORKDIR /build/overview
 COPY overview/package.json overview/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY shared /build/shared
+# 3f round 2: every page build applies the release filter (shared/release-filter.mjs), which stops without this file
+COPY catalog/releases.json /build/catalog/releases.json
 COPY overview/ ./
 RUN npm run build
 
@@ -80,6 +91,8 @@ WORKDIR /build/watchlist
 COPY watchlist/package.json watchlist/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY shared /build/shared
+# 3f round 2: every page build applies the release filter (shared/release-filter.mjs), which stops without this file
+COPY catalog/releases.json /build/catalog/releases.json
 COPY watchlist/ ./
 RUN npm run build
 

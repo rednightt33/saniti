@@ -273,6 +273,19 @@ or tab until each is closed; their failure messages name them: `apps/edge-bff/te
 | The live site's edge-bff (checker L5) | Until `live` moves past 3f's server part (`ec1bd29c`), the live site lists a lab item of the shared workers' catalogs to every principal. | `live` moves past 3f, on the user's go. |
 | The shell (checker SERVE-3, TR-13) | A lab tab's rail entry, route, frame wrapper and words are in the public `static/edge-app.js` and `edge-labels.js`; the live site's public `auth/config` names it in `hidden_tabs`. A tab that is a page of the shell ships its whole code there. | The shell builds its rail and routes from the session's tabs, a lab tab's words leave `edge-labels.js` until release, `auth/config` names no lab tab, and every new tab is its own `<tab>-app`. |
 | Optional (checker SERVE-2, SERVE-4, CAT-5, L11) | The lab files stay in the admin's private browser cache after sign-out; the Terminal's Web Worker has no error handler; a released entry's text could name a lab item; the live smoke's lab probe passes by absence once the builds differ. | `private, no-cache` with a 304 after the check, or `Clear-Site-Data` at sign-out; `worker.onerror` as the Backtest loader has; a catalog test over all text; a fixed-name probe file in the lab build. |
+| The admin's synced chart layout (round 2, CRIT-1) | The Terminal's `restore()` drops a saved indicator whose definition its build lacks and saves the shorter list (`terminal/src/app/indicators.ts`). One public-build session of the admin's own account deletes its lab indicators from `ml.ind.v1`: the live site always serves the public build, and both sites share the preferences (keyed by owner, no site). An item the principal does not hold is parked and kept instead (3c C3-8). | Park an entry whose definition the build lacks, as a locked one is parked, and never save during restore when entries were dropped. A browser test: the lab build, then the public build, then the lab build again, the layout unchanged. A Terminal change, so the user's go ("Terminal jangan disentuh" is about its indicators; this is its layout code). |
+| Items code names or computes (round 2, CRIT-3) | Every Flow formula is keyed by its id in `terminal/src/calc/flow.ts` (FL51's entry is read with `find(...)!`), page modules name about 30 more ids, and built-ins compute some without their id (the Backtest's rank items for I07, I35, I13; the ATR stops for I30; the transform `ma`). Putting one back at the lab stage would keep it in the public bundles or running for everyone. | A test that derives the ids named in page code and the ids built-ins compute, and refuses the lab stage for them, as the standing rule does for the items no worker gates by id (`tests/test_releases.py`). |
+
+Decided (round 2, not held): an item no worker gates by id (a Screener metric with a `ref`, a universe attribute every
+answer shows) can never be at the lab stage (`tests/test_releases.py` test_an_item_no_worker_gates_by_id_is_never_lab;
+LIVE_PROMOTION.md section 3). A lab build goes only to the admin who holds every item, a lab tab only with its own
+`<tab>.view` (CONTRACT.md 8 "Lab code").
+
+Open for the user (round 2, W4, ERRORS M526; older than 3f): the live site lists the admin's own beta Backtest jobs
+(their requests, a point-in-time condition included, and results) and can cancel a queued beta job, because the job
+routes read by owner only and user #1 has one owner on both sites. Nobody else reaches them and no formula is returned.
+Whether a job is read and cancelled only on the site that queued it is the user's choice (`BacktestStore` job, jobs,
+part, has and cancel with the site; queueing stays per owner).
 
 ### 3a. Usulan yang belum disetujui
 

@@ -214,11 +214,12 @@ admin only, every feature first) and the live site (`edge-bff-live`, app.edgefin
   pengembangan di beta dibawa live on schedule basis. Semuanya harus on request basis."). Before moving `live`, read
   `LIVE_PROMOTION.md` and run `python3 scripts/live_diff.py --sites`, then tell the user everything that moves with
   the commit (whole commits move, not one feature).
-- A new tab, page or catalog item enters at the lab stage in `apps/edge-bff/catalog/releases.json` (`tabs`, `items`;
-  unlisted is lab). Lab stays off on the live site for everyone, the admin's `*` included, and stays on the beta.
+- Every tab, page and catalog item has its stage in `apps/edge-bff/catalog/releases.json` (`tabs`, `items`; unlisted
+  is lab). Lab stays off on the live site for everyone, the admin's `*` included, and stays on the beta.
   3f built the lab builds and filters, but no item or tab may be lab yet: `tests/test_releases.py` and
   `tests/test_live_switch.py` refuse one and name what must be closed first (FUTURE_PLAN.md "Before the first lab item
-  or tab"; LIVE_PROMOTION.md section 3). A new tab is its own `<tab>-app`.
+  or tab"; LIVE_PROMOTION.md section 3). Until then a new one enters as `released` only with the user's go, or stays off
+  `main`; an item no worker gates by id is never lab. A new tab is its own `<tab>-app`.
   `tests/test_live_switch.py` fails when a capability tab or a page of the shell has no entry. Migrations stay
   expand-only while the live site runs older code on the shared database.
 - Connecting a repository or changing a deploy trigger is an account action the session's project token may not do

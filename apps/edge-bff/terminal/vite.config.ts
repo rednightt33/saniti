@@ -40,19 +40,17 @@ function classicScriptAtEnd(): Plugin {
    released items of the registries (shared/release-filter.mjs) and has no lab formula ('@edge-lab' is src/lab/none.ts).
    The lab one (--mode lab) keeps every item and the lab formulas (src/lab/index.ts), into ../static/terminal-app-lab;
    edge-bff serves it at /terminal-app/lab/ only to the admin on the beta. */
-/** The build's configuration; `extra`, `labModule` and `outDir` are for the proof builds of the tests only
-    (tests/lab/proof.config.ts: a fixture lab item that never enters the release file). */
-export function terminalConfig({ lab = false, extra = {}, labModule = undefined as string | undefined, outDir = '',
-                                 releases = undefined as string | undefined } = {}) {
-  const filter = () => releaseFilter({ lab, extra, ...(releases ? { releases } : {}) });
+/** The build's configuration (tests/test_3f_public_bundles.py builds it as it is, on a copy whose registries hold fixture
+    items). */
+export function terminalConfig({ lab = false } = {}) {
   return {
     base: lab ? '/terminal-app/lab/' : '/terminal-app/',
-    plugins: [filter(), drawingInk(), classicScriptAtEnd()],
+    plugins: [releaseFilter({ lab }), drawingInk(), classicScriptAtEnd()],
     // the Web Worker's bundle takes only these (checker L1): the same filter, so the worker carries no lab item either
-    worker: { plugins: () => [filter()] },
-    resolve: { alias: labAlias({ lab, module: labModule }) },
+    worker: { plugins: () => [releaseFilter({ lab })] },
+    resolve: { alias: labAlias({ lab }) },
     optimizeDeps: { exclude: ['lightweight-charts-drawing'] },
-    build: { outDir: outDir || (lab ? '../static/terminal-app-lab' : '../static/terminal-app'), emptyOutDir: true, assetsDir: 'assets',
+    build: { outDir: lab ? '../static/terminal-app-lab' : '../static/terminal-app', emptyOutDir: true, assetsDir: 'assets',
              sourcemap: false, target: 'es2022', cssCodeSplit: false, rollupOptions: { output: { format: 'iife' as const, inlineDynamicImports: true } } },
   };
 }

@@ -4,12 +4,13 @@
   scanned for the lab items of the release file: each lab item's id, and a lab indicator's formula key. The lab builds
   (static/terminal-app-lab, the Backtest's dist-lab) are served to the admin on the beta only (tests/test_3f_lab_pages.py)
   and are not scanned.
-- The proof builds: the Terminal and the Backtest page are built as in production with fixture lab items added to
-  their registries (terminal/tests/lab/: a technical indicator in both indicator registries and the comparison lag, and,
-  in the Terminal, a Flow indicator, which its Web Worker's bundle reads) and, in the lab build, the indicator's formula as
-  the lab module. The release file lists the fixtures as lab, as a real lab item is listed. The public build carries
-  none of the fixtures' markers, its Web Worker file included; the lab build carries every one, which is also the
-  scan's self-test (it must find what is there).
+- The proof builds (round 2 of the checker, 2026-11-21: the fixtures had entered through the filter they tested, so a
+  bundle built without it lost them and passed): on a copy of apps/edge-bff, terminal/tests/lab/plant.mjs writes fixture
+  items into every registry the filter knows, on disk, one released, one lab and one the release file does not list, each
+  with a marker of its own, imports every registry from every page and Web Worker entry, and gives the lab module a
+  formula marker. Every page is then built there with its own configuration, unchanged. Each bundle file of a public
+  build carries every released marker (the plant reached it) and no other; each one of a lab build carries every marker;
+  the lab formula is in the lab builds only; and each build names only its own files, under its own base.
 - With EDGE_TEST_REQUIRE_NODE=1 (CI's edge-bff job builds every page first) a page that is not built, or node and the
   pages' packages missing, fails instead of skipping, so the scan can never pass by having nothing to read (checker B2).
 """
@@ -33,10 +34,7 @@ PUBLIC_BUILDS = (STATIC / 'terminal-app', EDGE / 'backtest' / 'dist', EDGE / 'sc
 LAB_BUILDS = (STATIC / 'terminal-app-lab', EDGE / 'backtest' / 'dist-lab', STATIC / 'backtest-app-lab')
 TEXT = {'.js', '.mjs', '.html', '.css', '.json', '.svg', '.txt'}
 REGISTRY_KEYS = {'terminal/src/data/indRegistry.json': lambda d: d, 'backtest/src/core/backtest-registry.json': lambda d: d['indicators']}
-FIXTURE = EDGE / 'terminal' / 'tests' / 'lab'
-INDICATOR_MARKERS = ('I_LAB_PROOF', 'lab_proof_7f3a', 'Lab proof indicator 7f3a', 'LAB-PROOF-FORMULA-7f3a')
-FLOW_MARKERS = ('FL_LAB_PROOF', 'Lab proof flow 7f3a', 'LAB-PROOF-FLOW-7f3a')
-PROOF_MARKERS = {'terminal': INDICATOR_MARKERS + FLOW_MARKERS, 'backtest': INDICATOR_MARKERS}
+PLANT = EDGE / 'terminal' / 'tests' / 'lab' / 'plant.mjs'
 REQUIRE_NODE = os.environ.get('EDGE_TEST_REQUIRE_NODE') == '1'
 
 
@@ -105,38 +103,87 @@ def test_the_scan_finds_a_marker_planted_in_a_public_file(tmp_path):
     assert leaks([planted], {'FL9'}) == []
 
 
-def build(app, config, out, lab, releases=None):
-    env = {**os.environ, 'EDGE_LAB_PROOF_OUT': str(out), **({'EDGE_LAB_PROOF_RELEASES': str(releases)} if releases else {})}
-    cmd = ['npx', 'vite', 'build', '--config', str(config), '--logLevel', 'warn'] + (['--mode', 'lab'] if lab else [])
-    r = subprocess.run(cmd, cwd=EDGE / app, env=env, capture_output=True, text=True, timeout=600)
-    assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-2000:]
-    return out
+def pages():
+    """The pages: each folder of apps/edge-bff holding a vite.config.ts and an index.html (shared/import-walk.mjs pages)."""
+    return sorted(d.name for d in EDGE.iterdir() if (d / 'vite.config.ts').is_file() and (d / 'index.html').is_file())
 
 
-def test_the_proof_builds_keep_lab_items_out_of_the_public_files_and_give_them_to_the_lab_build(tmp_path):
+def copy_of_edge(dest):
+    """A copy of the pages' sources, shared/ and catalog/ (every file git tracks or would track) under dest/apps/edge-bff,
+    each page's node_modules linked to the repository's."""
+    repo = EDGE.parents[1]
+    names = subprocess.run(['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--',
+                            *[f'apps/edge-bff/{d}' for d in (*pages(), 'shared', 'catalog')]],
+                           cwd=repo, capture_output=True, check=True).stdout.decode().split('\0')
+    for rel in filter(None, names):
+        if (repo / rel).is_file():
+            (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(repo / rel, dest / rel)
+    for page in pages():
+        (dest / 'apps' / 'edge-bff' / page / 'node_modules').symlink_to(EDGE / page / 'node_modules')
+    return dest / 'apps' / 'edge-bff'
+
+
+def outputs(edge, page):
+    """{'public': folder, 'lab': folder}: where the page's builds went (the Terminal's into static/, the others' into
+    the page's dist folders)."""
+    found = {}
+    for kind, names in (('public', (f'static/{page}-app', f'{page}/dist')), ('lab', (f'static/{page}-app-lab', f'{page}/dist-lab'))):
+        built = [edge / n for n in names if (edge / n / 'index.html').is_file()]
+        assert len(built) <= 1, built
+        if built:
+            found[kind] = built[0]
+    return found
+
+
+def own_paths(build, base):
+    """[(file, path)] for each page path (/<page>-app/...) a build's index.html or script names that is not one of its
+    own files: under its own base + assets/ and present there."""
+    wrong = []
+    for f in [build / 'index.html', *sorted((build / 'assets').glob('*.js'))]:
+        for ref in re.findall(r"""["'`(](/[a-z]+-app/[^"'`)\s]*)""", f.read_text(encoding='utf-8', errors='replace')):
+            if not (ref.startswith(f'{base}assets/') and (build / 'assets' / ref[len(f'{base}assets/'):]).is_file()):
+                wrong.append((f.name, ref))
+    return wrong
+
+
+def test_the_proof_builds_keep_each_planted_item_where_it_belongs(tmp_path):
     if shutil.which('npx') is None:
         missing('node is not installed')
-    for app in ('terminal', 'backtest'):
-        if not (EDGE / app / 'node_modules').is_dir():
-            missing(f'{app}/node_modules is missing (npm ci)')
-    indicator = json.loads((FIXTURE / 'fixture-entry.json').read_text())
-    flow = json.loads((FIXTURE / 'fixture-flow-entry.json').read_text())
-    assert releases.stage_of('indicator', indicator['id']) == releases.LAB        # never in the release file
-    assert releases.stage_of('flow_indicator', flow['id']) == releases.LAB
-    # the release file as a real lab item meets it: the repository's, with the fixtures listed at the lab stage
-    data = json.loads(releases.PATH.read_text())
-    data['items'] += [{'kind': 'indicator', 'id': indicator['id'], 'stage': 'lab'},
-                      {'kind': 'flow_indicator', 'id': flow['id'], 'stage': 'lab'}]
-    listed = tmp_path / 'releases.json'
-    listed.write_text(json.dumps(data))
-    configs = {'terminal': FIXTURE / 'proof.config.mjs', 'backtest': FIXTURE / 'backtest-proof.config.mjs'}
-    for app, config in configs.items():
-        public = build(app, config, tmp_path / f'{app}-public', lab=False, releases=listed)
-        lab = build(app, config, tmp_path / f'{app}-lab', lab=True, releases=listed)
-        assert leaks(files_of(public), PROOF_MARKERS[app]) == [], app
-        assert sorted({m for _, m in leaks(files_of(lab), PROOF_MARKERS[app])}) == sorted(PROOF_MARKERS[app]), app
-    # the Terminal's Web Worker reads the Flow registry (checker L1): its lab file has the fixture, its public one not
-    workers = {kind: [f for f in files_of(tmp_path / f'terminal-{kind}') if f.name.startswith('worker-')] for kind in ('public', 'lab')}
-    assert workers['public'] and workers['lab']
-    assert leaks(workers['public'], FLOW_MARKERS) == []
-    assert {m for _, m in leaks(workers['lab'], FLOW_MARKERS)} >= {'FL_LAB_PROOF', 'Lab proof flow 7f3a'}
+    for page in pages():
+        if not (EDGE / page / 'node_modules').is_dir():
+            missing(f'{page}/node_modules is missing (npm ci)')
+    edge = copy_of_edge(tmp_path)
+    r = subprocess.run(['node', str(PLANT), str(edge)], capture_output=True, text=True, timeout=120)    # the repository's script, on the copy
+    assert r.returncode == 0, r.stderr[-3000:]
+    plant = json.loads(r.stdout)
+    released = sorted(m['R'] for m in plant['markers'].values())
+    others = sorted(m[s] for m in plant['markers'].values() for s in ('L', 'U'))
+    assert len(plant['markers']) == len({part for part in plant['markers']}) >= 10 and plant['entries'], plant
+    labs = []
+    for page in pages():
+        lab_build = '--mode lab' in json.loads((edge / page / 'package.json').read_text())['scripts']['build']
+        for lab in (False, True) if lab_build else (False,):
+            cmd = ['npx', 'vite', 'build', '--logLevel', 'warn'] + (['--mode', 'lab'] if lab else [])
+            b = subprocess.run(cmd, cwd=edge / page, capture_output=True, text=True, timeout=600)
+            assert b.returncode == 0, f'{page} lab={lab}: ' + b.stdout[-2000:] + b.stderr[-2000:]
+        built = outputs(edge, page)
+        assert set(built) == ({'public', 'lab'} if lab_build else {'public'}), (page, built)
+        for kind, folder in built.items():
+            base = f'/{page}-app/lab/' if kind == 'lab' else f'/{page}-app/'
+            assert own_paths(folder, base) == [], (page, kind)            # 3f round 2, CRIT-2: a lab page reads its own files
+            for f in sorted((folder / 'assets').glob('*.js')):            # each bundle: the page's and each Web Worker's
+                text = f.read_text(encoding='utf-8', errors='replace')
+                where = f'{page} {kind} {f.name}'
+                assert [m for m in released if m not in text] == [], f'{where}: the plant did not reach this bundle'
+                if kind == 'public':
+                    assert [m for _, m in leaks([f], others + [plant['formula']])] == [], f'{where} carries a lab item'
+                else:
+                    assert [m for m in others if m not in text] == [], f'{where}: a lab item is missing from the lab build'
+            if kind == 'public':
+                assert leaks(files_of(folder), others + [plant['formula']]) == [], page
+            else:
+                labs.append(page)
+                mains = [f for f in (folder / 'assets').glob('index-*.js')]
+                assert len(mains) == 1 and plant['formula'] in mains[0].read_text(), f'{page}: the lab formula is not in the lab build'
+    assert labs == ['backtest', 'terminal'], labs

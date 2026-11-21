@@ -1540,7 +1540,10 @@ def test_the_image_builds_the_backtest_page_beside_the_sources_it_imports():
     assert [line for line in stage.strip().splitlines() if line.strip() and not line.startswith('#')] == [
         'WORKDIR /build/backtest', 'COPY backtest/package.json backtest/package-lock.json ./',
         'RUN npm ci --no-audit --no-fund', 'COPY terminal/src /build/terminal/src',
-        'COPY screener/src /build/screener/src', 'COPY shared /build/shared',
+        'COPY screener/src /build/screener/src',
+        # 3f round 2 (CRIT-4, ERRORS M525): each copied source folder with its configuration
+        'COPY terminal/tsconfig.json /build/terminal/tsconfig.json', 'COPY screener/tsconfig.json /build/screener/tsconfig.json',
+        'COPY shared /build/shared',
         # 3f: the release file the page build filters the registries by (shared/release-filter.mjs, fail closed)
         'COPY catalog/releases.json /build/catalog/releases.json', 'COPY backtest/ ./', 'RUN npm run build']
     root = Path(__file__).resolve().parents[1].resolve()
@@ -1567,6 +1570,32 @@ def test_the_image_builds_the_backtest_page_beside_the_sources_it_imports():
     # EXEC-MU-ACCOUNTS Phase 0: shared/ holds the session module every page imports (shared/edge-session.ts)
     assert [p for p in sorted(outside) if not (p.startswith(('terminal/src/', 'screener/src/', 'shared/')))] == []
     assert packages == set()
+
+
+def test_each_page_stage_builds_with_the_configuration_ci_builds_with():
+    """3f round 2 (CRIT-4, ERRORS M525): esbuild compiles a .ts file with the nearest tsconfig.json above it. The backtest
+    stage copied terminal/src without terminal/tsconfig.json, so the Terminal modules of the image's Backtest page were
+    compiled without target ES2022 (no class fields) and that page differed from the one CI builds and tests. Every
+    page stage (each folder with a vite.config.ts and an index.html) that copies another folder's src/ copies that
+    folder's tsconfig.json too; and every page stage takes shared/ and the release file, which every page build's
+    release filter reads (shared/release-filter.mjs, it stops without the file)."""
+    import re
+    root = Path(__file__).resolve().parents[1]
+    text = (root / 'Dockerfile').read_text()
+    pages = sorted(d.name for d in root.iterdir() if (d / 'vite.config.ts').is_file() and (d / 'index.html').is_file())
+    assert len(pages) >= 6, pages
+    for page in pages:
+        assert f'FROM node:22-slim AS {page}\n' in text, f'{page}: no stage builds it'
+        stage = text.split(f'FROM node:22-slim AS {page}\n', 1)[1].split('\nFROM ', 1)[0]
+        # [source, destination] for each source of each COPY line (one line may copy several sources)
+        copies = [[src, line.split()[-1]] for line in stage.splitlines() if line.startswith('COPY ') for src in line.split()[1:-1]]
+        for src, dest in copies:
+            folder = re.fullmatch(r'([a-z]+)/src', src)
+            if folder:
+                other = folder.group(1)
+                assert (root / other / 'tsconfig.json').is_file(), other
+                assert [f'{other}/tsconfig.json', f'/build/{other}/tsconfig.json'] in copies, f'{page} stage: {src} without its tsconfig.json'
+        assert ['shared', '/build/shared'] in copies and ['catalog/releases.json', '/build/catalog/releases.json'] in copies, page
 
 
 def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth():
@@ -1605,13 +1634,18 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
     # (EXEC-MU-ACCOUNTS re-check R1-35, user 2026-11-19 "1a": and the Screener catalog, whose shown universe attributes
     # app/catalog.py reads at start)
     # (3f: the Terminal and Backtest stages take the release file their page build filters the registries by)
+    # (3f round 2: every page stage takes the release file, as every page build applies the filter; and the stages that
+    # take another page's source take its tsconfig.json too, CRIT-4, ERRORS M525)
     assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'shared', 'catalog/releases.json', 'terminal/',
-                      'backtest/package.json', 'backtest/package-lock.json', 'terminal/src', 'screener/src', 'shared',
+                      'backtest/package.json', 'backtest/package-lock.json', 'terminal/src', 'screener/src',
+                      'terminal/tsconfig.json', 'screener/tsconfig.json', 'shared',
                       'catalog/releases.json', 'backtest/', 'screener/package.json',
-                      'screener/package-lock.json', 'terminal/src', 'backtest/src', 'shared', 'catalog/releases.json', 'screener/',
+                      'screener/package-lock.json', 'terminal/src', 'backtest/src', 'terminal/tsconfig.json', 'backtest/tsconfig.json',
+                      'shared', 'catalog/releases.json', 'screener/',
                       'radar/package.json',
-                      'radar/package-lock.json', 'shared', 'radar/', 'overview/package.json', 'overview/package-lock.json', 'shared',
-                      'overview/', 'watchlist/package.json', 'watchlist/package-lock.json', 'shared', 'watchlist/',
+                      'radar/package-lock.json', 'shared', 'catalog/releases.json', 'radar/', 'overview/package.json',
+                      'overview/package-lock.json', 'shared', 'catalog/releases.json',
+                      'overview/', 'watchlist/package.json', 'watchlist/package-lock.json', 'shared', 'catalog/releases.json', 'watchlist/',
                       'requirements.txt', 'app', 'catalog', 'screener/src/core/screener-metrics.json', 'static']
     # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's
     # modules, the static files) and the three pages' sources

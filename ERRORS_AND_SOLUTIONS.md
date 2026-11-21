@@ -8879,6 +8879,70 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M526 — Saved screens kept a validation made under a wider context when only the rights differed; the live site lists and can cancel the admin's own beta Backtest jobs (2026-11-21; the review FIXED on the branch, the job history OPEN for the user; predates 3f)
+
+- **Found by:** 3f's checker, round 2 (W4, unverified), then verified by its skeptic (`wf_d4d13dbc-fff`, xhigh) with
+  local probes. No live row was read.
+- **What holds:**
+  - Screener: `Screeners.reviewed` validated a saved item again when the allow was narrowed or the registry versions
+    changed, never when the rights differed. A context holding every item but not the point-in-time right listed an
+    item reading an admin-only Flow version with an empty `needs_review`; its run is refused (`CONDITION_RESTRICTED`).
+    No deployed site makes that context: the live site's allow is never `*`, so it reviews (probe: the refusal listed),
+    and the switch-off beta gives `*` with the right.
+  - Backtest: every owner route (list, status, result, events, cancel; `app/backtest.py` BacktestStore) reads by
+    `owner_key` only, and user #1 has one owner key on both sites. So the live admin's session lists its beta jobs with
+    their requests (a point-in-time condition and its parameters) and results, and can cancel a beta job (probe: 202,
+    the beta row `CANCELLED`). It is the same person's own data: another account got 404 for all of it, no definition or
+    formula is returned (they live in the worker), and the page never lists jobs.
+- **Solution:** the saved validation stands for another context only when that context is the widest one (every item,
+  every admin right of `rights.ADMIN_RIGHTS`, no plan limit); any other is validated again under its own context
+  (`app/screener.py` Screeners.reviewed). Test: `tests/test_screener.py`
+  test_a_saved_screen_is_taken_as_reviewed_only_under_the_widest_context (red on the allow-only trigger). The job
+  history is unchanged: whether a job is read and cancelled only on the site that queued it is the user's decision
+  (FUTURE_PLAN.md, "Before the first lab item or tab", open decisions).
+- **Lesson:** a check cached under one context stands for another only when that one is the widest; derive the widest
+  from the lists of kinds and rights, never from one part of the context.
+
+### M525 — The image built the Backtest page without terminal/tsconfig.json, so the page it ships was not the page CI tests (2026-11-21; FIXED on the branch; predates 3f)
+
+- **Found by:** 3f's checker, round 2 (CRIT-4), by laying out each image stage from `git archive` and building it.
+- **Symptom:** CI's image build at 33c84c1f made the Backtest page `index-BliQA-_i.js`; the repository's build, which
+  CI's page tests run on, is `index-BoIVVtuS.js`. The class field declarations are missing in the image's.
+- **Verified root cause:** esbuild compiles a `.ts` file with the nearest `tsconfig.json` above it. The backtest stage
+  copies `terminal/src` and `screener/src` without their `tsconfig.json`, so those modules were compiled with esbuild's
+  defaults instead of target ES2022. Checked 2026-11-21: in the image layout with `terminal/tsconfig.json` beside
+  `terminal/src`, the public and lab builds equal the repository's byte for byte; without it the build is
+  `index-BliQA-_i.js`.
+- **Solution:** the backtest stage copies `terminal/tsconfig.json` and `screener/tsconfig.json`, the screener stage
+  `terminal/tsconfig.json` and `backtest/tsconfig.json`. Test: `tests/test_backtest.py`
+  test_each_page_stage_builds_with_the_configuration_ci_builds_with, read from the Dockerfile: every page stage that
+  copies another folder's `src/` copies its `tsconfig.json`, and every page stage takes `shared/` and the release file.
+  Red on the old stage.
+- **Status:** FIXED on the branch. At the next deploy the Backtest page bundle changes, on the beta and with the
+  promotion on the live site, to the one CI tests (the same source, its class fields compiled as ES2022).
+- **Lesson:** an image stage copies each source folder with the configuration that compiles it; the image and CI must
+  build the same page.
+
+### M524 — The Screener worker's rights check overflowed the stack on a deeply nested request: 500 instead of 422 (2026-11-21; FIXED on the branch; caused by the fix of M521)
+
+- **Found by:** 3f's checker, round 2 (W2).
+- **Symptom:** a definition nested about 2,000 levels deep or more (a 5 KB body) answered 500 `INTERNAL_ERROR` (log
+  `request_failed RangeError Maximum call stack size exceeded`) on validate, run and preview, where it had answered 422
+  `INVALID_INPUT` naming the field; on `/v1/counts` the whole request failed and its other entries lost their counts.
+  edge-bff relays such a 500 as 503 `SCREENER_UNAVAILABLE`.
+- **Verified root cause:** M521's fix runs `restrict` on the definition as sent, before the normalizer. Its walk called
+  itself for each level, so V8's stack ran out before the normalizer refused the shape at its first level. A recursive
+  walk was safe only behind the normalizer, which bounds the depth.
+- **Solution:** one walk that keeps its own list (`apps/screener-worker/src/run.ts` eachObject), for `restrict` and the
+  plan check (`definitionItems`), in the same document order, the JSON path built only when a refusal names it. Tests
+  (`apps/screener-worker/tests/server.test.ts`): `restrict` at 200,000 levels names the reference's whole path and the
+  first one in document order; on validate, run, preview and counts a request 20,000 lists or 10,000 objects deep gets
+  the normalizer's answer, the same with and without the right, and counts keeps its other entry. Red on the
+  recursive walk. The Screener engine version changes again (it hashes `src/*.ts`).
+- **Lesson:** a check that runs before validation must not rely on a shape the validation would bound (depth, size):
+  walk unvalidated input with a list of its own. V8's own `JSON.stringify` calls itself too, so such test bodies are
+  written as text.
+
 ### M523 — 3f's ultracode checker: the Web Worker files unfiltered, the comparison lag outside the filter, CI blind to most pages, and what still holds back the first lab item (2026-11-21; the fixes on the branch, the rest held)
 
 - **Found by:** the ultracode checker of 3f (workflows `wf_c367c3bb-32e`, five finder lenses, and `wf_d88b23dd-8ad`, a
@@ -8923,10 +8987,72 @@ in its staleness check.
     shell, and `auth/config` names it on the live site.
   - Optional: SERVE-2 (the lab files' private cache after sign-out), SERVE-4 (the Terminal's worker has no error
     handler), CAT-5 (a released entry's text naming a lab item), L11 (the live smoke's lab probe).
+- **Round 2 (2026-11-21; workflow `wf_e359fe58-c17`, four finder lenses and a completeness critic, every agent at
+  xhigh; the three findings that change behaviour checked first by skeptics, `wf_d4d13dbc-fff`):** 31 findings and 5
+  gaps. Most were tests that stayed green on a broken mechanism while the guards keep the mechanism switched off; none
+  lets anything reach a visitor today. Each fix below is proven by the finder's own mutation turning its test red, not
+  by a skeptic per finding.
+  - The proof planted its fixtures through the filter it tested (BUN2-1, BUN2-2, BUN2-5, TRC2-1, TRC2-3, TRC2-6,
+    CRIT-2): a bundle built without the filter lost the plant and passed (the Backtest's load worker, the comparison
+    lag, the Screener page), the configurations' `@edge-lab` alias was not tested, "an unlisted id is lab" was not run,
+    and no test looked at a real lab build's files. Now `terminal/tests/lab/plant.mjs` writes fixture items on disk into
+    every registry of a copy of apps/edge-bff (released, lab and unlisted, a marker each), imports them from every page
+    and Web Worker entry and gives the lab module a formula marker; `tests/test_3f_public_bundles.py` builds every page
+    there with its own configuration. Each public bundle file carries every released marker and no other, each lab one
+    every marker, the formula only the lab builds, and each build names only its own files under its own base. Eight
+    mutations are red (each worker's filter, the Screener's, the Radar's, the keyed branch, unlisted kept, the public
+    alias to the lab module, the lab build on the public base). The test-only options (`extra`, `labModule`, `outDir`,
+    `releases`) left the production configurations, and the old proof configurations and fixtures were removed.
+    `tests/test_3f_lab_pages.py` also serves the repository's real lab builds: every file the owner's lab page names
+    answers, none to a visitor.
+  - Every page build applies the filter now (the Radar, Overview and Watchlist too; their image stages take the release
+    file). Every page's output stayed byte-identical (28 files, built before and after on a copy).
+  - The entry lists were kept by hand (BUN2-3, TRC2-10): `shared/import-walk.mjs` pageEntries derives them from each
+    page's `index.html` and each literal `new Worker(new URL(...))`, and refuses any other way of starting a worker.
+  - The filter failed open on shape (BUN2-4, CS-4: B4's third part): a list a spec names that is missing stops the
+    build; the coverage test asserts that each registry, filtered with nothing released, names no item of its kinds,
+    and that each JSON module a public entry reaches is a registry or is written down with why it names no item (none
+    today).
+  - CS-3 (CAT-7 again): a non-string id in a preset's `items` gave a 503 to every session without the point-in-time
+    right. One accessor (`app/screener.py` item_id, listed) reads every id the worker sends.
+  - CS-2, TRC2-2: tests through both catalog routes (both orders, each session sending the other's ETag), and a preset
+    without `items` for each reference key. The fixture presets take released ids: as unlisted ids they were lab
+    presets, which no paid account holds, so the preset rule was never reached for one.
+  - W1, TRC2-4 (M521's test): it ran on a publication without broker data and left out preview and switched-off
+    conditions. It now runs on a broker window, on all four routes, switched on and off, and no answer may name a
+    parameter of the version; it fails on the old code through the leak itself.
+  - W2: M524. CRIT-4: M525. W4: M526.
+  - CS-1 (behaviour, a skeptic first): the lab builds went to any admin.access holder while the catalogs decide item by
+    item. A lab build now goes only to the admin on the beta who holds every item of every kind
+    (`catalog.holds_every_item`), and a lab tab also needs the tab's own `<tab>.view` (`auth.lab_admin`,
+    `main.page_app`). The switch-off owner and user #1 keep the lab build; no deployed configuration changes (a
+    switch-on beta runs only locally).
+  - TRC2-5, CS-5 (a standing rule, not a held item): an item no worker gates by id, a metric with a `ref` or a shown
+    universe attribute, can never be at the lab stage (`tests/test_releases.py`
+    test_an_item_no_worker_gates_by_id_is_never_lab; the worker's walk is tied to the same two catalog fields in
+    `apps/screener-worker/tests/allow.test.ts`).
+  - TRC2-7: a live-site test in which the principal holds every capability: only `auth.lab_admin`'s own check of the
+    site keeps a lab tab out (red without it).
+  - Records: TRC2-8 (the guards' messages and AGENTS.md no longer say a new item or tab starts as "lab"); W3 (the
+    Screener engine version moves with `src/catalog.ts`, `src/server.ts` and `src/run.ts`; the routes' order is written
+    in server.ts); TRC2-9 (B5 below; the Dockerfile's pointer; `catalog.grant_key` removed: it had no caller, and M522
+    disproved its docstring); BUN2-6; BUN2-7.
+  - Corrections to round 1 above: B4 was fixed only in part (its `lists` branch is fixed now); TR-11 left the
+    Dockerfile's pointer (fixed now); "the fixtures are in the lab builds and in no public file" held for the Terminal
+    only (it holds for every bundle now).
+  - B5 (recorded): the page suites run on the public filter, so no page test sees a lab registry entry; a lab item on a
+    page is shown only by the proof builds and, once one exists, by the admin's use on the beta.
+  - New lift conditions (`LAB_ITEM_HELD_UNTIL`, FUTURE_PLAN.md): CRIT-1, one public-build session of the admin's own
+    account deletes its lab indicators from the synced chart layout; CRIT-3 and the skeptic's built-ins, an id named in
+    page code or computed without its id cannot be put back at the lab stage by the release file alone.
+  - Not run (CRIT-5): a switch-off browser session of the owner's Terminal on a lab build, a Docker build here (no
+    daemon; CI builds the image), the beta deploy and the live smoke against a 3f image.
 - **Lesson:**
   - A build filter must be proven on every bundle the build makes, Web Workers included, by a test that plants an item
-    in each.
+    in each, on disk, past the code under test: a plant that goes through the filter proves nothing about the filter.
   - A guard that blocks a risk is removed only when every path of the risk is closed, and its message says which.
+  - A test is proven by turning it red on the defect it names; a test that also passes on the defect is a record, not a
+    guard.
 
 ### M522 — On the live site the admin and an account without screener.preset could share one copy of the Screener catalog (2026-11-21; FIXED on the branch; predates 3f)
 

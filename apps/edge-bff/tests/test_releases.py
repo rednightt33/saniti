@@ -19,6 +19,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import releases
+from app.catalog import SCREENER_METRICS, SHOWN_ATTRIBUTES
 from app.main import create_app
 from app.releases import KIND_OF_FAMILY, KINDS, ReleaseFileError, Releases, stage_of
 from conftest import FakeOrc
@@ -78,9 +79,11 @@ def test_every_registry_id_has_an_entry_and_every_entry_names_a_registry_id():
     listed = {kind: [e['id'] for e in current.entries(kind)] for kind in KINDS}
     missing = [(kind, i) for kind in KINDS for i in registries[kind] if i not in listed[kind]]
     assert not missing, (
-        'These registry items have no release stage in apps/edge-bff/catalog/releases.json. Add one line per item to '
-        '"items" (a new item starts in the lab):\n'
-        + '\n'.join(f'    {{"kind": "{kind}", "id": "{i}", "stage": "lab"}},' for kind, i in missing))
+        'These registry items have no release stage in apps/edge-bff/catalog/releases.json (an unlisted item is lab, '
+        'and no item may be at the lab stage yet: test_no_item_is_at_the_lab_stage_yet). Add one line per item to '
+        '"items", released with the user\'s go to release it (LIVE_PROMOTION.md section 3), or keep the item off main '
+        'until LAB_ITEM_HELD_UNTIL is closed:\n'
+        + '\n'.join(f'    {{"kind": "{kind}", "id": "{i}", "stage": "released"}},' for kind, i in missing))
     stale = [(kind, i) for kind in KINDS for i in listed[kind] if i not in registries[kind]]
     assert not stale, ('apps/edge-bff/catalog/releases.json names items no registry has; remove these entries or fix '
                        f'the id: {stale}')
@@ -95,6 +98,14 @@ LAB_ITEM_HELD_UNTIL = (
     'terminal/src/lab in both engine versions (checker TR-2, B3)',
     "the live site runs 3f's server part: until `live` moves past ec1bd29c, its edge-bff lists a lab item of the shared "
     "workers' catalogs to every principal (checker L5)",
+    # 3f round 2 of the checker (ERRORS M523)
+    "the Terminal keeps a saved chart entry whose definition its build lacks, as it keeps a locked one, so one public "
+    "build session of the admin's own account (the live site always serves it; the preferences are shared) no longer "
+    "deletes the admin's lab indicators from the synced layout ml.ind.v1 (round 2, CRIT-1)",
+    "an existing item named in page code (every Flow formula is keyed by its id in terminal/src/calc/flow.ts, about 30 "
+    "more ids in page modules) or computed by a built-in without its id (the Backtest's rank items, ATR stops, the ma "
+    "transform) is found by a test, and the release file alone can no longer put it back at the lab stage (round 2, "
+    "CRIT-3)",
 )
 
 
@@ -108,6 +119,45 @@ def test_no_item_is_at_the_lab_stage_yet():
                      + ' (FUTURE_PLAN.md, "Before the first lab item or tab")')
     assert {kind: len(current.entries(kind)) for kind in KINDS} == {
         'indicator': 53, 'flow_indicator': 56, 'candle_pattern': 20, 'screener_metric': 55, 'screener_preset': 26}
+
+
+def not_gated_by_id():
+    """The Screener metrics no worker gates by their id, read from the catalog both workers load (3f round 2, TRC2-5 and
+    CS-5): an entry with a reference template (`ref`, truthy as the core reads it: catalog.ts metricSpec refuses its id,
+    so it reaches the wire as the template, hi52 as pct_distance(rolling_max(high, 252))), and a universe attribute
+    every answer shows (catalog.SHOWN_ATTRIBUTES, the entries naming their `row`; the Screener worker's walk skips them).
+    The screener-worker test "the walk names a Screener metric by its id exactly when its catalog entry has no ref and
+    no row" (tests/allow.test.ts) holds the walk to the same two fields."""
+    metrics = json.loads(SCREENER_METRICS.read_text(encoding='utf-8'))['metrics']
+    return {m['id'] for m in metrics if m.get('ref')}, set(SHOWN_ATTRIBUTES)
+
+
+def lab_not_gated(current):
+    ref, shown = not_gated_by_id()
+    return sorted(i for i in ref | shown if current.stage_of('screener_metric', i) != 'released')
+
+
+def test_an_item_no_worker_gates_by_id_is_never_lab():
+    """A standing rule, not one of LAB_ITEM_HELD_UNTIL (3f round 2, TRC2-5 and CS-5): a lab item is held by its holders
+    only through the workers' checks by id (allow.KINDS), so an item every principal reads or computes whatever its plan
+    can never be at the lab stage; it stays out of the catalogs only in name. (A preset is outside this rule: a run
+    carries a definition, never a preset id, and a lab preset is held by hiding its definition.)"""
+    ref, shown = not_gated_by_id()
+    assert ref and shown, 'the catalog has no ref entry or no row entry: not_gated_by_id reads the wrong fields'
+    planted = sorted({min(ref), min(shown)})
+    data = json.loads(FILE.read_text(encoding='utf-8'))
+    data['items'] = [{**it, 'stage': 'lab'} if it['kind'] == 'screener_metric' and it['id'] in planted else it
+                     for it in data['items']]
+    assert lab_not_gated(Releases(data)) == planted                                     # the guard's self-test
+    lab = lab_not_gated(releases.load(FILE))
+    assert not lab, (
+        f'{lab} at the lab stage in apps/edge-bff/catalog/releases.json, but no worker gates them by id: a universe '
+        'attribute that names its `row` is shown in every /universe and result row, and a metric with a `ref` reaches '
+        'the wire as that composition of the Screener\'s own transforms, so every principal reads or runs it whatever '
+        'its plan. Set them "released". To stage a new one in the lab, give it an id the workers gate: a universe '
+        'attribute without `row` (its value out of /universe and the result rows until it is released; '
+        'screener-worker tests/shown.test.ts), or a new computation as a pattern, cross-section metric or indicator, '
+        'not a `ref` of existing transforms (CONTRACT.md 8b O3b-2, R1-35).')
 
 
 def test_the_module_loads_the_repository_file_and_an_unknown_id_is_lab():

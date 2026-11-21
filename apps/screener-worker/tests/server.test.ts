@@ -5,13 +5,13 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { after, before, test } from 'node:test';
-import { countsAnswer } from '../src/run.ts';
-import { flowAdminOnly } from '../../edge-bff/screener/src/core/catalog.ts';
+import { countsAnswer, restrict } from '../src/run.ts';
+import { POINT_IN_TIME_RIGHT, flowAdminOnly } from '../../edge-bff/screener/src/core/catalog.ts';
 import { FLOW_BY_ID } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import { createApp } from '../src/server.ts';
 import type { WorkerApp } from '../src/server.ts';
-import { startFakeTerminal, universe, walk } from './fake-terminal.mjs';
-import { KEY, OWNER_A, OWNER_B, PROXY, auth, call, captureLogs, configFor, envFor } from './helpers.ts';
+import { brokerRowsOf, startFakeTerminal, universe, walk } from './fake-terminal.mjs';
+import { EDGE_CONTEXT, KEY, OWNER_A, OWNER_B, PROXY, auth, call, captureLogs, configFor, envFor } from './helpers.ts';
 
 const logs = captureLogs();
 const apps: { app: WorkerApp; fake: { close(): Promise<void> } }[] = [];
@@ -21,14 +21,23 @@ const U = { security_types: ['stock'], price_min: null, adv20_min_idr: null };
 const RSI = (length?: number, value = 50) => ({ universe: U, conditions: [{ id: 'a', enabled: true, test: { kind: 'value', op: 'lt', value, metric: { kind: 'indicator', indicator: 'I13', params: length !== undefined ? { length } : {}, output: 'rsi' } } }], logic: 'all' });
 const runBody = (definition: unknown, seq = 1, extra: Record<string, unknown> = {}) => ({ schema_version: 1, client_order: { page: 'pg1', seq }, definition, ...extra });
 
-async function start(env: Record<string, string> = {}) {
-  const fake = await startFakeTerminal({ key: PROXY, publication: { finished_at: '2026-10-27T13:03:23Z', ...universe(10, 320), actions: [] } });
+async function start(env: Record<string, string> = {}, publication: Record<string, unknown> = { finished_at: '2026-10-27T13:03:23Z', ...universe(10, 320), actions: [] }) {
+  const fake = await startFakeTerminal({ key: PROXY, publication });
   const app = createApp(configFor(fake.url, { SCREENER_THREADS: '2', ...env }), { pollMs: 3_600_000 });
   const port = await app.listen(0, '127.0.0.1');
   apps.push({ app, fake });
   await app.refresher.tick();
+  await app.refresher.tick();                    // a follow-up refresh of the broker days, when the publication has some
   assert.ok(app.state().current, 'snapshot loaded');
   return { app, port };
+}
+/** A publication with a loaded broker window (60 broker day files and the reference file brokers, as flow.test.ts), so
+    a Flow condition reaches its parameters in the normalizer instead of stopping at METRIC_UNAVAILABLE. */
+function brokerPublication() {
+  const stocks = ['T000', 'T001', 'T002', 'T003', 'T004', 'T005'], u = universe(6, 300);
+  const days = (u.prices.IHSG as unknown[][]).map(r => r[0] as string).slice(-62, -2);
+  return { finished_at: '2026-10-27T13:03:23Z', ...u, actions: [], broker: Object.fromEntries(days.map((d, k) => [d, brokerRowsOf(k + 1, d, stocks)])),
+    brokers: [['AK', 'A', 'Local', 'Institutional-heavy'], ['BK', 'B', 'Foreign', 'Retail-heavy'], ['CC', 'C', 'Local', 'Mixed'], ['DX', 'D', 'Local', 'Institutional-heavy'], ['YP', 'Y', 'Local', 'Retail-heavy'], ['ZP', 'Z', 'Foreign', 'Mixed']] };
 }
 let main: { app: WorkerApp; port: number };
 before(async () => { main = await start() });
@@ -93,26 +102,96 @@ test('ERRORS M520: the catalog carries the core\'s admin marks: access "admin" o
   assert.ok(all.every((m: any) => m.access === undefined || m.access === 'admin'), 'no other value of access');
 });
 
-test('ERRORS M521: an admin-only Flow version from a session without the right is refused before the normalizer reads it, on every route: the refusal is the same whatever its parameters, so it names none of them', async () => {
-  const ids = Object.values(FLOW_BY_ID).filter(flowAdminOnly).map(f => f.id);
-  assert.ok(ids.length > 0);
-  const cond = (metric: string, params: Record<string, unknown>) => ({ universe: U, conditions: [{ id: 'a', enabled: true,
+test('ERRORS M521: an admin-only Flow version from a session without the right is refused before the normalizer reads it, on every route, switched on or off: the refusal is the same whatever its parameters and names none of them', async () => {
+  const { app, port } = await start({}, brokerPublication());
+  const s = app.state().current!;
+  assert.equal(s.desc.data.broker_window?.complete, true, 'a loaded broker window: the normalizer reads the parameters');
+  const v = s.price_data;
+  const versions = Object.values(FLOW_BY_ID).filter(flowAdminOnly);
+  assert.ok(versions.length > 0);
+  const cond = (metric: string, params: Record<string, unknown>, enabled: boolean) => ({ universe: U, conditions: [{ id: 'a', enabled,
     test: { kind: 'value', metric: { kind: 'flow', metric, params }, op: 'gt', value: 0 } }] });
+  let seq = 0;
   const refusals = async (definition: unknown) => {
     const answers = [
-      await call(main.port, 'POST', '/v1/validate', { schema_version: 1, definition }, auth()),
-      await call(main.port, 'POST', '/v1/run', runBody(definition), auth()),
-      await call(main.port, 'POST', '/v1/counts', { schema_version: 1, definitions: [{ item_id: 'p1', definition }] }, auth()),
+      await call(port, 'POST', '/v1/validate', { schema_version: 1, definition }, auth()),
+      await call(port, 'POST', '/v1/run', runBody(definition, ++seq), auth()),
+      await call(port, 'POST', '/v1/preview', { schema_version: 1, client_order: { page: 'pg1', seq: ++seq }, data_version: v, definition, ticker: 'T003' }, auth()),
+      await call(port, 'POST', '/v1/counts', { schema_version: 1, data_version: v, definitions: [{ item_id: 'p1', definition }] }, auth()),
     ];
-    return answers.map(a => a.body.error ?? a.body.counts?.[0]?.error);
+    return answers.map(a => a.body?.error ?? a.body?.counts?.[0]?.error ?? a.body);
   };
-  for (const id of ids) {
-    const plain = await refusals(cond(id, {}));
-    assert.deepEqual(plain.map(e => e?.code), ['CONDITION_RESTRICTED', 'CONDITION_RESTRICTED', 'CONDITION_RESTRICTED'], id);
-    // before M521 an unknown parameter, an out-of-range one or a wrong choice was answered from the version's own
-    // parameter list (its keys, labels, ranges) before the right was checked
-    for (const params of [{ bogus: 1 }, { anchor_sessions: 99999 }, { scope: 'not-a-scope' }, { brokers: 'x', top: -3 }])
-      assert.deepEqual(await refusals(cond(id, params)), plain, `${id} ${JSON.stringify(params)}`);
+  /** the version's parameter keys, each as a whole word: none may be in an answer to a session without the right */
+  const named = (answer: unknown, keys: string[]) => keys.filter(k => new RegExp(`(?<![A-Za-z0-9_])${k}(?![A-Za-z0-9_])`).test(JSON.stringify(answer)));
+  for (const f of versions) {
+    const keys = (f.params ?? []).map(p => p.key);
+    assert.ok(keys.length > 0, f.id);
+    for (const enabled of [true, false]) {
+      // before M521 an unknown parameter, an out-of-range one or a wrong choice was answered from the version's own
+      // parameter list (its keys, labels, ranges) before the right was checked
+      const variants: Record<string, unknown>[] = [{}, { bogus: 1 }, { anchor_sessions: 99999 }, { scope: 'not-a-scope' }, { brokers: 'x', top: -3 }, { [keys[0]]: { deep: [1] } }];
+      const got: [Record<string, unknown>, unknown[]][] = [];
+      for (const params of variants) got.push([params, await refusals(cond(f.id, params, enabled))]);
+      // first, no answer names a parameter of the version that the request did not name itself
+      for (const [params, answers] of got)
+        assert.deepEqual(answers.flatMap(e => named(e, keys.filter(k => !(k in params)))), [], `${f.id} enabled ${enabled} ${JSON.stringify(params)}: a refusal names a parameter: ${JSON.stringify(answers)}`);
+      // then every answer is the one refusal of the version, whatever the parameters
+      const plain = got[0][1];
+      assert.deepEqual(plain.map(e => (e as any)?.code), Array(4).fill('CONDITION_RESTRICTED'), `${f.id} enabled ${enabled}: ${JSON.stringify(plain)}`);
+      for (const [params, answers] of got.slice(1)) assert.deepEqual(answers, plain, `${f.id} enabled ${enabled} ${JSON.stringify(params)}`);
+    }
+  }
+});
+
+test('ERRORS M524: restrict reads a definition of any depth without calling itself, and names the first admin-only reference in document order with its whole path', () => {
+  const [a, b] = Object.values(FLOW_BY_ID).filter(flowAdminOnly).map(f => f.id);
+  const nested = (depth: number, inner: unknown) => { let x = inner; for (let i = 0; i < depth; i++) x = [x]; return x };
+  const refused = (definition: unknown) => { try { restrict(definition, []); return null } catch (e: any) { return { code: e.code, field: e.field, message: e.message } } };
+  assert.deepEqual(refused({ x: nested(200_000, { kind: 'flow', metric: a }) })?.field, `definition.x${'[0]'.repeat(200_000)}`);
+  assert.equal(refused({ x: nested(200_000, 0), y: { k: { k: { kind: 'flow', metric: 'FL01' } } } }), null);
+  // document order: an object before what it holds, list items and keys in their order
+  const twice = { first: [{ kind: 'flow', metric: b, of: { kind: 'flow', metric: a } }], second: { kind: 'flow', metric: a } };
+  const r = refused(twice);
+  assert.equal(r?.code, 'CONDITION_RESTRICTED'); assert.equal(r?.field, 'definition.first[0]'); assert.ok(r?.message.startsWith(`definition.first[0]: ${b} `), r?.message);
+  assert.equal(refused({ '0': { kind: 'flow', metric: a } })?.field, 'definition.0', 'an object key that is a number is a key, not a list index');
+  assert.doesNotThrow(() => restrict({ x: nested(200_000, { kind: 'flow', metric: a }) }, [POINT_IN_TIME_RIGHT]));
+});
+
+test('ERRORS M524: a request nested thousands of levels deep gets, on every route, the answer the normalizer gives (as it did before M521), with or without the right; counts keeps its other entries', async () => {
+  const v = main.app.state().current!.price_data;
+  // the deep part is written as text: V8's JSON.stringify calls itself too, and overflows at this depth
+  const DEEP = '"@deep@"';
+  const shapes: Record<string, [unknown, string]> = {
+    'universe.tickers 20000 lists deep': [{ ...RSI(), universe: { ...U, tickers: '@deep@' } }, '['.repeat(20_000) + '0' + ']'.repeat(20_000)],
+    'a test 10000 objects deep': [{ ...RSI(), conditions: [{ id: 'a', enabled: true, test: '@deep@' }] }, '{"of":'.repeat(10_000) + '1' + '}'.repeat(10_000)],
+  };
+  let seq = 100;
+  for (const [name, [definition, deep]] of Object.entries(shapes)) {
+    const body = (b: Record<string, unknown>) => { const t = JSON.stringify(b); assert.ok(t.includes(DEEP)); return t.replace(DEEP, deep) };
+    const answers = async (rights: string[]) => {
+      const context = { ...EDGE_CONTEXT, rights };
+      const bodies: [string, string][] = [
+        ['/v1/validate', body({ schema_version: 1, definition, context })],
+        ['/v1/run', body({ ...runBody(definition, ++seq), context })],
+        ['/v1/preview', body({ schema_version: 1, client_order: { page: 'pg1', seq: ++seq }, data_version: v, definition, ticker: 'T003', context })],
+        ['/v1/counts', body({ schema_version: 1, data_version: v, definitions: [{ item_id: 'ok', definition: RSI() }, { item_id: 'deep', definition }], context })],
+      ];
+      const out = [];
+      for (const [route, text] of bodies) {
+        assert.ok(text.length < 131_072, `${name}: within the body limit`);
+        const a = await call(main.port, 'POST', route, text, auth());
+        out.push({ status: a.status, answer: a.body?.error ?? a.body?.counts });
+      }
+      return out;
+    };
+    const without = await answers([]);
+    // with the right restrict reads nothing: the answer is the normalizer's own
+    assert.deepEqual(without, await answers([POINT_IN_TIME_RIGHT]), name);
+    for (const x of without.slice(0, 3)) assert.equal(x.status, 422, `${name}: ${JSON.stringify(x)}`);
+    assert.equal(without[3].status, 200, name);
+    const [ok, deepOne] = without[3].answer as any[];
+    assert.ok(ok.item_id === 'ok' && Number.isInteger(ok.match_count), `${name}: the other entry is counted (${JSON.stringify(ok)})`);
+    assert.equal(deepOne.item_id, 'deep'); assert.equal(deepOne.error.code, (without[0].answer as any).code, name);
   }
 });
 

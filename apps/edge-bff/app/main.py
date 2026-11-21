@@ -96,7 +96,8 @@ TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
 # presigns on the bucket, so it takes the terminal page's policy.
 BACKTEST_APP = STATIC / 'backtest-app'
 # 3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): the lab builds of the pages that carry definitions and formulas
-# (every item, the lab formulas of terminal/src/lab), served at /<app>/lab/ only to the admin on the beta (auth.lab_viewer)
+# (every item, the lab formulas of terminal/src/lab), served at /<app>/lab/ only to the admin on the beta who holds every
+# item (auth.lab_admin and catalog.holds_every_item, page_app below)
 TERMINAL_LAB_APP = STATIC / 'terminal-app-lab'
 BACKTEST_LAB_APP = STATIC / 'backtest-app-lab'
 BACKTEST_CSP = TERMINAL_CSP
@@ -612,17 +613,26 @@ def create_app(settings=None, store=None, orc=None):
     # (report FRONTEND INTEGRATION 9.1), and the Radar, Market Overview and Watchlist pages (EXEC-RADAR R6, EXEC-OVERVIEW
     # O4, EXEC-WATCHLIST).
     # 3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"):
-    # - a page with a lab build (`lab`) is served from it to the admin on the beta (auth.lab_viewer): its index refers to
-    #   its own assets under /<app>/lab/assets/, which answer 404 to everyone else and on the live site, and are cached
-    #   by the admin's browser only (private);
-    # - a tab at the lab stage (releases.tab_stage) is served to the admin on the beta only: its page and assets answer
-    #   404 to everyone else and on the live site, so a lab tab's code is in no file a visitor downloads.
+    # - a page with a lab build (`lab`) is served from it to the admin on the beta (auth.lab_admin) who holds every item
+    #   (catalog.holds_every_item: the build carries them all, so it goes only to a principal every catalog lists each
+    #   one to; 3f round 2 CS-1): its index refers to its own assets under /<app>/lab/assets/, which answer 404 to
+    #   everyone else and on the live site, and are cached by the admin's browser only (private);
+    # - a tab at the lab stage (releases.tab_stage) is served to the admin on the beta who holds the tab's own
+    #   <tab>.view: its page and assets answer 404 to everyone else and on the live site, so a lab tab's code is in no
+    #   file a visitor downloads.
     # (the folders are this module's names, read when a request comes, so a test can point one elsewhere)
     def page_app(prefix, folder_name, tab, lab_name=None):
         async def shown(request):
+            # a lab tab's page carries the tab's code: the admin holding the tab (its own <tab>.view)
             if releases.tab_stage(tab) == releases.LAB:
-                return await auth.lab_viewer(request)
+                p = await auth.lab_admin(request)
+                return p is not None and p.can(f'{tab}.view')
             return True
+
+        async def lab_build(request):
+            # a lab build carries every item: the admin holding every item (catalog.holds_every_item, the catalogs' rule)
+            p = await auth.lab_admin(request)
+            return p is not None and catalog.holds_every_item(p)
 
         async def page(request: Request):
             if not await shown(request):
@@ -631,7 +641,7 @@ def create_app(settings=None, store=None, orc=None):
             lab = globals()[lab_name] if lab_name else None
             # a lab build that is whole (its index and its assets: 3f checker SERVE-8) is the admin's on the beta
             if (lab is not None and (lab / 'index.html').is_file() and (lab / 'assets').is_dir()
-                    and await auth.lab_viewer(request)):
+                    and await lab_build(request)):
                 target = lab / 'index.html'
             if not target.is_file():
                 return error('NOT_FOUND', 404)
@@ -647,7 +657,8 @@ def create_app(settings=None, store=None, orc=None):
 
         async def lab_asset(request: Request, name: str):
             target = globals()[lab_name] / 'assets' / name
-            if not TERMINAL_ASSET.fullmatch(name) or not await auth.lab_viewer(request) or not target.is_file():
+            if (not TERMINAL_ASSET.fullmatch(name) or not await shown(request) or not await lab_build(request)
+                    or not target.is_file()):
                 return error('NOT_FOUND', 404)
             return FileResponse(target, headers={'Cache-Control': 'private, max-age=31536000, immutable'})
 

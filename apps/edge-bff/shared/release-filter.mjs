@@ -55,51 +55,55 @@ export function readStages(file = RELEASES) {
 }
 
 /** The registry document as the build keeps it: every entry for the lab build, the released ones for the public build
-    (an unlisted id is lab). `extra` adds entries first, for the proof builds of the tests only. */
-export function filtered(spec, doc, { lab, stages, extra = {} }) {
+    (an unlisted id is lab). Each part the spec names must be there in its shape, a list (`list`, each of `lists`) or an
+    object keyed by id (`keyed`), else the build stops: a part renamed or rewritten would pass through unfiltered
+    (3f checker B4, BUN2-4, CS-4). terminal/tests/lab/coverage.test.mjs checks that no other part of a registry file
+    names an item. */
+export function filtered(spec, doc, { lab, stages }) {
   const keep = kind => e => lab || (e && typeof e.id === 'string' && stages.get(`${kind}\t${e.id}`) === 'released');
   if (spec.keyed) {
     const by = doc[spec.keyed];
     if (!by || typeof by !== 'object' || Array.isArray(by)) throw new Error(`release filter: ${spec.file} has no object "${spec.keyed}"`);
-    const merged = { ...by, ...(extra[spec.keyed] || {}) };
-    return { ...doc, [spec.keyed]: Object.fromEntries(Object.entries(merged).filter(([id]) => keep(spec.kind)({ id }))) };
+    return { ...doc, [spec.keyed]: Object.fromEntries(Object.entries(by).filter(([id]) => keep(spec.kind)({ id }))) };
   }
   if (spec.lists) {
     let out = doc;
-    for (const [key, kind] of spec.lists)
-      if (Array.isArray(out[key])) out = { ...out, [key]: [...out[key], ...(extra[key] || [])].filter(keep(kind)) };
+    for (const [key, kind] of spec.lists) {
+      if (!Array.isArray(out?.[key])) throw new Error(`release filter: ${spec.file} has no list "${key}" (the entries of kind ${kind})`);
+      out = { ...out, [key]: out[key].filter(keep(kind)) };
+    }
     return out;
   }
   const list = spec.list(doc);
   if (!Array.isArray(list)) throw new Error(`release filter: ${spec.file} has no list of entries where it is expected`);
-  return spec.put(doc, [...list, ...(extra.entries || [])].filter(keep(spec.kind)));
+  return spec.put(doc, list.filter(keep(spec.kind)));
 }
 
-/** The Vite plugin: it loads each registry filtered for the build (lab: every entry; else the released ones). A build
-    puts it in `plugins` and in `worker.plugins` alike: Vite builds a Web Worker's bundle with the worker's plugins only
-    (checker L1, 2026-11-21: the Terminal's worker had the whole Flow registry). `releases` and `extra` ({registry file:
-    {entries | <list key> | <keyed key>: ...}}) are for the tests' proof builds. */
-export function releaseFilter({ lab = false, releases = RELEASES, extra = {} } = {}) {
+/** The Vite plugin: it loads each registry filtered for the build (lab: every entry; else the released ones). Every page
+    build puts it in `plugins` and in `worker.plugins` alike: Vite builds a Web Worker's bundle with the worker's plugins
+    only (checker L1, 2026-11-21: the Terminal's worker had the whole Flow registry). tests/test_3f_public_bundles.py
+    builds every page with its own configuration on a copy of apps/edge-bff whose registries hold fixture items, and
+    finds each one only where it belongs. */
+export function releaseFilter({ lab = false } = {}) {
   let stages = null;
   const byPath = new Map(REGISTRIES.map(spec => [path.join(EDGE_BFF, spec.file), spec]));
   return {
     name: 'edge-release-filter',
     enforce: 'pre',
-    buildStart() { stages = readStages(releases) },
+    buildStart() { stages = readStages() },
     load(id) {
       const file = id.split('?')[0];
       const spec = byPath.get(file);
       if (!spec) return null;
-      stages ??= readStages(releases);
+      stages ??= readStages();
       const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
-      return JSON.stringify(filtered(spec, doc, { lab, stages, extra: extra[spec.file] || {} }));
+      return JSON.stringify(filtered(spec, doc, { lab, stages }));
     },
   };
 }
 
-/** The alias '@edge-lab': the lab formulas (src/lab/index.ts) in the lab build, an empty module in the public one.
-    `module` replaces the lab module for the tests' proof builds. */
-export function labAlias({ lab = false, module } = {}) {
+/** The alias '@edge-lab': the lab formulas (src/lab/index.ts) in the lab build, an empty module in the public one. */
+export function labAlias({ lab = false } = {}) {
   const dir = path.join(EDGE_BFF, 'terminal', 'src', 'lab');
-  return { '@edge-lab': module ?? path.join(dir, lab ? 'index.ts' : 'none.ts') };
+  return { '@edge-lab': path.join(dir, lab ? 'index.ts' : 'none.ts') };
 }

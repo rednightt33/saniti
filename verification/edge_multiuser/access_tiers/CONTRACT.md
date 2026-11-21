@@ -477,13 +477,18 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 - **Lab code (3f, built 2026-11-21; refined from the first draft, see 8b "3f"):** the page builds and the tab catalogs
   keep a lab item's definition and formula from anyone who does not hold it. No item or tab may be lab yet: what else
   would still reach people is in 8b "3f", "Held".
-  - The page build filters every file that names items by release stage (`apps/edge-bff/shared/release-filter.mjs`, in
-    `plugins` and `worker.plugins`, so the Web Worker bundles too). The public build keeps the released entries. The lab
-    build keeps every entry and the lab formulas (`apps/edge-bff/terminal/src/lab/index.ts`, reached only through the
-    alias `@edge-lab`).
-  - edge-bff serves the lab build from the page's own address to the admin on the beta only (`auth.lab_viewer`: with
-    the switch on, admin.access and the second factor passed; on today's beta, switch off, the owner's signed-in
-    session). Its files are at `/{app}-app/lab/assets/{name}`, 404 to everyone else and on the live site.
+  - Every page build filters every file that names items by release stage (`apps/edge-bff/shared/release-filter.mjs`,
+    in `plugins` and `worker.plugins`, so the Web Worker bundles too). The public build keeps the released entries. The
+    lab build keeps every entry and the lab formulas (`apps/edge-bff/terminal/src/lab/index.ts`, reached only through
+    the alias `@edge-lab`).
+  - edge-bff serves the lab build from the page's own address to the admin on the beta (`auth.lab_admin`: with the
+    switch on, admin.access and the second factor passed; on today's beta, switch off, the owner's signed-in session)
+    who holds every item of every kind (`catalog.holds_every_item`, the catalogs' own rule: the build carries them all;
+    3f round 2, CS-1). A lab tab also needs the tab's own `<tab>.view`. Its files are at `/{app}-app/lab/assets/{name}`,
+    404 to everyone else and on the live site.
+  - An item no worker gates by id (a Screener metric with a `ref`, a universe attribute every answer shows) can never be
+    at the lab stage: every principal reads or runs it whatever its plan (`tests/test_releases.py`, a standing rule).
+    A new one is staged in the lab with an id the workers gate.
   - The released definitions and formulas stay in the public bundles for speed: a released item's name shows locked to
     a plan without it (3e), so serving its definition per principal would hide nothing.
   - `GET /api/v1/catalog/{kind}` answers the ids and stages the principal holds; the tab catalogs follow its rule
@@ -633,7 +638,8 @@ catalog-only change reaches the browser through `X-Edge-Entitlements`.
     holds it, an unlisted id being lab, and on the live site for nobody, `*` included.
   - The workers' mark `access: 'admin'` (the point-in-time Flow versions) still needs the right `flow_point_in_time`.
     The admin rights are beta-only, so on the live site nobody has it.
-  - A kept lab entry carries `release: 'lab'`. A preset that reads an entry left out is left out too.
+  - A kept lab entry carries `release: 'lab'`. A preset that reads an entry left out is left out too (an entry with an
+    id on the wire; a `ref` metric has none, and so can never be lab, section 8 "Lab code").
 
 **Front-end (no visible change).**
 - `shared/edge-session.ts`:
@@ -805,7 +811,8 @@ is built, checked, and deployed on its own.
   - edge-bff relays it unchanged, and adds `display_name` (`errors.display_name`) where it builds the answer; a relayed
     message that carries the key or its family is worded by edge-bff (section 3).
 - **Where each worker checks:**
-  - Screener: right after `normalize` (`restrict()`), before any cache read; `/counts` refuses per entry.
+  - Screener: `restrict()` (the rights) on the definition as sent, then `normalize`, then `gate` (`restrict()` again and
+    `checkAllow`), before any cache read (ERRORS M521, M524); `/counts` refuses per entry.
   - Backtest: in `checkConditions`, `checkRequest` and `checkSignalsRequest`, covering the stop and trailing lines,
     switched-off conditions and `detail.exit_signals`.
   - Every place an item can be named counts (the inspection list in EXEC.md, Phase 3 plan).
@@ -880,7 +887,7 @@ is built, checked, and deployed on its own.
 - edge-bff sends `context.allow` `{kind: "*" | [ids]}` (the principal's item grants expanded against
   `releases.json`) and `context.limits`.
 - Each worker refuses an item outside `allow` with 403 `CAPABILITY_REQUIRED` and `details.capability`/`field`, right
-  after `normalize` (Screener `restrict()`) or in `checkConditions`/`checkRequest`/`checkSignalsRequest` (Backtest,
+  after `normalize` (Screener `gate`: `restrict()`, then `checkAllow`) or in `checkConditions`/`checkRequest`/`checkSignalsRequest` (Backtest,
   including the stop and trailing lines, switched-off conditions and `detail.exit_signals`). It takes
   `min(own ceiling, context.limits)`.
 - A queued job re-checks at dispatch and ends FAILED `CAPABILITY_REQUIRED`.
@@ -1160,18 +1167,26 @@ today.
   adds the release stage and the hold itself (8a "Tab catalogs"). ERRORS M520: the Screener worker had dropped the
   mark; it copies it now.
 - **Tests:**
-  - `tests/test_3f_public_bundles.py`: the scan of every public file, the scan's self-test, and the proof builds with
-    fixture lab items listed in a release file (fails instead of skipping in CI);
-  - `terminal/tests/lab/public-entries.test.mjs`: every page and Web Worker entry reaches no lab module;
-    `terminal/tests/lab/coverage.test.mjs`: every file a public entry reaches that names an item is filtered;
-  - `tests/test_3f_lab_pages.py`, `tests/test_3f_tab_catalogs.py`.
+  - `tests/test_3f_public_bundles.py`: the scan of every public file, the scan's self-test, and the proof builds: every
+    page built with its own configuration on a copy of apps/edge-bff whose registries hold fixture items on disk
+    (released, lab, unlisted; `terminal/tests/lab/plant.mjs`), each found only where it belongs, in every bundle file
+    (fails instead of skipping in CI);
+  - `terminal/tests/lab/public-entries.test.mjs`: every page and Web Worker entry, derived, reaches no lab module;
+    `terminal/tests/lab/coverage.test.mjs`: every JSON file a public entry reaches is filtered or names no item, and no
+    part of a registry the filter leaves names an item;
+  - `tests/test_3f_lab_pages.py` (the repository's real lab builds served too), `tests/test_3f_tab_catalogs.py` (both
+    catalog routes over HTTP).
 - **Its ultracode checker (2026-11-21, ERRORS M523):** 48 findings, none refuted. Fixed: the Web Worker bundles
   filtered (the proof plants a Flow indicator the Terminal's worker reads), the comparison lag filtered and a test that
   derives every file to filter, the Screener page filtered, the proof's fixtures listed as lab, CI building every page,
   the presets' reference keys, the live cache key (M522), the admin-only parameters (M521) and smaller ones.
+- **Its checker's round 2 (2026-11-21, ERRORS M523, M524, M525, M526):** the round-1 proof planted through the filter
+  it tested; the proof, the entries, the filter's shape, the catalog ids, the route tests and M521's test were redone,
+  each proven by a mutation; the lab build narrowed to the admin who holds every item (CS-1); the standing rule above.
 - **Proven and not built.**
-  - Proven in the page bundles: a lab technical indicator in the Terminal and the Backtest page, a lab Flow indicator's
-    definition in the Terminal and its Web Worker, the comparison lag. The public files carry none of them.
+  - Proven in every bundle of every page (each page's and each Web Worker's file): a released, a lab and an unlisted
+    fixture item of every registry the filter knows, the comparison lag included, and the lab formula. The public
+    files carry only the released ones.
   - Not built: the generators and the workers do not load lab formulas (a lab indicator could not run in a backtest or a
     screen), and a lab Flow indicator's formula has no registration point (`calc/flow.ts` does not export its map).
 - **Held (no item or tab may be lab yet; `tests/test_releases.py` LAB_ITEM_HELD_UNTIL, `tests/test_live_switch.py`
@@ -1179,10 +1194,13 @@ today.
   - the Screener worker's refusals list and name items outside the principal's allow before its plan check (checker L2);
   - the lab formulas for the generators and the workers (above);
   - the live site runs edge-bff from before 3f until `live` moves past it (checker L5);
-  - a lab tab's rail entry, route and words are in the public shell and `auth/config` names it (checker SERVE-3).
-- **Hashed sources untouched:** the formula modules and registries that both workers hash were not changed. The
-  Backtest engine version stays `f984058aaaf38748`. The Screener engine changes once, through the worker's own
-  `src/catalog.ts` (M520).
+  - a lab tab's rail entry, route and words are in the public shell and `auth/config` names it (checker SERVE-3);
+  - round 2: the Terminal deletes a saved chart entry its build lacks, so one public-build session of the admin's own
+    account deletes its lab indicators from the synced layout (CRIT-1); an id named in page code or computed by a
+    built-in without its id cannot be put back at the lab stage by the release file alone (CRIT-3).
+- **Hashed sources:** the formula modules and registries that both workers hash were not changed. The Backtest engine
+  version stays `f984058aaaf38748`. The Screener engine's version changes with the worker's own `src/catalog.ts`
+  (M520), `src/server.ts` (M521) and `src/run.ts` (M524), which it hashes: once per deploy that carries them.
 - On the live site every lab item is refused, `*` included (section 17; built, `fix-site`).
 
 **Tests per stage** (with the code; checkers C1-C3 per stage as in Phases 1 and 2):

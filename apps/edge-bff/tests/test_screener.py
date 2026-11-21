@@ -118,6 +118,8 @@ class FakeScreenerWorker:
         self.validate_versions = True  # /v1/validate answers carry versions (report 8.3: every worker answer)
         self.rows = 3                  # rows of a run answer
         self.metrics = []              # the catalog's metrics (EXEC-BACKTEST-REVAMP P5: an admin entry in one test)
+        self.indicators = []           # and its technical indicators and fundamentals (3f round 2: a lab one in a test)
+        self.fundamentals = []
         self.presets = []              # the catalog's presets (Stage C F6: one reading an admin entry in one test)
         self.published = '2026-10-27T13:03:23Z'   # data.published_at of every answer (state.json finished_at)
         self.pending = {}              # path -> how many more calls answer the worker-only 409 DATA_VERSION_PENDING
@@ -206,7 +208,7 @@ class FakeScreenerWorker:
                 route = (method, self.path)
                 if route == ('GET', '/v1/catalog'):
                     return self.answer(200, {'versions': v, 'data': {**self.data(), 'refresh': worker.refresh},
-                                             'limits': worker.limits, 'indicators': [], 'metrics': worker.metrics, 'fundamentals': [],
+                                             'limits': worker.limits, 'indicators': worker.indicators, 'metrics': worker.metrics, 'fundamentals': worker.fundamentals,
                                              'periods': {'1M': 21, '3M': 63, '6M': 126, '1Y': 252}, 'groupings': [],
                                              'presets': worker.presets})
                 if route == ('GET', '/v1/universe'):
@@ -1309,7 +1311,10 @@ def test_the_image_builds_the_screener_page_beside_the_sources_it_imports():
     assert [line for line in stage.strip().splitlines() if line.strip() and not line.startswith('#')] == [
         'WORKDIR /build/screener', 'COPY screener/package.json screener/package-lock.json ./',
         'RUN npm ci --no-audit --no-fund', 'COPY terminal/src /build/terminal/src',
-        'COPY backtest/src /build/backtest/src', 'COPY shared /build/shared',
+        'COPY backtest/src /build/backtest/src',
+        # 3f round 2 (CRIT-4, ERRORS M525): each copied source folder with its configuration
+        'COPY terminal/tsconfig.json /build/terminal/tsconfig.json', 'COPY backtest/tsconfig.json /build/backtest/tsconfig.json',
+        'COPY shared /build/shared',
         # 3f (checker B4): the release file the page build filters the registries by
         'COPY catalog/releases.json /build/catalog/releases.json', 'COPY screener/ ./', 'RUN npm run build']
     assert 'COPY --from=screener /build/screener/dist ./static/screener-app\n' in text
@@ -1523,6 +1528,31 @@ def test_c2_catalog_preset_counts_are_never_served_to_a_plan_without_the_presets
         leaked = served.get('not_held')
         assert leaked is None or (leaked.get('match_count') is None and leaked.get('near_count') is None), (
             f'the counts of a preset reading FL05, computed with every item, reached a principal without FL05: {leaked}')
+
+
+def test_a_saved_screen_is_taken_as_reviewed_only_under_the_widest_context(app, worker, monkeypatch):
+    """ERRORS M526 (3f round 2, W4): the validation made when an item was saved stands for another context only when
+    that context is the widest one: every item, every admin right, no plan limit. A context holding every item but
+    without a right (the point-in-time one an item may read), or with a plan limit, has the item validated again under
+    its own context, so it lists the refusal its run would meet; the widest asks nothing."""
+    from app.rights import ADMIN_RIGHTS
+    c = app
+    assert put(c, 1, screen_item()).status_code == 200            # validated with the admin's context
+    every = {k: '*' for k in allow.KINDS}
+    restricted = {'code': 'CONDITION_RESTRICTED', 'field': 'definition.conditions[0].test.metric',
+                  'message': 'definition.conditions[0].test.metric: FL18 is available to admins only; remove this condition to run the screen.'}
+    for context, asks in (({'rights': list(ADMIN_RIGHTS), 'allow': every, 'limits': {}}, 0),
+                          ({'rights': [], 'allow': every, 'limits': {}}, 1),
+                          ({'rights': list(ADMIN_RIGHTS), 'allow': every, 'limits': {'max_conditions': 5}}, 1)):
+        monkeypatch.setattr(screener, 'context_of', lambda principal, name, x=context: x)
+        calls = len(worker.called('/v1/validate'))
+        worker.refuse = {'/v1/validate': (422, restricted)}
+        try:
+            items = c.get('/api/v1/screener/items').json()['items']
+        finally:
+            worker.refuse = {}
+        assert len(worker.called('/v1/validate')) == calls + asks, context
+        assert [r['reason'] for r in items[0]['needs_review']] == (['CONDITION_RESTRICTED'] if asks else []), context
 
 
 def test_c2_a_saved_screen_validated_under_one_plan_is_not_taken_as_reviewed_under_another(app, worker, monkeypatch):

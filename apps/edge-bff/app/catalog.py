@@ -68,13 +68,12 @@ def holds_every(p, kind):
     return any(p.kinds.get(f) == 'items' and p.grants[f].get('all') is True for f in releases.FAMILIES_OF_KIND[kind])
 
 
-def grant_key(p, kind):
-    """A cache key part of what decides a principal's items of a kind: None when it holds every one, else its grants
-    of the kind's families (two principals with the same grants hold the same items)."""
-    if holds_every(p, kind):
-        return None
-    return json.dumps({f: p.grants.get(f) for f in releases.FAMILIES_OF_KIND[kind]}, sort_keys=True,
-                      separators=(',', ':'))
+def holds_every_item(p):
+    """3f (CONTRACT.md 8 "Lab code"): whether the principal holds every item of every kind at any stage (holds_every for
+    each of releases.KINDS). A page's lab build carries every item's definition and the lab formulas, so it goes only to
+    a principal every catalog lists each of them to; one holding a lab item by its id or stage only is served the public
+    build (fail closed)."""
+    return all(holds_every(p, kind) for kind in releases.KINDS)
 
 
 def held(p, kind):

@@ -16223,7 +16223,8 @@ Order of the services (CONTRACT 17, rollback floors):
       - The design, refined from the first draft with the advisor's review: the page build is partitioned by release
         stage. The public build keeps the released items (`shared/release-filter.mjs`, fail closed). The lab build keeps
         every item and the lab formulas (`terminal/src/lab/`, alias `@edge-lab`). edge-bff serves the lab build to the
-        admin on the beta only (`auth.lab_viewer`), and a lab tab the same way.
+        admin on the beta only (`auth.lab_viewer`, since round 2 `auth.lab_admin` with every item held), and a lab tab
+        the same way.
       - The public Terminal and Backtest builds are byte-identical to before 3f (built from `ec1bd29c` in a separate
         worktree and compared). The lab builds equal them but for the base path. The workers' hashed sources are
         untouched: the Backtest engine stays `f984058aaaf38748`.
@@ -16244,8 +16245,22 @@ Order of the services (CONTRACT 17, rollback floors):
         catalog's copies could be shared between the admin and an account without presets).
       - Held: the two tests that refuse any lab item or lab tab are back, with what must be closed first in their
         failure messages (FUTURE_PLAN.md "Before the first lab item or tab").
-      - Next: round 2 of the checker on the fixed code and its completeness critic; then the example mode (option A,
-        the date to be confirmed). `main` moves only with the user's go: the Screener worker deploys for both sites.
+      - Round 2 of the checker (2026-11-21; finders and critic `wf_e359fe58-c17`, the three behaviour changes checked by
+        skeptics first, `wf_d4d13dbc-fff`; every agent at xhigh; ERRORS M523 "Round 2", M524, M525, M526): 31 findings
+        and 5 gaps, mostly tests that stayed green on a broken mechanism; none lets anything reach a visitor today. Each
+        fix is proven by the finder's own mutation turning its test red. The proof now plants fixture items on disk in a
+        copy and builds every page with its own configuration; the entries are derived; the filter stops on a missing
+        part; every page build applies the filter (every page's output byte-identical, 28 files); one accessor for the
+        worker's ids; both catalog routes tested; M521's test runs on broker data, on all four routes, on and off. M524:
+        the Screener worker's rights check no longer overflows on a deeply nested request (caused by M521's fix). M525:
+        the image builds the Backtest page as CI does (its bundle changes once at the next deploy). M526: a saved screen
+        is checked again under any context but the widest; the live site's view of the admin's own beta Backtest jobs
+        is an open decision for the user. CS-1: the lab build goes only to the admin who holds every item, a lab tab
+        only with its own view. A standing rule: an item no worker gates by id is never lab. Two lift conditions added
+        (the admin's synced chart layout, CRIT-1; items code names or computes, CRIT-3). Not run: a switch-off browser
+        session on a lab build, a Docker build here, the beta deploy with the live smoke.
+      - Next: the example mode (option A, the date to be confirmed). `main` moves only with the user's go: the Screener
+        worker deploys for both sites.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

@@ -149,7 +149,7 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
    reordered (`validate.ts` header; `registry.ts` header: the backtest core's `resolveParams` first, then only
    narrowing).
 7. **Versions in every answer (I6).** Each answer names the data, engine and registry versions that produced it (section
-   1.13); every computed answer opens with them (`apps/screener-worker/src/run.ts:433-441`).
+   1.13); every computed answer opens with them (`apps/screener-worker/src/run.ts:449-457`).
 8. **Stale tickers and unadjusted price breaks are hidden by default (P4, P4.1 A).** Both chips default on: absent
    means on (`universe.ts:56`, `traded_on_eval_date !== false`, `exclude_price_breaks !== false`). Shown through a chip,
    their rows carry a remark with the reason (`STALE` with the last bar date; `PRICE_BREAK` with the action, ex-date,
@@ -310,7 +310,7 @@ and the borrowed backtest-worker files.
   and cache hits; K compute threads (`SCREENER_THREADS`) run screens, previews and counts; a builder thread is started
   for one refresh and killed after it (`apps/screener-worker/src/server.ts:250`, `:277`). Every thread runs under
   `SCREENER_THREAD_HEAP_MB` (`pool.ts:56-66`, `resourceLimits.maxOldGenerationSizeMb`): a thread that needs more stops
-  alone, its request answers `500 OUT_OF_MEMORY` (`server.ts:574`), and it is started again with every snapshot
+  alone, its request answers `500 OUT_OF_MEMORY` (`server.ts:576`), and it is started again with every snapshot
   installed before it takes work (`pool.ts:99-107`). Tests: `tests/heap.test.ts`, `tests/pool.test.ts` "a thread that
   does not stop is terminated after the grace and started again with the snapshots installed".
 - **Configuration** (`apps/screener-worker/src/config.ts:79-132` `loadConfig`): 30 variables, every limit without a default; a missing or
@@ -467,9 +467,9 @@ unevaluated conditions is pruned iff m + r < θ. It never hides a match or a nea
 oracle on random whole screens).
 
 **Cost and budget.** Before any compute the worker prices the worst case on the S0 survivors
-(`apps/screener-worker/src/run.ts:429-467` `estimateCost`: each condition's stage; for S3 the predicted ms of its series
-that are not pinned, from `costUnits` `:355-414` over the core's `costTracker`, `plan.ts:151`, which learns ms per unit
-per replica with an exponential mean, alpha 0.2, `run.ts:285`, seeded by the registry's provisional 5.96 ns per bar per
+(`apps/screener-worker/src/run.ts:445-483` `estimateCost`: each condition's stage; for S3 the predicted ms of its series
+that are not pinned, from `costUnits` `:371-430` over the core's `costTracker`, `plan.ts:151`, which learns ms per unit
+per replica with an exponential mean, alpha 0.2, `run.ts:301`, seeded by the registry's provisional 5.96 ns per bar per
 length unit; a flow kernel by its stock's broker rows and brokers x sessions grid and a measured prior per way it is
 computed, the broker-data series and window context once per stock, every cold series observed with its time shared
 among its kernels: `verification/screener/BENCHMARK_FLOW_COST.md`, QA unit B). Above `SCREENER_MAX_CPU_MS` the request
@@ -506,17 +506,17 @@ with K - 1 it rose 1.6 times.
 
 | Cache (per replica) | Key | Bound | Code |
 |---|---|---|---|
-| Result cache: run and preview answers as gzip bytes with `ETag` | `resultKey`: kind, `sid`, `screener_engine`, `registry`, `screener_registry`, `definition_hash`, `exhaustive`, `explain` (preview adds the ticker); nothing of the owner | one share of `SCREENER_CACHE_BYTES`, LRU; the presets pinned | `run.ts:248-249`, `server.ts:100-125` |
+| Result cache: run and preview answers as gzip bytes with `ETag` | `resultKey`: kind, `sid`, `screener_engine`, `registry`, `screener_registry`, `definition_hash`, `exhaustive`, `explain` (preview adds the ticker); nothing of the owner | one share of `SCREENER_CACHE_BYTES`, LRU; the presets pinned | `run.ts:264-265`, `server.ts:100-125` |
 | Counts cache | (snapshot, definition hash) | 50,000 entries (`COUNTS_KEEP`), LRU; the presets pinned | `server.ts:131-152` |
 | Series LRU (custom parameters) and the pinned tails | `seriesKey` (`metrics.ts:321`) per ticker | one share of `SCREENER_CACHE_BYTES` per compute thread; pinned tails not counted | `metrics.ts:328` `SeriesCache`, `snapshot.ts:438-454` |
-| One request's views | ticker | `CALC_KEEP` 256 tickers hold a `Calc` (released on eviction) | `run.ts:332`, `:341-381` |
+| One request's views | ticker | `CALC_KEEP` 256 tickers hold a `Calc` (released on eviction) | `run.ts:348`, `:357-397` |
 | Disk cache of the files | sha256 | `SCREENER_CACHE_DIR_BYTES` in `SCREENER_CACHE_DIR` (the container's disk, no volume) | `TerminalClient` `DiskCache` |
 | Catalog and universe documents | the publication and its outcome | one each | `apps/screener-worker/src/catalog.ts:93-120` (JSON, gzip level 9, `ETag` = sha256 of the JSON bytes) |
 
 `SCREENER_CACHE_BYTES` is split K + 1 ways (`apps/screener-worker/src/config.ts:136` `cacheShare`). Every cache is dropped with its snapshot.
 Two owners with one definition share one computation byte for byte (test `tests/server.test.ts` "the result cache: two
 owners with one definition share one computation, byte for byte"). An answer computed before an advance is sent to its
-caller but never cached under the newer publication (`server.ts:413-416`, `:492-499`; semantic review S4; test
+caller but never cached under the newer publication (`server.ts:413-416`, `:494-501`; semantic review S4; test
 `tests/refresh.test.ts` "a screen still computing when the same files advance the publication is never cached under the
 newer one").
 
@@ -549,7 +549,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:712`), mounted like the Backtest module (`apps/edge-bff/app/main.py:799`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:723`), mounted like the Backtest module (`apps/edge-bff/app/main.py:810`
 `screeners.routes`):
 
 Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session and the capability named; with
@@ -577,12 +577,12 @@ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session 
   `test_catalog_and_universe_are_kept_per_worker_state_with_an_etag`,
   `test_a_newer_publication_seen_in_a_run_drops_the_cached_catalog_at_once`,
   `test_the_catalog_never_goes_back_and_ignores_transient_refresh_states`). edge-bff adds its own limits to the
-  catalog's `limits[]` (`own_limits`, `:643-676`: `saved_items` 50 per kind, `watchlist` 500,
+  catalog's `limits[]` (`own_limits`, `:654-687`: `saved_items` 50 per kind, `watchlist` 500,
   `saved_definition_bytes` 65,536, `request_bytes` 131,072, `inflight_per_page` 1).
-- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:983`); an older call answers 409
+- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:993`); an older call answers 409
   `SCREEN_REPLACED` or `PREVIEW_REPLACED`; a caller that left is stopped at the worker.
 - **Saved items** are validated by the worker before they are stored, with the `registry` and `screener_registry` of the
-  same answer (`validated`, `:1062-1086`; `/health` versions when an answer has none), and validated again on load when
+  same answer (`validated`, `:1072-1096`; `/health` versions when an answer has none), and validated again on load when
   they were saved under other versions ("needs review" with the field; nothing adjusted). Every store statement filters
   `owner_key`.
 - **Settings** (`apps/edge-bff/app/config.py:113-122`): `SCREENER_WORKER_URL` and `SCREENER_WORKER_KEY` together or not
@@ -591,8 +591,8 @@ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session 
   worker's `SCREENER_DEADLINE_MS` / 1000. The saved-item limits are constants (`SCREEN_LIMIT` 50, `WATCHLIST_LIMIT`
   50, `screener.py:81-82`; since EXEC-WATCHLIST 2A the star fills the first watchlist, so the limit is that list's
   `PER_LIST`, `apps/edge-bff/app/watchlist.py`).
-- **Page and frame**: `/screener` (`main.py:522`) and `/screener-app/` with its assets (`main.py:620-632`) under
-  `SCREENER_CSP` (`main.py:118-121`: `connect-src 'self'`).
+- **Page and frame**: `/screener` (`main.py:523`) and `/screener-app/` with its assets (`main.py:623-642`) under
+  `SCREENER_CSP` (`main.py:119-122`: `connect-src 'self'`).
 - **A new metric needs no edge-bff change:** the catalog is relayed as the worker built it.
 
 Tests: `apps/edge-bff/tests/test_screener.py` (35 tests, on a disposable PostgreSQL through `EDGE_TEST_POSTGRES_URL`;
@@ -841,7 +841,7 @@ variable.
 | Response, request | 4,194,304 bytes of JSON; 131,072 bytes of body | `SCREENER_MAX_RESPONSE_BYTES`, `SCREENER_MAX_REQUEST_BYTES` |
 | One xsection file (gzip), inflated, one refresh | 2 × the measured size: 24,000,000 / 150,000,000 / 24,000,000 locally; re-derived from the first dev publisher run | `SCREENER_MAX_FILE_BYTES`, `SCREENER_MAX_INFLATED_BYTES`, `SCREENER_MAX_REFRESH_BYTES` |
 | Threads, heap, caches, memory | K = 2, 512 MB per thread, 256 MiB of caches, a 2.75 GB replica | `SCREENER_THREADS`, `SCREENER_THREAD_HEAP_MB`, `SCREENER_CACHE_BYTES`, Railway memory limit |
-| Saved items, watchlist (edge-bff constants) | 50 saved screens and 50 My metrics per owner; 50 tickers in the first watchlist (`PER_LIST`, EXEC-WATCHLIST 2A) | `SCREEN_LIMIT` (`screener.py:86`), `WATCHLIST_LIMIT` (`:104`) |
+| Saved items, watchlist (edge-bff constants) | 50 saved screens and 50 My metrics per owner; 50 tickers in the first watchlist (`PER_LIST`, EXEC-WATCHLIST 2A) | `SCREEN_LIMIT` (`screener.py:86`), `WATCHLIST_LIMIT` (`:117`) |
 | terminal-api default quota (one shared gateway subscriber) | `files_per_hour` 60, `megabytes_per_day` 300 (`database/migrations/20261025_100_create_terminal_schema.sql:79-83`); overridden to 1e9 on dev, TEMPORARY (decision U1); a service key has its own hourly ceilings instead (EXEC-MU-RUNTIME T1, `BACKTEST_END_TO_END.md` 6.1) | `terminal.quota` |
 
 **Onboarding consequence:** a new file must fit `SCREENER_MAX_FILE_BYTES`, `SCREENER_MAX_INFLATED_BYTES` and
@@ -1117,7 +1117,7 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 | Check | Evidence |
 |---|---|
 | The file in the worker's file list (today `PHASE1_FILES`, `snapshot.ts:81`): the refresh requires it in the index (`refresh.ts:317-319`), caps it before any grant, grants it only when neither cache holds it, downloads it on the builder with sha256 and size checks and decodes it with the shared decoders (`decodeColumnar`/`inflateVerified`); its sha256 joins the skip-unchanged rule (`refresh.ts:339`) and the snapshot identity `sid` (`snapshot.ts:96`). A file that is optional needs its own rule, as the broker day files have (P4, `broker.ts`): the Phase 1 list makes a missing file fail the refresh | `tests/refresh.test.ts` |
-| The metric bound: a new kind or a new source in `condition.ts` (flow is refused at bind until Phase 2, `condition.ts:182`), costed in `apps/screener-worker/src/run.ts:355-410` `costUnits` or pinned in the snapshot | condition and estimate tests |
+| The metric bound: a new kind or a new source in `condition.ts` (flow is refused at bind until Phase 2, `condition.ts:182`), costed in `apps/screener-worker/src/run.ts:371-426` `costUnits` or pinned in the snapshot | condition and estimate tests |
 | Plan gate (EXEC-MU-ACCOUNTS Phase 3b): a new indicator, flow entry, candlestick pattern, pattern, cross-sectional metric or universe attribute is gated by its id with no worker change: the worker's `checkAllow` walks every reference of the normalized definition and refuses an id outside the body's `context.allow` (`403 CAPABILITY_REQUIRED`, capability `screener.indicator:`, `screener.flow_indicator:`, `screener.candle_pattern:` or `screener.metric:` plus the id; `apps/screener-worker/CONTRACT.md` section 4a). The id needs its entry in `apps/edge-bff/catalog/releases.json`. A new reference kind, or an id carried in another field, is added to `definitionItems` with its test | `apps/edge-bff/tests/test_releases.py`; `apps/screener-worker/tests/allow.test.ts` |
 | Cross-checks on load (counts, dates, a self-check against a stored oracle where one exists); a failure keeps the previous snapshot and logs `REFRESH_FAILED` | a fixture with a corrupted sha256 |
 | Units converted once, at the decoder, from the document's `units`; raw units on the wire | a unit test |
@@ -1193,7 +1193,7 @@ first needs the optional-file rule of L5 before a new file joins the list.
   is then tailed by `series()`, so a recursive input stays exact. Its comparison lag comes from the same probe as the
   registry's (a rolling maximum of the high reads the previous bar as the right side of a price comparison; test
   `tests/core/catalog.test.ts` "the comparison lag of rolling_max / rolling_min ..."). The worker prices it as O(N·n)
-  over its largest numeric argument (`apps/screener-worker/src/run.ts:267-285`) until the tracker has measured it.
+  over its largest numeric argument (`apps/screener-worker/src/run.ts:283-301`) until the tracker has measured it.
   `screener_engine` changes; the Backtest does not.
 - **A new formula** (Ichimoku, or any indicator not among the 53) goes into `F` and `indRegistry.json` through a
   **registry release** (P6, DECIDED with the go), never as a screener transform. Worked example 2.11.
