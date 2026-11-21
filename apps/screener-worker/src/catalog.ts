@@ -46,7 +46,10 @@ const isFundamental = (x: MetricDefinition) => /fundamental/i.test(x.group);
     tests/fixture/api.ts has the same shape); the internal fields (requires, decision, evidence, unavailable_reason) stay in the worker. */
 function catalogMetric(x: MetricDefinition, a: { availability: Availability; reason: string | null }, sessions: number): CatalogMetric {
   const extra: Record<string, unknown> = {};
-  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref', 'side'] as const) if (x[k] !== undefined) extra[k] = x[k];
+  // ERRORS M520 (3f): `access` too, the core's mark of the Screener's point-in-time Flow versions (catalog.ts
+  // flowAdminOnly): edge-bff leaves them out of the catalog of a session without the right flow_point_in_time
+  // (app/screener.py catalog_for); without it here they reached every session, and were refused only when run
+  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref', 'side', 'access'] as const) if (x[k] !== undefined) extra[k] = x[k];
   // P5a: a flow indicator's Terminal setup (contract.ts CatalogFlow): the registry's parameters, each output's kind, and
   // the sessions it reads at its defaults against the loaded window (a built-in baseline shown capped to the window)
   if (x.flow) {

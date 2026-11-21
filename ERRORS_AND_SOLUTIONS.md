@@ -8879,6 +8879,38 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M520 — The Screener catalog sent the admin-only Flow versions to every principal with the Screener (2026-11-21; OPEN, fixed in 3f)
+
+- **Found by:** the code map for 3f (2026-11-21), then a probe of the real worker.
+  - The probe started screener-worker's own server over the fake terminal-api (as `tests/server.test.ts` does) and read
+    `GET /v1/catalog`.
+  - Result: 125 entries, 50 of them Flow entries, and none carried `access`. That includes FL18, whose Screener version
+    the core marks admin-only.
+- **Verified root cause:**
+  - The Screener core marks the Screener's own point-in-time Flow versions `access: 'admin'`
+    (`apps/edge-bff/screener/src/core/catalog.ts` `flowMetric`, through `flowAdminOnly`: the compute kinds `anchored` and
+    `inventory`, today FL18, FL19, FL20, FL23, FL44 and FL45).
+  - The worker's `catalogMetric` (`apps/screener-worker/src/catalog.ts`) builds each catalog entry from a list of fields
+    that does not include `access`, so the mark never reaches edge-bff.
+  - edge-bff leaves those entries out for a session without the right `flow_point_in_time` only when they are marked
+    (`app/screener.py` `catalog_for`). Its tests use a fake worker that sends the mark, so they passed.
+  - Running such a condition is refused by the worker itself (`restrict`, CONDITION_RESTRICTED, from the core's own
+    marks). What leaked is the catalog text: the definitions, words and parameters of those six entries. The same
+    gap kept in the catalog the presets that read them (Stage C F6, ERRORS M458), which are then refused when run.
+- **Impact:** every principal holding the Screener, on both sites, sees the six admin-only entries in the Screener's
+  lists and gets a refusal when it uses one. In the pre-launch mode that is the admin and the test accounts.
+- **General class:** an access mark set in a shared core and dropped by a hand-kept field list on its way out, while
+  the consumer's tests feed a fake that keeps it.
+- **Fix (3f, EXEC option A item 4):**
+  - The worker's catalog copies `access` (additive). The older edge-bff of the live site already filters on it, so the
+    worker fix reaches both sites when screener-worker deploys.
+  - edge-bff decides each tab catalog entry's release stage and capability itself, with the rule of `/api/v1/catalog`
+    (`catalog.holds_entry`), for the Screener's and the Backtest's catalogs alike.
+  - A worker test derives the marked ids from `flowAdminOnly` over the registry, not from a hand-kept list.
+- **Status:** OPEN until the 3f commit lands and screener-worker deploys.
+- **Lesson:** a mark that decides access is checked on the real producer's output, not only on a fake that is written
+  to carry it.
+
 ### M519 — With both ways of the second factor locked, the MFA page offered the authenticator code again (2026-11-20; FIXED on the branch)
 
 - **Found by:** the full edge-bff suite on the 3e branch (1 failed, 1018 passed, 2026-11-20).

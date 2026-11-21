@@ -4,7 +4,9 @@ Answers {"kind", "entries": [{"id", "stage"}]} with the release file's entries o
 principal holds in any capability family of that kind: an entry is held when p.can("<family>:<id>") for one of the
 kind's families (KIND_OF_FAMILY), so `*` holds every entry at any stage and a plan holding {"stages": ["released"]} on
 terminal.indicator holds the released indicators only. An unknown kind answers 404 NOT_FOUND, with the known kinds in
-details.known_kinds. Definitions stay in the page bundles until Phase 3 moves them behind this route.
+details.known_kinds. The definitions of released items stay in the page bundles; a lab item's definition and formula
+are never in a public bundle (3f, CONTRACT 8a "Lab code": the page build filters the registries by stage, and the
+admin's page loads them from its app's lab route). The tab catalogs list items with the same rule (tab_list).
 """
 import json
 from pathlib import Path
@@ -77,6 +79,46 @@ def grant_key(p, kind):
 
 def held(p, kind):
     return [e for e in releases.entries(kind) if holds_entry(p, kind, e['id'])]
+
+
+# 3f (EXEC option A item 4; CONTRACT 8a "Tab catalogs"; ERRORS M520): the tab catalogs the workers answer (the Screener's,
+# the Backtest's) list items too. edge-bff decides each entry itself with the rule of this route: its release stage from
+# the release file and the principal's hold from holds_entry. The workers' own mark access 'admin' (the point-in-time
+# Flow versions) needs the right flow_point_in_time (rights.py), as before. A kept lab entry carries release 'lab'.
+def tab_kind(item_id, kinds, fallback):
+    """The release kind of a tab catalog's entry: the one of `kinds` listing the id (releases.kind_of), else `fallback`
+    (an unlisted id is lab in every kind)."""
+    return releases.kind_of(item_id, kinds) or fallback
+
+
+def tab_hidden(p, kind, entry, point_in_time):
+    """Whether a tab catalog's entry is left out for a principal: marked access 'admin' without the right
+    flow_point_in_time (point_in_time: the principal's rights hold it), or a lab item the principal does not hold (an id
+    the release file does not list is lab; without a principal, p None, no lab item is held)."""
+    if entry.get('access') == 'admin' and not point_in_time:
+        return True
+    if releases.stage_of(kind, entry['id']) == releases.LAB:
+        return p is None or not holds_entry(p, kind, entry['id'])
+    return False
+
+
+def tab_list(p, entries, kinds, fallback, point_in_time):
+    """(the entries a principal sees, the ids left out): a tab catalog's list of items decided entry by entry
+    (tab_hidden); an entry without a string id is not an item and stays as it is; a kept lab entry carries release
+    'lab'."""
+    kept, out = [], set()
+    for e in entries:
+        if not (isinstance(e, dict) and isinstance(e.get('id'), str)):
+            kept.append(e)
+            continue
+        kind = tab_kind(e['id'], kinds, fallback(e))
+        if tab_hidden(p, kind, e, point_in_time):
+            out.add(e['id'])
+        elif releases.stage_of(kind, e['id']) == releases.LAB:
+            kept.append({**e, 'release': releases.LAB})
+        else:
+            kept.append(e)
+    return kept, out
 
 
 def routes(app, auth):

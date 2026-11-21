@@ -35,7 +35,8 @@ from .errors import plan_cap
 from . import wake
 from .principal import Principal
 from .allow import NOTHING, context_of, digest, named
-from .catalog import grant_key, holds_entry
+from . import releases
+from .catalog import grant_key, holds_entry, tab_hidden, tab_kind
 from .rights import POINT_IN_TIME, refuse_context, rights_of
 from .watchlist import LISTS, PER_LIST, WatchlistStore
 from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
@@ -86,6 +87,14 @@ HEALTH_TIMEOUT = 5
 # initially 50). SCREEN_LIMIT holds for each kind: at most 50 saved screens and 50 My metrics per owner.
 SCREEN_LIMIT = 50
 PRESET_KIND = 'screener_preset'                      # the release kind of the presets (releases.KINDS; re-check R1-32)
+# 3f (ERRORS M520): the catalog's lists of items, each with the release kinds its ids belong to and the kind of an id the
+# release file does not list (lab in every kind): the technical indicators; the metrics and fundamentals, which hold the
+# Flow entries (kind 'flow'), the candlestick patterns and the Screener's own metrics (their ids do not repeat across
+# these kinds)
+METRIC_KINDS = ('flow_indicator', 'candle_pattern', 'screener_metric')
+ITEM_LISTS = (('indicators', ('indicator',), lambda e: 'indicator'),
+              ('metrics', METRIC_KINDS, lambda e: 'flow_indicator' if e.get('kind') == 'flow' else 'screener_metric'),
+              ('fundamentals', METRIC_KINDS, lambda e: 'flow_indicator' if e.get('kind') == 'flow' else 'screener_metric'))
 WATCHLIST_LIMIT = PER_LIST                           # EXEC-WATCHLIST 2A: the star fills the first list (50, app/watchlist.py)
 # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): reads need screener.view, runs and saves screener.run; the saved items
 # and the star are capped by the plan's limits, at most the constants above (HARD; Principal.capped)
@@ -129,12 +138,12 @@ def failure(code, status, field=None, message=None, details=None, headers=None):
 
 
 def reads_any(x, ids):
-    """Whether a preset's definition reads a metric of `ids` anywhere: a reference {"kind": ..., "metric": id} at any
-    depth (Stage C F6, ERRORS M458)."""
+    """Whether a preset's definition reads an item of `ids` anywhere: a reference {"kind": ..., "metric": id} or, for a
+    technical indicator, {"kind": "indicator", "indicator": id}, at any depth (Stage C F6, ERRORS M458; 3f, M520)."""
     if isinstance(x, list):
         return any(reads_any(v, ids) for v in x)
     if isinstance(x, dict):
-        if isinstance(x.get('metric'), str) and x['metric'] in ids and isinstance(x.get('kind'), str):
+        if isinstance(x.get('kind'), str) and any(isinstance(x.get(k), str) and x[k] in ids for k in ('metric', 'indicator')):
             return True
         return any(reads_any(v, ids) for v in x.values())
     return False
@@ -838,33 +847,49 @@ class Screeners:
                    price_data=price_data_of(data), published_at=published_of(data))
 
     def catalog_for(self, doc, rights, allow=None, p=None):
-        """EXEC-BACKTEST-REVAMP P5 (K8 b): the catalog as a session sees it: without POINT_IN_TIME, the entries marked
-        access 'admin' are left out, with their own bytes and ETag (kept per document, so a session without the right
-        never gets the admin catalog's ETag or a 304 for it). EXEC-MU-ACCOUNTS Phase 3b (C2 F1): with an allow that does
-        not hold every item, a preset reading an item outside it is left out (its counts were computed with every item);
-        a preset without the worker's `items` (an older worker) keeps no counts. Re-check R1-32: a preset the principal
-        `p` does not hold itself (its screener.preset grant, catalog.holds_entry: the rule of /api/v1/catalog) is left out
-        too. Kept per (document, right, allow, preset grant)."""
+        """EXEC-BACKTEST-REVAMP P5 (K8 b): the catalog as a session sees it, with its own bytes and ETag (kept per document,
+        so a session never gets another one's ETag or a 304 for it):
+        - 3f (ERRORS M520; catalog.tab_list, the rule of /api/v1/catalog): an entry of the item lists (ITEM_LISTS) is
+          left out when it is marked access 'admin' (the Screener's point-in-time Flow versions) and the session lacks
+          the right flow_point_in_time, or when it is a lab item the principal `p` does not hold (an id the release file
+          does not list is lab; without `p` none is held); a kept lab entry carries release 'lab';
+        - a preset that reads an entry left out would be refused when run, so it is left out too (Stage C F6, M458);
+        - EXEC-MU-ACCOUNTS Phase 3b (C2 F1): with an allow that does not hold every item, a preset reading an item
+          outside it is left out (its counts were computed with every item); a preset without the worker's `items` (an
+          older worker) keeps no counts;
+        - re-check R1-32: a preset `p` does not hold itself (its screener.preset grant, catalog.holds_entry) is left out.
+        Kept per (document, entries left out, allow, preset grant)."""
         everything = allow is None or all(v == '*' for v in allow.values())
         presets = None if p is None else grant_key(p, PRESET_KIND)
-        if POINT_IN_TIME in rights and everything and presets is None:
+        point_in_time = POINT_IN_TIME in rights
+        out, lab_kept = set(), set()
+        for name, kinds, fallback, entry in self.items_of(doc):
+            kind = tab_kind(entry['id'], kinds, fallback(entry))
+            if tab_hidden(p, kind, entry, point_in_time):
+                out.add((name, entry['id']))
+            elif releases.stage_of(kind, entry['id']) == releases.LAB:
+                lab_kept.add((name, entry['id']))
+        if not out and not lab_kept and everything and presets is None:
             return doc
-        key = (doc.etag, POINT_IN_TIME in rights, None if everything else dumps(allow), presets)
+        key = (doc.etag, frozenset(out), frozenset(lab_kept), None if everything else dumps(allow), presets)
         hit = self.restricted.get(key)
         if hit is None:
             data = loads(doc.raw)
+            if isinstance(data, dict):
+                for name, _, _ in ITEM_LISTS:
+                    if isinstance(data.get(name), list):
+                        data[name] = [({**e, 'release': releases.LAB} if isinstance(e, dict) and (name, e.get('id')) in lab_kept else e)
+                                      for e in data[name] if not (isinstance(e, dict) and (name, e.get('id')) in out)]
             if not everything and isinstance(data, dict) and isinstance(data.get('presets'), list):
                 data = {**data, 'presets': presets_held(data['presets'], allow)}
             if presets is not None and isinstance(data, dict) and isinstance(data.get('presets'), list):
                 data = {**data, 'presets': [x for x in data['presets'] if isinstance(x, dict) and isinstance(x.get('id'), str)
                                             and holds_entry(p, PRESET_KIND, x['id'])]}
-            if POINT_IN_TIME not in rights and isinstance(data, dict) and isinstance(data.get('metrics'), list):
-                admin = {m.get('id') for m in data['metrics'] if isinstance(m, dict) and m.get('access') == 'admin'}
-                data = {**data, 'metrics': [m for m in data['metrics'] if not (isinstance(m, dict) and m.get('access') == 'admin')]}
-                # Stage C F6 (ERRORS M458): a preset that reads an admin entry would be refused when run
-                # (CONDITION_RESTRICTED), so it is left out too; the entries are the catalog's own admin marks
-                if isinstance(data.get('presets'), list):
-                    data['presets'] = [p for p in data['presets'] if not reads_any(p.get('definition') if isinstance(p, dict) else None, admin)]
+            if out and isinstance(data, dict) and isinstance(data.get('presets'), list):
+                # Stage C F6 (ERRORS M458): a preset that reads an entry left out would be refused when run
+                # (CONDITION_RESTRICTED, CAPABILITY_REQUIRED), so it is left out too
+                gone = {i for _, i in out}
+                data['presets'] = [x for x in data['presets'] if not reads_any(x.get('definition') if isinstance(x, dict) else None, gone)]
             raw = dumps(data)
             hit = Doc(key=doc.key, raw=raw, gz=gzip.compress(raw, 6, mtime=0), etag='"' + hashlib.sha256(raw).hexdigest() + '"',
                       price_data=doc.price_data, published_at=doc.published_at)
@@ -872,6 +897,21 @@ class Screeners:
                 self.restricted.clear()
             self.restricted[key] = hit
         return hit
+
+    def items_of(self, doc):
+        """The catalog document's item entries (name of the list, its kinds, its fallback, the entry), read once per
+        document (kept by its ETag beside the restricted copies)."""
+        key = ('items', doc.etag)
+        found = self.restricted.get(key)
+        if found is None:
+            data = loads(doc.raw)
+            found = [] if not isinstance(data, dict) else [
+                (name, kinds, fallback, e) for name, kinds, fallback in ITEM_LISTS if isinstance(data.get(name), list)
+                for e in data[name] if isinstance(e, dict) and isinstance(e.get('id'), str)]
+            if len(self.restricted) > 32:
+                self.restricted.clear()
+            self.restricted[key] = found
+        return found
 
     def limits_for(self, doc, caps):
         """EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b): the catalog with the principal's own limits (caps_of) in place of

@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-11-21 — 3e (without the example mode) and the MFA lock fix on the beta
+
+- **Commits `6ab9d1a9`…`d194981f`:** 3e after its ultracode checker and its fixes (ERRORS M518), the MFA lock answer
+  (ERRORS M519), and the records of the user's answers of 2026-11-21. CI green on the session branch at `937853a2` (the
+  last code commit): Backend tests, look-ahead gate, generated files, image builds. No migration.
+- **Why now:** the user chose (2026-11-21) to bring A2 live together with 3e and 3f, not alone, so `main` no longer
+  waits at `f8c872e0` (EXEC.md option A run log).
+- **Before:** M340 by `scripts/restart_postgres.py` (check only): 0 EDGE jobs, 0 orc turns, 0 statements.
+- **Beta:** `main` moved `f8c872e0` → `d194981f` (a fast-forward). `edge-bff` `6d8de2a2` (made 02:52 UTC) waited for
+  its CI and reached SUCCESS.
+  - `/ready` 200, `/version` `d194981f`.
+  - `/terminal`, `/terminal-app/`, `/backtest-app/`, `/screener-app/` and `/api/v1/auth/config` 200.
+  - The beta's switch is off, so the locked pages of 3e and the MFA page do not show there; they act where the switch
+    is on.
+- **Live:** unchanged at `4785d1ef`. A2, 3e and 3f go live in one promotion, on the user's go (LIVE_PROMOTION.md).
+
 ## 2026-11-20 — The next execution, item 2 (the A2 fix) on the beta
 
 - **Commit `f8c872e0`:** the A2 fix after its ultracode checker, plus its migration records (ERRORS M517). CI was

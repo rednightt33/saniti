@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { after, before, test } from 'node:test';
 import { countsAnswer } from '../src/run.ts';
+import { flowAdminOnly } from '../../edge-bff/screener/src/core/catalog.ts';
+import { FLOW_BY_ID } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import { createApp } from '../src/server.ts';
 import type { WorkerApp } from '../src/server.ts';
 import { startFakeTerminal, universe, walk } from './fake-terminal.mjs';
@@ -79,6 +81,16 @@ test('the envelope: schema_version, unknown fields, client_order, data_version a
   assert.equal(r.status, 422); assert.equal(r.body.error.field, 'definition.logic');
   const p = await call(port, 'POST', '/v1/run', runBody(RSI(0)), auth(OWNER_A));
   assert.equal(p.status, 422); assert.equal(p.body.error.code, 'PARAM_OUT_OF_RANGE'); assert.equal(p.body.error.field, 'definition.conditions[0].test.metric.params.length');
+});
+
+test('ERRORS M520: the catalog carries the core\'s admin marks: access "admin" on exactly the Flow entries flowAdminOnly marks, on no other entry', async () => {
+  const c = await call(main.port, 'GET', '/v1/catalog', undefined, auth());
+  assert.equal(c.status, 200);
+  const all = [...c.body.metrics, ...c.body.fundamentals];
+  const want = Object.values(FLOW_BY_ID).filter(flowAdminOnly).map(f => f.id).sort();
+  assert.ok(want.length > 0, 'the registry has admin-only Flow versions to check');
+  assert.deepEqual(all.filter((m: any) => m.access === 'admin').map((m: any) => m.id).sort(), want);
+  assert.ok(all.every((m: any) => m.access === undefined || m.access === 'admin'), 'no other value of access');
 });
 
 test('the catalog: versions and data first, every worker limit with its rule and examples generated from the environment value, ETag and 304', async () => {

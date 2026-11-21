@@ -31,9 +31,13 @@ def refuse_context(body):
                                   'message': 'context is set by EDGE; remove it from the request.'})
 
 
-def catalog_for(catalog, rights):
-    """The worker's catalog as a session sees it: an entry marked access 'admin' only with its right."""
+def catalog_for(catalog, rights, principal=None):
+    """The worker's catalog as a session sees it: an entry marked access 'admin' only with its right, and (3f, ERRORS
+    M520) a lab Flow indicator only for a principal that holds it (catalog.tab_list, the rule of /api/v1/catalog: an id
+    the release file does not list is lab; without a principal none is held)."""
+    from .catalog import tab_list                      # catalog.py does not import this module
     if not isinstance(catalog, dict) or not isinstance(catalog.get('flow_indicators'), list):
         return catalog
-    keep = [x for x in catalog['flow_indicators'] if not (isinstance(x, dict) and x.get('access') == 'admin' and POINT_IN_TIME not in rights)]
+    keep, _ = tab_list(principal, catalog['flow_indicators'], ('flow_indicator',), lambda e: 'flow_indicator',
+                       POINT_IN_TIME in rights)
     return {**catalog, 'flow_indicators': keep}

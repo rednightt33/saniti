@@ -1432,8 +1432,8 @@ class Backtests:
                     self.catalog.update(at=now, data=data)
             # the whole catalog is kept once; each session sees the entries its rights allow (the kept one too, while the
             # worker cannot answer), and its own queue limit (C1 Phase 3a F1: the rule shown is the one applied)
-            shown = catalog_for(self.catalog['data'], rights(request))
             p = getattr(request.state, 'principal', None)
+            shown = catalog_for(self.catalog['data'], rights(request), p)
             limits = shown.get('limits') if isinstance(shown, dict) else None
             if p is not None and isinstance(limits, dict) and isinstance(limits.get('queued_per_owner'), int):
                 own = p.capped(QUEUED_KEY, settings.backtest_queued_per_owner)

@@ -107,6 +107,9 @@ class Releases:
     def stage_of(self, kind, item_id):
         return self._stage.get((kind, item_id), LAB)
 
+    def kind_of(self, item_id, kinds):
+        return next((k for k in kinds if (k, item_id) in self._stage), None)
+
     def tab_stage(self, tab):
         return self._tabs.get(tab, LAB)
 
@@ -145,6 +148,12 @@ def stage_of(kind: str, item_id: str) -> str:
 def entries(kind):
     """The release file's entries of a kind ([{"id", "stage"}], file order); KeyError for an unknown kind."""
     return CURRENT.entries(kind)
+
+
+def kind_of(item_id, kinds):
+    """The first of `kinds` whose entries list the id, or None: an id the file does not list is lab in any kind (3f, a
+    tab catalog's entry whose list holds several kinds; the ids of those kinds do not repeat across them)."""
+    return CURRENT.kind_of(item_id, kinds)
 
 
 def tab_stage(tab: str) -> str:
