@@ -84,6 +84,12 @@ MEASURE_SQL = ('SELECT trade_date::text, ticker, ' + ', '.join(f'{c}::float8' fo
                f' FROM {M} WHERE trade_date = ANY(%s::date[]) AND ticker = ANY(%s)')
 PRICES_SQL = (f"SELECT ticker, date::text, close::float8 FROM {PRICE} WHERE timeframe = 'Daily' AND is_final "
               'AND date BETWEEN %s AND %s AND ticker = ANY(%s)')
+# EXEC-MU-ACCOUNTS 3e, the example mode (user 2026-11-21): the files as they were on a past date (build's as_of), every
+# date bounded by it. Only an as-of build runs these; a publication runs the statements above as before.
+GATES_ASOF_SQL = (f'SELECT trade_date::text, universe_n, broad_cut::float8, liquid_cut::float8, broad_n, liquid_n FROM {G} '
+                  'WHERE trade_date <= %s ORDER BY trade_date DESC LIMIT %s')
+PRICES_THROUGH_SQL = f"SELECT max(date)::text FROM {PRICE} WHERE ticker = %s AND timeframe = 'Daily' AND is_final"
+PRICES_THROUGH_ASOF_SQL = PRICES_THROUGH_SQL + ' AND date <= %s'
 
 
 MAINTAINED_BY = ('daily', 'backfill', 'radar')        # the modes that rebuild the files when their stamp changed
@@ -220,11 +226,14 @@ def filter_name(fid):
     return f'radar-f-{fid.lower()}'
 
 
-def build(conn, names, lists, stream=None):
+def build(conn, names, lists, stream=None, as_of=None):
     """Every Radar file -> [(name, doc, rows, as_of)], from the Feature 07 tables and the final daily prices.
-    names: {ticker: company name} of the universe; lists: [(key, kind, code, name, members)]."""
+    names: {ticker: company name} of the universe; lists: [(key, kind, code, name, members)]. as_of (an ISO date, the
+    example mode): the files as they were on that date, every result, count and price date bounded by it; None: the
+    publication's files, from the same statements as before."""
     stream = stream or (lambda sql, params: conn.execute(sql, params).fetchall())
-    gates = list(reversed(conn.execute(GATES_SQL, (RESULT_DATES,)).fetchall()))
+    gates = list(reversed(conn.execute(GATES_SQL, (RESULT_DATES,)).fetchall() if as_of is None
+                          else conn.execute(GATES_ASOF_SQL, (as_of, RESULT_DATES)).fetchall()))
     if not gates:
         return []
     dates = [g[0] for g in gates]
@@ -233,6 +242,8 @@ def build(conn, names, lists, stream=None):
     rules = conn.execute(RULES_SQL).fetchall()
     ids = [f[0] for f in filters]
     levels_of = {f: [lv for lv in LEVELS if any(r[0] == f and r[2] == lv for r in rules)] for f in ids}
+    # read from `first` on; with as_of, rows after `newest` are read too and dropped by days_doc and filter_doc, which
+    # keep only the result dates (the as-of tests lock it)
     counts = conn.execute(COUNTS_SQL, (first,)).fetchall()
     history = stream(HISTORY_SQL, (first,))
     boards = dates[-BOARD_DATES:]
@@ -240,8 +251,8 @@ def build(conn, names, lists, stream=None):
     listed = sorted({r[4] for r in board_rows} | {r[4] for r in history})
     # prices from SPARK price sessions before the oldest result date (calendar margin: 2 x SPARK + 10 days)
     lo = (dt.date.fromisoformat(first) - dt.timedelta(days=2 * SPARK + 10)).isoformat()
-    hi_row = conn.execute(f"SELECT max(date)::text FROM {PRICE} WHERE ticker = %s AND timeframe = 'Daily' AND is_final",
-                          (INDEX_TICKER,)).fetchone()
+    hi_row = conn.execute(PRICES_THROUGH_SQL, (INDEX_TICKER,)).fetchone() if as_of is None \
+        else conn.execute(PRICES_THROUGH_ASOF_SQL, (INDEX_TICKER, as_of)).fetchone()
     prices_through = hi_row[0] if hi_row else None
     prices = {}
     for t, d, c in stream(PRICES_SQL, (lo, prices_through or newest, [*listed, INDEX_TICKER])):

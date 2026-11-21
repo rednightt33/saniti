@@ -270,3 +270,80 @@ def test_a_page_failure_is_a_partial_publication():
 def test_results_are_read_for_the_current_rule_version_only():
     for sql in (radar.COUNTS_SQL, radar.HISTORY_SQL, radar.BOARD_SQL):
         assert 'rule_version = public.feature_07_rule_version()' in sql
+
+
+# ---- EXEC-MU-ACCOUNTS 3e, the example mode (user 2026-11-21): the files as they were on a past date -----------------
+LATER = '2026-11-09'
+NAMES = {'BBCA': 'Bank Central Asia', 'TLKM': 'Telkom Indonesia'}
+LISTS = [('lq45', 'index', 'LQ45', 'LQ45', ['TLKM', 'BBCA'])]
+ISO = re.compile(r'\d{4}-\d{2}-\d{2}')
+
+
+class LaterConn(RadarConn):
+    """RadarConn with a result date and a price session after the example's date, every table answered from the
+    statement's own parameters (the base fake answers any max(date) with its last price date). through: the same tables
+    cut at that date, as they stood then."""
+
+    def __init__(self, *a, through=None, **kw):
+        super().__init__(*a, **kw)
+        self.price_dates = PRICE_DATES + [LATER]
+        self.closes = {t: c + [c[-1] + 50] for t, c in CLOSES.items()}
+        self.gates = GATES + [(LATER, 853, 1.95e9, 1.85e10, 426, 171)]
+        self.results = RESULTS + [(LATER, 'S1', 'standard', 'broad', 'BBCA', 'hit', 3, 2, 1, None, None, 3.1, None),
+                                  (LATER, 'S8', 'standard', 'liquid', 'TLKM', 'near', 2, 3, None, None, None, 1.5, None)]
+        if through:
+            self.gates = [g for g in self.gates if g[0] <= through]
+            self.results = [r for r in self.results if r[0] <= through]
+            self.price_dates = [d for d in self.price_dates if d <= through]
+
+    def _rows(self, sql, params):
+        if sql == radar.GATES_ASOF_SQL:
+            return sorted((g for g in self.gates if g[0] <= params[0]), reverse=True)[:params[1]]
+        if sql in (radar.PRICES_THROUGH_SQL, radar.PRICES_THROUGH_ASOF_SQL):
+            ds = [d for d in self.price_dates if sql == radar.PRICES_THROUGH_SQL or d <= params[1]]
+            return [(max(ds),)] if ds else [(None,)]
+        if sql == radar.PRICES_SQL:
+            return [(t, d, float(c)) for t in reversed(params[2]) if t in self.closes
+                    for d, c in zip(self.price_dates, self.closes[t]) if params[0] <= d <= params[1]]
+        return super()._rows(sql, params)
+
+
+def built(conn, as_of=None):
+    return {name: (doc, rows, day) for name, doc, rows, day in radar.build(conn, NAMES, LISTS, as_of=as_of)}
+
+
+def dates_in(x):
+    """Every ISO date a document names, in a value or an object key."""
+    if isinstance(x, dict):
+        return [d for k, v in x.items() for d in ISO.findall(k) + dates_in(v)]
+    if isinstance(x, list):
+        return [d for v in x for d in dates_in(v)]
+    return ISO.findall(x) if isinstance(x, str) else []
+
+
+def test_an_as_of_build_on_the_full_tables_equals_the_build_on_the_tables_cut_at_that_date():
+    """The example mode's guarantee for the Radar: built with as_of, every file is what the plain build made from the
+    tables as they stood on that date (none of the later result dates, counts, hits or price sessions), for a result
+    date, a date between two and an older one."""
+    full = LaterConn(PRICES, BROKERS, UNIVERSE)
+    assert LATER in built(full)['radar-days'][0]['dates']                   # the later date is there to be cut
+    for as_of, through in (('2026-11-06', '2026-11-06'), ('2026-11-08', '2026-11-06'), ('2026-11-05', '2026-11-05')):
+        cut = built(LaterConn(PRICES, BROKERS, UNIVERSE, through=through))
+        assert built(full, as_of) == cut, as_of
+        assert max(cut['radar-days'][0]['dates']) == through and cut['radar-days'][0]['prices_through'] == through
+
+
+def test_an_as_of_build_names_no_date_after_it_anywhere():
+    full = LaterConn(PRICES, BROKERS, UNIVERSE)
+    files = built(full, '2026-11-06')
+    assert sorted(files) == sorted(['radar-meta', 'radar-days', *(f'radar-board-{d}' for d in DATES), 'radar-f-s1', 'radar-f-s8'])
+    for name, (doc, _, day) in files.items():
+        assert all(d <= '2026-11-06' for d in dates_in(doc) + ISO.findall(name) + [day]), name
+    assert any(d > '2026-11-06' for doc, _, _ in built(full).values() for d in dates_in(doc))   # the check can see one
+
+
+def test_without_as_of_the_build_runs_the_publication_statements_only():
+    conn = RadarConn(PRICES, BROKERS, UNIVERSE)
+    plain = built(conn)
+    assert not [s for s in conn.statements if s in (radar.GATES_ASOF_SQL, radar.PRICES_THROUGH_ASOF_SQL)]
+    assert plain == built(LaterConn(PRICES, BROKERS, UNIVERSE, through=DATES[-1]), DATES[-1])
