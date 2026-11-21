@@ -8879,6 +8879,25 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M530 — The Backtest and the Screener are wider than a 360 px phone: the page scrolls sideways (2026-11-21; found by the example mode's phone check; OPEN, older than 3e)
+
+- **Found by:** the example mode's acceptance at 390 and 360 px, light and dark (a scratch browser run over the five
+  example pages, the shell and the frame measured: `document.scrollingElement.scrollWidth` against the width). At 390
+  px every page fits; at 360 px the Backtest's frame is 384 px wide and the Screener's 388 px.
+- **Root cause (verified in the built pages):** the pages' own layout, not the example mode. The Backtest's builder
+  (`aside.builder`, its body, panes and rail) is 384 px wide at 360 px; the same overflow shows on its smoke build,
+  which has no example layer. The Screener's results toolbar (`#resTools`, `white-space: nowrap`,
+  `screener/src/styles/screener.css` near line 783) is 388 px wide once results show; its older smoke build, which
+  shows no results, fits. The results table itself scrolls inside its own box.
+- **Impact:** on a 360 px phone both pages scroll sideways by about 25 px, for the paid plans on the live site today
+  and for the examples after the promotion. Nothing is hidden; the design system's rule (no sideways scroll at 1440,
+  1152, 390 and 360 px) is broken.
+- **General class:** a fixed or no-wrap width inside a page that is checked at 390 px only; any page of EDGE with a
+  fixed-width panel or a no-wrap tool row (the Terminal is out of scope, "Terminal jangan disentuh").
+- **Proposed fix (not built: outside A2, 3e and 3f, so not in their promotion):** the builder takes the page's width
+  below its own (`min(384px, 100vw)`) and the toolbar wraps or scrolls inside its own row below 380 px; a browser test
+  at 360 px for every page, sized by the design system's widths, that measures the document's scroll width.
+
 ### M529 — The login provisioning script did not know the example table: every provisioned-login test red, and no backend run on the session branch had finished to show it (2026-11-21; FIXED on the branch)
 
 - **Symptom:** locally, `tests/test_backtest.py::test_provisioned_login_reaches_the_backtest_tables_with_their_migration`
