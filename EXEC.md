@@ -16287,6 +16287,34 @@ Order of the services (CONTRACT 17, rollback floors):
         recorded fixes; a migration is not expand-only; a deploy or the live smoke fails (the rollback of option A
         first); an open user decision blocks a step. Still open, nothing changes for it: the Backtest jobs across the
         two sites (ERRORS M526, FUTURE_PLAN.md).
+      - **The example mode as the user set it (2026-11-21, final; it replaces the readings above and D4's "served only to
+        a signed-in principal")**, after "Jangan jalankan dulu sebelum kamu fully paham ya":
+        - The concept, the user's words: "Bagian overview itu hanya seperti static HTML konsepnya. Jadi user hanya bisa
+          view data terakhir. Dia tidak bisa klik tombol. Kalau dia klik tombol, maka untuk user yang belum login, akan
+          muncul login box. Untuk user yang sudah login ... kalau dia sudah premium atau sudah berbayar, maka itu
+          di-unlock. Tapi kalau tidak, maka dia akan diarahkan ke paywall. Begitupun untuk radar, watchlist, screener,
+          dan backtest. Jadi yang perlu kamu siapkan sebenarnya kayak semacam static HTML di hari tersebut saja."
+        - Who: a visitor who is not signed in (the guest) and the free plan see it; a click opens the sign-in box (the
+          guest) or the paywall (the free plan; at launch "segera hadir" and the contact, D7). The paid plan keeps the
+          live pages. The Terminal is unchanged (BBCA, the latest data).
+        - Overview, the user: "Untuk bagian overview, semuanya clickable ya. Misalkan hari ini adalah 1 November, ya
+          udah. Semua overview itu menampilkan data di 1 November. Dibuka aja untuk filter index all group. Tapi kalau
+          seandainya user klik 5D, 1M, atau custom, ataupun filter yang sifatnya adalah time frame, baru diarahkan ke
+          paywall. atau diarahkan ke login kalau user belum login." Then, asked, "1. tetap seperti itu 2. ok":
+          - the page as it opens on the latest market date (updated daily); the index and group filter and the choices
+            that are not time (the map's measure, breadth EMA50/EMA200) work; clicking a stock opens the Terminal as now;
+          - every time control (5D, 1M, 3M, Custom in any panel, the date picker) opens the sign-in box or the paywall;
+          - a panel whose opening view spans a window keeps it (the sectors' 60 days, breadth's 120 days);
+          - the files behind other views (the older dates' files, overview-stocks with every stock's 300 sessions) are
+            served only to a principal holding overview.view.
+        - Radar, Watchlist, Screener and Backtest: the page as it opens, with the data of 30 October 2026, scrolling only
+          (no tooltips: the default taken, the user did not object); every click opens the sign-in box or the paywall.
+          Contents, the user: "Untuk watchlist oke, dengan rekomendasi kamu, screener juga oke, backtest juga oke":
+          the Radar's default board; the Watchlist one example list of the LQ45 members with the default indicators;
+          the Screener one preset open with its results; the Backtest the page's default setup (MAPI, single stock)
+          over one year to 30 October 2026.
+        - The Monitor's example is not built: the live site offers no Monitor and the beta is the admin's only, so
+          nobody could see it (told to the user).
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
