@@ -8879,6 +8879,28 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M529 — The login provisioning script did not know the example table: every provisioned-login test red, and no backend run on the session branch had finished to show it (2026-11-21; FIXED on the branch)
+
+- **Symptom:** locally, `tests/test_backtest.py::test_provisioned_login_reaches_the_backtest_tables_with_their_migration`
+  failed with `role "edge_bff_login" does not exist`; under it, `scripts/provision_edge_bff_login.py` had raised "EDGE
+  has unexpected reachable relations; provisioning rolled back". Every test that provisions the login (`-k provision`:
+  ten tests) runs the script on the test database, where `tests/conftest.py` applies `20261121_001`, so each meets the
+  same refusal.
+- **Root cause (verified in the code and CI):** `20261121_001` grants SELECT on `edge_bff.example_files` to
+  `edge_bff_runtime`; the script holds the login to a known set of reachable tables (each later migration's group,
+  all or none) and the new table was in none, so it refused, as it should for an unknown grant. On GitHub every
+  Backend tests run of the example commits (`32fb9a37` to `47272d35`, runs 301-305) was cancelled by the next push
+  before it finished, so the red never showed; the last finished run on the branch is `7650187` (success). The same
+  refusal would meet a rotation of the login on dev, where `20261121_001` is applied.
+- **Solution:** the script knows the table (`EXAMPLE_GRANTS = {'example_files': {'SELECT'}}`, all-or-none, exact grants
+  with TRUNCATE, REFERENCES and TRIGGER refused); `tests/test_examples.py`
+  `test_the_provisioned_login_only_reads_the_example_table`: the login reads the stored examples and cannot delete,
+  update or truncate them, and an INSERT grant makes the script refuse ("Unexpected EDGE grants"); red with INSERT
+  added to the expected grants. The ten provisioning tests pass.
+- **Lesson:** a migration that grants a table to `edge_bff_runtime` changes `scripts/provision_edge_bff_login.py` in the
+  same commit (its exact grants and its group). A cancelled CI run is not a green one: before stacking pushes, let one
+  Backend tests run finish, or run the backend suite locally in full.
+
 ### M528 — The example routes moved three SCREENER_ONBOARDING.md pointers into edge-bff's main.py: the look-ahead gate red on the session branch (2026-11-21; FIXED on the branch)
 
 - **Symptom:** the Backtest look-ahead gate's screener-worker job failed on `183a07eb` and `9f5deb03` (run

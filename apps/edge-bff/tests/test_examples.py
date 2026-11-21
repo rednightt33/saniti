@@ -192,6 +192,42 @@ def test_the_table_keeps_only_rows_whose_bytes_and_name_match_and_edge_bff_only_
             c.execute(sql, good)
 
 
+def test_the_provisioned_login_only_reads_the_example_table(database, monkeypatch):
+    """scripts/provision_edge_bff_login.py knows the table of 20261121_001 (EXAMPLE_GRANTS): the login it provisions reads
+    the stored examples and writes none of them (the capture job writes as the owner); a write grant is refused."""
+    import importlib.util
+    import os
+    import secrets
+    from urllib.parse import urlsplit, urlunsplit
+    helper = Path(__file__).resolve().parents[3] / 'scripts/provision_edge_bff_login.py'
+    spec = importlib.util.spec_from_file_location('edge_provision_examples', helper)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setenv('DATABASE_URL', database)
+    monkeypatch.setenv('EDGE_DB_PASSWORD', secrets.token_hex(24))
+    p = urlsplit(database)
+    restricted = urlunsplit((p.scheme, 'edge_bff_login:' + os.environ['EDGE_DB_PASSWORD'] + '@' + p.netloc.split('@')[-1],
+                             p.path, p.query, p.fragment))
+    try:
+        module.main()
+        with psycopg.connect(restricted) as conn:
+            conn.execute('SELECT * FROM edge_bff.example_files LIMIT 0')
+            for statement in ("DELETE FROM edge_bff.example_files", "UPDATE edge_bff.example_files SET rows = 0",
+                              'TRUNCATE edge_bff.example_files'):
+                with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                    conn.execute(statement)
+                conn.rollback()
+        with psycopg.connect(database, autocommit=True) as conn:
+            conn.execute('GRANT INSERT ON edge_bff.example_files TO edge_bff_runtime')
+        with pytest.raises(RuntimeError, match='Unexpected EDGE grants'):
+            module.main()
+    finally:
+        with psycopg.connect(database, autocommit=True) as conn:
+            conn.execute('REVOKE INSERT ON edge_bff.example_files FROM edge_bff_runtime')
+            conn.execute('DROP OWNED BY edge_bff_login')
+            conn.execute('DROP ROLE IF EXISTS edge_bff_login')
+
+
 # ---- the Market Overview: its latest market date, trimmed to the opening view (the user: "1. tetap seperti itu 2. ok") -
 import httpx  # noqa: E402
 import re  # noqa: E402

@@ -8,7 +8,7 @@ account): the page's own lock and the shell's box. The user: "kayak semacam stat
                                                reads from its live route; another sha answers 409 EXAMPLE_FILE_REPLACED
 
 Two sources (TABS):
-- stored (the Radar, the Watchlist; the Screener and Backtest to follow): the rows of edge_bff.example_files (migration
+- stored (the Radar, the Watchlist, the Backtest; the Screener to follow): the rows of edge_bff.example_files (migration
   20261121_001), written once by the capture job (verification/edge_multiuser/example_mode/capture_job.py,
   apps/terminal-publisher/examples.py: the files of the page's opening view cut at one past date, none naming a later
   one). Read from the database at most every REFRESH_SECONDS per tab and process and served from memory, so a request
@@ -50,7 +50,7 @@ logger = logging.getLogger('edge_bff.examples')
 
 # the tabs whose page reads an example in this build (the page's own example mode: src/main.ts of each), their names in
 # the refusals and their source; a tab joins with its page
-TABS = {'radar': 'Radar', 'overview': 'Market Overview', 'watchlist': 'Watchlist'}
+TABS = {'radar': 'Radar', 'overview': 'Market Overview', 'watchlist': 'Watchlist', 'backtest': 'Backtest'}
 LATEST = {'overview'}                                   # the latest publication, trimmed; every other tab is stored
 NAME = re.compile(r'[a-z0-9][a-z0-9_-]{0,63}')          # edge_bff.example_files.name (example_files_name)
 SHA = re.compile(r'[0-9a-f]{64}')

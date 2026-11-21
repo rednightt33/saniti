@@ -23,8 +23,8 @@ from test_examples import put  # noqa: E402
 from test_guest_browser import CONTACT  # noqa: E402
 from test_principal import db, make_user  # noqa: E402
 
-from example_docs import (RADAR_AS_OF as AS_OF, OVERVIEW_DAYS, WATCHLIST_AS_OF, overview_files, radar_example,  # noqa: E402
-                          watchlist_example)
+from example_docs import (RADAR_AS_OF as AS_OF, BACKTEST_AS_OF, OVERVIEW_DAYS, WATCHLIST_AS_OF,  # noqa: E402
+                          backtest_example, overview_files, radar_example, watchlist_example)
 from test_examples import gz  # noqa: E402
 
 
@@ -259,3 +259,45 @@ def test_a_visitor_sees_the_watchlist_example_and_a_click_asks_to_sign_in(site, 
     box.wait_for(timeout=10000)
     assert 'Sign in to open Watchlist' in box.inner_text() and 'This is an example of Watchlist' in box.inner_text()
     assert frame.locator('[title], svg title').count() == 0
+
+
+def test_a_visitor_sees_the_backtests_stored_run_and_a_click_asks_to_sign_in(site, chromium, store):
+    """The Backtest's example: the page opens on the stored run of its own default setup (its request equals the stored
+    one, the cards' ids aside, so the stored result is shown: the header's figures and the results view), reads only the
+    example's files (no catalog, bars, job or Terminal route), shows no toast, no title, and a click asks to sign in."""
+    if not (ROOT / 'backtest' / 'dist' / 'index.html').is_file():
+        pytest.skip('the Backtest page is not built (cd apps/edge-bff/backtest && npm run build)')
+    files = backtest_example()
+    put(store, 'backtest', files, as_of=BACKTEST_AS_OF)
+    page = browser_context(chromium).new_page()
+    page.set_viewport_size({'width': 1152, 'height': 640})
+    requests, errors = [], []
+    page.on('request', lambda r: requests.append(r.url))
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(site.origin + '/backtest')
+    frame_el = page.locator('main.example-page[data-example-tab="backtest"] iframe.terminal-frame')
+    frame_el.wait_for(timeout=20000)
+    assert frame_el.get_attribute('src').endswith('/backtest-app/?example=1')
+    frame = page.frame_locator('main.example-page iframe.terminal-frame')
+    # the header's result line (hidden at this width) is written once the run is in: the stored run's figures
+    head = frame.locator('#lastRun .xh-k')
+    head.wait_for(state='attached', timeout=30000)
+    trades = len(files['backtest-result']['trades'])
+    assert 'Sharpe' in head.text_content() and f'{trades} trades' in head.text_content(), head.text_content()
+    assert frame.locator('#vcRes').inner_text() == f'{trades} trades'
+    assert frame.locator('#main.vres').count() == 1 and frame.locator('#eqChart canvas').count() > 0
+    assert frame.locator('#ctxTicker').inner_text() == files['backtest-request']['single']['ticker']
+    assert 'Backtest with the data of Fri 23 Oct 2026' in page.locator('.example-bar').inner_text()
+    # the page's data came from the example's files only; nothing was refused or failed on the way
+    urls = sorted({u.split('?')[0].replace(site.origin, '') for u in requests if '/api/' in u})
+    assert [u for u in urls if not u.startswith(('/api/v1/examples/backtest/', '/api/v1/auth/'))] == [], urls
+    assert {u.rsplit('/', 1)[1] for u in urls if '/file/' in u} == set(files), urls
+    assert frame.locator('#toast').text_content() == '' and errors == [], (frame.locator('#toast').text_content(), errors)
+    assert frame.locator('[title], svg title').count() == 0
+    # a click on the page asks to sign in, and the page's own handler did not run (no second run, the results stay)
+    frame.locator('.js-run').first.click()
+    box = page.locator('.locked-dialog')
+    box.wait_for(timeout=10000)
+    assert 'Sign in to open Backtest' in box.inner_text() and 'This is an example of Backtest' in box.inner_text()
+    assert frame.locator('#main.vres').count() == 1 and frame.locator('#toast').text_content() == ''
+    assert sum('/file/backtest-request' in u for u in requests) == 1

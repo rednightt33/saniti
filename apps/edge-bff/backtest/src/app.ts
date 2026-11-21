@@ -20,8 +20,10 @@ import { renderResults } from './results/index.ts';
 import { bindRun, run } from './run.ts';
 
 export interface BootOptions {
-  /** run once after the first render, as the reference does (test builds only) */
+  /** run once after the first render, as the reference does (test builds; 3e, the example mode: the stored run) */
   autorun?: boolean;
+  /** with autorun, show the results view once the run is done (3e, the example mode: the page opens on its result) */
+  results?: boolean;
   /** the portfolio's picked stocks at load (test builds only: the fixture's reference portfolio); none otherwise */
   portfolio?: string[];
 }
@@ -64,7 +66,7 @@ export async function boot(api: BacktestApi, opts: BootOptions = {}) {
   // does not); a failure is the window's own message
   api.screenerCatalog().then(cat => { setScreenerCatalog(cat); refreshCondWin(); renderBuilder(); refreshSignals() },
     e => { screenerCatalogFailed((e as Error)?.message || 'The catalog could not be read.'); refreshCondWin(); renderBuilder() });
-  if (opts.autorun) run(false);
+  if (opts.autorun) run(!!opts.results);
 }
 
 /* the catalog answered after the first render: the data's own defaults are taken when the user has not changed a

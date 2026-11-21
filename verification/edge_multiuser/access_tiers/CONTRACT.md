@@ -1106,8 +1106,8 @@ today.
 **3e. Front-end.**
 - **Built 2026-11-20 on the branch (EXEC option A, item 3; the user's go of 2026-11-20), then checked by ultracode and
   fixed (ERRORS M518).**
-  - **The example mode** (built from 2026-11-21 on the branch, the user's go; ERRORS M527; the Radar first, the
-    Overview, Watchlist, Screener and Backtest to follow): see "The rail and the frames" below. The Monitor's example
+  - **The example mode** (built from 2026-11-21 on the branch, the user's go; ERRORS M527; the Radar, the Overview,
+    the Watchlist and the Backtest built, the Screener to follow): see "The rail and the frames" below. The Monitor's example
     is not built: the live site offers no Monitor and the beta is the admin's alone, so nobody could see it.
   - **The Broker panel:** removed rather than prompted in place. The Flow Timeline's head and the drawer button carry
     its lock.
@@ -1154,6 +1154,15 @@ today.
     opening view (breadth's 120 sessions and its start, the KPI strip's 30 broker sessions, the day's 1D figures, the 1D
     flow, the session's bars, the one day in the date picker; a field not named is left out). The older day files and
     `overview-stocks` stay with `overview.view`. The page stays clickable but for its time controls (`lockOnly`);
+  - the Backtest's example is the stored run of the page's default setup (MAPI, single stock) over the year to the
+    example's date: the worker's catalog cut to that year, the page's own request on a part of it (dates, versions,
+    flow block, limits, the lists cut to what the request names; the capture stops unless the worker's catalog holds
+    the part as it is, `examples.py` outside), the worker's result of that request and the ticker's bars of the year. The
+    page opens with that run done (autorun, the results view); its example data path answers the page's submit with
+    the stored run only when the page's request is the stored one (the cards' random ids aside, mapped onto the run),
+    anything else with a refusal, and asks for nothing else (no catalog, preview, job, price or Terminal route).
+    `backtest/tests/example.test.ts` fails when the page's default setup no longer builds the stored request
+    (`verification/edge_multiuser/example_mode/capture_backtest.json`): the example is then captured again;
   - the page in example mode reads only those routes (its `example` data path) and stays a view of one day
     (`shared/example-view.ts`): a click, a press, a drag, a form input and a key acting on a control are stopped before
     the page's handlers and ask the shell for its box (`{source: <tab>, type: 'locked', kind: 'example'}`, accepted

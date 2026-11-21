@@ -1,0 +1,191 @@
+{
+ "as_of": "2026-10-30",
+ "tabs": [
+  "backtest"
+ ],
+ "write": true,
+ "backtest": {
+  "worker_url": "http://backtest-worker.railway.internal:8080",
+  "releases": "releases.json",
+  "built_on": {
+   "schema_version": 1,
+   "engine_version": "f984058aaaf38748",
+   "registry_version": "514dc3df60a25aff",
+   "first_date": "2025-10-30",
+   "data_through": "2026-10-30",
+   "tickers": [
+    {
+     "ticker": "MAPI",
+     "type": "stock"
+    }
+   ],
+   "groupings": [],
+   "flow": {
+    "available": true,
+    "reason": null,
+    "brokers": [
+     "YU"
+    ],
+    "data_through": "2026-10-30"
+   },
+   "limits": {
+    "max_positions": 12,
+    "window_bars": {
+     "min": 1,
+     "max": 20
+    },
+    "monte_carlo_runs": 1000,
+    "max_portfolio_tickers": 12,
+    "max_download_bytes": 1500000000,
+    "max_broker_rows": 20000000,
+    "timeout_seconds": 900,
+    "queued_per_owner": 3,
+    "max_conditions": 32,
+    "max_flow_series": 8
+   }
+  },
+  "request": {
+   "schema_version": 1,
+   "mode": "single",
+   "single": {
+    "ticker": "MAPI",
+    "benchmark": "buy_and_hold"
+   },
+   "period": {
+    "from": "2025-10-30",
+    "to": "2026-10-30",
+    "oos_fraction": 0.3
+   },
+   "entry": {
+    "logic": "at_least",
+    "at_least": 3,
+    "window_bars": 5,
+    "conditions": [
+     {
+      "id": "fnmon8",
+      "enabled": true,
+      "kind": "indicator",
+      "indicator": "I07",
+      "params": {
+       "di_length": 14,
+       "adx_smoothing": 14
+      },
+      "lhs": {
+       "type": "output",
+       "output": "adx"
+      },
+      "op": "gt",
+      "rhs": {
+       "type": "value",
+       "value": 25
+      }
+     },
+     {
+      "id": "6gqgsn",
+      "enabled": true,
+      "kind": "indicator",
+      "indicator": "I15",
+      "params": {
+       "k_length": 14,
+       "smooth_k": 3
+      },
+      "lhs": {
+       "type": "output",
+       "output": "k"
+      },
+      "op": "lt",
+      "rhs": {
+       "type": "value",
+       "value": 30
+      }
+     },
+     {
+      "id": "swjki5",
+      "enabled": true,
+      "kind": "price_action",
+      "type": "macd",
+      "params": {
+       "fast_length": 12,
+       "slow_length": 26,
+       "signal_length": 9
+      },
+      "op": "bullish_divergence"
+     },
+     {
+      "id": "nnxud0",
+      "enabled": true,
+      "kind": "flow",
+      "type": "fnet",
+      "params": {
+       "length": 5
+      },
+      "op": "gt",
+      "value": 0
+     },
+     {
+      "id": "hpe5pq",
+      "enabled": true,
+      "kind": "flow",
+      "type": "broker",
+      "params": {
+       "length": 5,
+       "broker": "YU"
+      },
+      "op": "gt",
+      "value": 1000000000
+     }
+    ]
+   },
+   "exit": {
+    "atr_length": 14,
+    "stop": {
+     "mode": "pct",
+     "pct": 0.07,
+     "atr_mult": 2,
+     "reward_risk_x": 2,
+     "line": {
+      "indicator": "I09",
+      "output": "supertrend"
+     }
+    },
+    "take_profit": {
+     "mode": "pct",
+     "pct": 0.15,
+     "r_multiple": 2,
+     "atr_mult": 3
+    },
+    "trailing": {
+     "mode": "none",
+     "pct": 0.05,
+     "chandelier_length": 22,
+     "chandelier_mult": 3,
+     "line": {
+      "indicator": "I01",
+      "output": "sma"
+     }
+    },
+    "max_hold_bars": 20,
+    "signals": {
+     "logic": "any",
+     "conditions": []
+    }
+   },
+   "sizing": {
+    "capital_idr": 100000000,
+    "allocation_fraction": 1
+   },
+   "costs": {
+    "buy_fee": 0.0015,
+    "sell_fee": 0.0025,
+    "slippage": 0.0005,
+    "skip_ara_open_gap": true,
+    "ara_gap_fraction": 0.2
+   },
+   "robustness": {
+    "monte_carlo_runs": 1000,
+    "seed": 7,
+    "sensitivity": true
+   }
+  }
+ }
+}

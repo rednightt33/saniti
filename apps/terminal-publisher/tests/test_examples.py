@@ -167,3 +167,105 @@ def test_the_members_of_a_date_are_the_rows_covering_it_or_before_the_first_capt
         examples.members_on(rows, '2026-10-30', 'LQ45')
     with pytest.raises(examples.ExampleError, match='no LQ45 member covers 2026-11-30 although its history starts'):
         examples.members_on([('AAAA', '2026-11-10', '2026-11-20')], '2026-11-30', 'LQ45')
+
+
+# ---- the Backtest: the page's own request, one run of the real worker, the period's prices -----------------------------
+BT_AS_OF = '2026-10-30'
+BT_DAYS = ['2026-10-27', '2026-10-28', '2026-10-29', BT_AS_OF]
+BT_REQUEST = {'schema_version': 1, 'mode': 'single', 'single': {'ticker': 'MAPI', 'benchmark': 'buy_and_hold'},
+              'period': {'from': BT_DAYS[0], 'to': BT_AS_OF, 'oos_fraction': 0.3},
+              'entry': {'logic': 'all', 'window_bars': 5, 'conditions': [{'id': 'a1', 'enabled': True, 'kind': 'flow', 'type': 'fnet'}]},
+              'exit': {'signals': {'logic': 'any', 'conditions': []}}}
+BT_CATALOG = {'schema_version': 1, 'first_date': '2018-01-02', 'data_through': '2026-11-20', 'tickers': [{'ticker': 'MAPI'}],
+              'flow': {'available': True, 'reason': None, 'brokers': ['YU'], 'data_through': '2026-11-09'},
+              'flow_indicators': [{'id': 'FL01', 'access': 'all'}, {'id': 'FL18', 'access': 'admin'}], 'limits': {}}
+
+
+# the part of the cut catalog the request was built on (backtest_request.ts reads a catalog whose lists name only what the
+# default setup names)
+BT_BUILT_ON = {'schema_version': 1, 'first_date': BT_DAYS[0], 'data_through': BT_AS_OF, 'tickers': [{'ticker': 'MAPI'}],
+               'flow': {'available': True, 'reason': None, 'brokers': ['YU'], 'data_through': BT_AS_OF}, 'limits': {}}
+
+
+def bt_result(days=BT_DAYS, ticker='MAPI', tracks=True):
+    return {'schema_version': 1, 'meta': {'mode': 'single', 'tickers': [ticker], 'data_through': '2026-11-20', 'duration_ms': 3},
+            'dates': days, 'equity': [1.0] * len(days),
+            'events': {'conditions': [{'condition_id': 'a1', 'ticker': ticker, 'track': {'on': [1], 'runs': [1, 2]}}] if tracks else [],
+                       'exits': {}}}
+
+
+class BacktestConn:
+    def __init__(self, bars=BT_DAYS, moved=()):
+        self.bars, self.moved, self.asked = list(bars), list(moved), []
+
+    def execute(self, sql, params=()):
+        self.asked.append((sql, params))
+        rows = ([(d, 'STOCK_SPLIT') for d in self.moved] if sql == examples.BASIS_SQL
+                else [(d, 100.0, 110.0, 90.0, 105.0, 1e6) for d in self.bars] if sql == examples.BARS_SQL else [])
+
+        class Rows:
+            def fetchall(self_inner):
+                return rows
+        return Rows()
+
+
+def bt_build(conn=None, result=None, request=BT_REQUEST, as_of=BT_AS_OF, built_on=BT_BUILT_ON):
+    asked = []
+
+    def run(q):
+        asked.append(q)
+        return bt_result() if result is None else result
+    rows = examples.build(conn or BacktestConn(), 'backtest', as_of, NAMES, LISTS, request=request, run=run, catalog=BT_CATALOG,
+                          built_on=built_on)
+    return {r[1]: json.loads(gzip.decompress(r[6])) for r in rows}, asked
+
+
+def test_the_backtest_example_is_the_pages_request_its_run_the_period_and_the_catalog_cut_to_it():
+    files, asked = bt_build()
+    assert asked == [BT_REQUEST] and set(files) == {'backtest-catalog', 'backtest-request', 'backtest-result', 'backtest-bars-mapi'}
+    assert files['backtest-request'] == BT_REQUEST and files['backtest-result'] == bt_result()
+    cat = files['backtest-catalog']
+    assert (cat['first_date'], cat['data_through'], cat['flow']['data_through']) == (BT_DAYS[0], BT_AS_OF, BT_AS_OF)
+    assert [f['id'] for f in cat['flow_indicators']] == ['FL01']                 # no admin-only Flow version
+    bars = files['backtest-bars-mapi']
+    assert bars['dates'] == BT_DAYS and bars['c'] == [105.0] * 4 and set(bars) == {'ticker', 'dates', 'o', 'h', 'l', 'c', 'v'}
+    # the run stamp is stored as the worker reported it; any other later date is refused
+    assert files['backtest-result']['meta']['data_through'] == '2026-11-20'
+    late = bt_result()
+    late['meta']['warnings'] = [{'code': 'X', 'message': 'published through 2026-11-20'}]
+    with pytest.raises(examples.ExampleError, match=r'backtest-result names dates after 2026-10-30: \[.\$\.meta\.warnings'):
+        bt_build(result=late)
+
+
+@pytest.mark.parametrize('change, refused', [
+    (dict(request={**BT_REQUEST, 'mode': 'portfolio'}), 'is not a single run ending on 2026-10-30'),
+    (dict(request={**BT_REQUEST, 'period': {**BT_REQUEST['period'], 'to': '2026-10-29'}}), 'is not a single run ending on'),
+    (dict(conn=BacktestConn(moved=['2026-11-12'])), r'MAPI changed its share basis on \[.2026-11-12 STOCK_SPLIT.\]'),
+    (dict(result=bt_result(days=BT_DAYS[:-1])), r"the run's days are"),
+    (dict(result=bt_result(ticker='BBCA')), 'is not a single run of MAPI'),
+    (dict(result=bt_result(tracks=False)), 'the run has no condition track of MAPI'),
+    (dict(conn=BacktestConn(bars=BT_DAYS[:-1])), 'MAPI has no final daily price on 2026-10-30'),
+    # the request was built on another catalog than the worker's, cut to the period: the page would build another one
+    (dict(built_on={**BT_BUILT_ON, 'data_through': '2026-10-29'}), r'does not hold at \$\.data_through'),
+    (dict(built_on={**BT_BUILT_ON, 'limits': {'monte_carlo_runs': 500}}), r'does not hold at \$\.limits\.monte_carlo_runs'),
+    (dict(built_on={**BT_BUILT_ON, 'tickers': [{'ticker': 'MAPI', 'type': 'stock'}]}), r'does not hold at \$\.tickers\[0\]'),
+    (dict(built_on={**BT_BUILT_ON, 'flow': {**BT_BUILT_ON['flow'], 'brokers': ['ZZ']}}), r'at \$\.flow\.brokers\[0\]'),
+    (dict(built_on={**BT_BUILT_ON, 'flow': {**BT_BUILT_ON['flow'], 'data_through': '2026-11-09'}}), r'at \$\.flow\.data_through'),
+    (dict(built_on={**BT_BUILT_ON, 'flow_indicators': [{'id': 'FL18', 'access': 'admin'}]}), r'at \$\.flow_indicators\[0\]'),
+])
+def test_the_backtest_capture_stops_on_another_run_another_basis_or_a_missing_day(change, refused):
+    with pytest.raises(examples.ExampleError, match=refused):
+        bt_build(**change)
+    with pytest.raises(examples.ExampleError, match="needs the page's request, the catalog it was built on, the worker"):
+        examples.build(BacktestConn(), 'backtest', BT_AS_OF, NAMES, LISTS)
+    with pytest.raises(examples.ExampleError, match='the catalog it was built on'):
+        examples.build(BacktestConn(), 'backtest', BT_AS_OF, NAMES, LISTS, request=BT_REQUEST, run=bt_result, catalog=BT_CATALOG)
+
+
+def test_a_catalog_part_is_found_in_the_whole_as_it_is():
+    whole = {'n': 1, 'l': [{'t': 'MAPI', 'x': 2}, {'t': 'BBCA'}], 'f': {'b': ['YU', 'CC']}, 'on': True}
+    assert examples.outside({'n': 1, 'l': [{'t': 'MAPI'}], 'f': {'b': ['CC']}, 'on': True}, whole) is None
+    assert examples.outside({}, whole) is None and examples.outside({'l': []}, whole) is None
+    assert [examples.outside(p, whole) for p in ({'n': 2}, {'m': 1}, {'l': [{'t': 'X'}]}, {'f': {'b': 'YU'}}, {'on': 1},
+                                                 {'n': '1'}, {'l': {'t': 'MAPI'}})] == \
+        ['$.n', '$.m', '$.l[0]', '$.f.b', '$.on', '$.n', '$.l']

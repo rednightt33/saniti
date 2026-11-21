@@ -1,12 +1,18 @@
 """3e, the example mode (ERRORS M527): made-up page files for the example tests, built by the publisher's own builders
-(apps/terminal-publisher/radar.py, overview.py) from a few invented rows, so they have exactly the shapes the pages read.
-No market data: every ticker, price and figure here is made up."""
+(apps/terminal-publisher/radar.py, overview.py, examples.py) from a few invented rows or the Backtest page's synthetic
+market, so they have exactly the shapes the pages read. No market data: every ticker, price and figure here is made up."""
 import datetime as dt
+import functools
+import gzip
+import json
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]                     # apps/edge-bff
-sys.path.insert(0, str(ROOT.parents[1] / 'apps' / 'terminal-publisher'))
+REPO = ROOT.parents[1]
+sys.path.insert(0, str(REPO / 'apps' / 'terminal-publisher'))
+import examples  # noqa: E402
 import overview as ov  # noqa: E402
 import radar  # noqa: E402
 
@@ -99,3 +105,36 @@ def watchlist_example():
     lists = {'lists': [{'id': 'example-lq45', 'name': 'LQ45', 'position': 0, 'indicators': None,
                         'tickers': [{'ticker': t, 'position': i} for i, t in enumerate(doc['ticker'])]}], 'limits': []}
     return {'watchlist-stocks': doc, 'watchlist-lists': lists}
+
+
+BACKTEST_AS_OF, BACKTEST_FIRST = '2026-10-23', '2025-10-23'   # the synthetic market's last day, one year before it
+
+
+@functools.cache
+def backtest_made_up():
+    """The Backtest page's made-up example (backtest/tests/example-made-up.ts): the page's own default request on the part
+    of the synthetic market's catalog cut to one year, that market's run of it, its bars and the catalog before the
+    cut."""
+    out = subprocess.run(['node', '--experimental-transform-types', '--no-warnings=ExperimentalWarning', '--import',
+                          './apps/backtest-worker/loader/register.mjs', 'apps/edge-bff/backtest/tests/example-files.ts',
+                          BACKTEST_AS_OF, BACKTEST_FIRST], cwd=REPO, capture_output=True, text=True, timeout=300)
+    if out.returncode:
+        raise RuntimeError(f'example-files.ts failed: {out.stderr[-2000:]}')
+    return json.loads(out.stdout)
+
+
+def backtest_example():
+    """The four files of the Backtest's example, made by the publisher's own builder (examples.py backtest_files, its
+    stored() checks) from the made-up example: what the capture job writes from the worker."""
+    made = backtest_made_up()
+
+    class Conn:                                                 # no share-basis change; the ticker's bars of the period
+        def execute(self, sql, params=()):
+            rows = [tuple(r) for r in made['bars']] if sql == examples.BARS_SQL else []
+            return type('Rows', (), {'fetchall': lambda self: rows})()
+    rows = examples.build(Conn(), 'backtest', BACKTEST_AS_OF, {}, [], request=made['request'],
+                          run=lambda q: made['result'], catalog=made['raw'], built_on=made['built_on'])
+    docs = {r[1]: json.loads(gzip.decompress(r[6])) for r in rows}
+    if docs['backtest-catalog'] != made['catalog']:
+        raise AssertionError('the publisher cuts the catalog unlike example-files.ts')
+    return docs
