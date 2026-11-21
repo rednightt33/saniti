@@ -16267,6 +16267,12 @@ Order of the services (CONTRACT 17, rollback floors):
         (M525) reach neither site before then, and the beta runs 3f only from that point. Before the promotion `main`
         moves first, the beta runs the commit and its CI is green, then `live` follows (LIVE_PROMOTION.md, AGENTS.md
         "The live site"); the example mode is built on the session branch in the meantime.
+      - **The user's decision (2026-11-21) on the example mode's data:** "Untuk terminal data contoh adalah data terbaru
+        di live. Overview juga. Yang lain boleh pakai data 30 Oktober. Paham?" Read as: the Terminal and the Market
+        Overview show the latest data (the Terminal as built: BBCA, the free plan's and the guest's ticker; the Overview
+        its whole page, the latest publication, in place of an example); Radar, Watchlist, Screener and Backtest show the
+        cut of 30 October 2026 (D4: served only to a signed-in principal holding `<tab>.example`). Open (asked the same
+        day): whether a visitor who is not signed in also sees the latest Overview, or keeps the sign-in prompt.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
