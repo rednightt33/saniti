@@ -16276,6 +16276,17 @@ Order of the services (CONTRACT 17, rollback floors):
         sees the latest Overview too (A: the shop window). The plans are data in the database both sites share, so the
         free and guest plans' Overview rows change only at the promotion, when the live site runs the code that reads
         them. The build waits for the user's go.
+      - **The user's go (2026-11-21)** for the example mode, steps 1-5 of the proposal (the plans prepared, the cut of
+        30 October 2026, the four pages, the tests, the ultracode checker at xhigh and its fixes), and step 6 with it:
+        "No 6 langsung jalankan saja nanti setelah pengecekan nomor 5. Kecuali ada yang perlu saya confirm. OK?" So after
+        the checker and its fixes, without asking again: the one promotion of A2, 3e (with the example mode) and 3f
+        (`main` first, the beta's deployment at SUCCESS, CI green, then `live`, by LIVE_PROMOTION.md and
+        `scripts/live_diff.py --sites`; the plans' rows applied when the live site runs the code that reads them; the
+        live smoke), the user told what moved, then Phase 4. Stop and ask the user instead when: the checker finds
+        something that changes what the user decided; the promotion would move anything beyond A2, 3e, 3f and their
+        recorded fixes; a migration is not expand-only; a deploy or the live smoke fails (the rollback of option A
+        first); an open user decision blocks a step. Still open, nothing changes for it: the Backtest jobs across the
+        two sites (ERRORS M526, FUTURE_PLAN.md).
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
