@@ -408,4 +408,4 @@ def test_the_screener_examples_catalog_is_what_catalog_for_gives_the_released_it
     assert as_edge_bff_shows(raw) == narrowed
     assert as_edge_bff_shows(narrowed) == narrowed
     assert len(narrowed['presets']) < len(raw['presets']) or any(e.get('access') == 'admin' for e in raw.get('metrics', []))
-    assert 'brk52' in {p['id'] for p in narrowed['presets']}
+    assert example_docs.examples.SCREENER_PRESET in {p['id'] for p in narrowed['presets']}

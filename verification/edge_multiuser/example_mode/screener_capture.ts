@@ -6,7 +6,8 @@
 
    node --experimental-strip-types --no-warnings=ExperimentalWarning --import ../backtest-worker/loader/register.mjs \
      <this file> <spec.json> <out.json>          (from apps/screener-worker, so its loader resolves the worker's imports)
-   spec.json: {"as_of": "2026-10-30", "preset": "brk52", "context": {"allow": {...}, "rights": []}}
+   spec.json: {"as_of": "2026-10-30", "preset": "golden", "context": {"allow": {...}, "rights": []}} (capture_job.py
+   writes it: the preset is examples.py SCREENER_PRESET)
    environment: TERMINAL_URL and TERMINAL_PROXY_KEY (terminal-api, the screener-worker's), and every limit of
    apps/screener-worker/src/config.ts as the screener-worker has it (the keys, the URL and the file origin are the fake's) */
 import fs from 'node:fs';

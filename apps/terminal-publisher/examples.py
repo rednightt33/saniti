@@ -226,8 +226,9 @@ def backtest_files(conn, names, lists, as_of, stream=None, request=None, run=Non
 # The Screener evaluates every stock at its newest bar and has no evaluation date of its own: its example is the
 # screener-worker itself run on its input files as they stood at as_of (screener_capture.ts; apps/screener-worker/tests/
 # example-capture.ts: every later price, action and broker day left out, no stock lists, as_of as the publication's
-# time). The user: "screener juga oke" (the preset brk52 "52W Breakout + Volume" with its results).
-SCREENER_PRESET = 'brk52'
+# time). The user: "screener juga oke"; brk52 "52W Breakout + Volume" matched no stock on 30 October, so the user chose
+# (2026-11-21, EXEC.md: "A - masukan exec") a technical preset with matches that day: Golden Cross (23).
+SCREENER_PRESET = 'golden'
 # the catalog's lists of items and the release kinds of their ids (apps/edge-bff/app/screener.py ITEM_LISTS, METRIC_KINDS,
 # REFERENCE_KEYS; tests/test_examples.py of edge-bff holds this copy to catalog_for)
 SCREENER_METRIC_KINDS = ('flow_indicator', 'candle_pattern', 'screener_metric')

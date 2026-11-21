@@ -1169,8 +1169,9 @@ today.
     action and broker day left out, no stock lists (their members are recorded only since 10 November 2026; the Index
     and Group pickers, behind a click, say no data), the date as the publication's time. Stored: the worker's catalog
     narrowed to what the live site shows a principal holding the released items and no right (`examples.py`
-    narrowest_catalog, held equal to edge-bff's catalog_for by a test), its universe, the screen (the preset brk52) and
-    its run. The page opens on that screen with its storage in memory, seeded with it (nothing of the example goes into
+    narrowest_catalog, held equal to edge-bff's catalog_for by a test), its universe, the screen and its run. The
+    screen is the preset Golden Cross (`examples.py` SCREENER_PRESET; the user's choice "A" of 2026-11-21: brk52, first
+    approved, matched no stock on 30 October). The page opens on that screen with its storage in memory, seeded with it (nothing of the example goes into
     the browser's storage, nothing a visitor kept there shows) and no file cache; its run is answered with the stored
     run only when the page's definition is the stored one in the page's own form (its cards keep no parameter at its
     default); nothing else is asked (no preview, count, saved item, watchlist or write);

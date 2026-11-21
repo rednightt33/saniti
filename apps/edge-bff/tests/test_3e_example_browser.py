@@ -329,7 +329,7 @@ def test_a_visitor_sees_the_backtests_stored_run_and_a_click_asks_to_sign_in(sit
 
 
 def test_a_visitor_sees_the_screeners_stored_screen_and_its_results_and_the_browser_keeps_nothing(site, chromium, store):
-    """The Screener's example: the page opens on the stored screen (the preset brk52, its two cards) with the stored run's
+    """The Screener's example: the page opens on the stored screen (the example's preset, examples.py SCREENER_PRESET) with the stored run's
     results, reads only the example's files (no catalog, universe, run or watchlist route of the live page), keeps
     nothing in the browser's storage and shows nothing a visitor kept there (a last screen of their own), shows no
     toast and no title, and a click asks to sign in."""

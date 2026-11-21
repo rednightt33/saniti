@@ -146,9 +146,11 @@ SCREENER_AS_OF = '2026-10-27'                                   # the made-up ma
 @functools.cache
 def screener_made_up():
     """The Screener's made-up example (apps/screener-worker/tests/example-files.ts): the worker itself on that suite's
-    made-up market with two breakouts, the preset brk52, the released items of the release file."""
+    made-up market (a stock drawn for each preset the example may show), the example's preset (examples.py
+    SCREENER_PRESET), the released items of the release file."""
     out = subprocess.run(['node', '--experimental-strip-types', '--no-warnings=ExperimentalWarning', '--import',
-                          './apps/backtest-worker/loader/register.mjs', 'apps/screener-worker/tests/example-files.ts'],
+                          './apps/backtest-worker/loader/register.mjs', 'apps/screener-worker/tests/example-files.ts',
+                          examples.SCREENER_PRESET],
                          cwd=REPO, capture_output=True, text=True, timeout=300)
     if out.returncode:
         raise RuntimeError(f'example-files.ts failed: {out.stderr[-2000:]}')

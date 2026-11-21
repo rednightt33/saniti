@@ -1,5 +1,6 @@
-/* EXEC-MU-ACCOUNTS 3e, the example mode as the user set it on 2026-11-21 (ERRORS M527): "screener juga oke": the preset
-   "52W Breakout + Volume" (brk52) with its results, the data of 30 October 2026. The ScreenerApi of the page opened with
+/* EXEC-MU-ACCOUNTS 3e, the example mode as the user set it on 2026-11-21 (ERRORS M527): "screener juga oke": a preset
+   with its results, the data of 30 October 2026 (Golden Cross: brk52 matched no stock that day, the user chose "A";
+   terminal-publisher examples.py SCREENER_PRESET). The ScreenerApi of the page opened with
    ?example=1 for a principal holding screener.example: everything comes from the example's files
    (/api/v1/examples/screener, edge-bff app/examples.py), written once by the capture job
    (apps/terminal-publisher/examples.py screener_files, from the real screener-worker run on its own input files cut at
@@ -12,7 +13,7 @@
    The page opens on that screen (main.ts: it is the last screen of a storage kept in memory, so nothing of the example
    goes into the browser's storage and nothing of the visitor's own comes out), and its run is answered with the stored
    run only when the page asks for that definition: both compared in the page's own form (its cards keep no parameter at
-   its default, so the page sends brk52's volume spike without its default length: state.ts stateOfDefinition, then
+   its default, so the page sends a preset's volume spike without its default length: state.ts stateOfDefinition, then
    definitionOf, canonical); anything else is refused. Saved screens, My
    metrics and the watchlist are empty; nothing else is asked (no preview, validation, count or write). The page stays
    still (shared/example-view.ts): a click asks to sign in or to upgrade. */

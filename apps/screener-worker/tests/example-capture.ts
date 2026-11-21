@@ -1,5 +1,6 @@
-/* EXEC-MU-ACCOUNTS 3e, the example mode as the user set it on 2026-11-21 (ERRORS M527): "screener juga oke": the preset
-   "52W Breakout + Volume" (brk52) with its results, the data of 30 October 2026. The Screener evaluates every stock at
+/* EXEC-MU-ACCOUNTS 3e, the example mode as the user set it on 2026-11-21 (ERRORS M527): "screener juga oke": a preset
+   with its results, the data of 30 October 2026 (Golden Cross, the user's choice "A" once brk52 matched no stock that
+   day; terminal-publisher examples.py SCREENER_PRESET). The Screener evaluates every stock at
    its newest bar and has no evaluation date of its own, so its example is this worker's answer on its own input files
    as they stood at that date. Used by verification/edge_multiuser/example_mode/screener_capture.ts (the capture, on
    terminal-api's publication) and tests/example_capture.test.ts (on these tests' made-up market):
