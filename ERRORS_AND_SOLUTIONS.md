@@ -8879,6 +8879,39 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; IN PROGRESS on the branch: the Radar first)
+
+- **Symptom:** since 20261117_003 the free plan holds `overview.example`, `radar.example`, `watchlist.example`,
+  `screener.example` and `backtest.example`, yet no code read them: a free account and a visitor who is not signed in got
+  the locked page (`LockedTabPage`) on every data tab. 3e left the example mode (D4) for the user's choice.
+- **Root cause (verified in the code):** `static/edge-app.js` routed every tab without `<tab>.view` to `LockedTabPage`;
+  no route served an example; the guest plan held no example flag (20261119_070 verify block: the five Terminal grants
+  and nothing else).
+- **The user's decision (2026-11-21, EXEC.md option A, final):** "kayak semacam static HTML di hari tersebut saja": the
+  guest and the free plan see each data page as it opens; a click opens the sign-in box (the guest) or the paywall (an
+  account). The Radar, Watchlist, Screener and Backtest with the data of 30 October 2026, scrolling only; the Market
+  Overview on its latest market date with every time control locked.
+- **Solution (in progress):**
+  - Publisher: `radar.build(..., as_of)` makes the files as the tables stood on that date (tests: the as-of build on the
+    full tables equals the plain build on the tables cut at it). `apps/terminal-publisher/examples.py` picks the files
+    of a page's opening view and refuses a file naming any later date (in a value, a key, a deep list, the name or its
+    day), a date with no result of its own, an index without its price that day and a board without rows.
+  - Store: `edge_bff.example_files` (20261121_001, expand-only): one row per file, its bytes, length and SHA-256 held
+    together by CHECKs, read-only for `edge_bff_runtime`; written by
+    `verification/edge_multiuser/example_mode/capture_job.py` (a READ ONLY build, then one write transaction and a
+    read-back). Dry run on dev 2026-11-21 (job `c4e5ca29`): `radar-meta` 99 rows 22,922 bytes, `radar-days` 244 dates
+    14,524 bytes, `radar-board-2026-10-30` 2,300 rows 68,029 bytes, verdict DRY_RUN_OK.
+  - Routes: `GET /api/v1/examples/<tab>/index` and `/file/<name>` (`app/examples.py`) for `<tab>.example`, visitors
+    included; served from memory, read from the table at most every 300 s, so neither the database nor terminal-api is
+    asked per request and the visitors' Terminal ceiling (`EDGE_GUEST_CALLS_PER_HOUR`, unset on the live site) does not
+    apply. Tests `tests/test_examples.py`: visitor, free, paid (403), admin, live and beta, other tabs' rows, the
+    memory and its refresh, the table's checks and grants; each red on its mutation (no capability, the view
+    capability, every tab's rows, a read per request, no sha check).
+  - The guest plan's five example flags (20261121_002), applied when the live site runs the code that reads them.
+- **Lesson for new data:** an example of a page is the files of its opening view, built by the publisher's own builder
+  cut at one date and checked for later dates before it is stored; the server is the guarantee (it serves only those
+  files, only to `<tab>.example`), the page only displays.
+
 ### M526 — Saved screens kept a validation made under a wider context when only the rights differed; the live site lists and can cancel the admin's own beta Backtest jobs (2026-11-21; the review FIXED on the branch, the job history OPEN for the user; predates 3f)
 
 - **Found by:** 3f's checker, round 2 (W4, unverified), then verified by its skeptic (`wf_d4d13dbc-fff`, xhigh) with

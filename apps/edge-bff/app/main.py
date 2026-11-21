@@ -37,6 +37,7 @@ from .drawings import Drawings
 from .overview import Overview
 from .watchlist import Watchlist
 from .radar import Radar
+from .examples import Examples
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import SESSION_COOKIE, cookie_name, csrf_token, needs_rehash, password_verifier, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
@@ -258,6 +259,7 @@ def create_app(settings=None, store=None, orc=None):
     radar = Radar(settings)
     overview = Overview(settings)                       # EXEC-OVERVIEW O4
     watchlist = Watchlist(settings, store)              # EXEC-WATCHLIST L3
+    examples = Examples(store)                          # 3e, the example mode (ERRORS M527)
     # EXEC-MU-ACCOUNTS beta/live: the AI loop claims only the runs this site queued (config.py EDGE_SITE)
     worker.claim = functools.partial(store.claim, site=settings.site)
     housekeeping = Housekeeping(settings, store)        # ERRORS R2-33: the hourly purges, their own task
@@ -809,6 +811,8 @@ def create_app(settings=None, store=None, orc=None):
     radar.routes(app, auth)
     overview.routes(app, auth)
     watchlist.routes(app, auth)              # EXEC-WATCHLIST L3: the lists and the daily file
+    # 3e, the example mode (user 2026-11-21; ERRORS M527): /api/v1/examples/<tab>, for <tab>.example, visitors too
+    examples.routes(app, auth)
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4b): the account's preferences, /api/v1/preferences
     preferences.routes(app, auth)
     catalog.routes(app, auth)                # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): /api/v1/catalog/{kind}

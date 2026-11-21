@@ -24,6 +24,7 @@ from starlette.routing import Mount, Route
 
 from app import hooks
 from app.main import create_app
+from app.examples import TABS
 from conftest import FakeOrc
 
 # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4): the sign-in page's own routes (no session yet; 404 with the switch
@@ -54,6 +55,10 @@ GUEST_OPEN = {
     ('POST', '/api/terminal/v1/{path:path}'): "the Terminal's data, for what the guest plan grants (terminal.view)",
     ('GET', '/api/v1/catalog/{kind}'): 'the items the Terminal shows the principal (catalog.py, CONTRACT 8a)',
     ('GET', '/api/v1/auth/guest'): "what a visitor holds (the guest plan's access)",
+    # 3e, the example mode (user 2026-11-21; ERRORS M527): each tab's example, for what the guest plan grants
+    # (<tab>.example, migration 20261121_002); a tab joins with its page (app/examples.py TABS)
+    **{('GET', path.format(tab)): f"the {tab} example's files, for what the guest plan grants ({tab}.example)"
+       for tab in TABS for path in ('/api/v1/examples/{}/index', '/api/v1/examples/{}/file/{{name}}')},
 }
 
 
