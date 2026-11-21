@@ -9392,6 +9392,9 @@ in its staleness check.
   Again on `0293f97c` (2026-11-20, the full suite after the M519 fix): failed once in one full run
   (`assert '' == 'out.1'`, `tests/test_answer_view.py:384`), then passed 6 of 6 alone. The M519 fix and 3e do not
   touch the answer view.
+  Again on `c44a684c` (2026-11-21, 3f): failed in the full run with another symptom: `tests/test_answer_view.py:393`,
+  the "Ask AI to export data" button not found within 5 s. Alone it then failed 1 of 4. So it fails alone too, not only
+  under the suite's load. 3f does not touch the answer view either.
 
 - **Found by:** the first CI runs of edge-bff's browser tests after M509: run 44663513713 (commit `b969529b`, Playwright
   1.65.2, Chrome 159): 947 passed, 2 failed; run 44667192992 (commit `58b75888`, Playwright 1.63.0, Chrome for Testing
