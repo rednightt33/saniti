@@ -1160,7 +1160,8 @@ today.
     partitioned instead: the public build keeps the released items, and the lab build keeps every item and the lab
     formulas.
   - The lab build is served from the page's own address to the admin on the beta only (section 8 "Lab code"). Today
-    it equals the public build but for its base path, and the public builds are byte-identical to before 3f.
+    it equals the public build but for its base path, and the public builds are byte-identical to before 3f (the image's
+    too, but the Backtest page's, which changes once to the build CI tests: ERRORS M525).
 - **Lab tabs.** A lab tab's own page app (`<tab>-app`) answers 404 to everyone but the admin on the beta, and on the live
   site; a new tab must be its own `<tab>-app` (a page of the shell ships in the shell).
 - **The catalogs' `access:'admin'` marks** stay on the wire (the live site's older edge-bff reads them). edge-bff

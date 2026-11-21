@@ -9047,6 +9047,18 @@ in its staleness check.
     page code or computed without its id cannot be put back at the lab stage by the release file alone.
   - Not run (CRIT-5): a switch-off browser session of the owner's Terminal on a lab build, a Docker build here (no
     daemon; CI builds the image), the beta deploy and the live smoke against a 3f image.
+  - Read from CI, not simulated: the image's asset names of every page stage at `33c84c1f` and `9723caf7` are equal but
+    the Backtest's, which moved to the repository build's (`index-BoIVVtuS.js`, `load.worker-BZlCroBw.js`, lab
+    `index-D55W--ZZ.js`), M525.
+  - What the mutations show, and what they do not: the mutation runs read the exit code and the count of failing tests;
+    the failing assertion itself was read for the keyed branch (a lab item in the public Backtest file), M521 on the old
+    server (the leak named), M524 (the deep request), the image stage test (the missing tsconfig.json) and one
+    mutation redone after it failed for its syntax only. The deletion of the comparison lag's spec was not run again
+    (the coverage test then finds compare-lag.json reached and not filtered, by construction). M526's live-site review
+    test was not added; the widest-context test holds the trigger.
+  - Known limit (recorded, not fixed): the coverage test's check of what the filter leaves knows the release file's ids
+    and the ids a spec's own parts hold, so a second map keyed only by brand-new ids would pass it; the bundle scan
+    finds such an id once the release file lists it as lab.
 - **Lesson:**
   - A build filter must be proven on every bundle the build makes, Web Workers included, by a test that plants an item
     in each, on disk, past the code under test: a plant that goes through the filter proves nothing about the filter.
