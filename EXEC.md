@@ -16382,8 +16382,9 @@ Order of the services (CONTRACT 17, rollback floors):
           Watchlist's example is the latest publication, like the Overview's, not a stored date: today's LQ45 members as
           the database holds them (they follow the next list round by themselves), every column of the page's table and
           the four default indicators (RSI, Volume, From 60D high, Foreign 5D; Foreign 5D on the broker data's own date,
-          the page's two date pills); no upcoming corporate action (as before; the Terminal's free plan holds no events);
-          no Radar badge (radar.view).
+          the page's two date pills); no Radar badge (radar.view). The upcoming corporate actions are left out as in the
+          stored version: a default of the build, not the user's words (the live page shows their badge on 2 of the 45
+          today and keeps its "Corporate action" control); told to the user 2026-11-21, their answer open.
         - Built (ERRORS M527, its Watchlist block): `app/examples.py` `WatchlistLatest` and `watchlist_view` (the live
           watchlist-stocks cut to the LQ45 of overview-meta; a missing, doubled or empty list, a member the file does
           not hold, or a file without its price date answers `EXAMPLE_UNAVAILABLE` and logs the reason, never another

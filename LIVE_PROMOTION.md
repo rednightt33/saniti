@@ -229,6 +229,16 @@ CI → `main` → the beta runs it), and then `live` moves to it. The user's req
    The browser smoke expects the Terminal to open, the rail to have no Monitor or lab tab, and no model list to be
    asked for.
 
+   The example smoke (3e, ERRORS M527) opens each data page's example as a visitor, in a real browser:
+
+   ```
+   EDGE_TEST_CHROMIUM=/opt/pw-browsers/chromium python3 verification/edge_multiuser/live_smoke/example_smoke.py https://app.edgefinance.id --png <dir>
+   ```
+
+   It expects, for every tab of `app/examples.py` TABS: the example in its frame under its dated note, only
+   `/api/v1/examples/<tab>/...` read, and a click opening "Sign in to open <tab>"; the Watchlist with its list and its
+   two date pills; VERDICT OK. `EDGE_TEST_CHROMIUM` names a Chromium where Playwright's own is not installed.
+
    Then the owner signs in to check the admin's side themself. The admin's first password (`EDGE_ADMIN_*` on
    orc-test-runner) stops working once the owner resets or changes it (ERRORS M516). `--admin` tries it once, and a
    401 then is expected.

@@ -30,7 +30,7 @@
     Watchlist of 2026-11-20).
   - `browser_smoke.cjs /terminal`: the rail without Monitor or a lab tab, no model list asked; the Terminal on BBCA with
     "Last 730 days of history", the broker data and Events locked (its `shows_bbca` reads the shell's text, not the
-    frame's: false as before).
+    frame's, so it says false; the screenshot shows BBCA).
   - `example_smoke.py` (new, LIVE_PROMOTION.md step (4)): each of the five tabs opens its example in its frame under its
     dated note, reads only `/api/v1/examples/<tab>/...` (no live route), and a click opens "Sign in to open <tab>"; the
     Watchlist shows LQ45 (45 stocks) with its four indicators, "Prices to Fri 20 Nov" and "Broker data to Mon 9 Nov".

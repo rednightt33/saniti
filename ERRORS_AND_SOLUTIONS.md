@@ -9134,8 +9134,9 @@ in its staleness check.
   after the review of 2 November). Fix: the Watchlist's example is the latest publication, like the Overview's
   (`app/examples.py` `WatchlistLatest`, `watchlist_view`): the live watchlist-stocks read through the page relay for the
   principal, cut to today's LQ45 as overview-meta publishes it (`Stock_List_Member`; it follows the next list round by
-  itself), every column of the table and the four default indicators (another indicator null, no upcoming corporate
-  action, no Radar file), and watchlist-lists, that one list; `LATEST` holds it, so its routes pass the Terminal guard.
+  itself), every column of the table and the four default indicators (another indicator null, no Radar file; the
+  upcoming corporate actions left out as in the stored version, a default of the build and not the user's words, their
+  answer open), and watchlist-lists, that one list; `LATEST` holds it, so its routes pass the Terminal guard.
   Fail closed: a missing, doubled or empty list, a member the file does not hold, or a file without its price date
   answers `EXAMPLE_UNAVAILABLE` and logs a fixed reason, never another list. The publisher's stored builder
   (`watchlist_files`, `members_on`), its tests and its capture parameters are gone; `watchlist.build`'s `as_of` stays,
