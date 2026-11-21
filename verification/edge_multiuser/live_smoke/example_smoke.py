@@ -10,8 +10,10 @@ For each data page (the tabs of apps/edge-bff/app/examples.py TABS), it opens /<
 Prints one OUT line per tab ({tab, note, files, live_reads, box}) and VERDICT OK or VERDICT FAILED with the reasons.
 
 Run: python3 verification/edge_multiuser/live_smoke/example_smoke.py https://app.edgefinance.id [--png <dir>]
+     (EDGE_TEST_CHROMIUM names a Chromium where Playwright's own is not installed)
 """
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -53,7 +55,7 @@ def check(page, origin, tab, label, png):
     if out['live_reads']:
         fail.append(f'live routes read: {out["live_reads"]}')
     target = frame.locator('.seg button[data-v="5D"], .seg button[data-k="5D"], .seg button[data-p="5D"]').first \
-        if tab == 'overview' else frame.locator('button').first
+        if tab == 'overview' else frame.locator('button:visible:not([disabled]):not([aria-disabled="true"])').first
     target.click()
     box = page.locator('.locked-dialog')
     try:
@@ -75,7 +77,8 @@ def main():
     png = sys.argv[sys.argv.index('--png') + 1] if '--png' in sys.argv else None
     failures = []
     with sync_playwright() as pw:
-        browser = pw.chromium.launch()
+        # the browser the tests use where Playwright's own is not installed (EDGE_TEST_CHROMIUM, as tests/e2e_people.py)
+        browser = pw.chromium.launch(executable_path=os.environ.get('EDGE_TEST_CHROMIUM') or None)
         try:
             for tab, label in TABS.items():
                 ctx = browser.new_context(viewport={'width': 1440, 'height': 900}, device_scale_factor=1)

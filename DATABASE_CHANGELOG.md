@@ -94,6 +94,17 @@
     `4deaaf6b07e4cc20…`); the write `724dc7c4`: VERDICT DELETED 2 rows, 0 watchlist rows read back, the other tabs
     unchanged (backtest 4, radar 3, screener 4). Nothing served them (the beta and the live site run code without the
     example mode). Not a large update.
+- **The promotion (RAILWAY_CHANGELOG.md, 2026-11-21): `20261121_002_edge_bff_guest_examples.sql` applied** once the live
+  site ran `4b35b5ed` (the code that reads the flags), sha256 `b58e304b…a69ac790d1cba84d`. Its Watchlist text was
+  changed before its first application (`4b35b5ed`: "one example list (the LQ45 members of the day) on the latest price
+  date", the user's option B); it had been applied nowhere. M340 before each job: 0 EDGE jobs, 0 orc turns, 0
+  statements.
+  - DRYRUN `a7861e21`: the body OK inside one rolled-back transaction, the probes inside it as after.
+  - APPLY `f866eeca`: committed; its preflight refuses a second run and its verify block passed. Read back: the guest
+    plan holds `backtest.example`, `overview.example`, `radar.example`, `screener.example`, `watchlist.example` (10
+    rows with its five Terminal grants, nothing else); the free plan its 6 example rows as before; the Watchlist flag's
+    new text. A visitor on the live site reads every example from then on (the smoke, RAILWAY_CHANGELOG.md).
+  - Expand-only: five rows and five texts; no grant changed. Not a large update.
 
 ## 2026-11-20 — The A2 fix: a reset code bound to its browser, a registration's client (edge_bff, migrations 20261120_001 and _002)
 

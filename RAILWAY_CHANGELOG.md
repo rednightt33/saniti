@@ -1,5 +1,44 @@
 # Railway changelog
 
+## 2026-11-21 — The promotion of A2, 3e (with the example mode) and 3f: the beta, then the live site
+
+- **Commit `4b35b5ed`:** A2 (ERRORS M517), 3e with the example mode (M518, M519, M527: every data page's example for a
+  visitor and the free plan; the Overview and the Watchlist on their latest date, the Radar, the Backtest and the
+  Screener on 30 October 2026), 3f (lab code out of the public bundles, M520-M526) and their fixes and records: the 43
+  commits after `4785d1ef` that `scripts/live_diff.py --sites` lists, nothing else. The user's go: "No 6 langsung
+  jalankan saja nanti setelah pengecekan nomor 5" (2026-11-21), and on the Watchlist "Benar opsi B. Go." (EXEC.md
+  option A, the example mode's run log).
+- **CI:** green on the session branch (Backend tests 44948618397: edge-bff 1,098 passed, no rerun; look-ahead gate,
+  generated files), on `main` (Backend tests 44951381957, image builds, Backtest page smoke, generated files,
+  look-ahead gate) and on `live` (Backend tests 44954157072 with the same four). The run on `a30815c1` before had failed
+  one browser test on all three attempts (ERRORS M510, the Terminal lock box's Escape); the same code passed after.
+- **Before:** M340 by `scripts/restart_postgres.py` (check only) before each move and each migration job: 0 EDGE jobs,
+  0 orc turns, 0 statements. The Watchlist's stored rows of 30 October deleted on dev (job `724dc7c4`).
+- **Beta:** `main` moved `d194981f` → `4b35b5ed` (a fast-forward). `edge-bff` `6be96687` waited for its CI and reached
+  SUCCESS; `/ready` 200, `/version` `4b35b5ed`; `/terminal`, the six page apps and `/api/v1/auth/config` 200.
+  `screener-worker` `4f68955c` (a shared service; M520, M521, M524) waited for its CI and reached SUCCESS: from now the
+  live Screener lists FL18, FL19, FL20, FL23, FL44, FL45 and the preset `follow` to nobody (told to the user before
+  `main` moved).
+- **Live:** `live` moved `4785d1ef` → `4b35b5ed` (a fast-forward). `edge-bff-live` `f1d6a921` waited for CI and reached
+  SUCCESS at 22:26 UTC; `app.edgefinance.id/version` `4b35b5ed`, `/ready` 200. Then `20261121_002` (the guest plan's
+  five example flags) applied on dev (DATABASE_CHANGELOG.md: DRYRUN `a7861e21`, APPLY `f866eeca`).
+- **Smoke from outside (a visitor, no credentials):**
+  - `http_smoke.py`: `/ready` 200, CSP and HSTS; `hidden_tabs` admin and monitor; registration 403
+    `REGISTRATION_CLOSED` (pre-launch); a visitor's BBCA 200 and TLKM 403 with the sign-in words; `routes.unexpected`
+    `{}` (62 routes); the public builds without the lab worker file; a foreign origin 403, an unknown login 401; every
+    example's index and files 200 (the Radar, the Backtest and the Screener of 2026-10-30; the Overview and the
+    Watchlist of 2026-11-20).
+  - `browser_smoke.cjs /terminal`: the rail without Monitor or a lab tab, no model list asked; the Terminal on BBCA with
+    "Last 730 days of history", the broker data and Events locked (its `shows_bbca` reads the shell's text, not the
+    frame's: false as before).
+  - `example_smoke.py` (new, LIVE_PROMOTION.md step (4)): each of the five tabs opens its example in its frame under its
+    dated note, reads only `/api/v1/examples/<tab>/...` (no live route), and a click opens "Sign in to open <tab>"; the
+    Watchlist shows LQ45 (45 stocks) with its four indicators, "Prices to Fri 20 Nov" and "Broker data to Mon 9 Nov".
+    VERDICT OK.
+- **Not a large update:** a few rows; no Postgres restart (its memory 0.25 GB).
+- **Rollback:** `live` back to `4785d1ef` with the user's go (LIVE_PROMOTION.md section 5); the migrations stay
+  (expand-only), and `20261121_002`'s rollback block gives the visitors their locked pages again.
+
 ## 2026-11-21 — 3e (without the example mode) and the MFA lock fix on the beta
 
 - **Commits `6ab9d1a9`…`d194981f`:** 3e after its ultracode checker and its fixes (ERRORS M518), the MFA lock answer

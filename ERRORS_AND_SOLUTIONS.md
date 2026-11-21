@@ -8952,7 +8952,7 @@ in its staleness check.
   suite before pushing. A pointer whose symbol is dotted is checked by its last part only, so a common last part
   (`routes`) can hide a wrong line: cite such a line by a name that occurs on it alone.
 
-### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT on the branch for the five data pages and written on dev; the example-mode checker's findings FIXED on the branch; the Watchlist's list SETTLED by the user, its example on the latest data; the promotion next)
+### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT on the branch for the five data pages and written on dev; the example-mode checker's findings FIXED on the branch; the Watchlist's list SETTLED by the user, its example on the latest data; ON THE LIVE SITE since 2026-11-21, `4b35b5ed`)
 
 - **Symptom:** since 20261117_003 the free plan holds `overview.example`, `radar.example`, `watchlist.example`,
   `screener.example` and `backtest.example`, yet no code read them: a free account and a visitor who is not signed in got

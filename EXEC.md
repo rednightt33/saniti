@@ -16394,6 +16394,15 @@ Order of the services (CONTRACT 17, rollback floors):
           a click asks to sign in); 14 mutations, each red. The read-only probe of the latest data `cc2d4a5a`; the
           stored rows of 30 October deleted on dev (dry run `e11f77ea`, the write `724dc7c4`: 2 rows, 0 left; the
           other tabs' rows unchanged). This came after both checker runs: the deep checker (step 8) covers it.
+        - **Step 6, the promotion of A2, 3e and 3f (2026-11-21, under the user's go; RAILWAY_CHANGELOG.md):** CI green on
+          `4b35b5ed` (after one red run on `a30815c1`: ERRORS M510, the Terminal lock box's Escape, green on the same
+          code next); `main` `d194981f` → `4b35b5ed`, the beta `6be96687` and the shared screener-worker `4f68955c`
+          SUCCESS; `live` `4785d1ef` → `4b35b5ed`, `edge-bff-live` `f1d6a921` SUCCESS; `20261121_002` applied (APPLY
+          `f866eeca`); the smoke from outside as a visitor OK (`http_smoke.py`, `browser_smoke.cjs`, and
+          `example_smoke.py` over the five examples). Moved: the 43 commits after `4785d1ef`, A2, 3e with the example
+          mode, 3f and their fixes and records, nothing else. The live site stays in its pre-launch mode (registration
+          closed). Next, in the approved order: Phase 4 (the admin page), the payment shell, the deep checker and the
+          registration test window.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
