@@ -16271,8 +16271,11 @@ Order of the services (CONTRACT 17, rollback floors):
         di live. Overview juga. Yang lain boleh pakai data 30 Oktober. Paham?" Read as: the Terminal and the Market
         Overview show the latest data (the Terminal as built: BBCA, the free plan's and the guest's ticker; the Overview
         its whole page, the latest publication, in place of an example); Radar, Watchlist, Screener and Backtest show the
-        cut of 30 October 2026 (D4: served only to a signed-in principal holding `<tab>.example`). Open (asked the same
-        day): whether a visitor who is not signed in also sees the latest Overview, or keeps the sign-in prompt.
+        cut of 30 October 2026 (D4: served only to a signed-in principal holding `<tab>.example`). Asked the same day
+        whether a visitor who is not signed in also sees the latest Overview: the user, "A masukan exec": yes, the guest
+        sees the latest Overview too (A: the shop window). The plans are data in the database both sites share, so the
+        free and guest plans' Overview rows change only at the promotion, when the live site runs the code that reads
+        them. The build waits for the user's go.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
