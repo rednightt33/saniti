@@ -302,7 +302,8 @@ def walk(c, app, h):
             if route.path == '/api/terminal/v1/{path:path}':
                 calls = [(m, f'/api/terminal/v1/{s}', b) for m, s, b in terminal_samples() if m == method]
             else:
-                family = route.path.split('/')[3]
+                parts = route.path.split('/')               # /api/v1/<family>/... or /api/v1/examples/<family>/...
+                family = parts[4] if parts[3] == 'examples' else parts[3]
                 assert family in FAMILY_SAMPLE, f'{route.path}: add the family {family} to FAMILY_SAMPLE'
                 calls = [(method, route.path.replace('{name}', FAMILY_SAMPLE[family]), None)]
             for m, path, body in calls:
@@ -320,6 +321,10 @@ def leaks(r):
 
 def planted_app(settings, store, monkeypatch):
     monkeypatch.setattr(main.httpx, 'AsyncClient', Planted)        # one module: the proxy's and the page files' client
+    # every guarded call asks terminal-api: the page relay keeps its index INDEX_SECONDS, and the Overview's example reads
+    # the same relay as the Overview's own routes, so a warm index would answer it without a call (the re-check, M527)
+    from app import pages as pages_module
+    monkeypatch.setattr(pages_module, 'INDEX_SECONDS', 0)
     FakeApi.calls, FakeApi.cut_headers = [], {}
     return create_app(dataclasses.replace(settings, terminal_url=URL, terminal_proxy_key=KEY), store, FakeOrc())
 

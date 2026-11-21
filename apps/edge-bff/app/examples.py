@@ -303,10 +303,11 @@ class Examples:
 
     def tab_routes(self, app, auth, tab, label):
         text = messages(label)
-        # before the kept files (module docstring); the guard of every route that calls terminal-api (the Overview's
-        # example reads it for the principal): a request carrying a header edge-bff sets itself is refused 400
-        # (terminal_access.guard; the example-mode re-check, ERRORS M527), on every tab alike
-        need = terminal_access.guard(auth.need(f'{tab}.example', guests=True))
+        # before the kept files (module docstring); a tab whose example reads terminal-api for the principal (LATEST, the
+        # Overview) passes the guard of every route that calls it: a request carrying a header edge-bff sets itself is
+        # refused 400 (terminal_access.guard; the example-mode re-check, ERRORS M527). A stored tab reads the database only.
+        base = auth.need(f'{tab}.example', guests=True)
+        need = terminal_access.guard(base) if tab in LATEST else base
 
         def failure(code, status, details=None):
             return JSONResponse(status_code=status, content={'error': {

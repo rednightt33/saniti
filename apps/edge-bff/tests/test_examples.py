@@ -559,11 +559,11 @@ def test_a_principals_own_terminal_refusal_on_the_overview_example_keeps_its_cod
             assert (error['code'], error['details'].get('capability')) == ('CAPABILITY_REQUIRED', 'terminal.files_per_hour'), error
 
 
-def test_a_request_carrying_a_header_edge_bff_sets_itself_is_refused_on_every_example(guests, store, stored, overview_api):
-    """The example-mode re-check (ERRORS M527): the Overview's example calls terminal-api for the principal, so its routes,
-    and every tab's alike, pass terminal_access.guard: a reserved header is refused before any cache or terminal-api."""
+def test_a_request_carrying_a_header_edge_bff_sets_itself_is_refused_on_the_overview_example(guests, store, stored, overview_api):
+    """The example-mode re-check (ERRORS M527): the Overview's example calls terminal-api for the principal, so its routes
+    pass terminal_access.guard: a reserved header is refused before any cache or terminal-api."""
     with TestClient(create_app(guests, store, FakeOrc())) as c:
-        for tab in ('overview', 'radar'):
+        for tab in examples_module.LATEST:
             for path in (f'/api/v1/examples/{tab}/index', f'/api/v1/examples/{tab}/file/{tab}-meta'):
                 for name in (terminal_access.OWNER_HEADER, terminal_access.CAPABILITIES_HEADER):
                     r = c.get(path, headers={**VISITOR, name: 'someone-else'})

@@ -8879,6 +8879,19 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M531 — The throttle's concurrency test failed in CI when its 24 counts crossed a minute's end (2026-11-21; FIXED on the branch)
+
+- **Seen:** Backend tests run 44926309750 on `c362055b`: `tests/test_auth_throttle.py::test_counts_are_atomic_under_concurrency`
+  read `[8, 16]` where it asserted `[24]`; the other 1084 tests passed. Not a browser test, so no rerun (M510) applied.
+- **Root cause (verified in the code):** the sign-in throttle keeps its counts per minute (`app/throttle.py`,
+  `BUCKET_SECONDS` 60, `window_start` the minute's start). The test's 24 concurrent counts crossed a minute's end on
+  the slower runner: 8 in one minute's row, 16 in the next. The sum is 24, so no count was lost: the upsert
+  (`ON CONFLICT ... DO UPDATE SET count = count + 1`) is atomic, which is what the test is for. The test assumed one row.
+- **General class:** a test that asserts the shape of a time-bucketed aggregate without holding the clock passes until
+  a run crosses a bucket's end; it holds for every per-window counter (the throttle's limits, the mail counters).
+- **Solution:** the test asserts the property: the counts sum to 24 over at most two rows. Not a code change.
+- **Lesson:** assert what a test is for (no lost count), not the bucket a fast run happens to land in.
+
 ### M530 — The Backtest and the Screener are wider than a 360 px phone: the page scrolls sideways (2026-11-21; found by the example mode's phone check; OPEN, older than 3e)
 
 - **Found by:** the example mode's acceptance at 390 and 360 px, light and dark (a scratch browser run over the five
@@ -9099,9 +9112,12 @@ in its staleness check.
     `breadth_n`, read by no panel, is left out. The path walk now compares every kept value with the written one and
     names every emptied value (mutations red: the daily flow kept 2, the lines whole 1, breadth_n kept 2, `r1d` out of
     STOCK_KEYS 2, a new publisher column 1, an object in a flow series 1, an object in a market value 1).
-  - **The Overview's example routes called terminal-api without `terminal_access.guard`:** every example route passes
-    it now (a request carrying a header edge-bff sets itself is refused 400), and the route walk lists them (red without
-    the guard: 2).
+  - **The Overview's example routes called terminal-api without `terminal_access.guard`:** they pass it now (a request
+    carrying a header edge-bff sets itself is refused 400), and the route walk and the leak walk
+    (`tests/test_decisions_small.py`) list them; the stored tabs' examples read the database only and stay outside the
+    guard, whose rule is "every route that calls terminal-api" (a first version guarded every example route and the leak
+    walk, which calls each guarded route and expects terminal-api asked, went red on the stored ones; red without the
+    guard: 2).
   - **The view-only layer hid the Radar's board column scrollbar** (the user 2026-11-15: it shows under the pointer): a
     scrollbar's own styles stay (red without the carve-out: 1).
   - **Tests:** the storage-order rule reads re-exports too and its self-test calls the rule itself; the sha check is held

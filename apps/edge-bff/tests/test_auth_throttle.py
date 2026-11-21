@@ -117,11 +117,15 @@ def test_the_password_is_checked_before_the_login_is_compared(settings, store, m
 
 
 def test_counts_are_atomic_under_concurrency(settings, store):
+    """No count is lost when 24 failures land at once (ON CONFLICT ... DO UPDATE). The counts are kept per minute
+    (BUCKET_SECONDS), so a run that crosses a minute's end splits them over two rows (ERRORS M531: CI run 44926309750 read
+    [8, 16]): the sum is the property, one key's rows at most two."""
     throttle = Throttle(store, settings.session_secret)
     with ThreadPoolExecutor(max_workers=6) as pool:
         list(pool.map(lambda _: Throttle(Store(settings.database_url), settings.session_secret).count(
             (SIGNIN_LOGIN, 'race')), range(24)))
-    assert [r['count'] for r in rows(store)] == [24]
+    counts = [r['count'] for r in rows(store)]
+    assert sum(counts) == 24 and 1 <= len(counts) <= 2, counts
     assert throttle.retry_after(SIGNIN_LOGIN, 'race') > 0 and throttle.retry_after(SIGNIN_LOGIN, 'other') == 0
     assert throttle.retry_after(SIGNIN_IP, 'race') == 0                # not enforced
 
