@@ -16212,6 +16212,13 @@ Order of the services (CONTRACT 17, rollback floors):
         proposed 30 October 2026 is checked against the price, broker and Feature data first, and the user confirms the
         date before the cut is made. It gets its own ultracode checker at xhigh.
       - 3f (lab code out of the public bundles) starts now, before the example mode.
+      - The date check (2026-11-21, read-only job `verification/edge_multiuser/example_mode/date_check_job.py` on
+        orc-test-runner, VAR_REMOVED, Postgres memory 0.36 GB after it): 30 October 2026 (a Friday) is a whole trading
+        day in every table the examples read, in line with the days around it. Prices 900 rows (897-909 around it),
+        IDX_Broker_Summary 24,333, Feature 01 856, Feature 02 and 05 23,089, Feature 03 and 06 983, Feature 04 880, the
+        Feature 01/04 and 06 index tables 44 and 184, the Radar's measures 856, its gate 1 and its results 2,300. The
+        newest dates: prices and Features 01 and 04 20 November; broker data and Features 02, 03, 05, 06 and 07 9 November.
+        The date waits for the user's confirmation.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
