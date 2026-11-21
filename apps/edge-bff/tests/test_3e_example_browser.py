@@ -12,6 +12,7 @@ The example's files are made by the publisher's own Radar builders (apps/termina
 made-up rows, so they have the shapes the page reads. Needs EDGE_TEST_POSTGRES_URL, Playwright with EDGE_TEST_CHROMIUM,
 the built Terminal page and the built Radar page (cd apps/edge-bff/radar && npm run build)."""
 import dataclasses
+import re
 
 import pytest
 
@@ -105,7 +106,7 @@ def test_a_visitor_sees_the_radar_example_as_a_view_of_its_day(site, chromium):
     assert 'Sign in to open Radar' in text and 'This is an example of Radar' in text, text
     assert box.get_by_role('button', name='Sign in').count() == 1
     assert frame.locator('body').evaluate('() => location.hash') == hash_before
-    page.keyboard.press('Escape')
+    box.locator('.dialog-head button[aria-label="Close"]').click()
     box.wait_for(state='detached', timeout=10000)
     # Enter on a control asks too (after the layer's pause between two asks)
     page.wait_for_timeout(500)
@@ -164,7 +165,7 @@ def box_text(page):
     box = page.locator('.locked-dialog')
     box.wait_for(timeout=10000)
     text = box.inner_text()
-    page.keyboard.press('Escape')
+    box.locator('.dialog-head button[aria-label="Close"]').click()      # its own button: a key could land in the page's frame
     box.wait_for(state='detached', timeout=10000)
     page.wait_for_timeout(450)                                     # the layer's pause between two asks
     return text
@@ -188,15 +189,29 @@ def test_a_visitor_sees_the_latest_overview_and_only_its_time_controls_are_locke
     frame.locator('#uni').click()
     frame.locator('#unipop .menu-item').filter(has_text='Big group').first.click()
     assert page.locator('.locked-dialog').count() == 0
-    # every time control asks to sign in, and the panel keeps its period
-    for sel, pressed in (('#ihp button[data-v="5D"]', '#ihp button[data-v="1D"]'),
-                         ('#ffp button[data-v="C"]', '#ffp button[data-v="1D"]'),
-                         ('#brpp button[data-p="1Y"]', '#brpp button[data-p="120D"]'),
-                         ('#datebtn', None)):
-        frame.locator(sel).click()
-        assert 'Sign in to open Overview' in box_text(page), sel
-        if pressed:
-            assert frame.locator(pressed).get_attribute('aria-pressed') == 'true', sel
+    # every group of the page whose choices are all periods (read from the page, not listed here) asks to sign in on
+    # each of its other choices, and keeps its own; every other group just works
+    groups = frame.locator('.seg').evaluate_all('''gs => gs.map((g, n) => ({n, id: g.id, k: g.dataset.k || '',
+        vals: [...g.querySelectorAll('button')].map(b => b.dataset.v || b.dataset.p || b.dataset.k || '')}))''')
+    period = re.compile(r'\d+[DMY]|YTD|C')
+    timed = [g for g in groups if g['vals'] and all(period.fullmatch(v) for v in g['vals'])]
+    assert len(timed) >= 6, groups                              # the map, IHSG, sectors, breadth, movers, flow
+    for g in timed:
+        seg = frame.locator('.seg').nth(g['n'])
+        before = seg.evaluate("g => [...g.querySelectorAll('button')].map(b => b.getAttribute('aria-pressed'))")
+        others = [i for i, x in enumerate(before) if x != 'true']
+        assert others, g
+        for i in others:
+            seg.locator('button').nth(i).click()
+            assert 'Sign in to open Overview' in box_text(page), (g, i)
+        after = frame.locator('.seg').nth(g['n']).evaluate("g => [...g.querySelectorAll('button')].map(b => b.getAttribute('aria-pressed'))")
+        assert after == before, g
+    for g in (g for g in groups if g not in timed):
+        frame.locator('.seg').nth(g['n']).locator('button').last.click()
+        page.wait_for_timeout(450)
+        assert page.locator('.locked-dialog').count() == 0, g
+    frame.locator('#datebtn').click()
+    assert 'Sign in to open Overview' in box_text(page)
     assert frame.locator('.cpop').evaluate('n => n.hidden') and frame.locator('#datepop').evaluate('n => n.hidden')
     # a stock opens the Terminal, as on the live page
     frame.locator('.tmv-r').first.click()

@@ -199,3 +199,28 @@ def test_the_store_counts_each_visitor_apart_on_a_real_server():
                               "VALUES (%s, 'file', 'BBCA', NULL, '10.0.0.1')", (sid,))
     finally:
         store.close()
+
+
+# ---- 3e, the example mode (edge-bff app/examples.py; ERRORS M527): the Market Overview's example for a visitor -------
+
+def test_a_visitor_reads_the_market_overviews_page_files_counted_on_its_own_key():
+    """edge-bff reads the live Market Overview's opening files for a visitor of the guest plan (its owner headers and its
+    visitor key) and trims them: terminal-api lists and grants them like any owner's page files, one audit row each on
+    the guest owner's row with the visitor's key, against that visitor's own quota."""
+    import copy
+    from test_api import RADAR
+    bucket = CutBucket()
+    entry = next(iter(RADAR.values()))
+    bucket.state_doc = {**bucket.state_doc, 'overview': {
+        'overview-meta': {**copy.deepcopy(entry), 'key': entry['key'].replace('radar/radar-board-2026-11-09', 'overview/overview-meta')}}}
+    client, store, _ = make(bucket, VisitorStore())
+    visitor = {**owner(GUEST_OWNER, caps(tickers=['BBCA'], datasets=['price'], history_days=730)), 'x-terminal-client': VISITOR_A}
+    r = client.get(f'{API}/overview', headers=visitor)
+    assert r.status_code == 200 and set(r.json()['files']) == {'overview-meta'}, r.text
+    # the acknowledgement edge-bff requires of a capped principal's answer (terminal_access.relayed, re-check R2-4)
+    assert r.headers['x-terminal-capabilities-applied'] == '1 db-0123456789ab'
+    r = client.post(f'{API}/overview', headers=visitor, json={'names': ['overview-meta']})
+    assert r.status_code == 200 and r.json()['files'][0]['name'] == 'overview-meta', r.text
+    assert r.headers['x-terminal-capabilities-applied'] == '1 db-0123456789ab'
+    row = [a for a in store.access if a['kind'] == 'file'][-1]
+    assert row['client'] == VISITOR_A and row['ticker'] == 'REF' and row['sid'] != 1
