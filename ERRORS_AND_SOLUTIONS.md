@@ -8920,7 +8920,7 @@ in its staleness check.
   suite before pushing. A pointer whose symbol is dotted is checked by its last part only, so a common last part
   (`routes`) can hide a wrong line: cite such a line by a name that occurs on it alone.
 
-### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; IN PROGRESS on the branch: the Radar first)
+### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT on the branch for the five data pages and written on dev; the checker and the promotion next)
 
 - **Symptom:** since 20261117_003 the free plan holds `overview.example`, `radar.example`, `watchlist.example`,
   `screener.example` and `backtest.example`, yet no code read them: a free account and a visitor who is not signed in got
@@ -8994,6 +8994,19 @@ in its staleness check.
     the stored request (`capture_backtest.json`): capture the example again (backtest_catalog_job.py,
     backtest_request.ts, capture_job.py). Browser test: the stored run shows, also when every example answer is half a
     second late, only the example's files are read, no toast, no title, a click asks to sign in.
+  - The Screener (30 October 2026): it evaluates every stock at its newest bar and has no evaluation date, so its example
+    is the screener-worker itself on its own input files cut at that date (`apps/screener-worker/tests/
+    example-capture.ts`: terminal-api's publication read and checked file by file, every later price, action and broker
+    day left out, no stock lists, the date as the publication's time; a test proves the answer depends on no later row,
+    red without the cut). The catalog is narrowed to the live site's view of the released items with no right
+    (`examples.py` narrowest_catalog, held equal to edge-bff's catalog_for). The preset: brk52 matched no stock that day
+    (42 near misses), so the user chose "A" (2026-11-21): Golden Cross, 23 matches. Written on dev by job `482f9b9e` (4
+    files, READBACK OK). The page opens on that screen with its storage in memory and no file cache (a visitor's own
+    last screen neither shows nor changes: the browser test, red when the page writes its storage) and answers its run
+    only for that definition in the page's own form (the page drops a parameter at its default: found by its test).
+    Found on the way: the view-only layer's MutationObserver broke the Screener's bundle rule (no observer, no timer);
+    titles are now swept on every pointer entry, and the browser tests check no title is left once the pointer is on a
+    page.
 - **Lesson for new data:** an example of a page is the files of its opening view, built by the publisher's own builder
   cut at one date and checked for later dates before it is stored; the server is the guarantee (it serves only those
   files, only to `<tab>.example`), the page only displays.

@@ -41,6 +41,18 @@
   23,024 bytes `f41bda3b0edbfe49…`; `backtest-bars-mapi` 240 rows 2,849 bytes `fb8869f33671a0cf…`. No file names a date
   after 30 October 2026 but the result's own run stamp (`meta.data_through`, the publication the worker read). Not a
   large update (one worker run, four rows).
+- **The Screener's example of 30 October 2026** (the same job with `capture_screener.json`, the node image; `examples.py`
+  screener_files): the screener-worker itself on its own input files cut at that date (read from terminal-api's bucket:
+  951 tickers, 1,463,605 price rows of 1,477,143, 3,471 actions of 3,501, 54 broker days of 60 (2026-08-14 to
+  2026-10-30); no stock lists, their members being recorded only since 10 November), and the preset Golden Cross (the
+  user's choice "A": brk52 matched no stock that day; EXEC.md). Dry runs `be862d2a` and `d03b3643` DRY_RUN_OK; the
+  write `482f9b9e` wrote 4 rows and read them back (READBACK OK, VERDICT WRITTEN): `screener-catalog` 25 presets 35,393
+  bytes `70a8795c6b92892b…` (the live site's view of the released items: one preset and the point-in-time Flow
+  versions left out); `screener-universe` 862 stocks 37,074 bytes `b887f453980d193a…`; `screener-screen` 316 bytes
+  `dd34c3eb6e32144f…`; `screener-run` 23 matches 2,619 bytes `7b6938883e9027ef…`. Five price-affecting actions fall
+  after the date (2 rights issues, 2 bonus shares, 1 split): those stocks' earlier prices are as the publication holds
+  them. Not a large update: the price and broker rows came from terminal-api's files, not from Postgres (two small reads
+  and four rows written).
 
 ## 2026-11-20 — The A2 fix: a reset code bound to its browser, a registration's client (edge_bff, migrations 20261120_001 and _002)
 

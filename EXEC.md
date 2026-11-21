@@ -16343,7 +16343,12 @@ Order of the services (CONTRACT 17, rollback floors):
         - **The user's choice (2026-11-21): "A - masukan exec"**: the Screener's example is the preset **Golden Cross**
           (`golden`, the 50-session SMA crossing above the 200-session SMA within 20 sessions; 23 matches on 30
           October), in place of brk52. brk52 stays in the example's preset list with its count of that day (0).
-        - Next: the Screener's write with Golden Cross, then the checker and the promotion.
+        - The Screener written on dev with Golden Cross (`6035d621`; job `482f9b9e`: 4 files, READBACK OK; 23 matches
+          on 30 October). Every data page now has its example: the Overview (latest date, live), the Radar, the
+          Watchlist, the Backtest and the Screener (30 October); the Terminal keeps its own visitor view; no Monitor
+          example.
+        - Next: the ultracode checker (xhigh) over the example mode, its fixes, then the promotion of A2, 3e and 3f
+          (the user's go of 2026-11-21, step 6).
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
