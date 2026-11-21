@@ -259,6 +259,21 @@ server, region, atau biaya:
 | S5 | terminal-api dan Postgres di sfo, bucket di sin | Satu region untuk keduanya | Paling besar | Keputusan infrastruktur |
 
 
+### Before the first lab item or tab (3f's ultracode checker, 2026-11-21; not approved, not built)
+
+3f (EXEC option A item 4) built what keeps a lab item out of the public page builds and the tab catalogs. Its checker
+(ERRORS M523) found the ways a lab item or tab would still reach people who do not hold it. Two tests refuse any lab item
+or tab until each is closed; their failure messages name them: `apps/edge-bff/tests/test_releases.py`
+`LAB_ITEM_HELD_UNTIL` and `tests/test_live_switch.py` `LAB_TAB_HELD_UNTIL`. Each item below needs the user's go.
+
+| Item | What still happens | The fix at its layer |
+|---|---|---|
+| Screener worker refusals (checker L2, CAT-3) | `/v1/validate`, `/run`, `/preview` and `/counts` look items up before the plan check: `UNKNOWN_INDICATOR` lists every registry id in `details.allowed`, other refusals name an item, its outputs or parameters, and `CAPABILITY_REQUIRED` names the item; edge-bff relays them. M521 closed the admin-only part. | The worker runs its allow walk on the definition as sent, before the normalizer, as the Backtest worker does, and names an item outside allow by its id only (edge-bff words it). A worker test plants an id outside allow and searches the whole answer. Changes the Screener engine version. |
+| Lab formulas for the workers (checker TR-2, B3) | The registry generators and both workers do not load `terminal/src/lab/index.ts`: the first lab indicator turns `registry:check` red and could not run in a backtest or a screen. | One registration point loaded by both generators and both workers (main and compute threads), `terminal/src/lab` in both engine versions' sources, and the Screener's overlay entry. Changes both engine versions. All or none. |
+| The live site's edge-bff (checker L5) | Until `live` moves past 3f's server part (`ec1bd29c`), the live site lists a lab item of the shared workers' catalogs to every principal. | `live` moves past 3f, on the user's go. |
+| The shell (checker SERVE-3, TR-13) | A lab tab's rail entry, route, frame wrapper and words are in the public `static/edge-app.js` and `edge-labels.js`; the live site's public `auth/config` names it in `hidden_tabs`. A tab that is a page of the shell ships its whole code there. | The shell builds its rail and routes from the session's tabs, a lab tab's words leave `edge-labels.js` until release, `auth/config` names no lab tab, and every new tab is its own `<tab>-app`. |
+| Optional (checker SERVE-2, SERVE-4, CAT-5, L11) | The lab files stay in the admin's private browser cache after sign-out; the Terminal's Web Worker has no error handler; a released entry's text could name a lab item; the live smoke's lab probe passes by absence once the builds differ. | `private, no-cache` with a 304 after the check, or `Clear-Site-Data` at sign-out; `worker.onerror` as the Backtest loader has; a catalog test over all text; a fixed-name probe file in the lab build. |
+
 ### 3a. Usulan yang belum disetujui
 
 | Usulan | Asal | Catatan |

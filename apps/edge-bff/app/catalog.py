@@ -5,7 +5,7 @@ principal holds in any capability family of that kind: an entry is held when p.c
 kind's families (KIND_OF_FAMILY), so `*` holds every entry at any stage and a plan holding {"stages": ["released"]} on
 terminal.indicator holds the released indicators only. An unknown kind answers 404 NOT_FOUND, with the known kinds in
 details.known_kinds. The definitions of released items stay in the page bundles; a lab item's definition and formula
-are never in a public bundle (3f, CONTRACT 8a "Lab code": the page build filters the registries by stage, and the
+are never in a public bundle (3f, CONTRACT 8 "Lab code": the page build filters the registries by stage, and the
 admin's page loads them from its app's lab route). The tab catalogs list items with the same rule (tab_list).
 """
 import json

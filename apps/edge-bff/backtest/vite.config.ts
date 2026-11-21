@@ -45,17 +45,21 @@ function testEntry(mode: string): Plugin {
 }
 
 /* Served by edge-bff at /backtest-app/ (CONTRACT.md section 10; the EDGE tab "Backtest" shows it in an iframe).
-   3f (EXEC option A item 4; CONTRACT.md 8a "Lab code"): the production page is built twice by `npm run build`. dist/
+   3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): the production page is built twice by `npm run build`. dist/
    keeps only the released items of the registries (shared/release-filter.mjs) and has no lab formula ('@edge-lab' is
    the Terminal's src/lab/none.ts); --mode lab keeps every item and the lab formulas, into dist-lab/, which edge-bff
    serves at /backtest-app/lab/ only to the admin on the beta. The test builds are public builds. */
 /** The build's configuration; `extra`, `labModule` and `outDir` are for the proof builds of the tests only (the
     Terminal's tests/lab/: a fixture lab item that never enters the release file). */
-export function backtestConfig(mode: string, { extra = {}, labModule = undefined as string | undefined, outDir = '' } = {}) {
+export function backtestConfig(mode: string, { extra = {}, labModule = undefined as string | undefined, outDir = '',
+                                              releases = undefined as string | undefined } = {}) {
   const lab = mode === 'lab';
+  const filter = () => releaseFilter({ lab, extra, ...(releases ? { releases } : {}) });
   return {
     base: lab ? '/backtest-app/lab/' : '/backtest-app/',
-    plugins: [releaseFilter({ lab, extra }), ...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd()],
+    plugins: [filter(), ...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd()],
+    // the load worker's bundle takes only these (checker L1): the same filter
+    worker: { plugins: () => [filter()] },
     resolve: { alias: labAlias({ lab, module: labModule }) },
     build: { outDir: outDir || (ENTRY[mode] || lab ? `dist-${mode}` : 'dist'), emptyOutDir: true, assetsDir: 'assets', sourcemap: false,
              target: 'es2022', cssCodeSplit: false, rollupOptions: { output: { format: 'iife' as const, inlineDynamicImports: true } } },

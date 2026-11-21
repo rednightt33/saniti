@@ -95,7 +95,7 @@ TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
 # /fonts/, inline style attributes) and, for the signal preview, the ticker files the /api/terminal/v1/bundle answer
 # presigns on the bucket, so it takes the terminal page's policy.
 BACKTEST_APP = STATIC / 'backtest-app'
-# 3f (EXEC option A item 4; CONTRACT.md 8a "Lab code"): the lab builds of the pages that carry definitions and formulas
+# 3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): the lab builds of the pages that carry definitions and formulas
 # (every item, the lab formulas of terminal/src/lab), served at /<app>/lab/ only to the admin on the beta (auth.lab_viewer)
 TERMINAL_LAB_APP = STATIC / 'terminal-app-lab'
 BACKTEST_LAB_APP = STATIC / 'backtest-app-lab'
@@ -611,7 +611,7 @@ def create_app(settings=None, store=None, orc=None):
     # backtest, CONTRACT.md section 10: it asks /api/v1/backtests and /api/terminal for its data), the screener page
     # (report FRONTEND INTEGRATION 9.1), and the Radar, Market Overview and Watchlist pages (EXEC-RADAR R6, EXEC-OVERVIEW
     # O4, EXEC-WATCHLIST).
-    # 3f (EXEC option A item 4; CONTRACT.md 8a "Lab code"):
+    # 3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"):
     # - a page with a lab build (`lab`) is served from it to the admin on the beta (auth.lab_viewer): its index refers to
     #   its own assets under /<app>/lab/assets/, which answer 404 to everyone else and on the live site, and are cached
     #   by the admin's browser only (private);
@@ -629,7 +629,9 @@ def create_app(settings=None, store=None, orc=None):
                 return error('NOT_FOUND', 404)
             target = globals()[folder_name] / 'index.html'
             lab = globals()[lab_name] if lab_name else None
-            if lab is not None and (lab / 'index.html').is_file() and await auth.lab_viewer(request):
+            # a lab build that is whole (its index and its assets: 3f checker SERVE-8) is the admin's on the beta
+            if (lab is not None and (lab / 'index.html').is_file() and (lab / 'assets').is_dir()
+                    and await auth.lab_viewer(request)):
                 target = lab / 'index.html'
             if not target.is_file():
                 return error('NOT_FOUND', 404)
@@ -639,7 +641,9 @@ def create_app(settings=None, store=None, orc=None):
             target = globals()[folder_name] / 'assets' / name
             if not await shown(request) or not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
                 return error('NOT_FOUND', 404)
-            return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
+            # a lab tab's assets are the admin's only, so no shared cache keeps them (3f checker SERVE-1)
+            scope = 'private' if releases.tab_stage(tab) == releases.LAB else 'public'
+            return FileResponse(target, headers={'Cache-Control': f'{scope}, max-age=31536000, immutable'})
 
         async def lab_asset(request: Request, name: str):
             target = globals()[lab_name] / 'assets' / name

@@ -80,10 +80,17 @@ jobs:
         run: |
           python -m playwright install --with-deps chromium
           echo "EDGE_TEST_CHROMIUM=$(python -c 'from playwright.sync_api import sync_playwright as s; p = s().start(); print(p.chromium.executable_path); p.stop()')" >> "$GITHUB_ENV"
-      - name: The pages the browser tests open (the Terminal's install also gives shared/build-shell.mjs its esbuild)
+      # 3f (checker B2, 2026-11-21): every page is built, its public build and the Terminal's and Backtest's lab builds,
+      # so tests/test_3f_public_bundles.py scans every file served without the admin check and runs its proof builds
+      # (they fail instead of skipping with EDGE_TEST_REQUIRE_NODE=1)
+      - name: The pages the browser tests open and the 3f scan reads (the Terminal's install also gives shared/build-shell.mjs its esbuild)
         run: |
           (cd terminal && npm ci && npm run build)
           (cd watchlist && npm ci && npm run build)
+          (cd backtest && npm ci && npm run build)
+          (cd screener && npm ci && npm run build)
+          (cd radar && npm ci && npm run build)
+          (cd overview && npm ci && npm run build)
       - run: python -m pytest -q -p no:cacheprovider tests
 
   # EXEC-MU-ACCOUNTS fix round (re-check R1-39): the page suites no other workflow runs. Each step typechecks, builds

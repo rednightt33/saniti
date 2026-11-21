@@ -512,7 +512,7 @@ class Auth:
         return self.settings.owner
 
     async def lab_viewer(self, request):
-        """3f (EXEC option A item 4; CONTRACT.md 8a "Lab code"): whether the request is the admin's, who is served an app's
+        """3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): whether the request is the admin's, who is served an app's
         lab build (its lab items' definitions and formulas): a session of a principal holding admin.access that has
         passed the second factor (switch on), on the beta only. The live site has no lab build (every lab item is
         refused there, '*' included). Never raises: a visitor, a pending or an ended session is served the public build."""

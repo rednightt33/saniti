@@ -11,9 +11,13 @@ import { backtestConfig } from '../../../backtest/vite.config.ts';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const read = (name) => JSON.parse(fs.readFileSync(path.join(HERE, name), 'utf8'));
 
+// the fixture lab indicator in the three files the page reads that name indicators: the two registries and the
+// comparison lag (checker L3); EDGE_LAB_PROOF_RELEASES as in proof.config.mjs
 export default defineConfig(({ mode }) => backtestConfig(mode === 'lab' ? 'lab' : 'production', {
   extra: { 'terminal/src/data/indRegistry.json': { entries: [read('fixture-entry.json')] },
-           'backtest/src/core/backtest-registry.json': { entries: [read('fixture-backtest-entry.json')] } },
+           'backtest/src/core/backtest-registry.json': { entries: [read('fixture-backtest-entry.json')] },
+           'backtest/src/core/compare-lag.json': { price_compare_lag: { I_LAB_PROOF: { sma: { field: 'close', gt: 1, lt: 0 } } } } },
   labModule: mode === 'lab' ? path.join(HERE, 'fixture-lab.ts') : undefined,
   outDir: process.env.EDGE_LAB_PROOF_OUT,
+  releases: process.env.EDGE_LAB_PROOF_RELEASES || undefined,
 }));

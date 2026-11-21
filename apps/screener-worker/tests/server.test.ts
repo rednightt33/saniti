@@ -93,6 +93,29 @@ test('ERRORS M520: the catalog carries the core\'s admin marks: access "admin" o
   assert.ok(all.every((m: any) => m.access === undefined || m.access === 'admin'), 'no other value of access');
 });
 
+test('ERRORS M521: an admin-only Flow version from a session without the right is refused before the normalizer reads it, on every route: the refusal is the same whatever its parameters, so it names none of them', async () => {
+  const ids = Object.values(FLOW_BY_ID).filter(flowAdminOnly).map(f => f.id);
+  assert.ok(ids.length > 0);
+  const cond = (metric: string, params: Record<string, unknown>) => ({ universe: U, conditions: [{ id: 'a', enabled: true,
+    test: { kind: 'value', metric: { kind: 'flow', metric, params }, op: 'gt', value: 0 } }] });
+  const refusals = async (definition: unknown) => {
+    const answers = [
+      await call(main.port, 'POST', '/v1/validate', { schema_version: 1, definition }, auth()),
+      await call(main.port, 'POST', '/v1/run', runBody(definition), auth()),
+      await call(main.port, 'POST', '/v1/counts', { schema_version: 1, definitions: [{ item_id: 'p1', definition }] }, auth()),
+    ];
+    return answers.map(a => a.body.error ?? a.body.counts?.[0]?.error);
+  };
+  for (const id of ids) {
+    const plain = await refusals(cond(id, {}));
+    assert.deepEqual(plain.map(e => e?.code), ['CONDITION_RESTRICTED', 'CONDITION_RESTRICTED', 'CONDITION_RESTRICTED'], id);
+    // before M521 an unknown parameter, an out-of-range one or a wrong choice was answered from the version's own
+    // parameter list (its keys, labels, ranges) before the right was checked
+    for (const params of [{ bogus: 1 }, { anchor_sessions: 99999 }, { scope: 'not-a-scope' }, { brokers: 'x', top: -3 }])
+      assert.deepEqual(await refusals(cond(id, params)), plain, `${id} ${JSON.stringify(params)}`);
+  }
+});
+
 test('the catalog: versions and data first, every worker limit with its rule and examples generated from the environment value, ETag and 304', async () => {
   const { port } = main;
   const c = await call(port, 'GET', '/v1/catalog', undefined, auth());

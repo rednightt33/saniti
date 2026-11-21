@@ -36,16 +36,20 @@ function classicScriptAtEnd(): Plugin {
 }
 
 /* Built into ../static/terminal-app and served by edge-bff at /terminal-app/ (FRONTEND_ARCHITECTURE.md section 2).
-   3f (EXEC option A item 4; CONTRACT.md 8a "Lab code"): `npm run build` makes two builds. The public one keeps only the
+   3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): `npm run build` makes two builds. The public one keeps only the
    released items of the registries (shared/release-filter.mjs) and has no lab formula ('@edge-lab' is src/lab/none.ts).
    The lab one (--mode lab) keeps every item and the lab formulas (src/lab/index.ts), into ../static/terminal-app-lab;
    edge-bff serves it at /terminal-app/lab/ only to the admin on the beta. */
 /** The build's configuration; `extra`, `labModule` and `outDir` are for the proof builds of the tests only
     (tests/lab/proof.config.ts: a fixture lab item that never enters the release file). */
-export function terminalConfig({ lab = false, extra = {}, labModule = undefined as string | undefined, outDir = '' } = {}) {
+export function terminalConfig({ lab = false, extra = {}, labModule = undefined as string | undefined, outDir = '',
+                                 releases = undefined as string | undefined } = {}) {
+  const filter = () => releaseFilter({ lab, extra, ...(releases ? { releases } : {}) });
   return {
     base: lab ? '/terminal-app/lab/' : '/terminal-app/',
-    plugins: [releaseFilter({ lab, extra }), drawingInk(), classicScriptAtEnd()],
+    plugins: [filter(), drawingInk(), classicScriptAtEnd()],
+    // the Web Worker's bundle takes only these (checker L1): the same filter, so the worker carries no lab item either
+    worker: { plugins: () => [filter()] },
     resolve: { alias: labAlias({ lab, module: labModule }) },
     optimizeDeps: { exclude: ['lightweight-charts-drawing'] },
     build: { outDir: outDir || (lab ? '../static/terminal-app-lab' : '../static/terminal-app'), emptyOutDir: true, assetsDir: 'assets',

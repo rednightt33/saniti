@@ -8879,6 +8879,94 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M523 — 3f's ultracode checker: the Web Worker files unfiltered, the comparison lag outside the filter, CI blind to most pages, and what still holds back the first lab item (2026-11-21; the fixes on the branch, the rest held)
+
+- **Found by:** the ultracode checker of 3f (workflows `wf_c367c3bb-32e`, five finder lenses, and `wf_d88b23dd-8ad`, a
+  skeptic per theme; every agent at xhigh). 48 findings: 32 confirmed and 16 partly confirmed, none refuted. M521 and
+  M522 below are two of them that predate 3f.
+- **Fixed on the branch:**
+  - L1 (high): Vite builds a Web Worker's bundle with `worker.plugins` only, so the Terminal's worker carried the whole
+    Flow registry unfiltered. The filter is now in both lists for the Terminal, the Backtest and the Screener page. The
+    public builds stay byte-identical to before 3f.
+    - The proof builds add a fixture lab Flow indicator; its public worker file lacks it and its lab one has it. Without
+      the worker filter the test fails.
+    - What I told the user (2026-11-21, "termasuk file Web Worker") did not hold for Flow indicators until this fix.
+  - L3: `compare-lag.json` (keyed by indicator id, in the public Backtest page) was outside the filter. It is filtered
+    now. `terminal/tests/lab/coverage.test.mjs` derives every file a public entry reaches that names a release-file id
+    and fails on one the filter does not cover.
+  - B4, L9: the Screener page is built with the filter, a worker's bundle included; its image stage takes the release
+    file.
+  - TR-5: the proof builds list the fixtures in a release file as lab, the case of a real lab item.
+  - B2, L4, TR-4: CI's edge-bff job builds every page, and the 3f tests fail instead of skipping with
+    `EDGE_TEST_REQUIRE_NODE=1`. B6: the Backtest smoke also runs on a change of `catalog/`.
+  - CAT-2, L7, TR-6: a preset that reads an entry left out is found through every reference key of the grammar (`metric`,
+    `indicator`, `type`, `attr`) or the worker's `items`. The tests write the real grammar, with a preset without
+    `items`.
+  - CAT-6, CAT-7, TR-7: a lab preset kept for the admin carries `release: 'lab'`; without a principal no lab preset is
+    kept; an entry whose id is not a string is no item (it raised a 500); the `fundamentals` list is tested.
+  - CAT-1: a test that no id repeats across the kinds that share a list of the Screener's catalog.
+  - SERVE-1, SERVE-8, SERVE-5, TR-8: a lab tab's assets are cached privately; a lab build without its assets is not
+    served; tests for an ended session, the old cookie name, a paid account and the admin before the second factor.
+  - TR-11 (records): the pointers name CONTRACT.md 8 "Lab code"; SERVE-7: on today's beta (switch off) the lab build
+    goes to the owner's signed-in session, without a second factor.
+- **Held, not built (FUTURE_PLAN.md "Before the first lab item or tab"):**
+  - The two tests that refuse any lab item or lab tab are back, with what must be closed first in their failure
+    messages (`tests/test_releases.py` LAB_ITEM_HELD_UNTIL, `tests/test_live_switch.py` LAB_TAB_HELD_UNTIL). 3f had
+    replaced them; the checker showed the guarantees did not yet hold everywhere.
+  - L2, CAT-3 (high once a lab item exists): the Screener worker's refusals list every registry id (`allowed`) and name
+    items before the plan check, and edge-bff relays them.
+  - TR-2, B3: the registry generators and the workers do not load lab formulas, so the recipe's first lab indicator
+    turns registry:check red and could not run in a backtest or a screen.
+  - L5: until `live` moves past 3f's server part, the live site's edge-bff lists a lab item of the shared workers'
+    catalogs to every principal.
+  - SERVE-3, TR-13 (high once a lab tab exists): a lab tab's rail entry, route, frame wrapper and words are in the public
+    shell, and `auth/config` names it on the live site.
+  - Optional: SERVE-2 (the lab files' private cache after sign-out), SERVE-4 (the Terminal's worker has no error
+    handler), CAT-5 (a released entry's text naming a lab item), L11 (the live smoke's lab probe).
+- **Lesson:**
+  - A build filter must be proven on every bundle the build makes, Web Workers included, by a test that plants an item
+    in each.
+  - A guard that blocks a risk is removed only when every path of the risk is closed, and its message says which.
+
+### M522 — On the live site the admin and an account without screener.preset could share one copy of the Screener catalog (2026-11-21; FIXED on the branch; predates 3f)
+
+- **Found by:** 3f's ultracode checker (CAT-4), confirmed by its skeptic with a probe.
+- **Verified root cause:**
+  - The Screener catalog's copies are kept per a key (`Screeners.catalog_for`). Its preset part was `grant_key`, the
+    principal's grants of the presets' families.
+  - On the live site `holds_every` is always False, so the `*` admin's part reads `{"screener.preset": null}`. That is the
+    same as for an account whose plan has no screener.preset row.
+  - With the same allow, the two shared one copy. Whoever asked first decided the other's presets, ETag and 304
+    included.
+  - No seeded plan meets the case today. An override or the Phase 4 admin page could make one.
+- **Fix:** the key holds the ids of the presets the principal holds (26 today). Test:
+  `tests/test_3f_tab_catalogs.py::test_on_the_live_site_the_admin_and_an_account_without_presets_never_share_a_catalog_copy`
+  uses a plan without the preset row, in both orders. It fails with the old key.
+- **Lesson:** a cache key is made of what decides the answer, not of a summary that two different principals can share.
+
+### M521 — The Screener worker named the admin-only Flow versions' parameters to sessions without the right (2026-11-21; FIXED on the branch; predates 3f)
+
+- **Found by:** 3f's ultracode checker (L6), confirmed by its skeptic over HTTP on the real worker.
+- **Verified root cause:**
+  - On `/v1/validate`, `/v1/run`, `/v1/preview` and `/v1/counts` the worker normalized a definition (`engine.normalize`)
+    before its gate (`restrict`, then the plan's allow).
+  - The normalizer answers a bad parameter from the item's own parameter list. So a session without the right
+    `flow_point_in_time` that sent a Screener point-in-time version (FL18, FL19, FL20, FL23, FL44, FL45) with a wrong
+    parameter got the version's parameter keys, labels, ranges and defaults. One example is the Screener-only
+    `anchor_sessions`.
+  - Only a well-formed definition reached CONDITION_RESTRICTED. On the live site nobody holds the right, the admin
+    included.
+  - The Backtest worker checks the right before the parameters (probed: CONDITION_RESTRICTED for a bad parameter too).
+- **Fix:**
+  - `restrict` runs on the definition as sent, before the normalizer, on all four routes. Its walk reads the raw
+    `{kind: 'flow', metric}` references.
+  - The normalizer keeps a switched-off condition, so the check after it already refused it: nothing that passed
+    before is refused now. The check after normalizing stays.
+  - Only `apps/screener-worker/src/server.ts` changed.
+- **Tests:** `apps/screener-worker/tests/server.test.ts` (M521): for every id `flowAdminOnly` marks, the refusal on
+  validate, run and counts is CONDITION_RESTRICTED and the same whatever the parameters. The test fails on the old code.
+- **Lesson:** an access check runs before any step that answers from the item's own definition.
+
 ### M520 — The Screener catalog sent the admin-only Flow versions to every principal with the Screener (2026-11-21; OPEN, fixed in 3f)
 
 - **Found by:** the code map for 3f (2026-11-21), then a probe of the real worker.

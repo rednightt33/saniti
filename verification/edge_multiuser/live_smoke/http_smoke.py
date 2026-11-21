@@ -76,7 +76,7 @@ st, _, raw = call(v, 'GET', '/api/v1/session')
 out['visitor_session'] = {'status': st, 'role': (json.loads(raw or b'{}') or {}).get('role') if st == 200 else code_of(raw)}
 for page_path in ('/terminal', '/monitor', '/c/conv_' + '0' * 32, '/admin'):
     out[f'page {page_path}'] = call(v, 'GET', page_path)[0]
-# 3f (CONTRACT.md 8a "Lab code"): the pages with a lab build serve their public build to a visitor, and the lab build's
+# 3f (CONTRACT.md 8 "Lab code"): the pages with a lab build serve their public build to a visitor, and the lab build's
 # files answer 404 (on the live site to everyone): the Web Worker file has the same name in both builds, so its lab path
 # is a file the image holds
 for app, worker in (('terminal-app', r'worker-[\w-]+\.js'), ('backtest-app', r'load\.worker-[\w-]+\.js')):

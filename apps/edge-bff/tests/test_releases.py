@@ -86,14 +86,27 @@ def test_every_registry_id_has_an_entry_and_every_entry_names_a_registry_id():
                        f'the id: {stale}')
 
 
-def test_the_items_of_the_first_release_stay_released():
-    """User decision 2026-11-17: every item that existed then is released (the counts below). Since 3f a new item may
-    start in the lab: its definition and formula stay out of every public file (tests/test_3f_public_bundles.py,
-    terminal/tests/lab/public-entries.test.mjs), its page build is the admin's (tests/test_3f_lab_pages.py) and the
-    catalogs list it to its holders only (tests/test_3f_tab_catalogs.py). A release (lab to released) is a commit the
-    user asks for, and it changes these counts with it (LIVE_PROMOTION.md section 3)."""
+# What still lets a lab item reach a visitor or a principal that does not hold it, after 3f (its ultracode checker,
+# 2026-11-21; FUTURE_PLAN.md "Before the first lab item or tab"). A lab item waits until every one is closed.
+LAB_ITEM_HELD_UNTIL = (
+    "the Screener worker's refusals no longer list or name items outside the principal's allow (validate, run, preview "
+    'and counts check the allow before they look items up; checker L2, CAT-3)',
+    'one registration point for lab formulas is loaded by both registry generators and both workers, with '
+    'terminal/src/lab in both engine versions (checker TR-2, B3)',
+    "the live site runs 3f's server part: until `live` moves past ec1bd29c, its edge-bff lists a lab item of the shared "
+    "workers' catalogs to every principal (checker L5)",
+)
+
+
+def test_no_item_is_at_the_lab_stage_yet():
+    """User decision 2026-11-17: every item that existed then is released. 3f built what keeps a lab item out of the
+    public page builds and the tab catalogs, but a lab item would still reach principals that do not hold it in the ways
+    LAB_ITEM_HELD_UNTIL names, so none may be at the lab stage until they are closed."""
     current = releases.load(FILE)
-    assert {kind: sum(1 for e in current.entries(kind) if e['stage'] == 'released') for kind in KINDS} == {
+    lab = [(kind, e['id']) for kind in KINDS for e in current.entries(kind) if e['stage'] != 'released']
+    assert not lab, (f'{lab} at the lab stage: a lab item waits until ' + '; '.join(LAB_ITEM_HELD_UNTIL)
+                     + ' (FUTURE_PLAN.md, "Before the first lab item or tab")')
+    assert {kind: len(current.entries(kind)) for kind in KINDS} == {
         'indicator': 53, 'flow_indicator': 56, 'candle_pattern': 20, 'screener_metric': 55, 'screener_preset': 26}
 
 

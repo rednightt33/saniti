@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
+import { releaseFilter } from '../shared/release-filter.mjs';
 
 /* The prototype (screener EDGE layout.html) runs its script as a classic script at the end of <body>, while the page is
    still being parsed, and the Terminal and Backtest pages are built the same way for that reason (a module script runs
@@ -45,9 +46,13 @@ function testEntry(mode: string): Plugin {
 }
 
 // Served by edge-bff at /screener-app/ (the EDGE tab "Screener" shows it in an iframe at /screener; report 9.1, 9.7).
+// 3f (checker B4, 2026-11-21; CONTRACT.md 8 "Lab code"): the page has no lab build, and its entry carries no formula (its
+// bundle test), but it is built with the release filter all the same, a worker's bundle included, so a registry entry
+// at the lab stage can never reach it (shared/release-filter.mjs)
 export default defineConfig(({ mode }) => ({
   base: '/screener-app/',
-  plugins: [...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd()],
+  plugins: [releaseFilter({ lab: false }), ...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd()],
+  worker: { plugins: () => [releaseFilter({ lab: false })] },
   build: { outDir: ENTRY[mode] ? `dist-${mode}` : 'dist', emptyOutDir: true, assetsDir: 'assets', sourcemap: false, target: 'es2022',
            cssCodeSplit: false, rollupOptions: { output: { format: 'iife', inlineDynamicImports: true } } },
 }));

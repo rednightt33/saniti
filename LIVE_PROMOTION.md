@@ -66,54 +66,78 @@ stage. The beta (switch off) shows everything to the admin.
 | A catalog item: an indicator, Flow indicator, candle pattern, Screener metric or preset | `items` | lab | its key `<family>:<id>` is refused (`releases.KIND_OF_FAMILY`) |
 | A tab that never goes live | `principal.BETA_ONLY_TABS` (`admin`, `monitor`) | — | its keys are refused and its routes answer 404 before any session |
 
-Since 3f (EXEC option A item 4, CONTRACT.md 8a "Lab code"), a lab tab or item is also in no file a visitor downloads:
+**3f (EXEC option A item 4, CONTRACT.md 8 "Lab code") built what keeps a lab item out of the public page builds and the
+tab catalogs. No item and no tab may be at the lab stage yet**, because a lab item or tab would still reach people who do
+not hold it in the ways its ultracode checker found (2026-11-21). Two tests hold this, and their failure messages name
+what must be closed first (FUTURE_PLAN.md, "Before the first lab item or tab"):
+
+- `tests/test_releases.py` `LAB_ITEM_HELD_UNTIL`:
+  - the Screener worker's refusals list and name items outside the principal's allow;
+  - the workers and the registry generators do not load lab formulas;
+  - the live site's edge-bff predates 3f until `live` moves past it.
+- `tests/test_live_switch.py` `LAB_TAB_HELD_UNTIL`: a lab tab's rail entry, route, frame wrapper and words are in the
+  public shell, and `auth/config` names it.
+
+What is built:
 
 - **Page builds.** `npm run build` of the Terminal and the Backtest page makes two builds.
-  - The public build (`static/terminal-app`, `backtest/dist`) keeps only the released entries of each registry
-    (`apps/edge-bff/shared/release-filter.mjs`; an unlisted id is lab; a missing release file stops the build).
+  - The public build (`static/terminal-app`, `backtest/dist`) keeps only the released entries of every file that names
+    items (`apps/edge-bff/shared/release-filter.mjs`, in `plugins` and in `worker.plugins`, so the Web Worker files
+    too). An unlisted id is lab, and a missing release file stops the build.
   - The lab build (`static/terminal-app-lab`, `backtest/dist-lab`) keeps every entry and the lab formulas.
-  - edge-bff serves the lab build from the same address to the admin on the beta only: admin.access and the second
-    factor passed (`auth.lab_viewer`). Its files answer under `/<app>/lab/assets/`, and 404 to everyone else and on the
-    live site.
+  - The Screener page is built with the same filter; it has no lab build.
+  - edge-bff serves the lab build from the same address to the admin on the beta only (`auth.lab_viewer`): with the
+    switch on, admin.access and the second factor passed; on today's beta, with the switch off, the owner's signed-in
+    session. Its files answer under `/<app>/lab/assets/` and 404 to everyone else and on the live site.
 - **Tab catalogs.** The Screener's and the Backtest's catalogs list a lab item only to a principal that holds it
-  (`catalog.tab_list`, the rule of `/api/v1/catalog`).
-- **Lab tabs.** A tab at the lab stage is served, page and assets, to the admin on the beta only.
+  (`catalog.tab_list`, the rule of `/api/v1/catalog`), and a preset that reads an entry left out is left out too.
+- **Lab tabs.** A tab with its own page app (`<tab>-app`) at the lab stage is served, page and assets, to the admin on the
+  beta only. A new tab must be its own `<tab>-app`: a tab that is a page of the shell ships its whole code in the shell.
 
 These tests enforce the switches:
 
 - `apps/edge-bff/tests/test_live_switch.py` fails when a capability tab (the first part of a key in
   `edge_bff.capabilities`) or a page of the shell (`static/edge-app.js`, routes with `auth:true`) has no entry. Each
   must be listed as lab or released, or belong to `BETA_ONLY_TABS`. The same file shows that a lab tab is refused on
-  the live site, the admin's `*` included, is hidden from the live rail, and stays on the beta. It also keeps the six
-  tabs of the live site released.
-- `apps/edge-bff/tests/test_releases.py` covers the items: every registry id has an entry, and the items of the first
-  release (2026-11-17) stay released (the counts change only with a release the user asks for).
-- `apps/edge-bff/tests/test_3f_public_bundles.py` scans every file served without the admin check (each page's
-  build, its Web Worker files and the shell) for every lab item's id and formula key. Its proof builds add a fixture lab
-  indicator to the Terminal and the Backtest page and show it is in the lab build and in no public one.
+  the live site, the admin's `*` included, is hidden from the live rail, and stays on the beta. It refuses any lab tab
+  for now (above).
+- `apps/edge-bff/tests/test_releases.py`: every registry id has an entry; no item is at the lab stage for now (above).
+- `apps/edge-bff/tests/test_3f_public_bundles.py` scans every file served without the admin check (each page's build,
+  its Web Worker files and the shell) for every lab item's id and formula key. Its proof builds list fixture lab items
+  in a release file: a technical indicator in both indicator registries and the comparison lag, and in the Terminal a
+  Flow indicator its Web Worker reads. The fixtures are in the lab builds and in no public file. With
+  `EDGE_TEST_REQUIRE_NODE=1` (CI) a page not built fails the test instead of skipping it.
 - `apps/edge-bff/terminal/tests/lab/public-entries.test.mjs` walks every page and Web Worker entry: none reaches a
-  module under `terminal/src/lab/` but `none.ts`.
+  module under `terminal/src/lab/` but `none.ts`. `coverage.test.mjs` fails when a file a public entry reaches names an
+  item and the filter does not cover it.
 - `apps/edge-bff/tests/test_3f_lab_pages.py` (who is served a lab build and a lab tab) and `tests/test_3f_tab_catalogs.py`
   (the catalogs, on the beta and the live site).
 
 How a new piece of work enters:
 
-- **A new tab or page.** Add it to `tabs` as `"lab"` in the same commit that adds it. A tab you leave out is lab
-  anyway, but `test_live_switch.py` fails until it is listed.
-- **A new catalog item.** Add it to `items` as `"lab"` (every registry id needs an entry, `test_releases.py`).
+- **A new tab or page.** Its own `<tab>-app`, listed in `tabs`. While the lab-tab guard holds, a new tab is added as
+  `"released"` only when the user asks for it to be live, or kept off `main`. A tab you leave out is lab anyway, but
+  `test_live_switch.py` fails until it is listed.
+- **A new catalog item.** Not as `"lab"` yet (the guard above). The recipe the mechanism is built for, once the guard is
+  lifted:
   - Its definition goes into its registry as usual. The public build leaves it out, and the lab build keeps it.
   - A lab technical indicator's formula goes into `apps/edge-bff/terminal/src/lab/index.ts`, registered into the
     formula map `F` under its registry `key`. Never put it in `calc/indicators.ts` while it is lab: that file is in
     every public build.
-  - Releasing it moves the formula into `calc/indicators.ts` and the stage to `"released"`, in one commit. The workers'
-    engine version follows.
-  - **Not built yet:** a lab Flow indicator's formula has no registration point (the `FLOW` map of `calc/flow.ts` is not
-    exported). The first lab Flow indicator adds one; the workers' engine version follows.
-  - A lab candle pattern, Screener metric or preset is data the workers read. The public page builds and the catalogs
-    leave it out.
-  - The workers (backtest-worker, screener-worker) are private and read every registry and module whole.
+  - The registry generators and both workers must load that module too, with `terminal/src/lab` in both engine
+    versions (not built). The workers' engine and registry versions then change when the item is added. The Screener
+    also needs its overlay entry (`screener-overlay.json`). Three page tests pin 53 indicators.
+  - Releasing it moves the formula into `calc/indicators.ts` and the stage to `"released"`, in one commit.
+  - A lab Flow indicator's formula has no registration point (the `FLOW` map of `calc/flow.ts` is not exported). Its
+    formula runs on the page's main thread, so that point is reached from `main.ts`.
+  - A lab candle pattern, Screener metric or preset is data the workers read whole. The public page builds and the
+    catalogs leave it out.
+  - Items written in code are not release items: the Terminal's netflow and netbuyline, the VOL row, the Backtest's
+    legacy cards (fnet, broker, top5). The bundle scan fails if one of them is made lab, because the code names it.
+  - A released entry's text must not name a lab item.
 - **A change to a released tab.** This needs care: once `live` moves, the change is live. Either keep it off with its
-  own new item or tab at the lab stage, or tell the user it will be live when `live` moves (section 4, step 3).
+  own new item or tab at the lab stage (once the guards are lifted), or tell the user it will be live when `live` moves
+  (section 4, step 3).
 
 Releasing means a commit that changes the stage from `lab` to `released`. It takes the normal path (session branch →
 CI → `main` → the beta runs it), and then `live` moves to it. The user's request names it.
@@ -231,3 +255,5 @@ Update this table at every promotion: what is on each site, and since when.
 | The A2 fix (the account's own browser, a reset bound to its browser, the client's part of an address's day; ERRORS M517) | on the beta (`f8c872e0`, 2026-11-20) | not yet | Migrations `20261120_001` and `_002` applied on dev. Goes live on the user's request. The user chose (2026-11-21) to bring it live together with 3e and 3f, in one promotion, not alone |
 | The MFA lock names the way still open (ERRORS M519: with both ways locked, the `/mfa` page no longer offers the authenticator code) | on the beta (`d194981f`, 2026-11-21) | not yet | Additive (`details.use` "code"); no migration. It goes live with A2, 3e and 3f |
 | 3e without the example mode (CONTRACT 8b; every tab in the rail, `LockedTabPage`, the Terminal's locks in place) | on the beta (`d194981f`, 2026-11-21) | not yet | **Visible on the live site when `live` moves past it:** a visitor's rail gains Overview, Watchlist and Radar, and every tab but the Terminal shows a sign-in card. The Terminal shows "Broker data · Locked" as the Flow Timeline's head, the Events button with a lock, and IHSG Locked in Statistics, where the F1 stopgap hid them. A test account sees "not in your plan" on the paid tabs. A saved asset the visitor does not hold says Locked; the Broker activity button carries the lock. Not built: the example mode and the Monitor's example (D4) |
+| 3f, lab code out of the public bundles (CONTRACT 8 "Lab code", 8b "3f") | on the session branch | not yet | No visible change: the public builds are byte-identical, and no item or tab may be lab yet (section 3). It also fixes a defect older than 3f that acts on the live site once `live` moves: the Screener's catalog copies are kept per the presets held, so the admin and an account without presets never share one (ERRORS M522) |
+| The Screener worker: its catalog carries the admin mark (ERRORS M520), and the admin-only Flow versions are refused before their parameters are read (M521) | on the session branch | **visible on the live site as soon as screener-worker deploys from `main`**, before any promotion (a shared service) | The live Screener then lists FL18, FL19, FL20, FL23, FL44, FL45 and the preset `follow` to nobody, the admin included (nobody holds the point-in-time right on live). That is the intended rule. The Screener engine version changes once. Tell the user before `main` moves |

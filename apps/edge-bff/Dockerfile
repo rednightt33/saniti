@@ -43,6 +43,8 @@ RUN npm ci --no-audit --no-fund
 COPY terminal/src /build/terminal/src
 COPY backtest/src /build/backtest/src
 COPY shared /build/shared
+# 3f: the release file the page build filters the registries by (shared/release-filter.mjs, fail closed; checker B4)
+COPY catalog/releases.json /build/catalog/releases.json
 COPY screener/ ./
 RUN npm run build
 

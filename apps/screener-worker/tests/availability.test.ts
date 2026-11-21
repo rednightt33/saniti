@@ -17,7 +17,7 @@ import { createApp } from '../src/server.ts';
 import type { WorkerApp } from '../src/server.ts';
 import { PHASE1_FILES } from '../src/snapshot.ts';
 import { startFakeTerminal, universe } from './fake-terminal.mjs';
-import { OWNER_A, PROXY, auth, call, captureLogs, configFor } from './helpers.ts';
+import { EDGE_CONTEXT, OWNER_A, PROXY, auth, call, captureLogs, configFor } from './helpers.ts';
 
 const logs = captureLogs();
 const open: { app: WorkerApp; fake: { close(): Promise<void> } }[] = [];
@@ -143,11 +143,14 @@ test('over the whole catalog, with every file a metric needs indexed: a metric i
   // validation reads the same availability map the catalog shows, so it alone cannot tell a metric the core cannot
   // compute: a run binds and computes it (condition.ts refuses what the core does not compute, e.g. flow), so a metric
   // shown AVAILABLE must also run (review of the last guards)
-  const run = (definition: unknown) => call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'p', seq: ++seq }, definition }, auth(OWNER_A));
+  // as an admin (the right flow_point_in_time, every item): this is about availability; a session without the right is
+  // refused an admin-only Flow version before its availability is read (ERRORS M521, tests/server.test.ts)
+  const ADMIN = { context: { rights: ['flow_point_in_time'], allow: EDGE_CONTEXT.allow } };
+  const run = (definition: unknown) => call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'p', seq: ++seq }, definition, ...ADMIN }, auth(OWNER_A));
   for (const m of METRICS_CATALOG.metrics) {
     const c = cat.get(m.id);
     assert.ok(c, `${m.id} is in the catalog`);
-    const v = await call(port, 'POST', '/v1/validate', { schema_version: 1, definition: definitionOf(m) }, auth(OWNER_A));
+    const v = await call(port, 'POST', '/v1/validate', { schema_version: 1, definition: definitionOf(m), ...ADMIN }, auth(OWNER_A));
     const r = await run(definitionOf(m));
     if (c.availability === 'AVAILABLE') {
       seen.available++;

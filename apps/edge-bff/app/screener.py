@@ -36,7 +36,7 @@ from . import wake
 from .principal import Principal
 from .allow import NOTHING, context_of, digest, named
 from . import releases
-from .catalog import grant_key, holds_entry, tab_hidden, tab_kind
+from .catalog import holds_entry, holds_every, tab_hidden, tab_kind
 from .rights import POINT_IN_TIME, refuse_context, rights_of
 from .watchlist import LISTS, PER_LIST, WatchlistStore
 from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
@@ -92,6 +92,12 @@ PRESET_KIND = 'screener_preset'                      # the release kind of the p
 # Flow entries (kind 'flow'), the candlestick patterns and the Screener's own metrics (their ids do not repeat across
 # these kinds)
 METRIC_KINDS = ('flow_indicator', 'candle_pattern', 'screener_metric')
+
+
+def item_key(name, entry):
+    """(list name, id) of an item entry, or None for anything else (an entry whose id is not a string is no item:
+    3f checker CAT-7)."""
+    return (name, entry['id']) if isinstance(entry, dict) and isinstance(entry.get('id'), str) else None
 ITEM_LISTS = (('indicators', ('indicator',), lambda e: 'indicator'),
               ('metrics', METRIC_KINDS, lambda e: 'flow_indicator' if e.get('kind') == 'flow' else 'screener_metric'),
               ('fundamentals', METRIC_KINDS, lambda e: 'flow_indicator' if e.get('kind') == 'flow' else 'screener_metric'))
@@ -137,16 +143,32 @@ def failure(code, status, field=None, message=None, details=None, headers=None):
     return ScreenerError(status, error, headers)
 
 
+# the keys by which a reference of the Screener's grammar names its item, as the worker's own walk reads them (screener
+# core definitionItems): a metric or a Flow entry by `metric`, a technical indicator by `indicator`, a pattern or a
+# candle by `type`, a universe attribute by `attr` (3f checker CAT-2)
+REFERENCE_KEYS = ('metric', 'indicator', 'type', 'attr')
+
+
 def reads_any(x, ids):
-    """Whether a preset's definition reads an item of `ids` anywhere: a reference {"kind": ..., "metric": id} or, for a
-    technical indicator, {"kind": "indicator", "indicator": id}, at any depth (Stage C F6, ERRORS M458; 3f, M520)."""
+    """Whether a preset's definition reads an item of `ids` anywhere: a reference {"kind": ..., <REFERENCE_KEYS>: id} at
+    any depth (Stage C F6, ERRORS M458; 3f, M520)."""
     if isinstance(x, list):
         return any(reads_any(v, ids) for v in x)
     if isinstance(x, dict):
-        if isinstance(x.get('kind'), str) and any(isinstance(x.get(k), str) and x[k] in ids for k in ('metric', 'indicator')):
+        if isinstance(x.get('kind'), str) and any(isinstance(x.get(k), str) and x[k] in ids for k in REFERENCE_KEYS):
             return True
         return any(reads_any(v, ids) for v in x.values())
     return False
+
+
+def preset_reads(preset, ids):
+    """Whether a preset reads an item of `ids`: through its definition (reads_any) or through the worker's own walk of
+    it (`items`, [{kind, id}], present since the worker's presetItems)."""
+    if not isinstance(preset, dict):
+        return False
+    items = preset.get('items')
+    return reads_any(preset.get('definition'), ids) or (isinstance(items, list) and any(
+        isinstance(it, dict) and it.get('id') in ids for it in items))
 
 
 def held_item(allow, item):
@@ -853,43 +875,55 @@ class Screeners:
           left out when it is marked access 'admin' (the Screener's point-in-time Flow versions) and the session lacks
           the right flow_point_in_time, or when it is a lab item the principal `p` does not hold (an id the release file
           does not list is lab; without `p` none is held); a kept lab entry carries release 'lab';
-        - a preset that reads an entry left out would be refused when run, so it is left out too (Stage C F6, M458);
+        - a preset that reads an entry left out would be refused when run, so it is left out too (Stage C F6, M458;
+          preset_reads: its definition or the worker's `items`);
         - EXEC-MU-ACCOUNTS Phase 3b (C2 F1): with an allow that does not hold every item, a preset reading an item
           outside it is left out (its counts were computed with every item); a preset without the worker's `items` (an
           older worker) keeps no counts;
-        - re-check R1-32: a preset `p` does not hold itself (its screener.preset grant, catalog.holds_entry) is left out.
-        Kept per (document, entries left out, allow, preset grant)."""
+        - re-check R1-32: a preset `p` does not hold itself (its screener.preset grant, catalog.holds_entry) is left out;
+          without `p`, a lab preset is (3f checker CAT-6). A kept lab preset carries release 'lab'.
+        Kept per what decides the answer: the document, the entries left out and the lab ones kept, the allow, and the
+        presets held (their ids, so two principals share a copy only when they hold the same presets: 3f checker CAT-4,
+        on the live site the admin's grants matched those of an account without screener.preset)."""
         everything = allow is None or all(v == '*' for v in allow.values())
-        presets = None if p is None else grant_key(p, PRESET_KIND)
         point_in_time = POINT_IN_TIME in rights
+        index = self.items_of(doc)
         out, lab_kept = set(), set()
-        for name, kinds, fallback, entry in self.items_of(doc):
+        for name, kinds, fallback, entry in index['items']:
             kind = tab_kind(entry['id'], kinds, fallback(entry))
             if tab_hidden(p, kind, entry, point_in_time):
                 out.add((name, entry['id']))
             elif releases.stage_of(kind, entry['id']) == releases.LAB:
                 lab_kept.add((name, entry['id']))
-        if not out and not lab_kept and everything and presets is None:
+        lab_presets = {i for i in index['presets'] if releases.stage_of(PRESET_KIND, i) == releases.LAB}
+        if p is None:
+            held = frozenset(i for i in index['presets'] if i not in lab_presets)
+        elif holds_every(p, PRESET_KIND):
+            held = None
+        else:
+            held = frozenset(i for i in index['presets'] if holds_entry(p, PRESET_KIND, i))
+        lab_presets_kept = frozenset(i for i in lab_presets if held is None or i in held)
+        if not out and not lab_kept and everything and held is None and not lab_presets_kept:
             return doc
-        key = (doc.etag, frozenset(out), frozenset(lab_kept), None if everything else dumps(allow), presets)
+        key = (doc.etag, frozenset(out), frozenset(lab_kept), None if everything else dumps(allow), held, lab_presets_kept)
         hit = self.restricted.get(key)
         if hit is None:
             data = loads(doc.raw)
             if isinstance(data, dict):
                 for name, _, _ in ITEM_LISTS:
                     if isinstance(data.get(name), list):
-                        data[name] = [({**e, 'release': releases.LAB} if isinstance(e, dict) and (name, e.get('id')) in lab_kept else e)
-                                      for e in data[name] if not (isinstance(e, dict) and (name, e.get('id')) in out)]
+                        data[name] = [({**e, 'release': releases.LAB} if item_key(name, e) in lab_kept else e)
+                                      for e in data[name] if item_key(name, e) not in out]
             if not everything and isinstance(data, dict) and isinstance(data.get('presets'), list):
                 data = {**data, 'presets': presets_held(data['presets'], allow)}
-            if presets is not None and isinstance(data, dict) and isinstance(data.get('presets'), list):
-                data = {**data, 'presets': [x for x in data['presets'] if isinstance(x, dict) and isinstance(x.get('id'), str)
-                                            and holds_entry(p, PRESET_KIND, x['id'])]}
-            if out and isinstance(data, dict) and isinstance(data.get('presets'), list):
-                # Stage C F6 (ERRORS M458): a preset that reads an entry left out would be refused when run
-                # (CONDITION_RESTRICTED, CAPABILITY_REQUIRED), so it is left out too
+            if isinstance(data, dict) and isinstance(data.get('presets'), list):
                 gone = {i for _, i in out}
-                data['presets'] = [x for x in data['presets'] if not reads_any(x.get('definition') if isinstance(x, dict) else None, gone)]
+                data['presets'] = [({**x, 'release': releases.LAB} if x['id'] in lab_presets_kept else x)
+                                   for x in data['presets'] if isinstance(x, dict) and isinstance(x.get('id'), str)
+                                   and (held is None or x['id'] in held)
+                                   # Stage C F6 (ERRORS M458): a preset that reads an entry left out would be refused
+                                   # when run (CONDITION_RESTRICTED, CAPABILITY_REQUIRED), so it is left out too
+                                   and not (gone and preset_reads(x, gone))]
             raw = dumps(data)
             hit = Doc(key=doc.key, raw=raw, gz=gzip.compress(raw, 6, mtime=0), etag='"' + hashlib.sha256(raw).hexdigest() + '"',
                       price_data=doc.price_data, published_at=doc.published_at)
@@ -899,15 +933,16 @@ class Screeners:
         return hit
 
     def items_of(self, doc):
-        """The catalog document's item entries (name of the list, its kinds, its fallback, the entry), read once per
-        document (kept by its ETag beside the restricted copies)."""
+        """The catalog document's item entries (name of the list, its kinds, its fallback, the entry) and its preset ids,
+        read once per document (kept by its ETag beside the restricted copies)."""
         key = ('items', doc.etag)
         found = self.restricted.get(key)
         if found is None:
             data = loads(doc.raw)
-            found = [] if not isinstance(data, dict) else [
-                (name, kinds, fallback, e) for name, kinds, fallback in ITEM_LISTS if isinstance(data.get(name), list)
-                for e in data[name] if isinstance(e, dict) and isinstance(e.get('id'), str)]
+            data = data if isinstance(data, dict) else {}
+            found = {'items': [(name, kinds, fallback, e) for name, kinds, fallback in ITEM_LISTS if isinstance(data.get(name), list)
+                               for e in data[name] if isinstance(e, dict) and isinstance(e.get('id'), str)],
+                     'presets': [x['id'] for x in data.get('presets') or [] if isinstance(x, dict) and isinstance(x.get('id'), str)]}
             if len(self.restricted) > 32:
                 self.restricted.clear()
             self.restricted[key] = found

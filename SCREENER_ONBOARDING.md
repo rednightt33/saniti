@@ -549,7 +549,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:690`), mounted like the Backtest module (`apps/edge-bff/app/main.py:799`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:712`), mounted like the Backtest module (`apps/edge-bff/app/main.py:799`
 `screeners.routes`):
 
 Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session and the capability named; with
@@ -577,12 +577,12 @@ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session 
   `test_catalog_and_universe_are_kept_per_worker_state_with_an_etag`,
   `test_a_newer_publication_seen_in_a_run_drops_the_cached_catalog_at_once`,
   `test_the_catalog_never_goes_back_and_ignores_transient_refresh_states`). edge-bff adds its own limits to the
-  catalog's `limits[]` (`own_limits`, `:621-654`: `saved_items` 50 per kind, `watchlist` 500,
+  catalog's `limits[]` (`own_limits`, `:643-676`: `saved_items` 50 per kind, `watchlist` 500,
   `saved_definition_bytes` 65,536, `request_bytes` 131,072, `inflight_per_page` 1).
-- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:948`); an older call answers 409
+- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:983`); an older call answers 409
   `SCREEN_REPLACED` or `PREVIEW_REPLACED`; a caller that left is stopped at the worker.
 - **Saved items** are validated by the worker before they are stored, with the `registry` and `screener_registry` of the
-  same answer (`validated`, `:1027-1051`; `/health` versions when an answer has none), and validated again on load when
+  same answer (`validated`, `:1062-1086`; `/health` versions when an answer has none), and validated again on load when
   they were saved under other versions ("needs review" with the field; nothing adjusted). Every store statement filters
   `owner_key`.
 - **Settings** (`apps/edge-bff/app/config.py:113-122`): `SCREENER_WORKER_URL` and `SCREENER_WORKER_KEY` together or not
@@ -841,7 +841,7 @@ variable.
 | Response, request | 4,194,304 bytes of JSON; 131,072 bytes of body | `SCREENER_MAX_RESPONSE_BYTES`, `SCREENER_MAX_REQUEST_BYTES` |
 | One xsection file (gzip), inflated, one refresh | 2 × the measured size: 24,000,000 / 150,000,000 / 24,000,000 locally; re-derived from the first dev publisher run | `SCREENER_MAX_FILE_BYTES`, `SCREENER_MAX_INFLATED_BYTES`, `SCREENER_MAX_REFRESH_BYTES` |
 | Threads, heap, caches, memory | K = 2, 512 MB per thread, 256 MiB of caches, a 2.75 GB replica | `SCREENER_THREADS`, `SCREENER_THREAD_HEAP_MB`, `SCREENER_CACHE_BYTES`, Railway memory limit |
-| Saved items, watchlist (edge-bff constants) | 50 saved screens and 50 My metrics per owner; 50 tickers in the first watchlist (`PER_LIST`, EXEC-WATCHLIST 2A) | `SCREEN_LIMIT` (`screener.py:86`), `WATCHLIST_LIMIT` (`:98`) |
+| Saved items, watchlist (edge-bff constants) | 50 saved screens and 50 My metrics per owner; 50 tickers in the first watchlist (`PER_LIST`, EXEC-WATCHLIST 2A) | `SCREEN_LIMIT` (`screener.py:86`), `WATCHLIST_LIMIT` (`:104`) |
 | terminal-api default quota (one shared gateway subscriber) | `files_per_hour` 60, `megabytes_per_day` 300 (`database/migrations/20261025_100_create_terminal_schema.sql:79-83`); overridden to 1e9 on dev, TEMPORARY (decision U1); a service key has its own hourly ceilings instead (EXEC-MU-RUNTIME T1, `BACKTEST_END_TO_END.md` 6.1) | `terminal.quota` |
 
 **Onboarding consequence:** a new file must fit `SCREENER_MAX_FILE_BYTES`, `SCREENER_MAX_INFLATED_BYTES` and

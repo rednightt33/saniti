@@ -1594,7 +1594,7 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
                  # EXEC-WATCHLIST L5: the Watchlist page, the sixth
                  'watchlist/node_modules/vite/package.json', 'watchlist/tests/fixture/watchlist-stocks.sample.json',
                  'watchlist/dist/index.html', 'watchlist/dist-fixture/index.html', 'static/watchlist-app/index.html',
-                 # 3f: the lab builds (CONTRACT.md 8a "Lab code"), built in their stages, never taken from the context
+                 # 3f: the lab builds (CONTRACT.md 8 "Lab code"), built in their stages, never taken from the context
                  'static/terminal-app-lab/index.html', 'backtest/dist-lab/index.html', 'static/backtest-app-lab/index.html'):
         assert docker_ignored(patterns, path), path
     copied = [source for line in (root / 'Dockerfile').read_text().splitlines() if line.startswith('COPY ') and '--from' not in line
@@ -1608,7 +1608,8 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
     assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'shared', 'catalog/releases.json', 'terminal/',
                       'backtest/package.json', 'backtest/package-lock.json', 'terminal/src', 'screener/src', 'shared',
                       'catalog/releases.json', 'backtest/', 'screener/package.json',
-                      'screener/package-lock.json', 'terminal/src', 'backtest/src', 'shared', 'screener/', 'radar/package.json',
+                      'screener/package-lock.json', 'terminal/src', 'backtest/src', 'shared', 'catalog/releases.json', 'screener/',
+                      'radar/package.json',
                       'radar/package-lock.json', 'shared', 'radar/', 'overview/package.json', 'overview/package-lock.json', 'shared',
                       'overview/', 'watchlist/package.json', 'watchlist/package-lock.json', 'shared', 'watchlist/',
                       'requirements.txt', 'app', 'catalog', 'screener/src/core/screener-metrics.json', 'static']

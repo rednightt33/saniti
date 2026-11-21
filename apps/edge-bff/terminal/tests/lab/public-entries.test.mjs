@@ -1,4 +1,4 @@
-/* 3f (EXEC option A item 4; CONTRACT.md 8a "Lab code"): no public entry reaches a lab formula. Every page's entry and
+/* 3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): no public entry reaches a lab formula. Every page's entry and
    every Web Worker's entry is walked as the public build resolves it ('@edge-lab' is src/lab/none.ts there,
    shared/release-filter.mjs labAlias), and none may reach a module under terminal/src/lab other than none.ts. The lab
    build resolves the alias to src/lab/index.ts: the walk is run that way too and must reach it (the walk's self-test),

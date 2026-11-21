@@ -16235,7 +16235,17 @@ Order of the services (CONTRACT 17, rollback floors):
       - Not built: a registration point for a lab Flow indicator's formula (LIVE_PROMOTION section 3).
       - The two tests that refused any lab item or lab tab are replaced: the items of the first release and the six
         live tabs stay released.
-      - Next: the ultracode checker at xhigh, then its fixes; then the example mode (option A, the date to be confirmed).
+      - The ultracode checker at xhigh (ERRORS M523; finders `wf_c367c3bb-32e`, skeptics `wf_d88b23dd-8ad`): 48
+        findings, 32 confirmed and 16 partly, none refuted. Fixed on the branch: the Web Worker bundles filtered (L1,
+        high; the user had been told the proof covered the Web Worker files, which held for indicators only), the
+        comparison lag, a test deriving every file to filter, the Screener page filtered, the proof's fixtures listed
+        as lab, CI building every page, the presets' reference keys, and smaller ones. Two defects older than 3f,
+        fixed: M521 (the Screener worker named the admin-only Flow versions' parameters) and M522 (the live Screener
+        catalog's copies could be shared between the admin and an account without presets).
+      - Held: the two tests that refuse any lab item or lab tab are back, with what must be closed first in their
+        failure messages (FUTURE_PLAN.md "Before the first lab item or tab").
+      - Next: round 2 of the checker on the fixed code and its completeness critic; then the example mode (option A,
+        the date to be confirmed). `main` moves only with the user's go: the Screener worker deploys for both sites.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

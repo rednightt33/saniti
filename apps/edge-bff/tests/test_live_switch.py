@@ -40,10 +40,18 @@ def test_every_capability_tab_and_page_of_the_shell_has_a_live_switch(database):
                          'only) or "released" (LIVE_PROMOTION.md)')
 
 
-def test_the_six_tabs_of_the_live_site_stay_released():
-    # the live site opened with these six tabs (2026-11-20); moving one back to the lab is the user's decision. A new
-    # tab may start in the lab since 3f: its page and assets are served to the admin on the beta only
-    # (tests/test_3f_lab_pages.py), so its code is in no file a visitor downloads
+# What still lets a lab tab reach visitors, after 3f (its ultracode checker, 2026-11-21, SERVE-3 and TR-13;
+# FUTURE_PLAN.md "Before the first lab item or tab"): 3f serves a lab tab's own page app (<tab>-app) to the admin on the
+# beta only, but its rail entry, route, frame wrapper and words are in the public shell (static/edge-app.js,
+# static/edge-labels.js), the live site's public auth/config names it in hidden_tabs, and a tab that is a page of the
+# shell itself ships its whole code there. A lab tab waits until the shell keeps it from visitors too.
+LAB_TAB_HELD_UNTIL = ("the shell builds its rail and routes from the principal's tabs and keeps a lab tab's words and "
+                      "page out of its public files, and auth/config names no lab tab")
+
+
+def test_no_tab_is_at_the_lab_stage_yet():
+    assert releases.lab_tabs() == frozenset(), (f'{sorted(releases.lab_tabs())} at the lab stage: a lab tab waits until '
+                                                f'{LAB_TAB_HELD_UNTIL} (FUTURE_PLAN.md)')
     assert {t for t, st in releases.CURRENT.tabs().items() if st == 'released'} == {
         'terminal', 'backtest', 'screener', 'watchlist', 'radar', 'overview'}
 

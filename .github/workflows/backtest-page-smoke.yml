@@ -17,6 +17,8 @@ on:
       - "apps/edge-bff/terminal/src/**"
       - "apps/edge-bff/static/favicon*"
       - "apps/edge-bff/shared/**"
+      # 3f (checker B6): the page build filters its registries by the release file
+      - "apps/edge-bff/catalog/**"
       - ".github/workflows/backtest-page-smoke.yml"
   pull_request:
     paths:
@@ -27,6 +29,8 @@ on:
       - "apps/edge-bff/terminal/src/**"
       - "apps/edge-bff/static/favicon*"
       - "apps/edge-bff/shared/**"
+      # 3f (checker B6): the page build filters its registries by the release file
+      - "apps/edge-bff/catalog/**"
       - ".github/workflows/backtest-page-smoke.yml"
 
 permissions:
