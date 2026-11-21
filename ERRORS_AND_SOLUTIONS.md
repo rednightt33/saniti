@@ -8952,7 +8952,7 @@ in its staleness check.
   suite before pushing. A pointer whose symbol is dotted is checked by its last part only, so a common last part
   (`routes`) can hide a wrong line: cite such a line by a name that occurs on it alone.
 
-### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT on the branch for the five data pages and written on dev; the example-mode checker's findings FIXED on the branch, the Watchlist's list OPEN for the user; the promotion next)
+### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT on the branch for the five data pages and written on dev; the example-mode checker's findings FIXED on the branch; the Watchlist's list SETTLED by the user, its example on the latest data; the promotion next)
 
 - **Symptom:** since 20261117_003 the free plan holds `overview.example`, `radar.example`, `watchlist.example`,
   `screener.example` and `backtest.example`, yet no code read them: a free account and a visitor who is not signed in got
@@ -9127,6 +9127,27 @@ in its staleness check.
   - Refuted and left: a failed index answer shows the locked page (the recorded rule); `:is()` lists with a rest-state
     alternative (none rendered today); two wording points (corrected above anyway); the Backtest twin's admin rule (no
     drift window).
+- **The Watchlist's list, settled by the user (2026-11-21): "Untuk table watchlist nggak apa-apa pakai data latest
+  saja", then, asked prices only (A) or the four default indicators too (B): "Saya cabut kata-kata pakai dengan
+  indikator bawaan. Kata-kata saya dengan yang dibutuhkan hanya harga saham di cancel, tidak jadi. Jadi kita masuk opsi
+  B kan", "Benar opsi B. Go."** The stored list of 30 October could not be right (the history starts on 10 November,
+  after the review of 2 November). Fix: the Watchlist's example is the latest publication, like the Overview's
+  (`app/examples.py` `WatchlistLatest`, `watchlist_view`): the live watchlist-stocks read through the page relay for the
+  principal, cut to today's LQ45 as overview-meta publishes it (`Stock_List_Member`; it follows the next list round by
+  itself), every column of the table and the four default indicators (another indicator null, no upcoming corporate
+  action, no Radar file), and watchlist-lists, that one list; `LATEST` holds it, so its routes pass the Terminal guard.
+  Fail closed: a missing, doubled or empty list, a member the file does not hold, or a file without its price date
+  answers `EXAMPLE_UNAVAILABLE` and logs a fixed reason, never another list. The publisher's stored builder
+  (`watchlist_files`, `members_on`), its tests and its capture parameters are gone; `watchlist.build`'s `as_of` stays,
+  tested, with no reader now. The stored rows of 30 October were deleted on dev (job `724dc7c4`, 2 rows; the other
+  tabs' 11 unchanged). Tests (`tests/test_examples.py`, the browser): the cut, planted fields at every depth, the walk of
+  every path the publisher's own `watchlist.build` writes, the five refusals, a new publication and a new list followed
+  in one process, the principal's own Terminal refusal, the guard; the page shows today's members only, the four
+  indicators and the two date pills, and a click asks to sign in. 14 mutations, each red (the cut, every indicator kept,
+  the corporate actions kept, a member dropped instead of refused, a second list accepted, an object value kept, every
+  field kept, the guard removed, a cache across publications, the broker date as the example's, no price date, the
+  wrong relay, an empty list accepted, the catalog whole). Built after both checker runs: the deep checker (step 8)
+  covers it.
 - **Lesson for new data:** an example of a page is the files of its opening view, built by the publisher's own builder
   cut at one date and checked for later dates before it is stored; the server is the guarantee (it serves only those
   files, only to `<tab>.example`), the page only displays. A table whose history starts after the example's date says

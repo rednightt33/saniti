@@ -96,25 +96,35 @@ def overview_files():
     return files
 
 
-WATCHLIST_AS_OF = '2026-11-13'
+WATCHLIST_DATES = OVERVIEW_DATES[-30:]                       # the trend line's 30 sessions, to the Overview's newest day
+WATCHLIST_AS_OF = WATCHLIST_DATES[-1]
+WATCHLIST_BROKER = '2026-11-09'                              # the broker date lags the prices, as on dev (2026-11-21)
 
 
-def watchlist_example():
-    """The two files of the Watchlist's example in the shapes apps/terminal-publisher/examples.py writes: the figures of
-    the example list's stocks (the page's own made-up sample, cut to eight stocks, the default indicators only, no
-    upcoming corporate actions, no Radar fields) and the one list."""
-    import json
-    sample = json.loads((ROOT / 'watchlist' / 'tests' / 'fixture' / 'watchlist-stocks.sample.json').read_text())
-    keep = list(range(8))
-    pick = lambda a: [a[i] for i in keep]
-    doc = {k: v for k, v in sample.items() if not k.startswith('radar')}
-    doc.update(ticker=pick(sample['ticker']), name=pick(sample['name']), sector=pick(sample['sector']),
-               last=pick(sample['last']), r1d=pick(sample['r1d']), r1m=pick(sample['r1m']), trend=pick(sample['trend']),
-               values={k: (pick(v) if k in sample['default'] else [None] * len(keep)) for k, v in sample['values'].items()},
-               events={}, events_loaded=None)
-    lists = {'lists': [{'id': 'example-lq45', 'name': 'LQ45', 'position': 0, 'indicators': None,
-                        'tickers': [{'ticker': t, 'position': i} for i, t in enumerate(doc['ticker'])]}], 'limits': []}
-    return {'watchlist-stocks': doc, 'watchlist-lists': lists}
+def watchlist_files():
+    """The two files of a made-up Watchlist publication (watchlist-stocks, watchlist-radar), built by the publisher's own
+    watchlist.build from invented rows of TICKERS, the Market Overview's made-up universe (so overview_files' LQ45 list
+    names stocks this file holds): every indicator filled, upcoming corporate actions for two stocks, Radar badges for
+    a few. A new list each call (tests change them)."""
+    import watchlist as W
+    dates = WATCHLIST_DATES
+    stocks = [(t, f'Company {t}', SECTORS[i % len(SECTORS)][1]) for i, t in enumerate(TICKERS)]
+    answers = {
+        W.MARKET_SQL: [('IHSG',)], W.RECENT_SQL: [(d,) for d in reversed(dates[-W.COMPLETE_SCAN:])],
+        W.BROKER_DATE_SQL: [(WATCHLIST_BROKER,)], W.RADAR_DATE_SQL: [(dates[-1],)], W.EVENTS_LOADED_SQL: [(dates[-1],)],
+        W.DATES_SQL: [(d,) for d in reversed(dates)], W.STOCKS_SQL: stocks,
+        W.F01_SQL: [(t, 1000.0 + i, (i % 7 - 3) * 0.5, (i % 5 - 2) * 1.1, (i % 9 - 4) * 0.7, (i % 11 - 5) * 1.3,
+                     0.5 + i % 4, 20.0 + i % 9, -(i % 13) * 1.5) for i, t in enumerate(TICKERS)],
+        W.F04_SQL: [(t, 30.0 + i % 40, (i % 6 - 3) * 2.5, 15.0 + i % 30, (i % 8 - 4) * 1.2, (i % 10 - 5) * 2.0)
+                    for i, t in enumerate(TICKERS)],
+        W.F06_SQL: [(t, (i % 5 - 2) * 1e9, (i % 7 - 3) * 2e9, (i % 3 - 1) * 5e9, float(i % 100)) for i, t in enumerate(TICKERS)],
+        W.CLOSES_SQL: [(t, d, 1000.0 + i + k) for i, t in enumerate(TICKERS) for k, d in enumerate(dates)],
+        W.EVENTS_SQL: [(TICKERS[1], 'DIVIDEND', '2026-11-27', 'CUM_DATE'), (TICKERS[25], 'RUPS', '2026-12-03', 'MEETING_DATE')],
+        W.RADAR_FILTERS_SQL: [('S1', 'S1', 'Heavy foreign accumulation', 1), ('S7', 'S7', 'Institutions in, retail out', 8)],
+        W.RADAR_SQL: [(TICKERS[0], 'S1'), (TICKERS[2], 'S7')],
+    }
+    run = lambda sql, params: [(len(TICKERS),) * 3] if sql == W.COUNTS_SQL else answers[sql]
+    return W.build(run)
 
 
 BACKTEST_AS_OF, BACKTEST_FIRST = '2026-10-23', '2025-10-23'   # the synthetic market's last day, one year before it

@@ -539,7 +539,8 @@ def test_the_overview_example_is_the_free_plans_and_follows_a_new_publication(gu
         assert index['as_of'] == '2026-11-23' and 'overview-day-2026-11-23' in index['files']
 
 
-def test_a_principals_own_terminal_refusal_on_the_overview_example_keeps_its_code(guests, store, overview_api, monkeypatch):
+@pytest.mark.parametrize('tab', sorted(examples_module.LATEST))
+def test_a_principals_own_terminal_refusal_on_a_latest_example_keeps_its_code(guests, store, watchlist_api, monkeypatch, tab):
     """The example-mode checker (ERRORS M527): the Overview example builds the principal's terminal-api headers first
     (terminal_access.headers: a guest without a well-formed visitor key, a ticker list too long for the header, a limit
     of 0 where the database allows one); such a refusal of the principal itself is answered with its own status, code
@@ -550,9 +551,9 @@ def test_a_principals_own_terminal_refusal_on_the_overview_example_keeps_its_cod
     def refused(settings, p):
         raise own
     with TestClient(create_app(guests, store, FakeOrc())) as c:
-        index, _ = overview_example(c, VISITOR)                 # the example opens; then the principal is refused
+        (overview_example if tab == 'overview' else watchlist_example)(c, VISITOR)   # it opens; then the principal is refused
         monkeypatch.setattr(examples_module.terminal_access, 'headers', refused)
-        for path in ('/api/v1/examples/overview/index', '/api/v1/examples/overview/file/overview-meta'):
+        for path in (f'/api/v1/examples/{tab}/index', f'/api/v1/examples/{tab}/file/{tab}-meta'):
             r = c.get(path, headers=VISITOR)
             assert r.status_code == 403, (path, r.text)
             error = r.json()['error']
@@ -570,6 +571,229 @@ def test_a_request_carrying_a_header_edge_bff_sets_itself_is_refused_on_the_over
                     assert (r.status_code, r.json()['error']['code']) == (400, 'HEADER_NOT_ALLOWED'), (path, name, r.text)
         index, _ = overview_example(c, VISITOR)                  # without it, the example opens
         assert index['as_of'] == NEWEST
+
+
+# ---- the Watchlist: its latest price date, the list's stocks with the default indicators (the user, 2026-11-21: "Untuk
+# table watchlist nggak apa-apa pakai data latest saja"; "Benar opsi B") ------------------------------------------------
+from example_docs import WATCHLIST_AS_OF, WATCHLIST_BROKER, watchlist_files  # noqa: E402
+
+WATCHLIST_OPENING = {'watchlist-stocks', 'watchlist-lists'}
+
+
+def streamed(body):
+    """A bucket object's answer, as httpx's stream gives it."""
+    class Answer:
+        status_code = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def aiter_bytes(self):
+            yield body
+    return Answer()
+
+
+class PagesApi(OverviewApi):
+    """OverviewApi, and terminal-api's /watchlist routes and bucket serving a made-up Watchlist publication
+    (example_docs.watchlist_files)."""
+    watchlist = {}
+
+    def answer(self, method, url, content):
+        if url.endswith('/api/terminal/v1/watchlist') and method == 'GET':
+            return httpx.Response(200, json={'finished_at': '2026-11-20T11:05:00Z', 'files': {
+                n: {'sha256': hashlib.sha256(b).hexdigest(), 'bytes': len(b), 'rows': 1, 'as_of': WATCHLIST_AS_OF}
+                for n, b in PagesApi.watchlist.items()}})
+        if url.endswith('/api/terminal/v1/watchlist') and method == 'POST':
+            name = json.loads(content)['names'][0]
+            b = PagesApi.watchlist[name]
+            return httpx.Response(200, json={'files': [{'name': name, 'url': f'https://bucket.example/watchlist/{name}',
+                                                        'sha256': hashlib.sha256(b).hexdigest(), 'bytes': len(b)}]})
+        return super().answer(method, url, content)
+
+    def stream(self, method, url, params=None, headers=None):
+        if url.startswith('https://bucket.example/watchlist/'):
+            return streamed(PagesApi.watchlist[url.rsplit('/', 1)[1]])
+        return super().stream(method, url, params, headers)
+
+
+@pytest.fixture
+def watchlist_api(overview_api, monkeypatch):
+    monkeypatch.setattr(httpx, 'AsyncClient', PagesApi)
+    PagesApi.watchlist = {n: gz(doc) for n, doc in watchlist_files().items()}
+    return PagesApi
+
+
+def watchlist_example(c, headers):
+    r = c.get('/api/v1/examples/watchlist/index', headers=headers)
+    assert r.status_code == 200, r.text
+    index = r.json()
+    files = {}
+    for name, e in index['files'].items():
+        f = c.get(f'/api/v1/examples/watchlist/file/{name}?sha={e["sha256"]}', headers=headers)
+        assert f.status_code == 200 and f.headers['etag'] == f'"{e["sha256"][:32]}"', name
+        files[name] = f.json()
+    return index, files
+
+
+def lq45(meta):
+    return next(x['members'] for x in meta['lists'] if (x['kind'], x['code']) == examples_module.WATCHLIST_LIST)
+
+
+def test_a_visitor_reads_the_latest_watchlist_cut_to_the_lists_stocks_with_the_default_indicators(guests, store, watchlist_api):
+    live, meta = watchlist_files()['watchlist-stocks'], overview_files()['overview-meta']
+    members = lq45(meta)
+    assert 0 < len(members) < len(live['ticker'])               # the list is a part of the file: the cut checks something
+    with TestClient(create_app(guests, store, FakeOrc())) as c:
+        index, files = watchlist_example(c, VISITOR)
+        assert set(index['files']) == WATCHLIST_OPENING and index['as_of'] == WATCHLIST_AS_OF
+        assert all(e['as_of'] == WATCHLIST_AS_OF for e in index['files'].values())
+        s, at = files['watchlist-stocks'], {t: i for i, t in enumerate(live['ticker'])}
+        # the list's stocks, every column of the table as published, in the list's order
+        assert s['ticker'] == members
+        for k in examples_module.WATCHLIST_COLUMNS:
+            assert s[k] == [live[k][at[t]] for t in members], k
+        # the four default indicators as published; every other one null (adding one is a click), filled in the file
+        assert s['default'] == live['default'] == ['rsi', 'volr', 'dd60', 'fn5']
+        for k, v in live['values'].items():
+            want = [v[at[t]] for t in members]
+            if k in live['default']:
+                assert s['values'][k] == want and any(x is not None for x in want), k
+            else:
+                assert any(x is not None for x in want) and s['values'][k] == [None] * len(members), k
+        # the dates of the data as published: prices to the latest date, broker data to its own (later than none)
+        assert (s['prices_through'], s['broker_through'], s['dates']) == (WATCHLIST_AS_OF, WATCHLIST_BROKER, live['dates'])
+        assert (s['catalog'], s['schema'], s['event_days']) == (live['catalog'], live['schema'], live['event_days'])
+        # no upcoming corporate action, though the file holds one of a member; no Radar file (radar.view)
+        assert any(t in live['events'] for t in members) and s['events'] == {} and s['events_loaded'] is None
+        assert files['watchlist-lists'] == {'limits': [], 'lists': [{
+            'id': examples_module.WATCHLIST_LIST_ID, 'name': 'LQ45', 'position': 0, 'indicators': None,
+            'tickers': [{'ticker': t, 'position': i} for i, t in enumerate(members)]}]}
+        r = c.get('/api/v1/examples/watchlist/file/watchlist-radar', headers=VISITOR)
+        assert (r.status_code, r.json()['error']['code']) == (404, 'EXAMPLE_FILE_NOT_FOUND')
+        assert c.get('/api/v1/watchlist/index', headers=VISITOR).status_code == 401
+        # terminal-api was asked as the visitor (the guest owner, the gateway key), for both publications
+        for family in ('watchlist', 'overview'):
+            calls = [x for x in terminal_calls() if x['url'].endswith(f'/api/terminal/v1/{family}')]
+            assert calls and all(x['headers'][terminal_access.OWNER_HEADER] == principal_module.GUEST_OWNER for x in calls), family
+
+
+def test_a_field_the_watchlist_example_does_not_read_is_left_out_or_null(guests, store, watchlist_api):
+    """Fail closed at every depth (as the Overview's): a field the publisher adds later, at the top of the file, in the
+    catalog, or a value of a member that turns into an object, is not in the example."""
+    docs, meta = watchlist_files(), overview_files()['overview-meta']
+    s, members = docs['watchlist-stocks'], lq45(meta)
+    i = s['ticker'].index(members[0])
+    planted = 'PLANTED-' + '7' * 12
+    s['secret_history'] = [[planted] * 300] * len(s['ticker'])
+    s['catalog'][0]['formula'] = planted
+    s['radar'] = {members[0]: [planted]}
+    s['last'][i] = {'v': planted}                                # a kept column whose value turns into an object: null
+    s['trend'][i] = [{'c': planted}]
+    s['values']['rsi'][i] = {'deep': planted}
+    s['values']['r5d'] = [planted] * len(s['ticker'])           # an indicator not shown at opening
+    s['values']['new_flow'] = [planted] * len(s['ticker'])      # a new indicator of the publisher
+    s['events'][members[0]] = [['DIVIDEND', '2026-11-30', planted]]
+    s['prices_through'] = WATCHLIST_AS_OF
+    PagesApi.watchlist = {n: gz(doc) for n, doc in docs.items()}
+    with TestClient(create_app(guests, store, FakeOrc())) as c:
+        _, files = watchlist_example(c, VISITOR)
+    shown = files['watchlist-stocks']
+    assert planted not in json.dumps(files)
+    assert 'secret_history' not in shown and 'radar' not in shown and 'formula' not in shown['catalog'][0]
+    assert shown['last'][0] is None and shown['trend'][0] is None and shown['values']['rsi'][0] is None
+    assert shown['values']['new_flow'] == [None] * len(members) and shown['events'] == {}
+
+
+def test_every_field_the_watchlist_publisher_writes_is_kept_by_name_or_left_out_by_name():
+    """Every path the publisher's own watchlist.build writes (through example_docs.watchlist_files) is in the example
+    as written, for the list's stocks, or is left out by WATCHLIST_LEFT_OUT or by the rule on an indicator that is not a
+    default one; every name there is one the publisher writes. A new field of the publisher fails here until the cut
+    decides on it."""
+    live, meta = watchlist_files()['watchlist-stocks'], overview_files()['overview-meta']
+    (_, s, _), (_, lists, _) = examples_module.watchlist_view(live, meta)
+    members, at = lq45(meta), {t: i for i, t in enumerate(live['ticker'])}
+    left = (*examples_module.WATCHLIST_LEFT_OUT, *(f'values.{k}' for k in live['values'] if k not in live['default']))
+    under = lambda p, names: any(p == n or p.startswith(n + '.') for n in names)
+    written, shown = leaf_paths(live), leaf_paths(s)
+    assert {p for p in written - shown if not under(p, left)} == set()
+    assert shown <= written | set(examples_module.WATCHLIST_LEFT_OUT)
+    for n in examples_module.WATCHLIST_LEFT_OUT:
+        assert any(under(p, (n,)) for p in written), f'{n}: not a field the publisher writes'
+        assert s[n] in ({}, None), n
+    per_stock = {*examples_module.WATCHLIST_COLUMNS, *(f'values.{k}' for k in live['default'])}
+    wv, sv = leaf_values(live), leaf_values(s)
+    for p, v in sv.items():
+        if under(p, left):
+            assert v in ({}, None) or v == [None] * len(members), p
+        elif p in per_stock:
+            assert v == [wv[p][at[t]] for t in members] and any(x is not None for x in v), p
+        else:
+            assert v == wv[p], p
+    assert per_stock <= set(sv)
+    assert [t['ticker'] for t in lists['lists'][0]['tickers']] == members
+
+
+@pytest.mark.parametrize('change, reason', [
+    ('no_list', 'list_missing'), ('two_lists', 'list_twice'), ('no_members', 'list_members_invalid'),
+    ('outside', 'member_outside_file'), ('no_date', 'stocks_unreadable')])
+def test_the_watchlist_example_never_shows_another_list(guests, store, watchlist_api, change, reason, caplog):
+    """The example names its list (LQ45 as the Overview publishes it): without it, with it twice, without members, with
+    a member the file does not hold, or a file without its price date, it answers EXAMPLE_UNAVAILABLE and logs why
+    (a fixed word, no data), rather than a list of other stocks (the lesson of the 30 October list, ERRORS M527)."""
+    docs = overview_files()
+    meta, s = docs['overview-meta'], watchlist_files()
+    stocks = s['watchlist-stocks']
+    lq = next(x for x in meta['lists'] if x['code'] == 'LQ45')
+    if change == 'no_list':
+        meta['lists'] = [x for x in meta['lists'] if x is not lq]
+    elif change == 'two_lists':
+        meta['lists'].append(dict(lq, key='lq45-2'))
+    elif change == 'no_members':
+        lq['members'] = []
+    elif change == 'outside':
+        lq['members'] = [*lq['members'], 'ZZZZ']
+    else:
+        stocks['prices_through'] = None
+    OverviewApi.files = {n: gz(doc) for n, doc in docs.items()}
+    PagesApi.watchlist = {n: gz(doc) for n, doc in s.items()}
+    with TestClient(create_app(guests, store, FakeOrc())) as c, caplog.at_level('WARNING', logger='edge_bff.examples'):
+        r = c.get('/api/v1/examples/watchlist/index', headers=VISITOR)
+    assert (r.status_code, r.json()['error']['code']) == (503, 'EXAMPLE_UNAVAILABLE'), r.text
+    logged = [json.loads(m) for m in caplog.messages if 'example_unavailable' in m]
+    assert logged and logged[-1]['tab'] == 'watchlist' and logged[-1]['reason'] == reason, logged
+
+
+def test_the_watchlist_example_waits_for_its_files_and_follows_a_new_publication(guests, store, watchlist_api, monkeypatch):
+    from app import pages as pages_module
+    monkeypatch.setattr(pages_module, 'INDEX_SECONDS', 0)                 # the relays read their index on every call
+    saved = dict(PagesApi.watchlist)
+    PagesApi.watchlist = {'watchlist-radar': saved['watchlist-radar']}        # no watchlist-stocks published yet
+    with TestClient(create_app(guests, store, FakeOrc())) as c:
+        r = c.get('/api/v1/examples/watchlist/index', headers=VISITOR)
+        assert (r.status_code, r.json()['error']['code']) == (404, 'EXAMPLE_NOT_READY')
+        PagesApi.watchlist = saved
+        make_user(store, 'freda', 'freda-password')
+        h = sign_in(c, 'freda', 'freda-password')
+        index, _ = watchlist_example(c, h)                                     # the free plan's too
+        assert index['as_of'] == WATCHLIST_AS_OF
+        # the next publications, in the same process: a later price date and a changed list, both followed
+        docs, s = overview_files(), watchlist_files()
+        s['watchlist-stocks']['prices_through'] = '2026-11-23'
+        lq = next(x for x in docs['overview-meta']['lists'] if x['code'] == 'LQ45')
+        lq['members'] = sorted([*lq['members'][1:], s['watchlist-stocks']['ticker'][-1]])
+        OverviewApi.files = {n: gz(doc) for n, doc in docs.items()}
+        PagesApi.watchlist = {n: gz(doc) for n, doc in s.items()}
+        index, files = watchlist_example(c, h)
+        assert index['as_of'] == '2026-11-23' and files['watchlist-stocks']['ticker'] == lq['members']
+        c.post('/api/v1/auth/sign-out', headers=h)
+        paid = make_user(store, 'pablo', 'pablo-password')
+        subscribe(store, paid['user_id'], 'paid')
+        c.cookies.clear()
+        r = c.get('/api/v1/examples/watchlist/index', headers=sign_in(c, 'pablo', 'pablo-password'))
+        assert r.status_code == 403 and r.json()['error']['details']['capability'] == 'watchlist.example'
 
 
 # ---- the Screener: the stored catalog is the live site's for the released items (3e; ERRORS M527) -------------------

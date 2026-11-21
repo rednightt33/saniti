@@ -674,8 +674,10 @@ catalog-only change reaches the browser through `X-Edge-Entitlements`.
 - D4 = B: the examples are a cut of real data from one past date, served only to a signed-in principal holding
   `<tab>.example`, never in a public bundle (M469). **Replaced on 2026-11-21** (the example mode as the user set it,
   EXEC.md option A; ERRORS M527): "kayak semacam static HTML di hari tersebut saja". The guest plan (a visitor who is
-  not signed in) holds the examples too (migration 20261121_002); the Radar, Watchlist, Screener and Backtest show the
-  data of 30 October 2026, the Market Overview its latest market date with every time control locked; a click opens
+  not signed in) holds the examples too (migration 20261121_002); the Radar, Screener and Backtest show the data of 30
+  October 2026, the Market Overview its latest market date with every time control locked, the Watchlist today's LQ45
+  with the four default indicators on its latest price date (the user, 2026-11-21: "pakai data latest saja", "Benar
+  opsi B"); a click opens
   the sign-in box (a visitor) or the paywall (an account). Still never in a public bundle: the files come only from the
   example routes (8b "3e").
 - D5 = B: a lowered plan loses read access to old content until it is raised again (data kept). Reads need
@@ -1154,6 +1156,12 @@ today.
     opening view (breadth's 120 sessions and its start, the KPI strip's 30 broker sessions, the day's 1D figures, the 1D
     flow, the session's bars, the one day in the date picker; a field not named is left out). The older day files and
     `overview-stocks` stay with `overview.view`. The page stays clickable but for its time controls (`lockOnly`);
+  - the Watchlist's example is its latest price date (the user, 2026-11-21: "Untuk table watchlist nggak apa-apa pakai
+    data latest saja"; "Benar opsi B"): the live watchlist-stocks, read through the page relay, cut by
+    `app/examples.py` to today's LQ45 as overview-meta publishes it (`Stock_List_Member`), with every column of the
+    table and the four default indicators (another indicator null, no upcoming corporate action, no Radar file), and
+    watchlist-lists, that one list. A missing list or a member the file does not hold answers `EXAMPLE_UNAVAILABLE`,
+    never another list. The page is a view, as the stored ones;
   - the Backtest's example is the stored run of the page's default setup (MAPI, single stock) over the year to the
     example's date: the worker's catalog cut to that year, the page's own request on a part of it (dates, versions,
     flow block, limits, the lists cut to what the request names; the capture stops unless the worker's catalog holds
@@ -1280,8 +1288,8 @@ today.
   `terminal.tickers` `["BBCA"]`, `terminal.dataset` `{"ids": ["price"]}`, `terminal.history_days` 730,
   `terminal.indicator` `{"ids": []}`; no quota row.
 - **Other tabs:** `<tab>.example` only, for the free plan and (since 2026-11-21, migration 20261121_002) the guest.
-  - The page shows its example (8b "3e", the rail and the frames): the Radar, Watchlist, Screener and Backtest with the
-    data of 30 October 2026, the Market Overview on its latest market date; a click opens the sign-in box (the guest) or
+  - The page shows its example (8b "3e", the rail and the frames): the Radar, Screener and Backtest with the data of 30
+    October 2026, the Market Overview and the Watchlist on their latest date; a click opens the sign-in box (the guest) or
     the paywall (the free plan). Never in a public bundle: the files come only from the example routes.
 - **Upgrade at launch:** "segera hadir" (the user's words; the page says "Coming soon", EXEC-UI-1019B,
   `edge-labels.js`) plus contact; the admin activates `paid` manually (subscription `provider='manual'`, audited).

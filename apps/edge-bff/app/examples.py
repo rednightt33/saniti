@@ -8,7 +8,7 @@ account): the page's own lock and the shell's box. The user: "kayak semacam stat
                                                reads from its live route; another sha answers 409 EXAMPLE_FILE_REPLACED
 
 Two sources (TABS):
-- stored (the Radar, the Watchlist, the Backtest, the Screener): the rows of edge_bff.example_files (migration
+- stored (the Radar, the Backtest, the Screener): the rows of edge_bff.example_files (migration
   20261121_001), written once by the capture job (verification/edge_multiuser/example_mode/capture_job.py,
   apps/terminal-publisher/examples.py: the files of the page's opening view cut at one past date, none naming a later
   one). Read from the database at most every REFRESH_SECONDS per tab and process and served from memory, so a request
@@ -23,6 +23,14 @@ Two sources (TABS):
   stocks to their 1D figures (every other period's values null, a new field null too); the market's flow to its 1D
   period; IHSG's bars to the session's 5-minute bars; the date picker to that day. The older day files and
   overview-stocks (every stock's 300 sessions) stay with overview.view. Trimmed once per publication and process.
+- the Watchlist's latest price date (the user, 2026-11-21: "Untuk table watchlist nggak apa-apa pakai data latest
+  saja"; "Benar opsi B": the list's stocks with the four default indicators, as the page opens): the live
+  watchlist-stocks cut to the example list's stocks, today's LQ45 members as the Market Overview publishes them
+  (overview-meta `lists`, read from Stock_List_Member by the publisher), with every column of the page's table, the
+  default indicators' values (another indicator's null: adding one is a click) and no upcoming corporate action (the
+  Terminal's free plan holds no events either); and watchlist-lists, that one list. A missing list or a member the
+  file does not hold answers EXAMPLE_UNAVAILABLE: the example names its list and never shows another (ERRORS M527).
+  No watchlist-radar (radar.view). Cut once per pair of publications and process.
 
 The guarantee is these routes: they hand out only the example's files, and only to a principal holding the tab's
 <tab>.example (auth.need(..., guests=True), before the caches); a page's live routes still need <tab>.view, and the
@@ -52,7 +60,7 @@ logger = logging.getLogger('edge_bff.examples')
 # the tabs whose page reads an example in this build (the page's own example mode: src/main.ts of each), their names in
 # the refusals and their source; a tab joins with its page
 TABS = {'radar': 'Radar', 'overview': 'Market Overview', 'watchlist': 'Watchlist', 'backtest': 'Backtest', 'screener': 'Screener'}
-LATEST = {'overview'}                                   # the latest publication, trimmed; every other tab is stored
+LATEST = {'overview', 'watchlist'}                      # the latest publication, trimmed; every other tab is stored
 NAME = re.compile(r'[a-z0-9][a-z0-9_-]{0,63}')          # edge_bff.example_files.name (example_files_name)
 SHA = re.compile(r'[0-9a-f]{64}')
 REFRESH_SECONDS = 300                                   # a capture shows within this long; nothing changes otherwise
@@ -106,6 +114,24 @@ OVERVIEW_LEFT_OUT = {
     'overview-series': ('flow.foreign_buy', 'flow.foreign_sell',          # the Foreign Flow's Custom range (a time control)
                         'breadth_n'),                                     # read by no panel
 }
+
+# The Watchlist's opening view (module docstring): the example's list, as the user chose it (2026-11-21, "Untuk
+# watchlist oke, dengan rekomendasi kamu": one list of the LQ45 members), the list's id on the page, and the fields of
+# watchlist-stocks the page reads, at every depth (the shapes above; a field not named is left out). The per-stock
+# columns are cut to the list's members, each value kept only where it holds no object.
+WATCHLIST_LIST = ('INDEX', 'LQ45')                      # Stock_List (list_kind, code), as overview-meta `lists` names it
+WATCHLIST_LIST_ID = 'example-lq45'
+WATCHLIST_STOCKS = 'watchlist-stocks'
+WATCHLIST_SHAPE = {'schema': KEEP, 'prices_through': KEEP, 'broker_through': KEEP, 'event_days': KEEP, 'dates': KEEP,
+                   'catalog': [{'key': KEEP, 'name': KEEP, 'short': KEEP, 'note': KEEP, 'family': KEEP, 'unit': KEEP,
+                                'date': KEEP, 'signed': KEEP}],
+                   'default': KEEP}
+WATCHLIST_COLUMNS = ('ticker', 'name', 'sector', 'last', 'r1d', 'r1m', 'trend')   # one value per stock (watchlist.py)
+# what the publisher writes and the opening view does not show (tests/test_examples.py walks every path): the upcoming
+# corporate actions, emptied ({} and null, as the page reads a file without them); and, by rule, every indicator that is
+# not one of the file's own default ones (null per stock: adding an indicator is a click)
+WATCHLIST_LEFT_OUT = ('events', 'events_loaded')
+ISO_DATE = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}')
 
 
 def flat(value):
@@ -185,6 +211,59 @@ def overview_view(meta, series, day):
     out['intraday'] = {OVERVIEW_BARS: kept(bars, BARS_SHAPE)} if bars is not None else {}
     return [('overview-meta', m, len(m['stocks']['ticker'])), ('overview-series', s, len(s['dates'])),
             (f'overview-day-{d}', out, n)]
+
+
+class ExampleDataError(Exception):
+    """The live publication cannot give the example as the user set it: `reason` is a fixed word (no value of the data),
+    logged with the class; the example answers EXAMPLE_UNAVAILABLE (fail closed: never another list or date)."""
+
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
+def list_members(meta, kind, code):
+    """The members of the stock list (kind, code) as the Market Overview publishes them (overview-meta `lists`, from
+    Stock_List_Member when the publisher ran), or ExampleDataError: no such list, more than one, or no usable members."""
+    lists = meta.get('lists') if isinstance(meta, dict) else None
+    found = [x for x in lists if isinstance(x, dict) and x.get('kind') == kind and x.get('code') == code] \
+        if isinstance(lists, list) else []
+    if len(found) != 1:
+        raise ExampleDataError('list_missing' if not found else 'list_twice')
+    members = found[0].get('members')
+    if not (isinstance(members, list) and members and all(isinstance(t, str) for t in members)
+            and len(set(members)) == len(members)):
+        raise ExampleDataError('list_members_invalid')
+    return list(members)
+
+
+def watchlist_view(stocks, meta):
+    """The Watchlist's opening view on the publication's price date (module docstring): watchlist-stocks cut to the
+    example list's members, and watchlist-lists, that one list -> [(name, doc, rows)]."""
+    kind, code = WATCHLIST_LIST
+    members = list_members(meta, kind, code)
+    tickers = stocks.get('ticker') if isinstance(stocks, dict) else None
+    if not isinstance(tickers, list) or not ISO_DATE.fullmatch(str(stocks.get('prices_through'))):
+        raise ExampleDataError('stocks_unreadable')
+    at = {t: i for i, t in enumerate(tickers) if isinstance(t, str)}
+    if any(t not in at for t in members):
+        raise ExampleDataError('member_outside_file')
+    keep, n = [at[t] for t in members], len(tickers)
+
+    def pick(column):
+        """The members' values of a per-stock column; a column of another length, or a value holding an object: null."""
+        if not isinstance(column, list) or len(column) != n:
+            return [None] * len(keep)
+        return [column[i] if flat(column[i]) else None for i in keep]
+    out = kept(stocks, WATCHLIST_SHAPE)
+    out.update({k: pick(stocks.get(k)) for k in WATCHLIST_COLUMNS})
+    default = out['default'] if isinstance(out.get('default'), list) else []
+    values = stocks.get('values') if isinstance(stocks.get('values'), dict) else {}
+    out['values'] = {k: (pick(v) if k in default else [None] * len(keep)) for k, v in values.items()}
+    out['events'], out['events_loaded'] = {}, None
+    answer = {'lists': [{'id': WATCHLIST_LIST_ID, 'name': code, 'position': 0, 'indicators': None,
+                         'tickers': [{'ticker': t, 'position': i} for i, t in enumerate(members)]}], 'limits': []}
+    return [(WATCHLIST_STOCKS, out, len(members)), ('watchlist-lists', answer, 1)]
 
 
 class Refused(Exception):
@@ -291,11 +370,59 @@ class OverviewLatest:
             return kept
 
 
+class WatchlistLatest:
+    """The Watchlist's opening view on its latest price date, from the live publications (module docstring): the
+    Watchlist's watchlist-stocks and the Market Overview's overview-meta (the list's members), each read through its
+    page relay for the principal (app/pages.py), as OverviewLatest reads its files."""
+
+    def __init__(self, watchlist, overview, not_ready):
+        self.watchlist, self.overview, self.not_ready = watchlist, overview, not_ready
+        self.made = None                                  # (the two live files' sha256s, the example made of them)
+        self.lock = asyncio.Lock()
+
+    async def current(self, p):
+        if not self.watchlist.settings.terminal_url:
+            raise Refused(self.not_ready())
+        sent = terminal_access.headers(self.watchlist.settings, p)   # the principal's own refusals first
+        reads = ((self.watchlist, WATCHLIST_STOCKS), (self.overview, 'overview-meta'))
+        entries = []
+        for pages, name in reads:
+            data = await pages.index(p, sent)
+            if data is None:
+                raise RuntimeError(f'the {pages.family} index could not be read')
+            if name not in data['files']:
+                return {'index': None, 'bodies': {}}
+            entries.append((data, data['files'][name]))
+        key = tuple(e.get('sha256') for _, e in entries)
+        if self.made is not None and self.made[0] == key:
+            return self.made[1]
+        async with self.lock:
+            if self.made is not None and self.made[0] == key:
+                return self.made[1]
+            docs = []
+            for (pages, name), (_, e) in zip(reads, entries):
+                body, failed = await pages.body_of(p, sent, name, e.get('sha256'), e)
+                if failed is not None:
+                    raise Refused(failed)
+                docs.append(json.loads(gzip.decompress(body)))
+            stocks, meta = docs
+            as_of = stocks.get('prices_through') if isinstance(stocks, dict) else None
+            bodies, files = {}, {}
+            for name, doc, rows in watchlist_view(stocks, meta):
+                body, sha = encode(doc)
+                bodies[name] = (sha, body)
+                files[name] = {'sha256': sha, 'bytes': len(body), 'rows': rows, 'as_of': as_of}
+            kept = {'index': {'finished_at': entries[0][0].get('finished_at'), 'as_of': as_of, 'files': files},
+                    'bodies': bodies}
+            self.made = (key, kept)
+            return kept
+
+
 class Examples:
     """The example of every tab of TABS (module docstring)."""
 
-    def __init__(self, store, overview, clock=time.monotonic):
-        self.store, self.overview, self.clock = store, overview, clock
+    def __init__(self, store, overview, watchlist, clock=time.monotonic):
+        self.store, self.overview, self.watchlist, self.clock = store, overview, watchlist, clock
 
     def routes(self, app, auth):
         for tab, label in TABS.items():
@@ -304,8 +431,9 @@ class Examples:
     def tab_routes(self, app, auth, tab, label):
         text = messages(label)
         # before the kept files (module docstring); a tab whose example reads terminal-api for the principal (LATEST, the
-        # Overview) passes the guard of every route that calls it: a request carrying a header edge-bff sets itself is
-        # refused 400 (terminal_access.guard; the example-mode re-check, ERRORS M527). A stored tab reads the database only.
+        # Overview and the Watchlist) passes the guard of every route that calls it: a request carrying a header edge-bff
+        # sets itself is refused 400 (terminal_access.guard; the example-mode re-check, ERRORS M527). A stored tab reads
+        # the database only.
         base = auth.need(f'{tab}.example', guests=True)
         need = terminal_access.guard(base) if tab in LATEST else base
 
@@ -313,8 +441,11 @@ class Examples:
             return JSONResponse(status_code=status, content={'error': {
                 'code': code, 'message': text[code], 'details': {'tab': tab, **(details or {})}}})
 
-        source = (OverviewLatest(self.overview, lambda: failure('EXAMPLE_NOT_READY', 404)) if tab in LATEST
-                  else Stored(self.store, tab, self.clock))
+        not_ready = lambda: failure('EXAMPLE_NOT_READY', 404)
+        latest = {'overview': lambda: OverviewLatest(self.overview, not_ready),
+                  'watchlist': lambda: WatchlistLatest(self.watchlist, self.overview, not_ready)}
+        assert set(latest) == LATEST, 'a LATEST tab needs its source here'
+        source = latest[tab]() if tab in LATEST else Stored(self.store, tab, self.clock)
 
         async def kept_or_failure(p):
             try:
@@ -327,7 +458,8 @@ class Examples:
                 # checker, ERRORS M527; AGENTS.md "Gates and evidence" (d))
                 raise
             except Exception as e:  # noqa: BLE001 - the class only; a driver error may carry connection details
-                logger.warning(json.dumps({'event': 'example_unavailable', 'tab': tab, 'error': failure_class(e)}))
+                reason = {'reason': e.reason} if isinstance(e, ExampleDataError) else {}
+                logger.warning(json.dumps({'event': 'example_unavailable', 'tab': tab, 'error': failure_class(e), **reason}))
                 return None, failure('EXAMPLE_UNAVAILABLE', 503)
             if kept['index'] is None:
                 return None, failure('EXAMPLE_NOT_READY', 404)

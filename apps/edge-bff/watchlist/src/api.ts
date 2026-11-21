@@ -91,9 +91,10 @@ export const live: WatchlistApi = {
   logoSrc: (t, v) => `/api/terminal/v1/logo/${enc(t)}?v=${enc(v)}`,
 };
 
-/* EXEC-MU-ACCOUNTS 3e, the example mode (user 2026-11-21; ERRORS M527): the files of the page's opening view on one past
-   date, for watchlist.example (edge-bff app/examples.py): watchlist-stocks of the example list and watchlist-lists, the
-   one list in the shape of GET /api/v1/watchlist/lists. Read without the session (a visitor has none); nothing is
+/* EXEC-MU-ACCOUNTS 3e, the example mode (user 2026-11-21; ERRORS M527): the files of the page's opening view on the
+   latest price date, for watchlist.example (edge-bff app/examples.py cuts the live publication): watchlist-stocks of the
+   example list (today's LQ45) and watchlist-lists, the one list in the shape of GET /api/v1/watchlist/lists. Read
+   without the session (a visitor has none); nothing is
    written (the page is a view: shared/example-view.ts stops every click before it could ask), no logo is read. */
 const EXAMPLE = '/api/v1/examples/watchlist';
 async function exampleJson<T>(url: string): Promise<T> {

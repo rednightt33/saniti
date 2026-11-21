@@ -259,7 +259,7 @@ def create_app(settings=None, store=None, orc=None):
     radar = Radar(settings)
     overview = Overview(settings)                       # EXEC-OVERVIEW O4
     watchlist = Watchlist(settings, store)              # EXEC-WATCHLIST L3
-    examples = Examples(store, overview)                # 3e, the example mode (ERRORS M527)
+    examples = Examples(store, overview, watchlist.files)   # 3e, the example mode (ERRORS M527)
     # EXEC-MU-ACCOUNTS beta/live: the AI loop claims only the runs this site queued (config.py EDGE_SITE)
     worker.claim = functools.partial(store.claim, site=settings.site)
     housekeeping = Housekeeping(settings, store)        # ERRORS R2-33: the hourly purges, their own task

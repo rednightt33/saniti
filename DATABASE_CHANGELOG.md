@@ -87,6 +87,13 @@
     members in `Stock_List_Member`, the same 45 as the history rows covering 2026-11-20 (first recorded 2026-11-10, none
     closed); all 45 in the file with a price, 1D, 1M, a full trend line and the four default indicators; 2 with a
     corporate action in the next 30 days. Dates and counts only. Postgres memory 0.37 GB after it (no restart).
+  - The user then chose option B ("Benar opsi B. Go."): the Watchlist's example is the latest publication, cut by
+    edge-bff (ERRORS M527), so its stored rows of 30 October (job `b77b0506`, the wrong list) are read by nothing. Deleted
+    with `example_delete_job.py` (it lists the tab's rows and refuses unless they are exactly the ones named): dry run
+    `e11f77ea` DRY_RUN_OK (`watchlist-lists` 394 bytes `a6827ccdf8f9389d…`, `watchlist-stocks` 45 rows 5,773 bytes
+    `4deaaf6b07e4cc20…`); the write `724dc7c4`: VERDICT DELETED 2 rows, 0 watchlist rows read back, the other tabs
+    unchanged (backtest 4, radar 3, screener 4). Nothing served them (the beta and the live site run code without the
+    example mode). Not a large update.
 
 ## 2026-11-20 — The A2 fix: a reset code bound to its browser, a registration's client (edge_bff, migrations 20261120_001 and _002)
 

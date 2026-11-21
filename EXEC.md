@@ -16372,6 +16372,28 @@ Order of the services (CONTRACT 17, rollback floors):
           Overview's daily foreign flow left out and its lines cut to their panels' windows, the example routes behind
           the Terminal guard, the Radar's column scrollbar kept, the tests that claimed more than they held, the rerun
           tracebacks in CI, the runbook's hold on the Watchlist's rows.
+        - **The user's answer on the Watchlist (2026-11-21), closing the stop condition above:** "Untuk table watchlist
+          nggak apa-apa pakai data latest saja, karena yang dibutuhkan hanya harga saham"; asked whether that means
+          prices only (A) or the four default indicators too (B), with the facts (prices to 20 November, broker data to
+          9 November, the 45 members recorded since 10 November): "Yes, watchlist maksudnya adalah kita memakai data
+          terakhir aja untuk listnya, which is 10 November, sampai list tersebut diperbaharui di database. Saya cabut
+          kata-kata pakai dengan indikator bawaan. Kata-kata saya dengan yang dibutuhkan hanya harga saham di cancel,
+          tidak jadi. Jadi kita masuk opsi B kan."; read back as option B; then **"Benar opsi B. Go."** So the
+          Watchlist's example is the latest publication, like the Overview's, not a stored date: today's LQ45 members as
+          the database holds them (they follow the next list round by themselves), every column of the page's table and
+          the four default indicators (RSI, Volume, From 60D high, Foreign 5D; Foreign 5D on the broker data's own date,
+          the page's two date pills); no upcoming corporate action (as before; the Terminal's free plan holds no events);
+          no Radar badge (radar.view).
+        - Built (ERRORS M527, its Watchlist block): `app/examples.py` `WatchlistLatest` and `watchlist_view` (the live
+          watchlist-stocks cut to the LQ45 of overview-meta; a missing, doubled or empty list, a member the file does
+          not hold, or a file without its price date answers `EXAMPLE_UNAVAILABLE` and logs the reason, never another
+          list); the stored builder, its tests and its capture parameters removed from the publisher's `examples.py`.
+          Tests: the cut, fail closed at every depth, the walk of every field the publisher's own `watchlist.build`
+          writes, the five refusals, a new publication and a new list followed in the same process, the principal's
+          own Terminal refusal, the guard, the browser (today's members only, the four indicators, the two date pills,
+          a click asks to sign in); 14 mutations, each red. The read-only probe of the latest data `cc2d4a5a`; the
+          stored rows of 30 October deleted on dev (dry run `e11f77ea`, the write `724dc7c4`: 2 rows, 0 left; the
+          other tabs' rows unchanged). This came after both checker runs: the deep checker (step 8) covers it.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

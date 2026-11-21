@@ -1,23 +1,19 @@
 """EXEC-MU-ACCOUNTS 3e, the example mode as the user set it on 2026-11-21 (EXEC.md option A; ERRORS M527).
 
 A visitor who is not signed in and the free plan see each data page as it opens, with the data of one past date (30
-October 2026 for the Radar, the Watchlist, the Screener and the Backtest), and every click asks to sign in or to
-upgrade: "kayak semacam static HTML di hari tersebut saja". This module builds the files of a page's opening view for
-that date, in the shape the page reads from its live route, and refuses any file that names a later date. The capture
-job (verification/edge_multiuser/example_mode/capture_job.py) writes them to edge_bff.example_files (migration
-20261121_001), which edge-bff serves (apps/edge-bff/app/examples.py). No publication runs this module.
+October 2026 for the Radar, the Screener and the Backtest), and every click asks to sign in or to upgrade: "kayak
+semacam static HTML di hari tersebut saja". This module builds the files of a page's opening view for that date, in the
+shape the page reads from its live route, and refuses any file that names a later date. The capture job
+(verification/edge_multiuser/example_mode/capture_job.py) writes them to edge_bff.example_files (migration
+20261121_001), which edge-bff serves (apps/edge-bff/app/examples.py). No publication runs this module. The Market
+Overview and the Watchlist show the latest data instead (the user, 2026-11-21: "Untuk table watchlist nggak apa-apa
+pakai data latest saja"): edge-bff trims the live publication itself, so nothing here builds them.
 
   radar      radar-meta, radar-days, radar-board-<as_of>: what the page reads when it opens (src/app.ts boot); the date
              picker and a filter's page are clicks, so the older boards and radar-f-<filter> are not part of the example;
              each file is cut to the board's opening view (radar_opening: the hits at the default level and gate, 20
              sessions of that setting's counts, no measure, no rule; radar-meta the names of the stocks the board shows
              and no stock list, reference_cut)
-  watchlist  watchlist-stocks of as_of cut to the example list's stocks (the LQ45 members on that date, point in time:
-             Stock_List_Member_History, members_on: a date no recorded row covers stops the capture) and its default
-             indicators (the other indicators' values null: adding one is a click), without the upcoming corporate
-             actions (they are dates after as_of by nature: the example leaves them out, the user told);
-             watchlist-lists, the one list in the shape of GET /api/v1/watchlist/lists. No watchlist-radar: it goes
-             only with radar.view, which the example's plans do not hold
   backtest   the page's default setup (MAPI, single stock) over the year to as_of, run once by the real Backtest
              worker: backtest-request (built by the page's own code, backtest_request.ts, on a part of the cut
              catalog: built_on must be found in it as it is, outside), backtest-result (the worker's result as
@@ -29,9 +25,10 @@ job (verification/edge_multiuser/example_mode/capture_job.py) writes them to edg
 
 The reference data in a file of a past date (the example-mode checker, ERRORS M527): the tables of names, stock lists
 and tickers hold today's rows, and the stock lists' history starts at their first capture (2026-11-09). A file keeps
-only the reference entries its opening view reads (a list behind a click is left out, reference_cut), and a list
-membership only where a recorded row covers the date; where the membership is the page's content (the Watchlist's
-list) the capture stops instead.
+only the reference entries its opening view reads (a list behind a click is left out, reference_cut). Where a list's
+membership is the page's content (the Watchlist's LQ45), the history cannot give a date before its first capture (the
+example-mode checker: the exchange's review of 2 November fell between 30 October and that capture), so that example
+shows the latest data and today's members (apps/edge-bff/app/examples.py).
 
 Each builder stops (ExampleError) rather than give another example than the approved one: the newest result date must be
 as_of itself, never an earlier one the data happens to end on.
@@ -43,7 +40,6 @@ import json
 import re
 
 import radar
-import watchlist
 from publisher import PRICE_ACTION_TYPES, encode
 
 ISO = re.compile(r'(?<![0-9])([0-9]{4}-[0-9]{2}-[0-9]{2})(?![0-9])')
@@ -157,62 +153,6 @@ def radar_files(conn, names, lists, as_of, stream=None):
         raise ExampleError(f'{board} has no hit at the default level and gate: the opening view would be empty')
     return [('radar-meta', meta, *built['radar-meta'][1:]), ('radar-days', days, len(days['dates']), built['radar-days'][2]),
             (board, shown, len(shown['rows']['filter']), built[board][2])]
-
-
-# the Watchlist's example list (the user, 2026-11-21: "Untuk watchlist oke, dengan rekomendasi kamu": one list of the
-# LQ45 members with the default indicators), its members on as_of as recorded then (pit_valid_*, the table's own rule)
-WATCHLIST_LIST = ('INDEX', 'LQ45')
-# every recorded membership row of the list: the members on as_of are the rows that cover it (pit_valid_from <= as_of <
-# pit_valid_to, the table's dated join). The history starts at the list's first capture (2026-11-09, migration
-# 20261109_001: "Holds nothing before the first capture"), so no row covers an earlier date and the capture stops: the
-# list's members on such a date are not known from the table. The example-mode checker (ERRORS M527): the earlier
-# fallback took the members first recorded (10 November) as those of 30 October because none changed after it, but
-# the exchange's review effective 2 November (announced 26 October) fell between the two dates.
-MEMBERS_SQL = ('SELECT h."Ticker", h.pit_valid_from::text, h.pit_valid_to::text FROM public."Stock_List_Member_History" '
-               'AS h JOIN public."Stock_List" AS l USING (list_key) WHERE l.list_kind = %s AND l.code = %s ORDER BY 2, 1')
-
-
-def members_on(rows, as_of, code):
-    """(members, basis) of the list on as_of from its MEMBERS_SQL rows (comment above), or ExampleError."""
-    covering = sorted(t for t, a, b in rows if a <= as_of and (b is None or b > as_of))
-    if covering:
-        return covering, f'recorded for {as_of}'
-    if not rows:
-        raise ExampleError(f'no {code} member is recorded (Stock_List_Member_History)')
-    first = min(a for _, a, _ in rows)
-    raise ExampleError(f'no recorded {code} member covers {as_of} (its history starts on {first}): its members on that '
-                       'date are not known from Stock_List_Member_History')
-# the list the page reads (watchlist/src/types.ts ListsAnswer): one list, its stocks in order, the default indicators
-EXAMPLE_LIST_ID = 'example-lq45'
-
-
-def watchlist_files(conn, names, lists, as_of, stream=None):
-    """The Watchlist's opening view on as_of -> [(name, doc, rows, day)]: watchlist-stocks of the example list and
-    watchlist-lists (module docstring)."""
-    run = lambda sql, params: conn.execute(sql, params).fetchall()
-    docs = watchlist.build(run, as_of=as_of)
-    if docs is None:
-        raise ExampleError(f'the Watchlist has no complete price date up to {as_of}')
-    s = docs['watchlist-stocks']
-    if s['prices_through'] != as_of or s['broker_through'] != as_of:
-        raise ExampleError(f"the Watchlist's price date up to {as_of} is {s['prices_through']} and its broker date "
-                           f"{s['broker_through']}: {as_of} is not complete")
-    kind, code = WATCHLIST_LIST
-    members, basis = members_on([tuple(r) for r in run(MEMBERS_SQL, (kind, code))], as_of, code)
-    NOTES.append(f'{code} members: {len(members)}, {basis}')
-    at = {t: i for i, t in enumerate(s['ticker'])}
-    outside = [t for t in members if t not in at]
-    if outside:
-        raise ExampleError(f'{code} members on {as_of} outside the universe of the file: {outside[:5]}')
-    keep = [at[t] for t in members]
-    pick = lambda a: [a[i] for i in keep]
-    doc = {**s, 'ticker': members, 'name': pick(s['name']), 'sector': pick(s['sector']), 'last': pick(s['last']),
-           'r1d': pick(s['r1d']), 'r1m': pick(s['r1m']), 'trend': pick(s['trend']),
-           'values': {k: (pick(v) if k in s['default'] else [None] * len(keep)) for k, v in s['values'].items()},
-           'events': {}, 'events_loaded': None}
-    answer = {'lists': [{'id': EXAMPLE_LIST_ID, 'name': code, 'position': 0, 'indicators': None,
-                         'tickers': [{'ticker': t, 'position': i} for i, t in enumerate(members)]}], 'limits': []}
-    return [('watchlist-stocks', doc, len(members), as_of), ('watchlist-lists', answer, 1, as_of)]
 
 
 # ---- the Backtest ---------------------------------------------------------------------------------------------------
@@ -456,7 +396,7 @@ def screener_files(conn, names, lists, as_of, stream=None, example=None, release
             ('screener-run', run, len(run['rows']), as_of)]
 
 
-BUILDERS = {'radar': radar_files, 'watchlist': watchlist_files, 'backtest': backtest_files, 'screener': screener_files}
+BUILDERS = {'radar': radar_files, 'backtest': backtest_files, 'screener': screener_files}
 NOTES: list[str] = []                       # what a builder took as given, for the capture job's log (no data value)
 
 

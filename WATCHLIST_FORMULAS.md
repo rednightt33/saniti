@@ -36,17 +36,24 @@ File dibangun ulang hanya bila isinya berubah (stempelnya adalah isi file itu se
   angka asing di halaman diberi tanggal ini.
 
 **Mode contoh (EXEC-MU-ACCOUNTS 3e, keputusan user 2026-11-21; ERRORS M527).** Pengunjung yang belum login dan paket
-gratis melihat Watchlist sebagai contoh satu hari: data **30 Oktober 2026**. File contoh dibuat sekali oleh job pengambil
-contoh dengan fungsi yang sama (`build` dengan `as_of`): tanggal harga adalah tanggal lengkap terbaru **sampai** 30
-Oktober, tanggal broker dan tanggal Radar juga dibatasi sampai hari itu; tanpa `as_of` file harian tetap seperti biasa.
-Isinya satu list dengan empat indikator bawaan (nilai indikator lain kosong karena menambah indikator adalah klik).
-Rencananya list itu anggota LQ45 pada 30 Oktober menurut riwayat keanggotaan (`Stock_List_Member_History`, aturan
-*point in time* tabel itu), tetapi isinya kini menunggu keputusan user (di bawah). Riwayat itu baru mulai dari rekaman pertama 9 November 2026 (berlaku 10 November), jadi untuk 30 Oktober tidak ada
-baris yang menutupinya: pembuat contoh berhenti, tidak menebak (pemeriksa mode contoh, ERRORS M527). Tebakan lama
-(daftar 10 November dianggap daftar 30 Oktober karena tidak berubah sesudahnya) keliru: evaluasi LQ45 yang diumumkan BEI
-26 Oktober berlaku 2 November (ELSA dan SMGR masuk, CUAN dan SCMA keluar), di antara kedua tanggal itu. Isi list contoh
-untuk 30 Oktober menunggu keputusan user. Aksi korporasi mendatang tidak ikut, karena tanggalnya sesudah 30 Oktober (hari itu belum tentu diketahui), dan
-badge Radar tidak ada karena butuh hak Radar.
+gratis melihat Watchlist sebagai contoh dengan **data terbaru**, sama seperti Overview (user: "Untuk table watchlist
+nggak apa-apa pakai data latest saja", lalu "Benar opsi B"). Tidak ada file contoh yang disimpan: setiap kali file
+harian Watchlist terbit, edge-bff memotongnya sendiri (`apps/edge-bff/app/examples.py`, `watchlist_view`):
+- **Daftarnya:** satu list "LQ45" berisi anggota LQ45 **hari ini**, sebagaimana diterbitkan Overview (`overview-meta`,
+  dari tabel `Stock_List_Member`). Kalau daftar LQ45 diperbarui di database (putaran update Stockbit), contoh ikut
+  berubah sendiri. Per 21 November 2026 isinya 45 saham, tercatat sejak 10 November.
+- **Kolomnya:** sama dengan halaman asli saat dibuka, yaitu harga, 1D, 1M, garis 30 sesi, dan empat indikator bawaan
+  (RSI, Volume, From 60D high, Foreign 5D). Nilai indikator lain kosong, karena menambah indikator adalah klik.
+- **Tanggalnya:** tanggal harga ikut file harian (per 21 November: Jumat 20 November). Foreign 5D memakai tanggal data
+  broker sendiri (per 21 November: Senin 9 November), jadi halaman menampilkan dua label tanggal, sama seperti untuk
+  pengguna berbayar.
+- **Yang tidak ikut:** aksi korporasi mendatang (paket gratis Terminal juga tidak memuat data event) dan badge Radar
+  (butuh hak Radar).
+- **Kalau datanya tidak cocok:** kalau daftar LQ45 tidak ada di Overview, muncul dua kali, kosong, atau berisi saham yang
+  tidak ada di file Watchlist, contoh menolak tampil (`EXAMPLE_UNAVAILABLE`) dan tidak pernah menampilkan daftar lain.
+  Ini pelajaran dari rencana lama: daftar LQ45 per 30 Oktober tidak bisa diketahui dari riwayat keanggotaan, karena
+  riwayat itu baru mulai 10 November, padahal evaluasi BEI berlaku 2 November (ELSA dan SMGR masuk, CUAN dan SCMA
+  keluar). Fungsi `build` dengan `as_of` masih ada di publisher dan teruji, tetapi kini tidak dipakai contoh mana pun.
 
 ## 3. Harga, 1D, 1M dan Trend
 
