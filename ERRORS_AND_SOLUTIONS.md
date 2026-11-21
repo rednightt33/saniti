@@ -9907,6 +9907,17 @@ in its staleness check.
   and `--rerun-show-tracebacks` (pytest-rerunfailures 16.7: `-rR` alone names a rerun test, the option prints its first
   failure's traceback; the re-check found `-rR` alone claimed for both), so a test that passed only on its rerun is named
   with where it failed. The same class as below.
+- **Seen in CI on the Terminal's lock box (2026-11-21, the Watchlist's latest example, `a30815c1`):** Backend tests run
+  44944939670: `test_live_terminal_locked.py::test_a_visitor_sees_no_closed_data_as_empty_and_reads_the_history_window`
+  failed on all three attempts at the same line: after the Flow Timeline's lock opened the shell's box, Escape did not
+  close it (10 s, the box still visible). Nothing of that path changed in the commit (the Terminal page, the shell's
+  `DialogShell`, the bundle route); the run before (`0495dd10`, run 44939850634) and the run after (`4b35b5ed`, run
+  44948618397, the same edge-bff code) passed it with no rerun (1,098 passed), and here 9 of 9 alone, 3 of 3 pinned to
+  one CPU, 1 in the CI order of the files around it, and again on a fresh Terminal build. **Suspected, not verified:**
+  the box takes the focus in a `requestAnimationFrame` after it opens (`static/edge-app.js` DialogShell); when the
+  runner is slow the key lands in the Terminal's frame, which has the focus from the click and does not pass Escape on.
+  The check that would confirm it: the test reads `document.activeElement` of the shell before Escape on a run where it
+  fails. Not a defect of the change; the release waits for a green run on the exact commit, which `4b35b5ed` is.
 
 - **Found by:** the first CI runs of edge-bff's browser tests after M509: run 44663513713 (commit `b969529b`, Playwright
   1.65.2, Chrome 159): 947 passed, 2 failed; run 44667192992 (commit `58b75888`, Playwright 1.63.0, Chrome for Testing
