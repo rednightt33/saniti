@@ -1,8 +1,9 @@
 /* EXEC-RADAR R7: the production entry. The page follows EDGE's one theme (the shell's key, as the Screener) and reads
    its data from edge-bff only (src/api.ts). */
 import './styles/radar.css';
-import { live } from './api.ts';
+import { example, live } from './api.ts';
 import { start } from './app.ts';
+import { exampleMode, viewOnly } from '../../shared/example-view.ts';
 
 const THEME_KEY = 'edge-auth-monitor-theme';
 function applyTheme() {
@@ -12,6 +13,10 @@ function applyTheme() {
   document.documentElement.classList.toggle('dark', dark);
 }
 applyTheme();
-const page = start(live, document.getElementById('view') as HTMLElement);
+// 3e, the example mode (user 2026-11-21; ERRORS M527): the shell opens the page with ?example=1 for a principal holding
+// radar.example; the page then reads the example's files and stays a view of that day (shared/example-view.ts)
+const asExample = exampleMode();
+if (asExample) viewOnly({ source: 'radar', name: 'Radar' });
+const page = start(asExample ? example : live, document.getElementById('view') as HTMLElement, { example: asExample });
 addEventListener('storage', e => { if (e.key === THEME_KEY || e.key === null) { applyTheme(); page.rerender() } });
 void page.boot();

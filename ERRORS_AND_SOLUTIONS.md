@@ -8908,6 +8908,17 @@ in its staleness check.
     memory and its refresh, the table's checks and grants; each red on its mutation (no capability, the view
     capability, every tab's rows, a read per request, no sha check).
   - The guest plan's five example flags (20261121_002), applied when the live site runs the code that reads them.
+  - Applied on dev: `20261121_001` (DRYRUN `812af122`, APPLY `a6bfe834`); the Radar's example of 30 October 2026
+    written by job `973bc10a` (3 files, READBACK OK).
+  - Shell and page: `static/edge-app.js` ExampleTabPage asks the tab's example index; a 200 opens the page's frame with
+    `?example=1` under a note naming the date and the way on, anything else the locked page. The lock box is accepted
+    from the frame of the tab shown (its `/<tab>-app/` address names the sender). The Radar reads its example's routes
+    in that mode, always shows the board, and `shared/example-view.ts` keeps it still: a click or a key on a control
+    asks for the box, hover is stopped, no title shows, scrolling stays. `tests/test_3e_example_browser.py`: the
+    visitor's example (only the example's files read, no title, the list scrolls, a click and Enter ask to sign in),
+    the free plan's paywall, the paid plan's live Radar, and the locked page without the flag or without files; red
+    with the layer removed, the live data path, the box from the Terminal only, and the locked page for a visitor or an
+    account.
 - **Lesson for new data:** an example of a page is the files of its opening view, built by the publisher's own builder
   cut at one date and checked for later dates before it is stored; the server is the guarantee (it serves only those
   files, only to `<tab>.example`), the page only displays.

@@ -215,9 +215,10 @@ def test_the_image_builds_the_watchlist_page_on_its_own():
         found = re.findall(r"""^\s*import\s+['"]([^'"]+)['"]|^\s*(?:import|export)\b[^'"\n]*\sfrom\s+['"]([^'"]+)['"]""",
                            f.read_text(), re.M)
         for spec in [a or b for a, b in found]:
-            # EXEC-MU-ACCOUNTS Phase 0: besides its folder, only the shared session module (shared/, copied in the stage)
+            # EXEC-MU-ACCOUNTS Phase 0: besides its folder, only the shared modules (shared/, copied whole in the stage;
+            # 3e: the example mode's view-only layer, shared/example-view.ts)
             target = (f.parent / spec).resolve()
-            assert spec.startswith('./') or spec.startswith('../') and (target.is_relative_to(src) or target == src.parents[1] / 'shared' / 'edge-session.ts'), (f, spec)
+            assert spec.startswith('./') or spec.startswith('../') and (target.is_relative_to(src) or target.is_relative_to(src.parents[1] / 'shared')), (f, spec)
     pkg = json.loads((ROOT / 'watchlist' / 'package.json').read_text())
     assert 'dependencies' not in pkg and set(pkg['devDependencies']) == {'typescript', 'vite', 'vitest'}
 

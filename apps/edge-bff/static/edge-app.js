@@ -355,6 +355,8 @@ const TAB_PATHS = {"/terminal":"terminal", "/backtest":"backtest", "/screener":"
     "/overview":"overview", "/watchlist":"watchlist", "/monitor":"monitor"};
 const tabName = tab => (nav.find(([, r]) => r === tab) || [tab])[0];
 const homeRoute = () => Edge.offers("monitor") ? "monitor" : "terminal";
+// the tab of a page frame, from its /<tab>-app/ address (3e, the example mode: the lock box's sender)
+const frameTab = frame => { try { return (new URL(frame.getAttribute("src") || "", location.href).pathname.match(/^\/([a-z]+)-app\//) || [])[1] || ""; } catch { return ""; } };
 // ERRORS M425 (EXEC-RADAR R7): a sub-app page in one of this shell's frames (Screener, Radar) asks for another page with
 // {type:"edge-nav", route}; only this origin, only from a frame of this document, only to a page of the rail. One
 // listener for the page's life; shellGo is the current page switch (set by the app on every render).
@@ -372,8 +374,10 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false, gu
     // visitor without an account (guest), upgrade for an account (LockedDialog)
     const locked = initialValue(viewRecord, "locked", () => null), setLocked = next => updateValue(viewRecord, "locked", next);
     onLifecycle(viewRecord, "locked-box", () => {
+        // 3e, the example mode (ERRORS M527): from the frame of whichever page is shown, its message naming that page's
+        // own tab (the frame's /<tab>-app/ path), so a page in example mode asks for the same box
         const onMsg = e => { const frame = document.querySelector(".terminal-page iframe.terminal-frame");
-            if (e.origin !== location.origin || !frame || e.source !== frame.contentWindow || e.data?.source !== "terminal" || e.data.type !== "locked") return;
+            if (e.origin !== location.origin || !frame || e.source !== frame.contentWindow || e.data?.type !== "locked" || !e.data.source || e.data.source !== frameTab(frame)) return;
             const name = typeof e.data.name === "string" ? e.data.name.slice(0, 120) : "", id = typeof e.data.id === "string" ? e.data.id.slice(0, 64) : "";
             setLocked({kind: String(e.data.kind || ""), id, name: name || id}); };
         addEventListener("message", onMsg);
@@ -578,21 +582,69 @@ function LockedDialog({ item, guest, go, close }) {
     const name = (item.kind === "feature" && L.features[item.id]) || item.name || item.id;
     const title = (guest ? L.guestTitle : L.upgradeTitle).replace("{name}", name);
     const open = config?.registration === true;
+    // 3e, the example mode: a click on an example page names the page, not the Terminal
+    const example = item.kind === "example", X = EdgeLabels.example;
     // the dialog's first focus is its main button (DialogShell focuses [data-dialog-initial-focus])
     const primary = (text, onClick) => element("button", { type: "button", className: "btn primary", "data-dialog-initial-focus": true, onClick },
         " ", element("span", { className: "btn-label" }, text));
-    if (guest) return element(DialogShell, { title, description: open ? L.guestLead : L.guestLeadClosed, close, className: "locked-dialog" },
+    const guestLead = example ? (open ? X.dialogGuestLead : X.dialogGuestLeadClosed).replace(/\{name\}/g, name) : open ? L.guestLead : L.guestLeadClosed;
+    if (guest) return element(DialogShell, { title, description: guestLead, close, className: "locked-dialog" },
         element("div", { className: "locked-actions" },
             open && element(Button, { onClick: () => { close(); go("/register"); } }, L.register),
             primary(L.signIn, () => { close(); go("/login"); })));
     const contact = config?.upgradeContact || null;
-    return element(DialogShell, { title, description: L.upgradeLead, close, className: "locked-dialog" },
+    return element(DialogShell, { title, description: example ? X.dialogUpgradeLead.replace(/\{name\}/g, name) : L.upgradeLead, close, className: "locked-dialog" },
         element("div", { className: "locked-body" },
             element("span", { className: "pill locked-soon" }, A.comingSoon),
             contact ? element("p", { className: "locked-contact" }, L.contact, " ", element("strong", null, contact))
                 : element("p", { className: "locked-contact" }, L.contactSoon)),
         element("div", { className: "locked-actions" },
             primary(L.close, close)));
+}
+// EXEC-MU-ACCOUNTS 3e, the example mode as the user set it on 2026-11-21 (EXEC.md option A; ERRORS M527): a tab the
+// principal cannot open shows its example when the server serves one to this principal (GET
+// /api/v1/examples/<tab>/index answers 200: it holds <tab>.example and the example has files, app/examples.py); any
+// other answer, or none, shows LockedTabPage as before. The page runs in its frame with ?example=1 and stays a view of
+// one day (shared/example-view.ts): a click there asks for the lock box (kind "example"). One answer per tab and identity.
+const exampleIndexes = new Map();
+const exampleIndex = (tab, who) => {
+    const key = `${who}\t${tab}`;
+    if (!exampleIndexes.has(key)) exampleIndexes.set(key, fetch(`/api/v1/examples/${encodeURIComponent(tab)}/index`, {credentials:"same-origin", headers:{accept:"application/json"}})
+        .then(r => r.json().catch(() => null).then(d => r.ok && d && typeof d.files === "object" && d.files && Object.keys(d.files).length ? d : null))
+        .catch(() => null)
+        .then(d => { if (!d) exampleIndexes.delete(key); return d; }));
+    return exampleIndexes.get(key);
+};
+// an ISO date as the design system writes a data date: "Fri 30 Oct 2026"
+const exampleDate = iso => { const d = typeof iso === "string" && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00Z`) : null;
+    return d && !isNaN(d) ? d.toLocaleDateString("en-GB", {weekday:"short", day:"numeric", month:"short", year:"numeric", timeZone:"UTC"}).replace(/,/g, "") : ""; };
+function ExampleTabPage({ go, route, guest = false }) {
+    const v = currentView, X = EdgeLabels.example, L = EdgeLabels.locked, name = tabName(route);
+    const who = guest ? "guest:" : `user:${Edge.auth?.login || ""}`;
+    const found = initialValue(v, "found", () => ({}));
+    const config = initialValue(v, "config", () => null);
+    onLifecycle(v, "config", () => { let live = true; Edge.config().then(c => { if (live) updateValue(v, "config", c); }); return () => { live = false; }; }, []);
+    onLifecycle(v, "example", () => { let live = true;
+        exampleIndex(route, who).then(d => { if (live) updateValue(v, "found", was => ({...was, [`${who}\t${route}`]: d || false})); });
+        return () => { live = false; }; }, [route, who]);
+    const index = found[`${who}\t${route}`];
+    if (index === undefined) return element(Shell, { route, go, guest },
+        element("main", { className: "locked-tab", "data-example-tab": route, "aria-busy": "true" },
+            element("span", { className: "ml-loading", role: "status" }, X.loading.replace("{name}", name))));
+    if (!index) return element(LockedTabPage, { go, route, guest });
+    const open = config?.registration === true, contact = config?.upgradeContact || null;
+    const date = exampleDate(index.as_of);
+    return element(Shell, { route, go, chart: true, guest },
+        element("main", { className: "terminal-page example-page", "data-example-tab": route },
+            element("div", { className: "example-bar", role: "note" },
+                element("span", { className: "pill example-pill" }, X.badge),
+                element("span", { className: "example-text" }, (date ? X.banner : X.bannerNoDate).replace("{name}", name).replace("{date}", date), " ",
+                    guest ? (open ? X.guest : X.guestClosed).replace("{name}", name)
+                          : [X.account.replace("{name}", name), contact ? [" ", L.contact, " ", element("strong", null, contact)] : null]),
+                guest && element("span", { className: "example-actions" },
+                    open && element(Button, { onClick: () => go("/register") }, L.register),
+                    element(Button, { kind: "primary", onClick: () => go("/login") }, L.signIn))),
+            element("iframe", { className: "terminal-frame", src: `/${route}-app/?example=1`, title: X.frameTitle.replace("{name}", name) })));
 }
 // 3e (CONTRACT 8b, "the rail and the frames"; decision 1 of 2026-11-19): a tab the principal cannot open keeps its place
 // in the rail and opens this page instead of its app (whose data routes would refuse): a visitor is asked to sign in (or
@@ -2817,15 +2869,16 @@ function App() {
     // track guest: a visitor without an account on the Terminal page, where the site has guests; 3e: every other tab of
     // the rail shows the sign-in page in its place (LockedTabPage), the rail kept; an account page asks to sign in
     if (!authenticated && guests && TAB_PATHS[path] && Edge.offers(TAB_PATHS[path]))
-        return path === "/terminal" ? element(TerminalPage,{go,guest:true}) : element(LockedTabPage,{go,route:TAB_PATHS[path],guest:true});
+        return path === "/terminal" ? element(TerminalPage,{go,guest:true}) : element(ExampleTabPage,{go,route:TAB_PATHS[path],guest:true});
     const mode = authMode();
     if (!authenticated || mode !== null) return element(AuthPage,{mode:mode || "login",go,key:mode || "login"});
     // signed in on an account page (a reload at /login): the account's landing page (re-check R2-14)
     const shown = routeOf(path)?.auth === false ? landing() : path;
     // 3e: a tab the account cannot open (<tab>.view; '*' opens every tab) shows LockedTabPage in its place
     const tab = TAB_PATHS[shown];
+    // 3e, the example mode (ERRORS M527): its example where the server serves one (ExampleTabPage), else LockedTabPage
     if (tab && Edge.offers(tab) && Array.isArray(Edge.auth?.access?.capabilities) && !Edge.can(`${tab}.view`))
-        return element(LockedTabPage,{go,route:tab});
+        return element(ExampleTabPage,{go,route:tab});
     return shown === "/terminal" ? element(TerminalPage,{go}) : shown === "/backtest" ? element(BacktestPage,{go}) : shown === "/screener" ? element(ScreenerPage,{go}) : shown === "/radar" ? element(RadarPage,{go}) : shown === "/overview" ? element(OverviewPage,{go}) : shown === "/watchlist" ? element(WatchlistPage,{go}) : Edge.offers("monitor") ? element(Monitor,{go}) : element(TerminalPage,{go});
 }
 

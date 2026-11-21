@@ -1,5 +1,30 @@
 # Database changelog
 
+## 2026-11-21 — 3e, the example mode: the example files' table, and the Radar's example of 30 October 2026 (edge_bff, migration 20261121_001; data)
+
+- **Why:** the user's go of 2026-11-21 for the example mode (EXEC.md option A: "No 6 langsung jalankan saja nanti
+  setelah pengecekan nomor 5"; the example mode as the user set it the same day; ERRORS M527).
+- **Migration:** `20261121_001_edge_bff_example_files.sql`, sha256 `b31566e0…a3fbdce8f1`: the table
+  `edge_bff.example_files` (tab, name, as_of, rows, bytes, sha256, body, made_at; primary key (tab, name)); its CHECKs
+  hold the name to the tab's family and the body to its length and SHA-256; `edge_bff_runtime` may only read it.
+  Expand-only: a new table nothing read when it was made. `20261121_002` (the guest plan's example flags) is not applied:
+  it waits for the live site to run the code that reads it (LIVE_PROMOTION.md, the example mode's row).
+- **Jobs (orc-test-runner, `scripts/onboarding/run_job.sh`, `DATABASE_URL` set and removed for each run, `VAR_REMOVED`):**
+  - M340 by `scripts/restart_postgres.py` before each: 0 EDGE jobs, 0 orc turns, 0 statements.
+  - DRYRUN `812af122` (`scripts/onboarding/migration_job.py`): the body OK in one rolled-back transaction; probes:
+    `edge_bff_runtime` reads 0 rows and its INSERT is refused (permission denied).
+  - APPLY `a6bfe834`: committed, its verify block passed. Read back: the 15 constraints (`example_files_body`,
+    `_bytes`, `_name`, `_rows`, `_sha256`, `_tab`, the NOT NULLs and the key); grants `edge_bff_runtime` SELECT only.
+  - The Radar's example (`verification/edge_multiuser/example_mode/capture_job.py`, the publisher's `radar.build` with
+    `as_of` 2026-10-30, `apps/terminal-publisher/examples.py`): dry run `c4e5ca29` DRY_RUN_OK; the write `973bc10a` wrote 3 rows,
+    the same bytes as the dry run, and read them back (READBACK OK, VERDICT WRITTEN): `radar-meta` 99 rows 22,922
+    bytes `9da1c2ac0b94d280…`; `radar-days` 244 result dates 14,524 bytes `352e4ac3b8aec47c…`; `radar-board-2026-10-30`
+    2,300 rows 68,029 bytes `471b1b0ee4b66c2b…`. No file names a date after 30 October 2026 (the capture refuses one).
+    The stock lists in `radar-meta` are their current members, as the publication carries them.
+- **Source:** the Feature 07 tables (`Feature_07_Radar_Gate`, `_Result`, `_Measure`, `_Filter`, `_Rule`, the current
+  rule version), the final daily prices and `IDX_Stock_Universe`, read in one READ ONLY transaction.
+- **Not a large update:** three rows of about 105 KB; the reads are the daily publication's own. No Postgres restart.
+
 ## 2026-11-20 — The A2 fix: a reset code bound to its browser, a registration's client (edge_bff, migrations 20261120_001 and _002)
 
 - **Why:** the user's go of 2026-11-20 ("perbaikan A2", then "Go"), item 2 of the next execution (EXEC.md option

@@ -672,7 +672,12 @@ catalog-only change reaches the browser through `X-Edge-Entitlements`.
 - D3 = B: the free plan holds BBCA daily price only: no IHSG, no reference lists, no intraday. **Changed on
   2026-11-19** (decision 1 below): the free plan and the guest see and search the whole ticker list; data stays BBCA's.
 - D4 = B: the examples are a cut of real data from one past date, served only to a signed-in principal holding
-  `<tab>.example`, never in a public bundle (M469).
+  `<tab>.example`, never in a public bundle (M469). **Replaced on 2026-11-21** (the example mode as the user set it,
+  EXEC.md option A; ERRORS M527): "kayak semacam static HTML di hari tersebut saja". The guest plan (a visitor who is
+  not signed in) holds the examples too (migration 20261121_002); the Radar, Watchlist, Screener and Backtest show the
+  data of 30 October 2026, the Market Overview its latest market date with every time control locked; a click opens
+  the sign-in box (a visitor) or the paywall (an account). Still never in a public bundle: the files come only from the
+  example routes (8b "3e").
 - D5 = B: a lowered plan loses read access to old content until it is raised again (data kept). Reads need
   `<tab>.view` or the item's own capability, writes need the run or save capability.
 - D6 = A: the paid limits are today's constants; the Terminal quota per owner is 60 tickers per hour, 200 per day, 300
@@ -1101,8 +1106,9 @@ today.
 **3e. Front-end.**
 - **Built 2026-11-20 on the branch (EXEC option A, item 3; the user's go of 2026-11-20), then checked by ultracode and
   fixed (ERRORS M518).**
-  - **Not built:** the example mode (D4: the user chooses its date and content), and with it the Monitor's example
-    conversation.
+  - **The example mode** (built from 2026-11-21 on the branch, the user's go; ERRORS M527; the Radar first, the
+    Overview, Watchlist, Screener and Backtest to follow): see "The rail and the frames" below. The Monitor's example
+    is not built: the live site offers no Monitor and the beta is the admin's alone, so nobody could see it.
   - **The Broker panel:** removed rather than prompted in place. The Flow Timeline's head and the drawer button carry
     its lock.
   - **Compare:** on the live Terminal compare is the added assets. They rest on the ticker lock and on
@@ -1130,12 +1136,25 @@ today.
   - Tests: `tests/test_3e_locked_tabs_browser.py`, `tests/test_live_terminal_locked.py` (rewritten).
 - **The rail and the frames:**
   - every tab is always shown;
-  - a tab without `<tab>.view` loads its app in example mode: an injected `exampleApi` reading the example files from
-    `GET /api/v1/examples/<tab>/...`: a cut of real data from one past date, served only to a signed-in principal
-    holding `<tab>.example`, never in a public bundle (decision D4; the "synthetic files" of the first draft and
-    section 15's "served without a grant" are replaced by D4);
-  - every action rejects `CAPABILITY_REQUIRED`; one capture-phase click handler shows the upgrade prompt and lets
-    scrolling through.
+  - a tab without `<tab>.view` shows its example when the server serves one to the principal
+    (`static/edge-app.js` ExampleTabPage asks `GET /api/v1/examples/<tab>/index`; a 200 opens the tab's app in its frame
+    with `?example=1`, any other answer shows `LockedTabPage` as before, so a tab without files and the free plan's
+    `monitor.example` fall to the locked page by themselves);
+  - the example's files (`app/examples.py`): `GET /api/v1/examples/<tab>/index` and `/file/<name>?sha=`, in the shapes
+    the page reads from its live route, for a principal holding `<tab>.example`, visitors included
+    (`auth.need(..., guests=True)`, before the kept files; `tests/test_route_table.py` GUEST_OPEN names the routes).
+    They are the rows of `edge_bff.example_files` (migration 20261121_001: bytes, length and SHA-256 held together by
+    CHECKs, read-only for `edge_bff_runtime`), written once by the capture job
+    (`verification/edge_multiuser/example_mode/capture_job.py`; `apps/terminal-publisher/examples.py`: the files of the
+    page's opening view, built by the publisher's own builders cut at the example's date, a file naming any later date
+    refused). The process keeps them in memory and reads the table at most every 300 s, so no request reads the
+    database or terminal-api and the visitors' Terminal ceiling (`EDGE_GUEST_CALLS_PER_HOUR`) does not apply;
+  - the page in example mode reads only those routes (its `example` data path) and stays a view of one day
+    (`shared/example-view.ts`): a click, a press, a drag, a form input and a key acting on a control are stopped before
+    the page's handlers and ask the shell for its box (`{source: <tab>, type: 'locked', kind: 'example'}`, accepted
+    from the frame of the tab shown); hover is stopped, no title shows, and scrolling stays the browser's. The shell's
+    note above the frame names the example's date and the way on. The server is the guarantee; the layer only keeps the
+    page still.
 - **Terminal:**
   - picks an allowed ticker (`limit('terminal.tickers')`); a stored refused ticker never locks the page (the free
     plan opens on BBCA with nothing remembered: built with 3c, `fix-terminal` R2-32);
@@ -1234,10 +1253,10 @@ today.
   any plan (the migration's `$verify$` runs `data_scope_conflicts('guest', NULL)`). Seed: `terminal.view`,
   `terminal.tickers` `["BBCA"]`, `terminal.dataset` `{"ids": ["price"]}`, `terminal.history_days` 730,
   `terminal.indicator` `{"ids": []}`; no quota row.
-- **Other tabs:** `<tab>.example` only.
-  - The page shows its example: a cut of real data from one past date, served only to a signed-in principal holding
-    `<tab>.example`, never in a public bundle (decision D4, which replaces the "static example ... no live data" of the
-    first draft), with every action refused `CAPABILITY_REQUIRED` and the upgrade prompt.
+- **Other tabs:** `<tab>.example` only, for the free plan and (since 2026-11-21, migration 20261121_002) the guest.
+  - The page shows its example (8b "3e", the rail and the frames): the Radar, Watchlist, Screener and Backtest with the
+    data of 30 October 2026, the Market Overview on its latest market date; a click opens the sign-in box (the guest) or
+    the paywall (the free plan). Never in a public bundle: the files come only from the example routes.
 - **Upgrade at launch:** "segera hadir" (the user's words; the page says "Coming soon", EXEC-UI-1019B,
   `edge-labels.js`) plus contact; the admin activates `paid` manually (subscription `provider='manual'`, audited).
 
@@ -1470,9 +1489,8 @@ hand.
     deploy by hand.
 - **`EDGE_ADMIN_OWNERS`** is not declared in `.railway/railway.ts` (default: the one owner). The role-admin seed replaces
   it at cutover.
-- **Examples:** none exist yet for Overview, Radar, Watchlist, Screener, Backtest or Monitor. Replaced by decision D4
-  (8b): the examples are a cut of real data from one past date, served only to a signed-in principal holding
-  `<tab>.example`, never in a public bundle (**to build, 3e**).
+- **Examples:** built from 2026-11-21 (8b "3e"; ERRORS M527): the Radar's first, then the Overview, Watchlist, Screener
+  and Backtest; no Monitor example. Served only by the example routes to `<tab>.example`, never in a public bundle.
 
 ## 16. Railway (names only; values never in Git)
 

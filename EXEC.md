@@ -16315,6 +16315,15 @@ Order of the services (CONTRACT 17, rollback floors):
           over one year to 30 October 2026.
         - The Monitor's example is not built: the live site offers no Monitor and the beta is the admin's only, so
           nobody could see it (told to the user).
+      - **Run log of the example mode (2026-11-21, on the session branch; ERRORS M527):**
+        - The Radar, end to end: `radar.build(..., as_of)` (`32fb9a37`); the table, the capture job and the example
+          routes (`183a07eb`); `20261121_001` applied on dev (DRYRUN `812af122`, APPLY `a6bfe834`); the Radar's example
+          of 30 October 2026 written (3 files, READBACK OK; DATABASE_CHANGELOG.md); the shell's example page, the lock
+          box from any page frame, the Radar's example data path and the view-only layer (`shared/example-view.ts`),
+          browser tests red on each mutation. `20261121_002` (the guest's flags) waits for the promotion
+          (LIVE_PROMOTION.md, its row).
+        - Next: the Overview (its latest date, the time controls locked, the files trimmed by the server), the
+          Watchlist, the Screener and the Backtest at 30 October; then the checker and the promotion.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

@@ -199,6 +199,18 @@ window.EdgeLabels = {
     contactRenew:"Contact us to renew:",
     openTerminal:"Open the Terminal"
   },
+  // EXEC-MU-ACCOUNTS 3e, the example mode as the user set it on 2026-11-21 (ERRORS M527; static/edge-app.js
+  // ExampleTabPage): a tab the principal cannot open shows its example, a view of one day ({name}: the tab, {date}: the
+  // day of its data); a click on it opens the lock box with these leads (sign in for a visitor, the paywall for an account)
+  example: {
+    badge:"Example", loading:"Opening the {name} example…", frameTitle:"{name} example",
+    banner:"{name} with the data of {date}, as a view of that day.", bannerNoDate:"{name}, as a view of one day.",
+    guest:"Sign in to use {name} itself.", guestClosed:"Sign in to use {name} itself; registration opens soon.",
+    account:"Your plan does not include {name} itself yet; upgrading is coming soon.",
+    dialogGuestLead:"This is an example of {name}: a view of one day. Sign in to use {name} itself, or create an account.",
+    dialogGuestLeadClosed:"This is an example of {name}: a view of one day. Sign in to use {name} itself; registration opens soon.",
+    dialogUpgradeLead:"This is an example of {name}: a view of one day. Your EDGE plan does not include {name} itself yet. Upgrading is coming soon."
+  },
   // EXEC-MU-ACCOUNTS Phase 1 (contract section 4; user: English labels): the account pages. A refusal shows the
   // server's own message (error.message); `errors` is the fallback by code when the server sends none.
   auth: {

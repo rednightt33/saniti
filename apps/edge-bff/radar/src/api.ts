@@ -27,10 +27,14 @@ async function getJson<T>(url: string): Promise<T> {
   return body as T;
 }
 
-export const live: RadarApi = {
-  index: () => getJson<RadarIndex>('/api/v1/radar/index'),
-  file: <T>(name: string, sha: string) => getJson<T>(`/api/v1/radar/file/${encodeURIComponent(name)}?sha=${sha}`),
-};
+const pageApi = (base: string): RadarApi => ({
+  index: () => getJson<RadarIndex>(`${base}/index`),
+  file: <T>(name: string, sha: string) => getJson<T>(`${base}/file/${encodeURIComponent(name)}?sha=${sha}`),
+});
+export const live = pageApi('/api/v1/radar');
+/* EXEC-MU-ACCOUNTS 3e, the example mode (user 2026-11-21; ERRORS M527): the files of the page's opening view on one past
+   date, for <tab>.example (edge-bff app/examples.py), in the same shapes as the live files */
+export const example = pageApi('/api/v1/examples/radar');
 
 /** One copy of each file per page: a file is fetched once per sha and kept in memory. */
 export function cached(api: RadarApi): RadarApi & { reset(): void } {

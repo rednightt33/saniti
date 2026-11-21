@@ -181,9 +181,10 @@ def test_the_image_builds_the_overview_page_on_its_own():
     page = Path(__file__).resolve().parents[1] / 'overview' / 'src'
     for f in page.rglob('*.ts'):
         for spec in re.findall(r"""(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]""", f.read_text()):
-            # EXEC-MU-ACCOUNTS Phase 0: besides its folder, only the shared session module (shared/, copied in the stage)
+            # EXEC-MU-ACCOUNTS Phase 0: besides its folder, only the shared modules (shared/, copied whole in the stage;
+            # 3e: the example mode's view-only layer, shared/example-view.ts)
             target = (f.parent / spec).resolve()
-            assert spec.startswith('./') or spec.startswith('../') and (target.is_relative_to(page) or target == page.parents[1] / 'shared' / 'edge-session.ts'), (f, spec)
+            assert spec.startswith('./') or spec.startswith('../') and (target.is_relative_to(page) or target.is_relative_to(page.parents[1] / 'shared')), (f, spec)
 
 
 def test_a_phone_reaches_every_page_through_the_pages_menu(settings, store, monkeypatch, tmp_path):

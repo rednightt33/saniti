@@ -62,7 +62,7 @@ interface State {
   detail: { sort: 'own' | 'new'; prev: '3M' | '6M' | '1Y'; q: string; day: number; col: string };
 }
 
-export function start(api: RadarApi, view: HTMLElement) {
+export function start(api: RadarApi, view: HTMLElement, opts: { example?: boolean } = {}) {
   const files = cached(api);
   let index: RadarIndex, meta: Meta, days: Days, board: Board, F: Facts, cols: Column[];
   const fileCache = new Map<string, FilterFile>();
@@ -379,7 +379,9 @@ export function start(api: RadarApi, view: HTMLElement) {
   function route() {
     closeMenus();
     const h = location.hash || '#/radar', [path, qs] = h.slice(1).split('?'), p = new URLSearchParams(qs || ''), seg2 = path.split('/').filter(Boolean);
-    if (seg2[0] === 'filter') renderDetail(seg2[1], p.get('s'));
+    // 3e, the example mode: the board of the example's date is the one view (a filter's page is a click)
+    if (opts.example) renderRadar();
+    else if (seg2[0] === 'filter') renderDetail(seg2[1], p.get('s'));
     else if (!seg2.length || seg2[0] === 'radar') renderRadar();
     else renderMissing('Page not found');
     view.scrollTop = 0;
