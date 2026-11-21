@@ -16367,6 +16367,11 @@ Order of the services (CONTRACT 17, rollback floors):
           `Stock_List_Member_History`, a shared-table write with the user's go), B rename the list "Contoh watchlist"
           (the same 45 stocks, no claim to be LQ45), C promote without the Watchlist's example for now. The promotion
           waits for the answer unless C.
+        - The re-check (ultracode `wf_ce647f0d-9a8`, three lenses at xhigh): 12 confirmed, 5 refuted (ERRORS M527, its
+          re-check block). Fixed: the Radar's files cut to the board's opening view (written on dev, job `bf69b070`), the
+          Overview's daily foreign flow left out and its lines cut to their panels' windows, the example routes behind
+          the Terminal guard, the Radar's column scrollbar kept, the tests that claimed more than they held, the rerun
+          tracebacks in CI, the runbook's hold on the Watchlist's rows.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

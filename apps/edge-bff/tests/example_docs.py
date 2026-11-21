@@ -22,18 +22,28 @@ TICKERS = [f'T{i:03d}' for i in range(60)]                    # enough rows that
 
 
 def radar_example():
-    """The three files of the Radar's opening view."""
+    """The three files of the Radar's opening view: the publisher's own documents of a made-up board (hits at the default
+    level and gate, near misses, left stocks and other levels and gates, every measure), cut by the publisher's own
+    examples.radar_opening as the capture cuts them."""
     filters = [('S1', 1, 'S1', 'S1', None, True, 'Heavy foreign accumulation', 'Q1', 'W1', 'z-score', False)]
     rules = [('S1', c, lv, f'{c} at {lv}', t, None, 'decided') for c, t in (('A', 0), ('B', 5)) for lv in radar.LEVELS]
     names = {t: f'Company {t}' for t in TICKERS}
+    hits = TICKERS[:-3]
     rows = [(RADAR_AS_OF, 'S1', 'standard', 'broad', t, 'hit', 2, 2, 1, None, None, 3.0 - i / 100, None)
-            for i, t in enumerate(TICKERS)]
+            for i, t in enumerate(hits)]
+    # behind a click (the filter page, a segment): a near miss, a stock that left, a Loose hit, a Liquid hit
+    rows += [(RADAR_AS_OF, 'S1', 'standard', 'broad', TICKERS[-3], 'near', 1, 2, None, None, None, 1.0, None),
+             (RADAR_AS_OF, 'S1', 'standard', 'broad', TICKERS[-2], 'left', 1, 2, None, 'B', None, None, None),
+             (RADAR_AS_OF, 'S1', 'loose', 'broad', TICKERS[-1], 'hit', 1, 2, 1, None, None, 0.5, None),
+             (RADAR_AS_OF, 'S1', 'standard', 'liquid', TICKERS[-1], 'hit', 2, 2, 1, None, None, 0.4, None)]
     gates = [(d, 900, 1.9e9, 1.8e10, 450, 180) for d in RADAR_DATES]
     prices = {t: [(d, 1000.0 + k) for k, d in enumerate(RADAR_DATES)] for t in TICKERS}
+    measures = {t: (RADAR_AS_OF, t, *[float(k) for k in range(len(radar.MEASURES))]) for t in TICKERS}
     meta = radar.meta_doc(filters, rules, names, [('lq45', 'index', 'LQ45', 'LQ45', TICKERS[:45])])
-    days = radar.days_doc(gates, [(RADAR_AS_OF, 'S1', 'standard', 'broad', len(TICKERS))], ['S1'],
-                          {'S1': list(radar.LEVELS)}, {d: 7000.0 for d in RADAR_DATES}, RADAR_AS_OF, RADAR_DATES)
-    board = radar.board_doc(RADAR_AS_OF, rows, {}, prices)
+    days = radar.days_doc(gates, [(RADAR_AS_OF, 'S1', 'standard', 'broad', len(hits)), (RADAR_AS_OF, 'S1', 'loose', 'broad', 1)],
+                          ['S1'], {'S1': list(radar.LEVELS)}, {d: 7000.0 for d in RADAR_DATES}, RADAR_AS_OF, RADAR_DATES)
+    board = radar.board_doc(RADAR_AS_OF, rows, measures, prices)
+    meta, days, board = examples.radar_opening(meta, days, board, RADAR_AS_OF)
     return {'radar-meta': meta, 'radar-days': days, f'radar-board-{RADAR_AS_OF}': board}
 
 

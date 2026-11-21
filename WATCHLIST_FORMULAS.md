@@ -39,9 +39,9 @@ File dibangun ulang hanya bila isinya berubah (stempelnya adalah isi file itu se
 gratis melihat Watchlist sebagai contoh satu hari: data **30 Oktober 2026**. File contoh dibuat sekali oleh job pengambil
 contoh dengan fungsi yang sama (`build` dengan `as_of`): tanggal harga adalah tanggal lengkap terbaru **sampai** 30
 Oktober, tanggal broker dan tanggal Radar juga dibatasi sampai hari itu; tanpa `as_of` file harian tetap seperti biasa.
-Isinya satu list, anggota LQ45 pada 30 Oktober menurut riwayat keanggotaan (`Stock_List_Member_History`, aturan
-*point in time* tabel itu), dengan empat indikator bawaan; nilai indikator lain kosong karena menambah indikator adalah
-klik. Riwayat itu baru mulai dari rekaman pertama 9 November 2026 (berlaku 10 November), jadi untuk 30 Oktober tidak ada
+Isinya satu list dengan empat indikator bawaan (nilai indikator lain kosong karena menambah indikator adalah klik).
+Rencananya list itu anggota LQ45 pada 30 Oktober menurut riwayat keanggotaan (`Stock_List_Member_History`, aturan
+*point in time* tabel itu), tetapi isinya kini menunggu keputusan user (di bawah). Riwayat itu baru mulai dari rekaman pertama 9 November 2026 (berlaku 10 November), jadi untuk 30 Oktober tidak ada
 baris yang menutupinya: pembuat contoh berhenti, tidak menebak (pemeriksa mode contoh, ERRORS M527). Tebakan lama
 (daftar 10 November dianggap daftar 30 Oktober karena tidak berubah sesudahnya) keliru: evaluasi LQ45 yang diumumkan BEI
 26 Oktober berlaku 2 November (ELSA dan SMGR masuk, CUAN dan SCMA keluar), di antara kedua tanggal itu. Isi list contoh

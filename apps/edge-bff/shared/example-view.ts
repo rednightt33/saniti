@@ -16,7 +16,10 @@
      :active) are taken out of its style sheets (the example-mode checker, ERRORS M527: a tooltip drawn by CSS alone,
      the Backtest's "Within N bars" or the Radar's rail hints, opens without any script): hover and focus change nothing
      on the page, which stays as it was drawn. A sheet that comes later is read on the next pointer entry or focus.
-     Tab still moves between controls, shown by one plain focus ring of the example's own;
+     Tab still moves between controls, shown by one plain focus ring of the example's own. A scrollbar's own styles stay
+     (a ::-webkit-scrollbar selector, a rule setting only scrollbar-* properties): scrolling is the one thing the
+     example keeps, and a scroller's bar may show only under the pointer (the Radar's board columns, the user
+     2026-11-15; the example-mode re-check);
    - scrolling keeps working: the wheel and touch are stopped only for the page's handlers (a chart's zoom), never for
      the browser, and the keys that scroll are left alone outside a control.
    The Market Overview is the exception the user set (lockOnly below): it stays clickable, and only its time controls ask
@@ -74,12 +77,16 @@ export function interactive(selector: string): boolean {
   }
   return INTERACTION.test(rest);
 }
+/** A scrollbar's own style (module comment): a selector of the bar itself, or a rule that sets only scrollbar-* */
+const SCROLLBAR = /::-webkit-scrollbar/;
+export const scrollbarOnly = (style: CSSStyleDeclaration | undefined): boolean =>
+  !!style && style.length > 0 && Array.from(style).every(p => p.startsWith('scrollbar-'));
 /** Takes the interaction selectors out of a list of rules (and the rules nested in them): a rule left with none goes. */
 function stillRules(list: CSSRuleList, owner: { deleteRule(i: number): void }) {
   for (let i = list.length - 1; i >= 0; i--) {
-    const r = list[i] as CSSRule & { selectorText?: string; cssRules?: CSSRuleList; deleteRule?(i: number): void; styleSheet?: CSSStyleSheet };
-    if (typeof r.selectorText === 'string') {
-      const all = selectors(r.selectorText), kept = all.filter(x => !interactive(x));
+    const r = list[i] as CSSRule & { selectorText?: string; cssRules?: CSSRuleList; deleteRule?(i: number): void; styleSheet?: CSSStyleSheet; style?: CSSStyleDeclaration };
+    if (typeof r.selectorText === 'string' && !scrollbarOnly(r.style)) {
+      const all = selectors(r.selectorText), kept = all.filter(x => !interactive(x) || SCROLLBAR.test(x));
       if (!kept.length) { owner.deleteRule(i); continue }
       if (kept.length < all.length) r.selectorText = kept.join(', ');
     }

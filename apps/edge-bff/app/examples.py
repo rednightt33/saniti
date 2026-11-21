@@ -17,8 +17,9 @@ Two sources (TABS):
 - the Market Overview's latest market date (the user: "Semua overview itu menampilkan data di [hari itu]"; "1. tetap
   seperti itu 2. ok"): the live publication's three files of the opening view (overview-meta, overview-series, the
   newest overview-day), read through the page relay (app/pages.py, its caches and its terminal-api grant for the
-  principal whose request missed them) and trimmed here to what the page shows when it opens: the series to the widest
-  window a panel opens on (breadth's 120 sessions and its start) and the KPI strip's 30 broker sessions; the day's
+  principal whose request missed them) and trimmed here to what the page shows when it opens: each series to the
+  window of the panel that reads it (breadth's 120 sessions and its start; Sector Performance's 60, null before; the KPI
+  strip's 30 turnover sessions; no daily foreign buy or sell); the day's
   stocks to their 1D figures (every other period's values null, a new field null too); the market's flow to its 1D
   period; IHSG's bars to the session's 5-minute bars; the date picker to that day. The older day files and
   overview-stocks (every stock's 300 sessions) stay with overview.view. Trimmed once per publication and process.
@@ -61,10 +62,14 @@ LIST_SQL = ('SELECT name, as_of::text AS as_of, rows, bytes, sha256, made_at FRO
 BODIES_SQL = 'SELECT name, sha256, body FROM edge_bff.example_files WHERE tab = %s AND sha256 = ANY(%s)'
 
 # The Market Overview's opening view (apps/edge-bff/overview/src/app.ts: DEFAULT, the IHSG period's default and last30;
-# tests/test_examples.py reads them there): every period control opens on 1D, the widest window a panel opens on is
-# breadth's 120 sessions (with the session before it, its start), and the KPI strip's lines are 30 sessions long.
+# tests/test_examples.py reads them there): every period control opens on 1D; breadth opens on 120 sessions (with the
+# session before it, its start: the dates and the EMA shares), Sector Performance on 60 (the index and sector lines,
+# whose last 30 the KPI strip's lines read too), and the KPI strip's turnover line is 30 broker sessions long. The page
+# reads the series by their position in the dates, so a line keeps their length, null before its own window (the
+# example-mode re-check, ERRORS M527).
 OVERVIEW_PERIOD = '1D'
 OVERVIEW_SESSIONS = 120 + 1
+OVERVIEW_INDEX_SESSIONS = 60 + 1
 OVERVIEW_FLOW_SESSIONS = 30
 OVERVIEW_DAY = re.compile(r'overview-day-([0-9]{4}-[0-9]{2}-[0-9]{2})')
 OVERVIEW_BARS = '5m'                                    # IHSG's bars of the session (the 1D chart); '1h' is the 5D chart's
@@ -79,8 +84,10 @@ META_SHAPE = {'schema': KEEP, 'market': KEEP, 'benchmark': KEEP, 'stocks': {'tic
               'sectors': [{'name': KEEP, 'index': KEEP}],
               'lists': [{'key': KEEP, 'kind': KEEP, 'code': KEEP, 'name': KEEP, 'members': KEEP}],
               'dates': KEEP, 'size_basis': KEEP, 'prices_through': KEEP, 'broker_through': KEEP, 'periods': {'flow': KEEP}}
-SERIES_KEYS = ('schema', 'dates', 'index', 'sector', 'above_ema50', 'above_ema200', 'breadth_n')
-FLOW_KEYS = ('dates', 'foreign_buy', 'foreign_sell', 'turnover')
+SERIES_KEYS = ('schema', 'dates', 'index', 'sector', 'above_ema50', 'above_ema200')
+# the KPI strip's turnover line (app.ts, model.ts flowEnd): the daily foreign buy and sell are read only by the Foreign
+# Flow panel's Custom range, a time control, and 5 or 20 of them sum to its locked 5D and 1M periods
+FLOW_KEYS = ('dates', 'turnover')
 DAY_SHAPE = {'schema': KEEP, 'date': KEEP, 'prior_date': KEEP, 'size_basis': KEEP,
              'index': {'*': {'open': KEEP, 'high': KEEP, 'low': KEEP, 'close': KEEP, 'prior_close': KEEP}},
              'volatility': {'window': KEEP, 'value': KEEP, 'rank_1y': KEEP},
@@ -96,6 +103,8 @@ OVERVIEW_LEFT_OUT = {
     'overview-day': ('stocks.r5d', 'stocks.r1m', 'stocks.fnet_5d', 'stocks.fnet_1m', 'stocks.fnet_3m',   # the 5D, 1M, 3M
                      'market.periods.5D', 'market.periods.1M', 'market.periods.3M',                       # period choices
                      'intraday.1h'),                                                                      # the 5D chart
+    'overview-series': ('flow.foreign_buy', 'flow.foreign_sell',          # the Foreign Flow's Custom range (a time control)
+                        'breadth_n'),                                     # read by no panel
 }
 
 
@@ -151,9 +160,11 @@ def overview_view(meta, series, day):
     cut = lambda a: list(a[lo:end + 1]) if end >= 0 and isinstance(a, list) and flat(a) else []
     s = {k: kept(series[k], KEEP) for k in SERIES_KEYS if k in series}
     s['dates'] = cut(series['dates'])
+    head = max(0, len(s['dates']) - OVERVIEW_INDEX_SESSIONS)         # a line's points before its own window: null
+    line = lambda a: [None if k < head else v for k, v in enumerate(cut(a))]
     for k in ('index', 'sector'):
-        s[k] = {name: cut(v) for name, v in (series.get(k) or {}).items()} if isinstance(series.get(k) or {}, dict) else {}
-    for k in ('above_ema50', 'above_ema200', 'breadth_n'):
+        s[k] = {name: line(v) for name, v in (series.get(k) or {}).items()} if isinstance(series.get(k) or {}, dict) else {}
+    for k in ('above_ema50', 'above_ema200'):
         s[k] = cut(series.get(k) or [])
     market = day.get('market') if isinstance(day.get('market'), dict) else None
     flow = series.get('flow') if isinstance(series.get('flow'), dict) else {}
@@ -292,7 +303,10 @@ class Examples:
 
     def tab_routes(self, app, auth, tab, label):
         text = messages(label)
-        need = auth.need(f'{tab}.example', guests=True)   # before the kept files (module docstring)
+        # before the kept files (module docstring); the guard of every route that calls terminal-api (the Overview's
+        # example reads it for the principal): a request carrying a header edge-bff sets itself is refused 400
+        # (terminal_access.guard; the example-mode re-check, ERRORS M527), on every tab alike
+        need = terminal_access.guard(auth.need(f'{tab}.example', guests=True))
 
         def failure(code, status, details=None):
             return JSONResponse(status_code=status, content={'error': {

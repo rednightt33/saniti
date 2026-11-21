@@ -74,6 +74,12 @@
     `3e6caa3f195c688c…` (no date after 30 October in any file now); `backtest-request` `04c78d8609a54ad0…` and
     `backtest-bars-mapi` `fb8869f33671a0cf…` the same bytes as before. M340 before each write: 0 EDGE jobs, 0 orc
     turns. Not large updates (a few rows each; the reads are the publication's own).
+  - After the re-check (ERRORS M527, its re-check block), the Radar captured once more, cut to the board's opening view
+    (`examples.radar_opening`): dry run `ba01816b` DRY_RUN_OK; the write `bf69b070` (READBACK OK, VERDICT WRITTEN):
+    `radar-meta` 2,469 bytes `191405269b3a16a7…` (9 filters, 0 rules, 78 names, 0 lists); `radar-days` 20 dates 750
+    bytes `45988b3fd21a6709…` (the Standard/Broad counts of the 7 shown filters, the gate cuts); `radar-board-2026-10-30`
+    127 hits of 78 stocks 5,250 bytes `5acce65ec91f0071…` (no measure; it held 2,300 rows). M340 before: 0 EDGE jobs, 0
+    orc turns. Not a large update.
 
 ## 2026-11-20 — The A2 fix: a reset code bound to its browser, a registration's client (edge_bff, migrations 20261120_001 and _002)
 

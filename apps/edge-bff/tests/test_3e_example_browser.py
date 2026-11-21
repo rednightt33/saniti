@@ -120,8 +120,10 @@ INTERACTION_LEFT = r"""() => {
   const re = /:(?:hover|focus|focus-visible|focus-within|active)(?![\w-])/, out = [];
   const outsideNot = s => { let o = '', i = 0; while (i < s.length) { if (s.startsWith(':not(', i)) { let d = 0, j = i + 4;
     for (; j < s.length; j++) { if (s[j] === '(') d++; else if (s[j] === ')' && --d === 0) break } i = j + 1; continue } o += s[i++] } return o };
+  const bar = s => s && s.length > 0 && Array.from(s).every(p => p.startsWith('scrollbar-'));   // a scrollbar's own style stays
   const walk = list => { for (const r of list) {
-    if (typeof r.selectorText === 'string') for (const x of r.selectorText.split(',')) if (re.test(outsideNot(x))) out.push(x.trim());
+    if (typeof r.selectorText === 'string' && !bar(r.style)) for (const x of r.selectorText.split(','))
+      if (re.test(outsideNot(x)) && !/::-webkit-scrollbar/.test(x)) out.push(x.trim());
     if (r.cssRules) walk(r.cssRules); } };
   for (const sh of document.styleSheets) { if (sh.ownerNode && sh.ownerNode.dataset && 'edgeExample' in sh.ownerNode.dataset) continue;
     try { walk(sh.cssRules) } catch (e) { out.push('unreadable sheet ' + sh.href) } }
@@ -213,6 +215,11 @@ def test_a_visitor_sees_the_radar_example_as_a_view_of_its_day(site, chromium):
     handlers_never_run(page, frame, '[data-act=date]')
     assert frame.locator('.pop.menu').count() == 0 and frame.locator('[data-act=date]').get_attribute('aria-expanded') == 'false'
     page_styles_still(frame, 'radar')
+    # a board column's scrollbar still shows under the pointer (the user 2026-11-15): its hover rule stays
+    kept = frame.locator('body').evaluate("""() => { const out = []; const walk = l => { for (const r of l) {
+      if (typeof r.selectorText === 'string' && /\\.kl:hover/.test(r.selectorText)) out.push(r.selectorText); if (r.cssRules) walk(r.cssRules) } };
+      for (const s of document.styleSheets) { try { walk(s.cssRules) } catch (e) {} } return out }""")
+    assert any('::-webkit-scrollbar-thumb' in k for k in kept) and any(k.strip() == '.kl:hover, .kl:focus-within' for k in kept), kept
     assert browser_storage(page) == stored_before
 
 

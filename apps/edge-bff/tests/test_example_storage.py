@@ -10,8 +10,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]                          # apps/edge-bff
 STORAGE = '../../shared/example-storage.ts'
-IMPORT = re.compile(r"""^\s*import\s+(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]""", re.M)
+# every module request of an entry, in source order: an import (side effect or bindings) and an export ... from (the
+# example-mode re-check: a re-export is evaluated in that order too)
+IMPORT = re.compile(r"""^\s*(?:import|export)\s+(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]""", re.M)
 LAB = '@edge-lab'                                                   # 3f: the lab module, first where a page has a lab build
+
+
+def storage_order_refusal(text):
+    """Why an entry's module requests do not run the storage module first (after the lab module), or None."""
+    requests = IMPORT.findall(text)
+    if not (requests[:1] == [LAB] or requests[:1] == [STORAGE]):
+        return f'its first module request is {requests[:1]}'
+    first = [i for i in requests if i != LAB]
+    if first[:1] != [STORAGE]:
+        return f'{STORAGE} must be the first module request (after {LAB}), not {first[:1]}'
+    return None
 
 
 def view_only_pages():
@@ -30,10 +43,8 @@ def test_every_view_only_page_holds_its_storage_in_memory_before_any_other_modul
     assert {p for p, *_ in pages} >= {'radar', 'watchlist', 'backtest', 'screener'}, pages   # the derivation's self-test
     for page, main, calls in pages:
         assert calls == [main], f'{page}: viewOnly is called outside its entry ({calls}); call it from src/main.ts'
-        imports = IMPORT.findall(main.read_text())
-        first = [i for i in imports if i != LAB]
-        assert imports[:1] == [LAB] or imports[:1] == [STORAGE], (page, imports[:3])
-        assert first[:1] == [STORAGE], f'{page}: {STORAGE} must be the first import (after {LAB}), not {first[:1]}'
+        refusal = storage_order_refusal(main.read_text())
+        assert refusal is None, f'{page}: {refusal}'
 
 
 def test_the_storage_module_runs_nothing_before_itself():
@@ -44,8 +55,12 @@ def test_the_storage_module_runs_nothing_before_itself():
     assert re.search(r'^if \(exampleMode\(\)\) isolateStorage\(\);$', storage, re.M)
 
 
-def test_the_check_sees_an_entry_that_imports_a_page_module_first(tmp_path):
-    """The self-test: an entry whose first import is a page module is refused by the rule above."""
-    text = "import './app.ts';\nimport '../../shared/example-storage.ts';\nviewOnly({ source: 'x', name: 'X' });\n"
-    imports = IMPORT.findall(text)
-    assert [i for i in imports if i != LAB][:1] != [STORAGE]
+def test_the_check_sees_an_entry_that_runs_a_page_module_first():
+    """The self-test, through the same rule the pages pass: an entry whose first module request is a page module, an
+    import or a re-export, is refused; the storage module first, or right after the lab module, passes."""
+    storage = "import '../../shared/example-storage.ts';\n"
+    for first in ("import './app.ts';\n", "import { start } from './app.ts';\n", "export { start as boot0 } from './app.ts';\n",
+                  "export * from './api.ts';\n", "import '@edge-lab';\nexport * from './api.ts';\n"):
+        assert storage_order_refusal(first + storage + "viewOnly({ source: 'x', name: 'X' });\n"), first
+    assert storage_order_refusal(storage + "import './app.ts';\n") is None
+    assert storage_order_refusal("import '@edge-lab';\n" + storage + "export * from './app.ts';\n") is None

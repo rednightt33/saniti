@@ -476,10 +476,12 @@ def dependency_calls(dependant):
 
 
 def forwarding_routes(app):
-    """The routes that call terminal-api: the proxy's and the page files' (their handlers are main.py terminal_read and
-    terminal_write, and pages.py page_index and page_file)."""
+    """The routes that call terminal-api: the proxy's, the page files' and the examples' (their handlers are main.py
+    terminal_read and terminal_write, pages.py page_index and page_file, and examples.py example_index and example_file:
+    the Market Overview's example reads terminal-api for the principal, and every tab's passes the same guard)."""
     for route in app.routes:
-        if isinstance(route, APIRoute) and route.endpoint.__name__ in ('terminal_read', 'terminal_write', 'page_index', 'page_file'):
+        if isinstance(route, APIRoute) and route.endpoint.__name__ in ('terminal_read', 'terminal_write', 'page_index', 'page_file',
+                                                                       'example_index', 'example_file'):
             yield route
 
 
@@ -491,8 +493,10 @@ def unguarded(app):
 def test_every_terminal_forwarding_route_passes_the_guard(switched_off, store):
     app = create_app(switched_off, store, FakeOrc())
     paths = {(m, r.path) for r in forwarding_routes(app) for m in r.methods}
+    from app import examples
     assert paths == {('GET', '/api/terminal/v1/{path:path}'), ('POST', '/api/terminal/v1/{path:path}'),
-                     *{('GET', f'/api/v1/{f}/{p}') for f in ('radar', 'overview', 'watchlist') for p in ('index', 'file/{name}')}}
+                     *{('GET', f'/api/v1/{f}/{p}') for f in ('radar', 'overview', 'watchlist') for p in ('index', 'file/{name}')},
+                     *{('GET', f'/api/v1/examples/{t}/{p}') for t in examples.TABS for p in ('index', 'file/{name}')}}
     assert unguarded(app) == []
     # a route that forgets the guard is found
     auth = app.state.auth

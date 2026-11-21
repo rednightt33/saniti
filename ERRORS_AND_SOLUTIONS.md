@@ -9027,7 +9027,9 @@ in its staleness check.
     titles are now swept on every pointer entry, and the browser tests check no title is left once the pointer is on a
     page.
 - **The example-mode checker (2026-11-21, ultracode `wf_33a88511-3e1`, five lenses at xhigh, a skeptic per lens): 20
-  findings confirmed, 5 refuted.** Fixed on the branch, each test red on its mutation (the runs named):
+  findings confirmed, 5 refuted.** Fixed on the branch, each test red on its mutation (each mutation is an edit of the
+  code under test, run on a scratch copy or in place with the file restored; the edit and the count of red tests are
+  named below; no run ID, the runs are local):
   - **Reference data of a past date (Watchlist, Radar, Backtest).** The tables of names, stock lists and tickers hold
     today's rows, and the lists' history starts at their first capture (2026-11-09, effective 2026-11-10).
     `members_on` took the members first recorded as those of 30 October because none changed after the first capture;
@@ -9051,7 +9053,8 @@ in its staleness check.
     named, and plants a field in every block (five mutations red).
   - **The example pages read and wrote the visitor's browser storage.** The Screener's layout modules read the
     collapsed panes, column order, pop sizes and extra columns when they load, before its in-memory store; the Backtest
-    read its panel state; the Watchlist wrote its logo cache. Fix: `shared/example-storage.ts`, the first module of every
+    read its panel state (the Watchlist's example path touched no storage: it imports the module for uniformity; the
+    first text here said it wrote its logo cache, corrected by the re-check). Fix: `shared/example-storage.ts`, the first module of every
     view-only page (after the lab module where a page has one; `tests/test_example_storage.py` derives the pages from
     their viewOnly call), holds localStorage and sessionStorage in memory in example mode, the shell's theme read
     through. Browser tests seed what another session kept and compare the browser's storage before and after (red with
@@ -9079,6 +9082,35 @@ in its staleness check.
     `last_bar_date` and the cells' dates now, and refuses a row without them. The promotion's smoke lacked the Overview
     and the Watchlist (added, and `http_smoke.py` reads every tab's example as a visitor). The Backtest's slow browser
     test that passed on a CI rerun: ERRORS M510.
+- **The re-check (2026-11-21, ultracode `wf_ce647f0d-9a8`, three lenses at xhigh, a skeptic per lens): 12 confirmed, 5
+  refuted.** Fixed on the branch:
+  - **The Radar's files held the whole board** (every level and gate, the near misses and left stocks with their
+    reasons, 35 measures per stock, every setting's counts for 244 days, the rules), though the example draws only the
+    board at its defaults; the first checker's skeptic had refuted this, on a wrong reading that the opening view draws
+    the 244 days (that chart is on the filter page). Fix: `examples.radar_opening` keeps the hits of each column's default
+    variant at the Standard level and the Broad gate, their cards' figures, 20 sessions of that setting's counts and the
+    gate cuts, no measure and no rule; the board on dev went from 2,300 rows to 127 (job `bf69b070`). Tests: the page's
+    opening view computed from the stored files equals the one from the whole files, and a board with near, left,
+    Loose, Liquid and a second variant keeps none of them (mutations red: the board whole 3, the days whole 2, near
+    misses kept 3, measures kept 1, rules kept 2, every variant shown 1).
+  - **The Overview's series:** the daily foreign buy and sell (30 sessions) were served, and 5 or 20 of them sum to the
+    locked 5D and 1M Foreign Flow periods: left out (only the KPI strip's turnover line stays). The index and sector
+    lines are kept for Sector Performance's 60 sessions and start, null before (the page reads by position), and
+    `breadth_n`, read by no panel, is left out. The path walk now compares every kept value with the written one and
+    names every emptied value (mutations red: the daily flow kept 2, the lines whole 1, breadth_n kept 2, `r1d` out of
+    STOCK_KEYS 2, a new publisher column 1, an object in a flow series 1, an object in a market value 1).
+  - **The Overview's example routes called terminal-api without `terminal_access.guard`:** every example route passes
+    it now (a request carrying a header edge-bff sets itself is refused 400), and the route walk lists them (red without
+    the guard: 2).
+  - **The view-only layer hid the Radar's board column scrollbar** (the user 2026-11-15: it shows under the pointer): a
+    scrollbar's own styles stay (red without the carve-out: 1).
+  - **Tests:** the storage-order rule reads re-exports too and its self-test calls the rule itself; the sha check is held
+    half by half (a same-size body with another hash, a row size other than the body's: each half's removal red 1);
+    `--rerun-show-tracebacks` beside `-rR` (M510); the promotion runbook holds the Watchlist's stored rows until the
+    user's answer.
+  - Refuted and left: a failed index answer shows the locked page (the recorded rule); `:is()` lists with a rest-state
+    alternative (none rendered today); two wording points (corrected above anyway); the Backtest twin's admin rule (no
+    drift window).
 - **Lesson for new data:** an example of a page is the files of its opening view, built by the publisher's own builder
   cut at one date and checked for later dates before it is stored; the server is the guarantee (it serves only those
   files, only to `<tab>.example`), the page only displays. A table whose history starts after the example's date says
@@ -9834,8 +9866,10 @@ in its staleness check.
   drawing the results after the test's pointer moved, and the check read the page before it settled. A test fault, not
   the page's: a title the page draws later is swept when the pointer next enters (`shared/example-view.ts`). Fixed: the
   check waits until the page makes no change for 300 ms (the test's own observer, run in the frame), then 6 of 6 under
-  the same load, and the example and locked-tab browser suites 19 of 19 twice. CI now runs edge-bff's pytest with `-rR`,
-  so a test that passed only on its rerun is named with its first failure's line. The same class as below.
+  the same load, and the example and locked-tab browser suites 19 of 19 twice. CI now runs edge-bff's pytest with `-rR`
+  and `--rerun-show-tracebacks` (pytest-rerunfailures 16.7: `-rR` alone names a rerun test, the option prints its first
+  failure's traceback; the re-check found `-rR` alone claimed for both), so a test that passed only on its rerun is named
+  with where it failed. The same class as below.
 
 - **Found by:** the first CI runs of edge-bff's browser tests after M509: run 44663513713 (commit `b969529b`, Playwright
   1.65.2, Chrome 159): 947 passed, 2 failed; run 44667192992 (commit `58b75888`, Playwright 1.63.0, Chrome for Testing

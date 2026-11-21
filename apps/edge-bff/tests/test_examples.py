@@ -212,12 +212,18 @@ def test_the_files_are_served_from_memory_and_read_again_after_the_refresh(guest
         assert 'secret-host' not in r.text
 
 
-def test_a_body_read_from_the_table_that_does_not_match_its_sha_is_never_served(guests, store, stored, monkeypatch):
+@pytest.mark.parametrize('query, was, now', [
+    ('BODIES_SQL', 'SELECT name, sha256, body', "SELECT name, sha256, body || '\\x00'::bytea AS body"),   # one byte more
+    ('BODIES_SQL', 'SELECT name, sha256, body', "SELECT name, sha256, overlay(body placing '\\x00'::bytea from 1 for 1) AS body"),
+    ('LIST_SQL', 'rows, bytes,', 'rows, bytes + 1 AS bytes,'),        # the row's size not the body's (the index lists it)
+], ids=['longer', 'same-size-other-hash', 'row-size'])
+def test_a_body_read_from_the_table_that_does_not_match_its_sha_is_never_served(guests, store, stored, monkeypatch, query, was, now):
     """The example-mode checker (ERRORS M527): Stored.read checks every body it reads against its row's sha256 and size
     (the table's CHECKs make a mismatch impossible to write; this is the second line). A body that comes back other
-    than its sha is refused: nothing is served from it, and nothing kept stands in on the first read."""
-    monkeypatch.setattr(examples_module, 'BODIES_SQL', examples_module.BODIES_SQL.replace(
-        'SELECT name, sha256, body', "SELECT name, sha256, body || '\\x00'::bytea AS body"))
+    than its sha is refused: nothing is served from it, and nothing kept stands in on the first read. Each half of the
+    check is held by one case (the re-check: a longer body alone left the hash half free)."""
+    assert was in getattr(examples_module, query)
+    monkeypatch.setattr(examples_module, query, getattr(examples_module, query).replace(was, now))
     with TestClient(create_app(guests, store, FakeOrc())) as c:
         r = c.get('/api/v1/examples/radar/index', headers=VISITOR)
         assert r.status_code == 503 and r.json()['error']['code'] == 'EXAMPLE_UNAVAILABLE'
@@ -354,15 +360,19 @@ def test_a_visitor_reads_the_latest_overview_trimmed_to_its_opening_view(guests,
         # the date picker holds the example's day; the rest of meta is the publication's (the index and group filter)
         assert meta['dates'] == [NEWEST] and {k: v for k, v in meta.items() if k != 'dates'} == \
             {k: v for k, v in live['overview-meta'].items() if k != 'dates'}
-        # the series: breadth's 120 sessions and their start, the KPI strip's 30 broker sessions, as published
-        n = examples_module.OVERVIEW_SESSIONS
-        assert series['dates'] == OVERVIEW_DATES[-n:] and len(OVERVIEW_DATES) > n
+        # the series: breadth's 120 sessions and their start (the dates, the EMA shares); the index and sector lines in
+        # their own 60 sessions and start, null before (read by position); the KPI strip's 30 turnover sessions; no daily
+        # foreign buy or sell (5 or 20 of them sum to the locked 5D and 1M flow periods) and no breadth_n
+        n, w = examples_module.OVERVIEW_SESSIONS, examples_module.OVERVIEW_INDEX_SESSIONS
+        assert series['dates'] == OVERVIEW_DATES[-n:] and len(OVERVIEW_DATES) > n > w
         for k in ('index', 'sector'):
-            assert {t: v for t, v in series[k].items()} == {t: v[-n:] for t, v in live['overview-series'][k].items()}
-        for k in ('above_ema50', 'above_ema200', 'breadth_n'):
+            assert {t: v for t, v in series[k].items()} == {t: [None] * (n - w) + v[-w:] for t, v in live['overview-series'][k].items()}
+        for k in ('above_ema50', 'above_ema200'):
             assert series[k] == live['overview-series'][k][-n:]
+        assert 'breadth_n' not in series
         m = examples_module.OVERVIEW_FLOW_SESSIONS
-        assert series['flow'] == {k: v[-m:] for k, v in live['overview-series']['flow'].items()}
+        flow = live['overview-series']['flow']
+        assert series['flow'] == {'dates': flow['dates'][-m:], 'turnover': flow['turnover'][-m:]}
         # the day: its 1D figures; every other period's values null; the 1D flow period; the session's 5-minute bars
         stocks, was = day['stocks'], live[f'overview-day-{NEWEST}']['stocks']
         for k in ('i', 'close', 'r1d', 'size', 'above_ema50', 'above_ema200', 'fnet_1d'):
@@ -412,6 +422,8 @@ def test_a_field_the_opening_view_does_not_read_is_left_out_or_null(guests, stor
     day['market']['periods']['6M'] = {'buy': 1, 'sell': 1, 'net': 0, 'from': OVERVIEW_DATES[0]}
     day['market']['periods']['1D']['r5d'] = planted
     day['market']['by_period'] = {'5D': planted}
+    series['flow']['turnover'][-1] = {'deep': planted}     # a named flow series whose value turns into an object
+    day['market']['turnover_avg20'] = {'deep': planted}     # a named market value that turns into an object
     day['intraday']['1m'] = {'t': [1], 'c': [1.0]}
     day['intraday']['5m']['v'] = [planted]
     OverviewApi.files = {n: gz(doc) for n, doc in docs.items()}
@@ -424,6 +436,22 @@ def test_a_field_the_opening_view_does_not_read_is_left_out_or_null(guests, stor
     assert shown['stocks']['r3m'] == [None] * len(shown['stocks']['i']) and shown['stocks']['close'][0] is None
     assert files['overview-series']['index']['IHSG'] == [] and 'by_period' not in shown['market']
     assert shown['index']['IHSG']['close'] is None and files['overview-meta']['lists'][0]['members'] is None
+    assert files['overview-series']['flow']['turnover'] == [] and shown['market']['turnover_avg20'] is None
+
+
+def leaf_values(doc, at=''):
+    """{path: value} of every value holding no object (leaf_paths' paths; a list of objects read item by item)."""
+    if isinstance(doc, dict):
+        out = {}
+        for k, v in doc.items():
+            out.update(leaf_values(v, f'{at}.{k}' if at else k))
+        return out or {at: doc}
+    if isinstance(doc, list) and not examples_module.flat(doc):
+        out = {}
+        for k, x in enumerate(doc):
+            out.update({f'{p}[{k}]': v for p, v in leaf_values(x, at).items()})
+        return out
+    return {at: doc}
 
 
 def leaf_paths(doc, at=''):
@@ -456,6 +484,22 @@ def test_every_field_the_publisher_writes_is_kept_by_name_or_left_out_by_name():
             for k in n.split('.'):
                 value = value.get(k) if isinstance(value, dict) else None
             assert value is None or (isinstance(value, list) and all(v is None for v in value)), n
+        # every value kept is the one written: whole, or (a series of the opening view's window, the date picker) the
+        # written list's last points, null before the window; a value emptied that was not empty is named above
+        wv, sv = leaf_values(docs[name]), leaf_values(trimmed[name])
+        for p, v in sv.items():
+            if under(p, left) or v is None:
+                continue
+            w = wv[p]
+            if v == w:
+                continue
+            assert isinstance(v, list) and isinstance(w, list) and len(v) <= len(w), (name, p)
+            tail = w[len(w) - len(v):]
+            assert all(x is None or x == y for x, y in zip(v, tail)) and any(x is not None for x in v), (name, p)
+            assert family == 'overview-series' or p == 'dates', (name, p, 'cut, but not a windowed series')
+        emptied = [p for p, v in sv.items() if not under(p, left) and wv.get(p) not in (None, [])
+                   and (v is None or (isinstance(v, list) and all(x is None for x in v)))]
+        assert emptied == [], (name, 'emptied but not named in OVERVIEW_LEFT_OUT', emptied)
 
 
 def test_the_trim_follows_the_overview_pages_opening_view():
@@ -469,6 +513,10 @@ def test_the_trim_follows_the_overview_pages_opening_view():
     assert {v for v in default.values() if not (v.endswith('D') and v != '1D')} == {examples_module.OVERVIEW_PERIOD}
     assert re.search(r"pick\('per', '1D'\)", app_ts) and examples_module.OVERVIEW_PERIOD == '1D'
     assert re.search(r'const last30 = .*e - 29', app_ts) and examples_module.OVERVIEW_FLOW_SESSIONS == 30
+    # each line kept for the panel that reads it: breadth (brp) the dates and the EMA shares, Sector Performance (sp) the
+    # index and sector lines, whose last 30 the KPI strip's sparkline reads too
+    assert int(default['brp'][:-1]) + 1 == examples_module.OVERVIEW_SESSIONS
+    assert int(default['sp'][:-1]) + 1 == examples_module.OVERVIEW_INDEX_SESSIONS >= 30
 
 
 def test_the_overview_example_is_the_free_plans_and_follows_a_new_publication(guests, store, overview_api):
@@ -509,6 +557,19 @@ def test_a_principals_own_terminal_refusal_on_the_overview_example_keeps_its_cod
             assert r.status_code == 403, (path, r.text)
             error = r.json()['error']
             assert (error['code'], error['details'].get('capability')) == ('CAPABILITY_REQUIRED', 'terminal.files_per_hour'), error
+
+
+def test_a_request_carrying_a_header_edge_bff_sets_itself_is_refused_on_every_example(guests, store, stored, overview_api):
+    """The example-mode re-check (ERRORS M527): the Overview's example calls terminal-api for the principal, so its routes,
+    and every tab's alike, pass terminal_access.guard: a reserved header is refused before any cache or terminal-api."""
+    with TestClient(create_app(guests, store, FakeOrc())) as c:
+        for tab in ('overview', 'radar'):
+            for path in (f'/api/v1/examples/{tab}/index', f'/api/v1/examples/{tab}/file/{tab}-meta'):
+                for name in (terminal_access.OWNER_HEADER, terminal_access.CAPABILITIES_HEADER):
+                    r = c.get(path, headers={**VISITOR, name: 'someone-else'})
+                    assert (r.status_code, r.json()['error']['code']) == (400, 'HEADER_NOT_ALLOWED'), (path, name, r.text)
+        index, _ = overview_example(c, VISITOR)                  # without it, the example opens
+        assert index['as_of'] == NEWEST
 
 
 # ---- the Screener: the stored catalog is the live site's for the released items (3e; ERRORS M527) -------------------

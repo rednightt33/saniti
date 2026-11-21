@@ -9,7 +9,9 @@ job (verification/edge_multiuser/example_mode/capture_job.py) writes them to edg
 
   radar      radar-meta, radar-days, radar-board-<as_of>: what the page reads when it opens (src/app.ts boot); the date
              picker and a filter's page are clicks, so the older boards and radar-f-<filter> are not part of the example;
-             radar-meta keeps the names of the stocks the board shows and no stock list (reference_cut)
+             each file is cut to the board's opening view (radar_opening: the hits at the default level and gate, 20
+             sessions of that setting's counts, no measure, no rule; radar-meta the names of the stocks the board shows
+             and no stock list, reference_cut)
   watchlist  watchlist-stocks of as_of cut to the example list's stocks (the LQ45 members on that date, point in time:
              Stock_List_Member_History, members_on: a date no recorded row covers stops the capture) and its default
              indicators (the other indicators' values null: adding one is a click), without the upcoming corporate
@@ -93,6 +95,50 @@ def reference_cut(meta, shown):
     return {**meta, 'names': {t: n for t, n in meta['names'].items() if t in held}, 'lists': []}
 
 
+# The Radar's opening view (apps/edge-bff/radar/src: in example mode the page draws only the board, renderRadar and
+# drawKanban, at its defaults: every column at its default variant, the Standard level, the Broad gate, all stocks, the
+# hits; its spark reads 20 sessions of that setting's counts). The other levels, gates, near misses, left stocks, the
+# measures, the rules and the older days sit behind a click (a segment, the filter page, the date menu): the files keep
+# none of them (the example-mode re-check, ERRORS M527).
+RADAR_LEVEL, RADAR_GATE, RADAR_STATUS = 'standard', 'broad', 'hit'     # model.ts LEVELS[1] and levelOf; app.ts ST
+RADAR_SESSIONS = 20                                                       # app.ts drawKanban: counts(..., di, 20)
+RADAR_STOCK_KEYS = ('close', 'chg_1d', 'spark')                           # stockFacts: what a board card shows
+RADAR_ROW_KEYS = ('filter', 'stock', 'level', 'gate', 'status', 'run_day', 'strong', 'sort_value', 'flag')  # a card's
+
+
+def radar_shown_filters(meta):
+    """The filter each board column opens on: its default variant, then the first by position (model.ts columns)."""
+    by_column = {}
+    for f in meta['filters']:
+        by_column.setdefault(f['column'], []).append(f)
+    return {min(fs, key=lambda f: (not f['default_variant'], f['position']))['id'] for fs in by_column.values()}
+
+
+def radar_opening(meta, days, board, as_of):
+    """(meta, days, board) cut to the board's opening view (the comment above): the board keeps the hits of the shown
+    filters at the default level and gate, their stocks' card figures and no measure; the days keep the last
+    RADAR_SESSIONS dates, that setting's counts and the gate cuts; the meta keeps no rule (reference_cut its names and
+    lists). A field a card does not read is null where the page reads by position, left out otherwise."""
+    shown, r = radar_shown_filters(meta), board['rows']
+    keep = [i for i in range(len(r['filter'])) if r['filter'][i] in shown and r['level'][i] == RADAR_LEVEL
+            and r['gate'][i] == RADAR_GATE and r['status'][i] == RADAR_STATUS]
+    was = board['stocks']['ticker']
+    tickers = sorted({was[r['stock'][i]] for i in keep})
+    at_was, at = {t: k for k, t in enumerate(was)}, {t: k for k, t in enumerate(tickers)}
+    rows = {k: ([v[i] for i in keep] if k in RADAR_ROW_KEYS else [None] * len(keep)) for k, v in r.items()}
+    rows['stock'] = [at[was[r['stock'][i]]] for i in keep]
+    stocks = {'ticker': tickers, **{k: [board['stocks'][k][at_was[t]] for t in tickers] for k in RADAR_STOCK_KEYS}}
+    cut_board = {**board, 'stocks': stocks, 'rows': rows, 'measures': {'columns': [], 'values': [None] * len(tickers)}}
+    end = days['dates'].index(as_of)
+    lo = max(0, end + 1 - RADAR_SESSIONS)
+    cut = lambda a: list(a[lo:end + 1])
+    setting = f'{RADAR_LEVEL}/{RADAR_GATE}'
+    cut_days = {**days, 'dates': cut(days['dates']), 'gate': {k: cut(v) for k, v in days['gate'].items()},
+                'counts': {f: {setting: cut(c[setting])} for f, c in days['counts'].items() if f in shown and setting in c},
+                'ihsg': [None] * (end + 1 - lo), 'boards': [as_of]}
+    return reference_cut({**meta, 'rules': []}, cut_board), cut_days, cut_board
+
+
 def radar_files(conn, names, lists, as_of, stream=None):
     """The Radar's opening view on as_of -> [(name, doc, rows, day)]: radar-meta, radar-days and the board of as_of."""
     built = {n: (doc, rows, day) for n, doc, rows, day in radar.build(conn, names, lists, stream=stream, as_of=as_of)}
@@ -106,9 +152,11 @@ def radar_files(conn, names, lists, as_of, stream=None):
     board = f'radar-board-{as_of}'
     if board not in built or not built[board][0]['rows']['filter']:
         raise ExampleError(f'{board} has no row under the current rule version')
-    meta, rows, day = built['radar-meta']
-    built['radar-meta'] = (reference_cut(meta, built[board][0]), rows, day)
-    return [(n, *built[n]) for n in ('radar-meta', 'radar-days', board)]
+    meta, days, shown = radar_opening(built['radar-meta'][0], days, built[board][0], as_of)
+    if not shown['rows']['filter']:
+        raise ExampleError(f'{board} has no hit at the default level and gate: the opening view would be empty')
+    return [('radar-meta', meta, *built['radar-meta'][1:]), ('radar-days', days, len(days['dates']), built['radar-days'][2]),
+            (board, shown, len(shown['rows']['filter']), built[board][2])]
 
 
 # the Watchlist's example list (the user, 2026-11-21: "Untuk watchlist oke, dengan rekomendasi kamu": one list of the

@@ -91,9 +91,10 @@ jobs:
           (cd screener && npm ci && npm run build)
           (cd radar && npm ci && npm run build)
           (cd overview && npm ci && npm run build)
-      # -rR (the example-mode checker, ERRORS M510 and M527): a test that passed only on its rerun is named in the summary
-      # with its first failure's line, so a rerun never hides which test failed and where
-      - run: python -m pytest -q -rR -p no:cacheprovider tests
+      # -rR and --rerun-show-tracebacks (the example-mode checker and its re-check, ERRORS M510 and M527): a test that
+      # passed only on its rerun is named in the summary (-rR) and its first failure's traceback is printed, so a rerun
+      # never hides which test failed and where
+      - run: python -m pytest -q -rR --rerun-show-tracebacks -p no:cacheprovider tests
 
   # EXEC-MU-ACCOUNTS fix round (re-check R1-39): the page suites no other workflow runs. Each step typechecks, builds
   # and runs the page's vitest suite (the Screener's and the Backtest page's are in backtest-lookahead.yml).

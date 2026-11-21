@@ -23,18 +23,92 @@ def conn(**kw):
     return LaterConn(PRICES, BROKERS, UNIVERSE, **kw)
 
 
+def opening_view(meta, days, board):
+    """What the Radar page draws when it opens (apps/edge-bff/radar/src app.ts renderRadar, drawKanban; model.ts columns,
+    lists, counts, stockFacts): per column, its default variant's hits at the Standard level and the Broad gate in their
+    sort order with each card's figures, and 20 sessions of that setting's counts; the gate cuts and the data dates."""
+    date = days['boards'][-1]
+    i = days['dates'].index(date)
+    shown = examples.radar_shown_filters(meta)
+    r, st = board['rows'], board['stocks']
+    at = {t: k for k, t in enumerate(st['ticker'])}
+    view = {}
+    for f in sorted(shown):
+        hits = [k for k in range(len(r['filter'])) if r['filter'][k] == f and r['level'][k] == 'standard'
+                and r['gate'][k] == 'broad' and r['status'][k] == 'hit']
+        cards = []
+        for k in hits:
+            t = st['ticker'][r['stock'][k]]
+            cards.append((t, r['run_day'][k], r['strong'][k], r['flag'][k], r['sort_value'][k], st['close'][at[t]],
+                          st['chg_1d'][at[t]], st['spark'][at[t]], meta['names'].get(t)))
+        counts = (days['counts'].get(f) or {}).get('standard/broad') or []
+        view[f] = (sorted(cards, key=lambda c: (-(c[4] if c[4] is not None else float('-inf')), c[0])),
+                   counts[max(0, i - 19):i + 1])
+    gate = {k: v[i] for k, v in days['gate'].items()}
+    return view, gate, days['prices_through'], days['broker_through'], date, [(f['id'], f['column'], f['name']) for f in meta['filters']]
+
+
 def test_the_radar_example_is_the_opening_view_of_its_date_as_the_tables_stood_then():
     files = examples.radar_files(conn(), NAMES, LISTS, AS_OF)
     assert [f[0] for f in files] == ['radar-meta', 'radar-days', f'radar-board-{AS_OF}']   # what boot() reads
     cut = built(conn(through=AS_OF))
-    got = {n: (doc, rows, day) for n, doc, rows, day in files}
-    assert {n: got[n] for n in ('radar-days', f'radar-board-{AS_OF}')} == {n: cut[n] for n in ('radar-days', f'radar-board-{AS_OF}')}
-    assert files[1][1]['boards'][-1] == AS_OF                                               # the board the page opens
-    # radar-meta: the publication's, its reference data cut to what the opening view reads (examples.reference_cut)
-    meta, was = got['radar-meta'][0], cut['radar-meta'][0]
-    assert {k: v for k, v in meta.items() if k not in ('names', 'lists')} == {k: v for k, v in was.items() if k not in ('names', 'lists')}
-    board = set(got[f'radar-board-{AS_OF}'][0]['stocks']['ticker'])
-    assert meta['names'] == {t: n for t, n in was['names'].items() if t in board} and meta['names'] and meta['lists'] == []
+    got = {n: doc for n, doc, *_ in files}
+    whole = (cut['radar-meta'][0], cut['radar-days'][0], cut[f'radar-board-{AS_OF}'][0])
+    stored = (got['radar-meta'], got['radar-days'], got[f'radar-board-{AS_OF}'])
+    # the page opens on the same view from the stored files as from the publication cut at the date
+    assert opening_view(*stored) == opening_view(*whole) and stored[1]['boards'] == [AS_OF]
+    # and the files hold nothing else (examples.radar_opening): S1's stock that left on the date is not in the board
+    assert stored[2]['rows']['status'] == ['hit'] and 'left' in whole[2]['rows']['status']
+    assert stored[0]['rules'] == [] and stored[0]['lists'] == [] and set(stored[0]['names']) == set(stored[2]['stocks']['ticker'])
+
+
+def test_the_radar_files_keep_only_the_boards_opening_view():
+    """The example-mode re-check (ERRORS M527): the board's near misses, left stocks, other levels and gates, a column's
+    other variant and the measures are behind a click (the filter page, a segment): none of them is stored, nor the
+    counts of another setting, the older days, the IHSG line, the other boards or the rules. Red without radar_opening."""
+    filters = [{'id': 'S1', 'position': 1, 'column': 'S1', 'column_label': 'S1', 'variant': None, 'default_variant': True,
+                'name': 'n1', 'question': 'q', 'warning': 'w', 'sort_label': 's', 'own_levels': False},
+               {'id': 'S6A', 'position': 6, 'column': 'S6', 'column_label': 'S6', 'variant': 'a', 'default_variant': True,
+                'name': 'n6a', 'question': 'q', 'warning': 'w', 'sort_label': 's', 'own_levels': False},
+               {'id': 'S6B', 'position': 7, 'column': 'S6', 'column_label': 'S6', 'variant': 'b', 'default_variant': False,
+                'name': 'n6b', 'question': 'q', 'warning': 'w', 'sort_label': 's', 'own_levels': False}]
+    dates = [f'2026-10-{d:02d}' for d in range(1, 31)]
+    as_of = dates[-1]
+    rows = [  # (filter, ticker, level, gate, status)
+        ('S1', 'HIT1', 'standard', 'broad', 'hit'), ('S1', 'NEAR', 'standard', 'broad', 'near'),
+        ('S1', 'LEFT', 'standard', 'broad', 'left'), ('S1', 'LOOS', 'loose', 'broad', 'hit'),
+        ('S1', 'LIQD', 'standard', 'liquid', 'hit'), ('S6A', 'HIT6', 'standard', 'broad', 'hit'),
+        ('S6B', 'VARB', 'standard', 'broad', 'hit')]
+    tickers = sorted({t for _, t, *_ in rows})
+    board = {'schema': 1, 'date': as_of,
+             'stocks': {'ticker': tickers, 'close': [100.0] * len(tickers), 'chg_1d': [1.0] * len(tickers),
+                        'spark': [[1.0, 2.0]] * len(tickers)},
+             'rows': {'filter': [r[0] for r in rows], 'stock': [tickers.index(r[1]) for r in rows],
+                      'level': [r[2] for r in rows], 'gate': [r[3] for r in rows], 'status': [r[4] for r in rows],
+                      'met': [3] * len(rows), 'cond_n': [2] * len(rows), 'run_day': [1] * len(rows),
+                      'left_reason': ['B' if r[4] == 'left' else None for r in rows], 'strong': [None] * len(rows),
+                      'sort_value': [float(k) for k in range(len(rows))], 'flag': [None] * len(rows)},
+             'measures': {'columns': list(radar.MEASURES), 'values': [[1.0] * len(radar.MEASURES)] * len(tickers)}}
+    settings = [f'{lv}/{g}' for lv in radar.LEVELS for g in radar.GATES]
+    days = {'schema': 1, 'dates': dates, 'gate': {'broad_cut': [1e9] * 30, 'liquid_cut': [2e9] * 30, 'universe_n': [900] * 30,
+                                                    'broad_n': [450] * 30, 'liquid_n': [180] * 30},
+            'counts': {f: {s_: list(range(30)) for s_ in settings} for f in ('S1', 'S6A', 'S6B')},
+            'ihsg': [7000.0] * 30, 'broker_through': as_of, 'prices_through': as_of, 'boards': dates[-3:]}
+    meta = {'schema': 1, 'levels': list(radar.LEVELS), 'gates': list(radar.GATES), 'filters': filters,
+            'rules': [{'filter': 'S1', 'cond': 'A', 'level': 'standard', 'label': 'x', 'threshold': 1.0, 'threshold2': None,
+                       'status': 'decided'}],
+            'names': {t: f'Company {t}' for t in tickers}, 'lists': [{'key': 'k', 'kind': 'INDEX', 'code': 'C', 'name': 'C', 'members': tickers}]}
+    m, d, b = examples.radar_opening(meta, days, board, as_of)
+    assert sorted(b['stocks']['ticker']) == ['HIT1', 'HIT6'] and set(b['rows']['status']) == {'hit'}
+    assert set(b['rows']['level']) == {'standard'} and set(b['rows']['gate']) == {'broad'} and set(b['rows']['filter']) == {'S1', 'S6A'}
+    assert b['measures'] == {'columns': [], 'values': [None, None]} and set(b['rows']['met']) == {None} and set(b['rows']['left_reason']) == {None}
+    assert d['dates'] == dates[-20:] and d['boards'] == [as_of] and d['ihsg'] == [None] * 20
+    assert d['counts'] == {'S1': {'standard/broad': list(range(10, 30))}, 'S6A': {'standard/broad': list(range(10, 30))}}
+    assert all(len(v) == 20 for v in d['gate'].values())
+    assert m['rules'] == [] and m['lists'] == [] and set(m['names']) == {'HIT1', 'HIT6'} and m['filters'] == filters
+    for planted in ('NEAR', 'LEFT', 'LOOS', 'LIQD', 'VARB'):
+        assert planted not in json.dumps([m, d, b]), planted
+    assert opening_view(m, d, b) == opening_view(meta, days, board)          # the page draws the same opening view
 
 
 def test_the_radar_examples_reference_data_holds_no_stock_listed_or_member_added_after_its_date():
@@ -55,7 +129,8 @@ def test_the_rows_carry_the_bytes_the_page_reads_and_say_what_they_are():
         assert (tab, as_of) == ('radar', AS_OF) and radar.NAME.fullmatch(name)
         assert size == len(body) and sha == hashlib.sha256(body).hexdigest()
         assert body == radar_bytes(name)                                   # the publisher's own encoding of the file
-    assert [r[3] for r in rows][2] == len(built(conn(through=AS_OF))[f'radar-board-{AS_OF}'][0]['rows']['filter'])
+    board = dict((n, d) for n, d, *_ in examples.radar_files(conn(), NAMES, LISTS, AS_OF))[f'radar-board-{AS_OF}']
+    assert [r[3] for r in rows][2] == len(board['rows']['filter']) == 1             # the one hit of the opening view
 
 
 def radar_bytes(name):
