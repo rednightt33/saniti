@@ -10,7 +10,9 @@ describe.skipIf(!existsSync(dir))('the production bundle', () => {
       expect(js).not.toContain('tests/fixture');
       expect(js).not.toContain('"schema":1');
       expect(js).not.toMatch(/storageapi\.dev|X-Amz-/);
-      expect(js).toContain('/api/v1/overview/');
+      // its two data paths: the live files and, in the example mode (3e, ERRORS M527), the example's (src/api.ts)
+      expect(js).toMatch(/["'`]\/api\/v1\/overview["'`]/);
+      expect(js).toContain('/api/v1/examples/overview');
     }
   });
 });

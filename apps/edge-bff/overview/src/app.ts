@@ -3,6 +3,7 @@
    overview-series, the newest overview-day) and computes nothing of its own: src/model.ts picks the rows of the user's
    universe, period and metric. The state lives in the URL hash, as in the design. */
 import { OverviewError, cached } from './api.ts';
+import { lockOnly } from '../../shared/example-view.ts';
 import * as M from './model.ts';
 import type { Day, Meta, OverviewApi, OverviewIndex, Series, StocksFile } from './types.ts';
 
@@ -30,12 +31,17 @@ const WINDOW: Record<string, number> = { '60D': 60, '120D': 120, '1Y': M.YEAR };
 const CUSTOM = { cl: 'clr', sp: 'spr', brp: 'brr', tmp: 'tmr', ff: 'ffr' } as const;
 type PKey = keyof typeof CUSTOM;
 const DEFAULT: Record<PKey, string> = { cl: '1D', sp: '60D', brp: '120D', tmp: '1D', ff: '1D' };
+/* 3e, the example mode (user 2026-11-21; ERRORS M527): the time controls are the choices whose every value is a period
+   (1D, 60D, 1Y, YTD, Custom...), derived from ONE_OF: cl, per, sp, brp, tmp, ff; the map's measure and the EMA are not */
+const TIME_KEYS = new Set(Object.keys(ONE_OF).filter(k => ONE_OF[k].every(v => /^(\d+[DMY]|YTD|C)$/.test(v))));
 
-export function start(api: OverviewApi, view: HTMLElement) {
+export function start(api: OverviewApi, view: HTMLElement, opts: { example?: boolean } = {}) {
   const files = cached(api);
   let index: OverviewIndex, meta: Meta, series: Series, day: Day, R: M.Row[] = [], U: M.Universe[] = [], end = -1;
   const q = new URLSearchParams(location.hash.slice(1));
-  const pick = (k: string, dflt: string) => (ONE_OF[k].includes(q.get(k) || '') ? (q.get(k) as string) : dflt);
+  // 3e, the example mode: every time control opens on its default whatever the address says (the files hold no other)
+  const pick = (k: string, dflt: string) => (opts.example && TIME_KEYS.has(k) ? dflt
+    : ONE_OF[k].includes(q.get(k) || '') ? (q.get(k) as string) : dflt);
   const range = (k: string): M.Range | null => { const m = /^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/.exec(q.get(k) || ''); return m ? { a: m[1], b: m[2] } : null };
   const ST: State = {
     u: q.get('u') || '', mm: pick('mm', 'perf') as M.MapMetric, cl: pick('cl', '1D') as M.TilePeriod, per: pick('per', '1D') as M.IhsgPeriod,
@@ -51,6 +57,17 @@ export function start(api: OverviewApi, view: HTMLElement) {
     history.replaceState(null, '', '#' + p.toString());
   };
   const pl = (p: string) => (p === 'C' ? 'Custom' : p);     // a period's name in a label
+  /* 3e, the example mode (the user, 2026-11-21: "semuanya clickable ... kalau user klik 5D, 1M, atau custom, ataupun
+     filter yang sifatnya adalah time frame, baru diarahkan ke paywall. atau diarahkan ke login"): a control of a time
+     choice (a group whose key is in TIME_KEYS: its data-k, or the key bind() registers for its id) and the date picker
+     ask for the shell's box; the index and group filter, the map's measure, the EMA and a stock (to the Terminal) work */
+  const groupKey = new Map<string, string>();
+  const timeControl = (el: Element) => {
+    if (el.closest('#datebtn, #datepop')) return true;
+    const g = el.closest('.seg') as HTMLElement | null, k = g ? g.dataset.k || groupKey.get(g.id) : undefined;
+    return !!k && TIME_KEYS.has(k);
+  };
+  if (opts.example) lockOnly({ source: 'overview', name: 'Market Overview', locked: timeControl });
 
   let toastT = 0;
   const toast = (m: string) => { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = window.setTimeout(() => (t.hidden = true), 3200) };
@@ -626,7 +643,7 @@ export function start(api: OverviewApi, view: HTMLElement) {
       const b = (e.target as HTMLElement).closest('.menu-item') as HTMLElement; if (!b) return;
       dateMenu(false); void pickDate(b.dataset.d as string);
     });
-    const periodClick = (id: string, k: keyof State, attr: string, after: () => void) => $(id).addEventListener('click', e => {
+    const periodClick = (id: string, k: keyof State, attr: string, after: () => void) => (groupKey.set(id.slice(1), k), $(id)).addEventListener('click', e => {
       const b = (e.target as HTMLElement).closest('button') as HTMLElement; if (!b) return;
       if (b.dataset[attr] === 'C' && k in CUSTOM) { e.stopPropagation(); openCustom(k as PKey, b, after); return }
       (ST as any)[k] = b.dataset[attr]; persist(); after();

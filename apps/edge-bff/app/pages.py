@@ -169,6 +169,43 @@ class PageFiles:
         self.cached, self.cached_at = data, now
         return data
 
+    async def body_of(self, p, sent, name, current, entry):
+        """The checked gzip bytes of the named file of sha256 `current` (its index entry `entry`), kept by sha256, with
+        the principal's terminal headers `sent`: (bytes, None), or (None, the refusal to answer). 3e, the example mode
+        (app/examples.py): the Market Overview's example reads the live files through here too."""
+        family = self.family
+        body = self.bodies.get(current)
+        if body is None:
+            try:
+                granted = await self.terminal(sent, 'POST', family, body=f'{{"names": ["{name}"]}}'.encode())
+                if granted.status_code == 404 and terminal_access.acknowledged(p, granted.headers):
+                    return None, self.failure('FILE_REPLACED', 409, {'name': name})
+                try:
+                    answer = granted.json()
+                except ValueError:
+                    answer = None
+                # the grant's presigned URL is read here only (the page gets the file's checked bytes), so the
+                # unfiltered answer is used; relayed decides the refusal
+                refused, _ = terminal_access.relayed(p, granted.status_code, answer, granted.headers, family)
+                if refused is not None and refused.code == 'LIMIT_REACHED':
+                    # R1-26: the Terminal quota the page files count against (CONTRACT.md section 3)
+                    return None, refusal(refused.status, refused.code, refused.details, refused.headers)
+                if refused is not None or granted.status_code != 200:
+                    return None, self.failure('UNAVAILABLE', 503)
+                f = answer['files'][0]
+                # QA 2026-11-14: the grant names the file of the publication terminal-api reads now; when that is
+                # not the one this answer is for, the page reads the index again (never new bytes under an old sha)
+                if f.get('sha256') != current:
+                    self.cached = None
+                    return None, self.failure('FILE_REPLACED', 409, {'name': name, 'sha256': f.get('sha256')})
+                body = await self.fetch(f['url'], int(f.get('bytes') or entry.get('bytes') or 0))
+            except (httpx.HTTPError, httpx.InvalidURL, ValueError, KeyError, IndexError, TypeError):
+                return None, self.failure('UNAVAILABLE', 503)
+            if body is None or hashlib.sha256(body).hexdigest() != current:
+                return None, self.failure('FILE_DAMAGED', 502, {'name': name})
+            self.keep(current, body)
+        return body, None
+
     def routes(self, app, auth):
         family = self.family
         # Phase 3a: before the shared caches (docstring); Phase 3c: the page-sent terminal headers refused first
@@ -213,36 +250,9 @@ class PageFiles:
             current = entry.get('sha256')
             if not sha and request.headers.get('if-none-match') == f'"{str(current)[:32]}"':
                 return Response(status_code=304, headers={'ETag': f'"{str(current)[:32]}"', 'Cache-Control': 'private, no-cache'})
-            body = self.bodies.get(current)
-            if body is None:
-                try:
-                    granted = await self.terminal(sent, 'POST', family, body=f'{{"names": ["{name}"]}}'.encode())
-                    if granted.status_code == 404 and terminal_access.acknowledged(p, granted.headers):
-                        return self.failure('FILE_REPLACED', 409, {'name': name})
-                    try:
-                        answer = granted.json()
-                    except ValueError:
-                        answer = None
-                    # the grant's presigned URL is read here only (the page gets the file's checked bytes), so the
-                    # unfiltered answer is used; relayed decides the refusal
-                    refused, _ = terminal_access.relayed(p, granted.status_code, answer, granted.headers, family)
-                    if refused is not None and refused.code == 'LIMIT_REACHED':
-                        # R1-26: the Terminal quota the page files count against (CONTRACT.md section 3)
-                        return refusal(refused.status, refused.code, refused.details, refused.headers)
-                    if refused is not None or granted.status_code != 200:
-                        return self.failure('UNAVAILABLE', 503)
-                    f = answer['files'][0]
-                    # QA 2026-11-14: the grant names the file of the publication terminal-api reads now; when that is
-                    # not the one this answer is for, the page reads the index again (never new bytes under an old sha)
-                    if f.get('sha256') != current:
-                        self.cached = None
-                        return self.failure('FILE_REPLACED', 409, {'name': name, 'sha256': f.get('sha256')})
-                    body = await self.fetch(f['url'], int(f.get('bytes') or entry.get('bytes') or 0))
-                except (httpx.HTTPError, httpx.InvalidURL, ValueError, KeyError, IndexError, TypeError):
-                    return self.failure('UNAVAILABLE', 503)
-                if body is None or hashlib.sha256(body).hexdigest() != current:
-                    return self.failure('FILE_DAMAGED', 502, {'name': name})
-                self.keep(current, body)
+            body, failed = await self.body_of(p, sent, name, current, entry)
+            if failed is not None:
+                return failed
             return Response(body, media_type='application/json', headers={
                 'Content-Encoding': 'gzip', 'ETag': f'"{current[:32]}"', 'Cache-Control': 'private, no-cache'})
 

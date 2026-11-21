@@ -11,7 +11,7 @@ import psycopg.types.json
 import pytest
 from fastapi.testclient import TestClient
 
-from app import examples as examples_module
+from app import examples as examples_module, terminal_access
 from app.config import LIVE
 from app.main import create_app
 from conftest import FakeOrc
@@ -147,12 +147,12 @@ def test_on_the_live_site_the_visitor_and_the_free_plan_read_it_and_the_beta_has
 
 def test_the_files_are_served_from_memory_and_read_again_after_the_refresh(guests, store, stored, monkeypatch):
     reads = []
-    real = examples_module.Examples.read
+    real = examples_module.Stored.read
 
-    def counted(self, tab, held):
-        reads.append(tab)
-        return real(self, tab, held)
-    monkeypatch.setattr(examples_module.Examples, 'read', counted)
+    def counted(self, held):
+        reads.append(self.tab)
+        return real(self, held)
+    monkeypatch.setattr(examples_module.Stored, 'read', counted)
     with TestClient(create_app(guests, store, FakeOrc())) as c:
         for _ in range(3):
             read_example(c, VISITOR)
@@ -165,9 +165,9 @@ def test_the_files_are_served_from_memory_and_read_again_after_the_refresh(guest
         put(store, 'radar', RADAR)
         read_example(c, VISITOR)
 
-        def broken(self, tab, held):
+        def broken(self, held):
             raise psycopg.OperationalError('connection to server at "secret-host" failed')
-        monkeypatch.setattr(examples_module.Examples, 'read', broken)
+        monkeypatch.setattr(examples_module.Stored, 'read', broken)
         read_example(c, VISITOR)                                              # the last good copy stands
     with TestClient(create_app(guests, store, FakeOrc())) as c:              # nothing kept and the read fails
         r = c.get('/api/v1/examples/radar/index', headers=VISITOR)
@@ -190,3 +190,161 @@ def test_the_table_keeps_only_rows_whose_bytes_and_name_match_and_edge_bff_only_
         assert c.execute('SELECT count(*) FROM edge_bff.example_files').fetchone()[0] == 0
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             c.execute(sql, good)
+
+
+# ---- the Market Overview: its latest market date, trimmed to the opening view (the user: "1. tetap seperti itu 2. ok") -
+import httpx  # noqa: E402
+import re  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from app import principal as principal_module  # noqa: E402
+from example_docs import OVERVIEW_DATES, OVERVIEW_DAYS, overview_files  # noqa: E402
+from test_terminal_access import FakeApi, terminal_calls  # noqa: E402
+
+NEWEST = OVERVIEW_DAYS[-1]
+OPENING = {'overview-meta', 'overview-series', f'overview-day-{NEWEST}'}
+
+
+class OverviewApi(FakeApi):
+    """terminal-api's /overview routes and the bucket, serving a made-up publication (example_docs.overview_files)."""
+    files = {}
+
+    def answer(self, method, url, content):
+        if url.endswith('/api/terminal/v1/overview') and method == 'GET':
+            return httpx.Response(200, json={'finished_at': '2026-11-20T11:00:00Z', 'files': {
+                n: {'sha256': hashlib.sha256(b).hexdigest(), 'bytes': len(b), 'rows': 1, 'as_of': NEWEST}
+                for n, b in OverviewApi.files.items()}})
+        if url.endswith('/api/terminal/v1/overview') and method == 'POST':
+            name = json.loads(content)['names'][0]
+            b = OverviewApi.files[name]
+            return httpx.Response(200, json={'files': [{'name': name, 'url': f'https://bucket.example/overview/{name}',
+                                                        'sha256': hashlib.sha256(b).hexdigest(), 'bytes': len(b)}]})
+        return super().answer(method, url, content)
+
+    def stream(self, method, url, params=None, headers=None):
+        if not url.startswith('https://bucket.example/overview/'):
+            return super().stream(method, url, params, headers)
+        body = OverviewApi.files[url.rsplit('/', 1)[1]]
+
+        class Answer:
+            status_code = 200
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def aiter_bytes(self):
+                yield body
+        return Answer()
+
+
+@pytest.fixture
+def overview_api(api, monkeypatch):
+    monkeypatch.setattr(httpx, 'AsyncClient', OverviewApi)
+    OverviewApi.files = {n: gz(doc) for n, doc in overview_files().items()}
+    return OverviewApi
+
+
+def overview_example(c, headers):
+    r = c.get('/api/v1/examples/overview/index', headers=headers)
+    assert r.status_code == 200, r.text
+    index = r.json()
+    files = {}
+    for name, e in index['files'].items():
+        f = c.get(f'/api/v1/examples/overview/file/{name}?sha={e["sha256"]}', headers=headers)
+        assert f.status_code == 200 and f.headers['etag'] == f'"{e["sha256"][:32]}"', name
+        files[name] = f.json()
+    return index, files
+
+
+def test_a_visitor_reads_the_latest_overview_trimmed_to_its_opening_view(guests, store, overview_api):
+    live = overview_files()
+    with TestClient(create_app(guests, store, FakeOrc())) as c:
+        index, files = overview_example(c, VISITOR)
+        assert set(index['files']) == OPENING and index['as_of'] == NEWEST
+        meta, series, day = files['overview-meta'], files['overview-series'], files[f'overview-day-{NEWEST}']
+        # the date picker holds the example's day; the rest of meta is the publication's (the index and group filter)
+        assert meta['dates'] == [NEWEST] and {k: v for k, v in meta.items() if k != 'dates'} == \
+            {k: v for k, v in live['overview-meta'].items() if k != 'dates'}
+        # the series: breadth's 120 sessions and their start, the KPI strip's 30 broker sessions, as published
+        n = examples_module.OVERVIEW_SESSIONS
+        assert series['dates'] == OVERVIEW_DATES[-n:] and len(OVERVIEW_DATES) > n
+        for k in ('index', 'sector'):
+            assert {t: v for t, v in series[k].items()} == {t: v[-n:] for t, v in live['overview-series'][k].items()}
+        for k in ('above_ema50', 'above_ema200', 'breadth_n'):
+            assert series[k] == live['overview-series'][k][-n:]
+        m = examples_module.OVERVIEW_FLOW_SESSIONS
+        assert series['flow'] == {k: v[-m:] for k, v in live['overview-series']['flow'].items()}
+        # the day: its 1D figures; every other period's values null; the 1D flow period; the session's 5-minute bars
+        stocks, was = day['stocks'], live[f'overview-day-{NEWEST}']['stocks']
+        for k in ('i', 'close', 'r1d', 'size', 'above_ema50', 'above_ema200', 'fnet_1d'):
+            assert stocks[k] == was[k], k
+        for k in ('r5d', 'r1m', 'fnet_5d', 'fnet_1m', 'fnet_3m'):
+            assert any(v is not None for v in was[k]) and stocks[k] == [None] * len(was[k]), k
+        assert day['market']['periods'] == {'1D': live[f'overview-day-{NEWEST}']['market']['periods']['1D']}
+        assert day['market']['foreign_net_10d'] == live[f'overview-day-{NEWEST}']['market']['foreign_net_10d']
+        assert list(day['intraday']) == ['5m'] and day['intraday']['5m'] == live[f'overview-day-{NEWEST}']['intraday']['5m']
+        # the files behind other views stay with overview.view
+        for name in ('overview-stocks', *(f'overview-day-{d}' for d in OVERVIEW_DAYS[:-1])):
+            r = c.get(f'/api/v1/examples/overview/file/{name}', headers=VISITOR)
+            assert (r.status_code, r.json()['error']['code']) == (404, 'EXAMPLE_FILE_NOT_FOUND'), name
+        assert c.get('/api/v1/overview/index', headers=VISITOR).status_code == 401
+        # terminal-api was asked as the visitor (the guest owner, the gateway key), once per file and publication
+        calls = [x for x in terminal_calls() if x['url'].endswith('/api/terminal/v1/overview')]
+        assert calls and all(x['headers'][terminal_access.OWNER_HEADER] == principal_module.GUEST_OWNER for x in calls)
+        before = len(calls)
+        overview_example(c, VISITOR)
+        assert len([x for x in terminal_calls() if x['url'].endswith('/api/terminal/v1/overview')]) <= before + 1
+
+
+def test_a_field_the_opening_view_does_not_read_is_left_out_or_null(guests, store, overview_api):
+    """Fail closed: a field the publisher adds later is not in the example until this module names it."""
+    docs = overview_files()
+    docs['overview-meta']['secret_history'] = list(range(300))
+    docs['overview-series']['new_history'] = [1.0] * len(OVERVIEW_DATES)
+    docs[f'overview-day-{NEWEST}']['new_block'] = {'x': 1}
+    docs[f'overview-day-{NEWEST}']['stocks']['r3m'] = [5.0] * len(docs[f'overview-day-{NEWEST}']['stocks']['i'])
+    docs[f'overview-day-{NEWEST}']['market']['periods']['6M'] = {'buy': 1, 'sell': 1, 'net': 0, 'from': OVERVIEW_DATES[0]}
+    docs[f'overview-day-{NEWEST}']['intraday']['1m'] = {'t': [1], 'c': [1.0]}
+    OverviewApi.files = {n: gz(doc) for n, doc in docs.items()}
+    with TestClient(create_app(guests, store, FakeOrc())) as c:
+        _, files = overview_example(c, VISITOR)
+    day = files[f'overview-day-{NEWEST}']
+    assert 'secret_history' not in files['overview-meta'] and 'new_history' not in files['overview-series']
+    assert 'new_block' not in day and set(day['market']['periods']) == {'1D'} and list(day['intraday']) == ['5m']
+    assert day['stocks']['r3m'] == [None] * len(day['stocks']['i'])
+
+
+def test_the_trim_follows_the_overview_pages_opening_view():
+    """The windows and the period the server keeps are the page's own defaults (overview/src/app.ts): the widest window
+    a panel opens on (and its start), the KPI strip's last30, and 1D for every period control."""
+    app_ts = (Path(__file__).resolve().parents[1] / 'overview' / 'src' / 'app.ts').read_text()
+    default = dict(re.findall(r"(\w+): '([^']+)'", re.search(r'const DEFAULT[^=]*= \{([^}]*)\}', app_ts).group(1)))
+    window = {k: int(v) for k, v in re.findall(r"'(\d+D)': (\d+)", re.search(r'const WINDOW[^=]*= \{([^}]*)\}', app_ts).group(1))}
+    windows = [int(v[:-1]) for v in default.values() if v.endswith('D') and v != '1D']
+    assert windows and max(windows) + 1 == examples_module.OVERVIEW_SESSIONS and set(windows) <= {60, 120} | set(window.values())
+    assert {v for v in default.values() if not (v.endswith('D') and v != '1D')} == {examples_module.OVERVIEW_PERIOD}
+    assert re.search(r"pick\('per', '1D'\)", app_ts) and examples_module.OVERVIEW_PERIOD == '1D'
+    assert re.search(r'const last30 = .*e - 29', app_ts) and examples_module.OVERVIEW_FLOW_SESSIONS == 30
+
+
+def test_the_overview_example_is_the_free_plans_and_follows_a_new_publication(guests, store, overview_api):
+    with TestClient(create_app(guests, store, FakeOrc())) as c:
+        make_user(store, 'freda', 'freda-password')
+        h = sign_in(c, 'freda', 'freda-password')
+        index, _ = overview_example(c, h)
+        assert index['as_of'] == NEWEST
+        paid = make_user(store, 'pablo', 'pablo-password')
+        subscribe(store, paid['user_id'], 'paid')
+        c.post('/api/v1/auth/sign-out', headers=h)
+        r = c.get('/api/v1/examples/overview/index', headers=sign_in(c, 'pablo', 'pablo-password'))
+        assert r.status_code == 403 and r.json()['error']['details']['capability'] == 'overview.example'
+    # the next publication's newest day is the example's (the relay's index is read again after INDEX_SECONDS)
+    docs = overview_files()
+    later = dict(docs[f'overview-day-{NEWEST}'], date='2026-11-23')
+    OverviewApi.files['overview-day-2026-11-23'] = gz(later)
+    with TestClient(create_app(guests, store, FakeOrc())) as c:
+        index, files = overview_example(c, VISITOR)
+        assert index['as_of'] == '2026-11-23' and 'overview-day-2026-11-23' in index['files']

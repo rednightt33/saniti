@@ -28,10 +28,14 @@ async function getJson<T>(url: string): Promise<T> {
   return body as T;
 }
 
-export const live: OverviewApi = {
-  index: () => getJson<OverviewIndex>('/api/v1/overview/index'),
-  file: <T>(name: string, sha: string) => getJson<T>(`/api/v1/overview/file/${encodeURIComponent(name)}?sha=${sha}`),
-};
+const pageApi = (base: string): OverviewApi => ({
+  index: () => getJson<OverviewIndex>(`${base}/index`),
+  file: <T>(name: string, sha: string) => getJson<T>(`${base}/file/${encodeURIComponent(name)}?sha=${sha}`),
+});
+export const live = pageApi('/api/v1/overview');
+/* EXEC-MU-ACCOUNTS 3e, the example mode (user 2026-11-21; ERRORS M527): the opening view of the latest market date, for
+   overview.example (edge-bff app/examples.py trims the live files to it), in the same shapes as the live files */
+export const example = pageApi('/api/v1/examples/overview');
 
 /** One copy of each file per page: a file is fetched once per sha and kept in memory. */
 export function cached(api: OverviewApi): OverviewApi {

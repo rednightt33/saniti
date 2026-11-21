@@ -1149,6 +1149,11 @@ today.
     page's opening view, built by the publisher's own builders cut at the example's date, a file naming any later date
     refused). The process keeps them in memory and reads the table at most every 300 s, so no request reads the
     database or terminal-api and the visitors' Terminal ceiling (`EDGE_GUEST_CALLS_PER_HOUR`) does not apply;
+  - the Market Overview's example is its latest market date (the user: "Semua overview itu menampilkan data di [hari
+    itu]"): the live publication's opening files, read through the page relay and trimmed by `app/examples.py` to the
+    opening view (breadth's 120 sessions and its start, the KPI strip's 30 broker sessions, the day's 1D figures, the 1D
+    flow, the session's bars, the one day in the date picker; a field not named is left out). The older day files and
+    `overview-stocks` stay with `overview.view`. The page stays clickable but for its time controls (`lockOnly`);
   - the page in example mode reads only those routes (its `example` data path) and stays a view of one day
     (`shared/example-view.ts`): a click, a press, a drag, a form input and a key acting on a control are stopped before
     the page's handlers and ask the shell for its box (`{source: <tab>, type: 'locked', kind: 'example'}`, accepted

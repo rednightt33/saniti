@@ -12,7 +12,6 @@ The example's files are made by the publisher's own Radar builders (apps/termina
 made-up rows, so they have the shapes the page reads. Needs EDGE_TEST_POSTGRES_URL, Playwright with EDGE_TEST_CHROMIUM,
 the built Terminal page and the built Radar page (cd apps/edge-bff/radar && npm run build)."""
 import dataclasses
-import sys
 
 import pytest
 
@@ -23,28 +22,8 @@ from test_examples import put  # noqa: E402
 from test_guest_browser import CONTACT  # noqa: E402
 from test_principal import db, make_user  # noqa: E402
 
-sys.path.insert(0, str(ROOT.parents[1] / 'apps' / 'terminal-publisher'))
-import radar  # noqa: E402
-
-AS_OF = '2026-11-06'
-DATES = ['2026-11-04', '2026-11-05', AS_OF]
-TICKERS = [f'T{i:03d}' for i in range(60)]                       # enough rows that the board scrolls
-
-
-def radar_example():
-    """The three files of the Radar's opening view, from the publisher's builders and made-up rows."""
-    filters = [('S1', 1, 'S1', 'S1', None, True, 'Heavy foreign accumulation', 'Q1', 'W1', 'z-score', False)]
-    rules = [('S1', c, lv, f'{c} at {lv}', t, None, 'decided') for c, t in (('A', 0), ('B', 5)) for lv in radar.LEVELS]
-    names = {t: f'Company {t}' for t in TICKERS}
-    rows = [(AS_OF, 'S1', 'standard', 'broad', t, 'hit', 2, 2, 1, None, None, 3.0 - i / 100, None)
-            for i, t in enumerate(TICKERS)]
-    gates = [(d, 900, 1.9e9, 1.8e10, 450, 180) for d in DATES]
-    prices = {t: [(d, 1000.0 + k) for k, d in enumerate(DATES)] for t in TICKERS}
-    meta = radar.meta_doc(filters, rules, names, [('lq45', 'index', 'LQ45', 'LQ45', TICKERS[:45])])
-    days = radar.days_doc(gates, [(AS_OF, 'S1', 'standard', 'broad', len(TICKERS))], ['S1'],
-                          {'S1': list(radar.LEVELS)}, {d: 7000.0 for d in DATES}, AS_OF, DATES)
-    board = radar.board_doc(AS_OF, rows, {}, prices)
-    return {'radar-meta': meta, 'radar-days': days, f'radar-board-{AS_OF}': board}
+from example_docs import RADAR_AS_OF as AS_OF, OVERVIEW_DAYS, overview_files, radar_example  # noqa: E402
+from test_examples import gz  # noqa: E402
 
 
 @pytest.fixture
@@ -55,6 +34,7 @@ def site(settings, store, monkeypatch):
     on = Live(dataclasses.replace(settings, site='live', guests_enabled=True, prelaunch_enabled=False, orc_url='',
                                   orc_key='', upgrade_contact=CONTACT), store, monkeypatch)
     put(store, 'radar', radar_example(), as_of=AS_OF)
+    on.terminal.pages['overview'] = {n: gz(doc) for n, doc in overview_files().items()}     # the live publication
     try:
         yield on
     finally:
@@ -168,3 +148,69 @@ def test_without_its_example_the_tab_is_locked_as_before(site, chromium, store):
     page = browser_context(chromium).new_page()
     page.goto(site.origin + '/radar')
     page.locator('main.locked-tab[data-locked-tab="radar"] .locked-tab-card').wait_for(timeout=20000)
+
+
+# ---- the Market Overview: the latest market date, clickable but for its time controls (the user, 2026-11-21) ---------
+def open_overview(page):
+    frame_el = page.locator('main.example-page[data-example-tab="overview"] iframe.terminal-frame')
+    frame_el.wait_for(timeout=20000)
+    assert frame_el.get_attribute('src').endswith('/overview-app/?example=1')
+    frame = page.frame_locator('main.example-page iframe.terminal-frame')
+    frame.locator('body[data-ready="1"]').wait_for(timeout=20000)
+    return frame
+
+
+def box_text(page):
+    box = page.locator('.locked-dialog')
+    box.wait_for(timeout=10000)
+    text = box.inner_text()
+    page.keyboard.press('Escape')
+    box.wait_for(state='detached', timeout=10000)
+    page.wait_for_timeout(450)                                     # the layer's pause between two asks
+    return text
+
+
+def test_a_visitor_sees_the_latest_overview_and_only_its_time_controls_are_locked(site, chromium):
+    if not (ROOT / 'overview' / 'dist' / 'index.html').is_file():
+        pytest.skip('the Overview page is not built (cd apps/edge-bff/overview && npm run build)')
+    page = browser_context(chromium).new_page()
+    requests = []
+    page.on('request', lambda r: requests.append(r.url))
+    page.goto(site.origin + '/overview')
+    frame = open_overview(page)
+    assert 'Overview with the data of Fri 20 Nov 2026' in page.locator('.example-bar').inner_text()
+    assert [u for u in requests if '/api/v1/overview/' in u] == []
+    asked = {u.split('?')[0].rsplit('/', 1)[1] for u in requests if '/api/v1/examples/overview/file/' in u}
+    assert asked == {'overview-meta', 'overview-series', f'overview-day-{OVERVIEW_DAYS[-1]}'}, asked
+    # what is not time works: the EMA, the index and group filter
+    frame.locator('#brpk button[data-k="EMA200"]').click()
+    assert frame.locator('#brpk button[data-k="EMA200"]').get_attribute('aria-pressed') == 'true'
+    frame.locator('#uni').click()
+    frame.locator('#unipop .menu-item').filter(has_text='Big group').first.click()
+    assert page.locator('.locked-dialog').count() == 0
+    # every time control asks to sign in, and the panel keeps its period
+    for sel, pressed in (('#ihp button[data-v="5D"]', '#ihp button[data-v="1D"]'),
+                         ('#ffp button[data-v="C"]', '#ffp button[data-v="1D"]'),
+                         ('#brpp button[data-p="1Y"]', '#brpp button[data-p="120D"]'),
+                         ('#datebtn', None)):
+        frame.locator(sel).click()
+        assert 'Sign in to open Overview' in box_text(page), sel
+        if pressed:
+            assert frame.locator(pressed).get_attribute('aria-pressed') == 'true', sel
+    assert frame.locator('.cpop').evaluate('n => n.hidden') and frame.locator('#datepop').evaluate('n => n.hidden')
+    # a stock opens the Terminal, as on the live page
+    frame.locator('.tmv-r').first.click()
+    page.wait_for_function("() => location.pathname === '/terminal'", timeout=10000)
+
+
+def test_a_free_account_meets_the_paywall_on_the_overviews_time_controls(site, chromium):
+    if not (ROOT / 'overview' / 'dist' / 'index.html').is_file():
+        pytest.skip('the Overview page is not built (cd apps/edge-bff/overview && npm run build)')
+    make_user(site.store, 'freda_overview', PASSWORD)
+    page = browser_context(chromium).new_page()
+    sign_in(page, site, 'freda_overview', PASSWORD)
+    signed_in_workspace(page)
+    shell_navigate(page, '/overview')
+    frame = open_overview(page)
+    frame.locator('#spp button').first.click()
+    assert 'Overview is not in your plan' in box_text(page)

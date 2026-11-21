@@ -12,8 +12,9 @@
      shows) and every title attribute is removed as the page renders;
    - scrolling keeps working: the wheel and touch are stopped only for the page's handlers (a chart's zoom), never for
      the browser, and the keys that scroll are left alone outside a control.
-   The server is the guarantee (the example routes serve only the example's files to <tab>.example); this layer only
-   keeps the page a view of one day. */
+   The Market Overview is the exception the user set (lockOnly below): it stays clickable, and only its time controls ask
+   for the box. The server is the guarantee (the example routes serve only the example's files to <tab>.example); this
+   layer only keeps the page a view of one day. */
 
 export const EXAMPLE_PARAM = 'example';
 const LOCK_MS = 400;
@@ -34,18 +35,57 @@ export function exampleMode(search = typeof location === 'undefined' ? '' : loca
 
 export interface ViewOnly { stop(): void }
 
+/** The shell's box, asked for at most once every LOCK_MS: {source, type: 'locked', kind: 'example', id, name}. */
+function asker(win: Window, source: string, name: string): () => void {
+  let last = -Infinity;
+  return () => {
+    const now = Date.now();
+    if (now - last < LOCK_MS) return;
+    last = now;
+    const box = { source, type: 'locked', kind: 'example', id: source, name };
+    try { if (win.parent !== win) win.parent.postMessage(box, win.location.origin) } catch { /* not framed */ }
+  };
+}
+
+/** The Market Overview's example (the user, 2026-11-21: "semuanya clickable ... Tapi kalau seandainya user klik 5D, 1M,
+ *  atau custom, ataupun filter yang sifatnya adalah time frame, baru diarahkan ke paywall. atau diarahkan ke login kalau
+ *  user belum login"): only a control `locked` names is stopped before the page's handlers and asks for the box (a click,
+ *  or Enter or Space on it); everything else, hover and scrolling included, stays the page's own. */
+export function lockOnly(opts: { source: string; name: string; locked: (el: Element) => boolean; root?: Document }): ViewOnly {
+  const doc = opts.root ?? document, win = doc.defaultView as Window;
+  const ask = asker(win, opts.source, opts.name);
+  const target = (e: Event) => (e.target instanceof Element ? e.target : null);
+  const press = (e: Event) => {
+    const el = target(e);
+    if (!el || !opts.locked(el)) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    if (e.type === 'click') ask();
+  };
+  const key = (e: KeyboardEvent) => {
+    const el = target(e);
+    if (!el || !opts.locked(el) || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    ask();
+  };
+  const PRESSES = ['click', 'dblclick', 'auxclick', 'pointerdown', 'mousedown', 'pointerup', 'mouseup'];
+  const opt = { capture: true, passive: false } as AddEventListenerOptions;
+  PRESSES.forEach(t => win.addEventListener(t, press, opt));
+  win.addEventListener('keydown', key as EventListener, opt);
+  return {
+    stop() {
+      PRESSES.forEach(t => win.removeEventListener(t, press, opt));
+      win.removeEventListener('keydown', key as EventListener, opt);
+    },
+  };
+}
+
 /** Keeps the page still (module comment); `source` is the page's tab (the shell accepts a box only from the frame of
  *  its current tab), `name` its name in the box. */
 export function viewOnly(opts: { source: string; name: string; root?: Document }): ViewOnly {
   const doc = opts.root ?? document, win = doc.defaultView as Window;
-  let last = -Infinity;
-  const ask = () => {
-    const now = Date.now();
-    if (now - last < LOCK_MS) return;
-    last = now;
-    const box = { source: opts.source, type: 'locked', kind: 'example', id: opts.source, name: opts.name };
-    try { if (win.parent !== win) win.parent.postMessage(box, win.location.origin) } catch { /* not framed */ }
-  };
+  const ask = asker(win, opts.source, opts.name);
   const stop = (e: Event) => {
     e.stopImmediatePropagation();
     e.preventDefault();

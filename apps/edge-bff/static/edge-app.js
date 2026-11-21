@@ -579,11 +579,11 @@ function LockedDialog({ item, guest, go, close }) {
     const v = currentView, L = EdgeLabels.locked, A = EdgeLabels.access;
     const config = initialValue(v, "config", () => null);
     onLifecycle(v, "config", () => { let live = true; Edge.config().then(c => { if (live) updateValue(v, "config", c); }); return () => { live = false; }; }, []);
-    const name = (item.kind === "feature" && L.features[item.id]) || item.name || item.id;
+    // 3e, the example mode: a click on an example page names the page by its name in the rail, not the Terminal
+    const example = item.kind === "example", X = EdgeLabels.example;
+    const name = (example && TAB_PATHS[`/${item.id}`] && tabName(item.id)) || (item.kind === "feature" && L.features[item.id]) || item.name || item.id;
     const title = (guest ? L.guestTitle : L.upgradeTitle).replace("{name}", name);
     const open = config?.registration === true;
-    // 3e, the example mode: a click on an example page names the page, not the Terminal
-    const example = item.kind === "example", X = EdgeLabels.example;
     // the dialog's first focus is its main button (DialogShell focuses [data-dialog-initial-focus])
     const primary = (text, onClick) => element("button", { type: "button", className: "btn primary", "data-dialog-initial-focus": true, onClick },
         " ", element("span", { className: "btn-label" }, text));

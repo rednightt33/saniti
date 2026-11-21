@@ -8879,6 +8879,23 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M528 — The example routes moved three SCREENER_ONBOARDING.md pointers into edge-bff's main.py: the look-ahead gate red on the session branch (2026-11-21; FIXED on the branch)
+
+- **Symptom:** the Backtest look-ahead gate's screener-worker job failed on `183a07eb` and `9f5deb03` (run
+  `44900390826`): `tests/onboarding_pointers.test.ts` found `TERMINAL_ROUTES` on `apps/edge-bff/app/main.py:79`, not
+  `:78`; `SCREENER_CSP` on `:120`, not `:119-122`; and `screeners.routes` not on `:810`.
+- **Root cause (verified in the code and git):** the example mode added lines to `main.py` (an import, the example
+  routes' object and their registration), so two cited lines moved one down. The third pointer was already wrong
+  before: at `2c5743bb` `screeners.routes(app, auth)` stood on line 801 while the document cited 810
+  (`overview.routes(app, auth)`). The check passed then only because it matches a dotted symbol by its last part
+  (`tests/doc-pointers.ts` nameOf: `routes`), which line 810 also held; the new lines put a comment there.
+- **Solution:** the three pointers name their lines again (`main.py:79`, `:803`, `:120-123`); the screener-worker
+  suite was run before the next push (136 tests).
+- **Lesson:** M467's lesson holds on the session branch too: after an edit of a file `SCREENER_ONBOARDING.md` points
+  into (`apps/edge-bff/app/main.py`, `screener.py`, `apps/terminal-publisher/publisher.py`), run the screener-worker
+  suite before pushing. A pointer whose symbol is dotted is checked by its last part only, so a common last part
+  (`routes`) can hide a wrong line: cite such a line by a name that occurs on it alone.
+
 ### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; IN PROGRESS on the branch: the Radar first)
 
 - **Symptom:** since 20261117_003 the free plan holds `overview.example`, `radar.example`, `watchlist.example`,
@@ -8919,6 +8936,18 @@ in its staleness check.
     the free plan's paywall, the paid plan's live Radar, and the locked page without the flag or without files; red
     with the layer removed, the live data path, the box from the Terminal only, and the locked page for a visitor or an
     account.
+  - The Market Overview (latest market date, the user: "1. tetap seperti itu 2. ok"): `app/examples.py` reads the live
+    publication's opening files through the page relay (`app/pages.py` body_of, factored out of the file route, its
+    caches and grant unchanged) and trims them to the opening view: the series to breadth's 120 sessions and its start,
+    the KPI strip's 30 broker sessions, the day's stocks to their 1D figures (every other period null), the flow to 1D,
+    IHSG's bars to the session's 5-minute bars, the date picker to that day; a field it does not name is left out or
+    null (fail closed). The windows are the page's own defaults (a test reads `overview/src/app.ts`). The older day files
+    and overview-stocks stay with `overview.view`. The page locks only its time controls (`shared/example-view.ts`
+    lockOnly; the keys derived from the page's own choices), the index and group filter, the measure, the EMA and a
+    stock (to the Terminal) work. Tests: the trim (red when other periods, the whole series, every flow period, an
+    unknown field, every bar series or the older days are kept), the browser (the EMA and the group filter work; 5D,
+    Custom, 1Y and the date picker ask to sign in or for the paywall; a stock opens the Terminal), each red on its
+    mutation.
 - **Lesson for new data:** an example of a page is the files of its opening view, built by the publisher's own builder
   cut at one date and checked for later dates before it is stored; the server is the guarantee (it serves only those
   files, only to `<tab>.example`), the page only displays.
