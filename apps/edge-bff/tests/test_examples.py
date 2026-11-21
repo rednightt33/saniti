@@ -103,12 +103,34 @@ def plan_rows(store):
                   'ON CONFLICT DO NOTHING', r['plan_key'], r['capability_key'], psycopg.types.json.Jsonb(r['value']))
 
 
+def second_factor(c, store, settings, h):
+    """An admin's pending session past its second factor (tests/test_auth_flows.py: enrol, then a code of now)."""
+    import time
+    from app import mfa
+    assert c.post('/api/v1/auth/mfa/enroll', headers=h).status_code == 200
+    row = db(store, 'SELECT user_id, nonce FROM edge_bff.mfa_totp ORDER BY user_id DESC LIMIT 1')[0]
+    secret = mfa.secret_of(settings.mfa_key, row['user_id'], bytes(row['nonce']))
+    r = c.post('/api/v1/auth/mfa/verify', headers=h, json={'code': mfa.code_at(secret, int(time.time()) // 30)})
+    assert r.status_code == 200 and r.json()['access']['mfa_ok'] is True, r.text
+
+
 def test_the_example_needs_the_tabs_example_capability_for_a_visitor_and_an_account(guests, store, stored, plan_rows):
     with TestClient(create_app(guests, store, FakeOrc())) as c:
         free = make_user(store, 'freda', 'freda-password')                  # the default plan: free
         paid = make_user(store, 'pablo', 'pablo-password')
         subscribe(store, paid['user_id'], 'paid')
         make_user(store, 'ada', 'ada-password', role='admin')
+        # the admin: before its second factor, refused as every capability route refuses it; with it ('*' holds every
+        # capability, radar.example too) it reads the example, while the shell opens the live page for it, which holds
+        # radar.view (static/edge-app.js App: the example only without <tab>.view)
+        admin = sign_in(c, 'ada', 'ada-password')
+        r = c.get('/api/v1/examples/radar/index', headers=admin)
+        assert (r.status_code, r.json()['error']['code']) == (403, 'MFA_REQUIRED')
+        second_factor(c, store, guests, admin)
+        read_example(c, admin)
+        held = c.get('/api/v1/auth/session', headers=admin).json()['access']['capabilities']
+        assert '*' in held
+        c.post('/api/v1/auth/sign-out', headers=admin)
         read_example(c, sign_in(c, 'freda', 'freda-password'))
         c.post('/api/v1/auth/sign-out', headers=sign_in(c, 'freda', 'freda-password'))
         r = c.get('/api/v1/examples/radar/index', headers=sign_in(c, 'pablo', 'pablo-password'))
@@ -165,6 +187,21 @@ def test_the_files_are_served_from_memory_and_read_again_after_the_refresh(guest
         put(store, 'radar', RADAR)
         read_example(c, VISITOR)
 
+        # a capture made again with other content (the example-mode checker, ERRORS M527): after REFRESH_SECONDS the
+        # changed file is served with its new bytes and sha, the old sha is answered as replaced
+        old = c.get('/api/v1/examples/radar/index', headers=VISITOR).json()['files']['radar-meta']['sha256']
+        RADAR['radar-meta'] = {**RADAR['radar-meta'], 'filters': [{'id': 'S1'}, {'id': 'S2'}]}
+        try:
+            put(store, 'radar', RADAR)
+            index = read_example(c, VISITOR)
+            assert index['files']['radar-meta']['sha256'] != old
+            r = c.get(f'/api/v1/examples/radar/file/radar-meta?sha={old}', headers=VISITOR)
+            assert r.status_code == 409 and r.json()['error']['code'] == 'EXAMPLE_FILE_REPLACED'
+        finally:
+            RADAR['radar-meta'] = {'schema': 1, 'filters': [{'id': 'S1'}]}
+        put(store, 'radar', RADAR)
+        read_example(c, VISITOR)
+
         def broken(self, held):
             raise psycopg.OperationalError('connection to server at "secret-host" failed')
         monkeypatch.setattr(examples_module.Stored, 'read', broken)
@@ -173,6 +210,19 @@ def test_the_files_are_served_from_memory_and_read_again_after_the_refresh(guest
         r = c.get('/api/v1/examples/radar/index', headers=VISITOR)
         assert r.status_code == 503 and r.json()['error']['code'] == 'EXAMPLE_UNAVAILABLE'
         assert 'secret-host' not in r.text
+
+
+def test_a_body_read_from_the_table_that_does_not_match_its_sha_is_never_served(guests, store, stored, monkeypatch):
+    """The example-mode checker (ERRORS M527): Stored.read checks every body it reads against its row's sha256 and size
+    (the table's CHECKs make a mismatch impossible to write; this is the second line). A body that comes back other
+    than its sha is refused: nothing is served from it, and nothing kept stands in on the first read."""
+    monkeypatch.setattr(examples_module, 'BODIES_SQL', examples_module.BODIES_SQL.replace(
+        'SELECT name, sha256, body', "SELECT name, sha256, body || '\\x00'::bytea AS body"))
+    with TestClient(create_app(guests, store, FakeOrc())) as c:
+        r = c.get('/api/v1/examples/radar/index', headers=VISITOR)
+        assert r.status_code == 503 and r.json()['error']['code'] == 'EXAMPLE_UNAVAILABLE'
+        r = c.get('/api/v1/examples/radar/file/radar-meta', headers=VISITOR)
+        assert r.status_code == 503 and r.json()['error']['code'] == 'EXAMPLE_UNAVAILABLE'
 
 
 def test_the_table_keeps_only_rows_whose_bytes_and_name_match_and_edge_bff_only_reads_it(database, store):
@@ -336,21 +386,76 @@ def test_a_visitor_reads_the_latest_overview_trimmed_to_its_opening_view(guests,
 
 
 def test_a_field_the_opening_view_does_not_read_is_left_out_or_null(guests, store, overview_api):
-    """Fail closed: a field the publisher adds later is not in the example until this module names it."""
+    """Fail closed at every depth (the example-mode checker, ERRORS M527): a field the publisher adds later, at the top
+    of a file or inside any of its blocks, is not in the example until this module names it; a value that turns into
+    an object where a value was is null."""
     docs = overview_files()
-    docs['overview-meta']['secret_history'] = list(range(300))
-    docs['overview-series']['new_history'] = [1.0] * len(OVERVIEW_DATES)
-    docs[f'overview-day-{NEWEST}']['new_block'] = {'x': 1}
-    docs[f'overview-day-{NEWEST}']['stocks']['r3m'] = [5.0] * len(docs[f'overview-day-{NEWEST}']['stocks']['i'])
-    docs[f'overview-day-{NEWEST}']['market']['periods']['6M'] = {'buy': 1, 'sell': 1, 'net': 0, 'from': OVERVIEW_DATES[0]}
-    docs[f'overview-day-{NEWEST}']['intraday']['1m'] = {'t': [1], 'c': [1.0]}
+    meta, series, day = docs['overview-meta'], docs['overview-series'], docs[f'overview-day-{NEWEST}']
+    planted = 'PLANTED-' + '9' * 12                        # a value that must not reach the example, wherever it is put
+    meta['secret_history'] = list(range(300))
+    meta['stocks']['free_float'] = [planted] * len(meta['stocks']['ticker'])
+    meta['sectors'][0]['history'] = planted
+    meta['lists'][0]['added_on'] = planted
+    meta['periods']['other'] = [planted]
+    series['new_history'] = [1.0] * len(OVERVIEW_DATES)
+    series['flow']['foreign_net_5d'] = [planted] * len(series['flow']['dates'])
+    series['index']['IHSG'][-1] = {'close': planted}       # an object where a value was
+    day['new_block'] = {'x': 1}
+    day['index']['IHSG']['r5d'] = planted
+    day['index']['IHSG']['history_1y'] = [planted]
+    day['index']['IHSG']['close'] = {'deep': planted}       # a named value that turns into an object: null
+    meta['lists'][0]['members'] = [{'ticker': planted}]
+    day['volatility']['history'] = [planted]
+    day['breadth']['by_period'] = {'5D': planted}
+    day['stocks']['r3m'] = [5.0] * len(day['stocks']['i'])
+    day['stocks']['close'][0] = {'v': planted}             # a kept column that holds an object: null
+    day['market']['periods']['6M'] = {'buy': 1, 'sell': 1, 'net': 0, 'from': OVERVIEW_DATES[0]}
+    day['market']['periods']['1D']['r5d'] = planted
+    day['market']['by_period'] = {'5D': planted}
+    day['intraday']['1m'] = {'t': [1], 'c': [1.0]}
+    day['intraday']['5m']['v'] = [planted]
     OverviewApi.files = {n: gz(doc) for n, doc in docs.items()}
     with TestClient(create_app(guests, store, FakeOrc())) as c:
         _, files = overview_example(c, VISITOR)
-    day = files[f'overview-day-{NEWEST}']
+    shown = files[f'overview-day-{NEWEST}']
+    assert planted not in json.dumps(files)
     assert 'secret_history' not in files['overview-meta'] and 'new_history' not in files['overview-series']
-    assert 'new_block' not in day and set(day['market']['periods']) == {'1D'} and list(day['intraday']) == ['5m']
-    assert day['stocks']['r3m'] == [None] * len(day['stocks']['i'])
+    assert 'new_block' not in shown and set(shown['market']['periods']) == {'1D'} and list(shown['intraday']) == ['5m']
+    assert shown['stocks']['r3m'] == [None] * len(shown['stocks']['i']) and shown['stocks']['close'][0] is None
+    assert files['overview-series']['index']['IHSG'] == [] and 'by_period' not in shown['market']
+    assert shown['index']['IHSG']['close'] is None and files['overview-meta']['lists'][0]['members'] is None
+
+
+def leaf_paths(doc, at=''):
+    """Every path of a JSON document to a value holding no object: object keys joined by '.', a list of objects read
+    item by item (its items' paths share the list's)."""
+    if isinstance(doc, dict):
+        return {p for k, v in doc.items() for p in leaf_paths(v, f'{at}.{k}' if at else k)} or {at}
+    if isinstance(doc, list) and not examples_module.flat(doc):
+        return {p for x in doc for p in leaf_paths(x, at)}
+    return {at}
+
+
+def test_every_field_the_publisher_writes_is_kept_by_name_or_left_out_by_name():
+    """Every path the publisher's own builders write (overview.py meta_doc, series_doc, day_doc, through
+    example_docs.overview_files) is either in the example as it was written or named in OVERVIEW_LEFT_OUT (out, or null
+    where the page reads by position), and every name there is one the publisher writes: a new field of the publisher
+    fails here until the trim decides on it."""
+    docs = overview_files()
+    trimmed = {n: doc for n, doc, _ in examples_module.overview_view(docs['overview-meta'], docs['overview-series'],
+                                                                      docs[f'overview-day-{NEWEST}'])}
+    under = lambda p, names: any(p == n or p.startswith(n + '.') for n in names)
+    for name, family in (('overview-meta', 'overview-meta'), ('overview-series', 'overview-series'),
+                         (f'overview-day-{NEWEST}', 'overview-day')):
+        left = examples_module.OVERVIEW_LEFT_OUT.get(family, ())
+        written, shown = leaf_paths(docs[name]), leaf_paths(trimmed[name])
+        assert {p for p in written - shown if not under(p, left)} == set(), name
+        for n in left:
+            assert any(under(p, (n,)) for p in written), f'{n}: not a field the publisher writes'
+            value = trimmed[name]
+            for k in n.split('.'):
+                value = value.get(k) if isinstance(value, dict) else None
+            assert value is None or (isinstance(value, list) and all(v is None for v in value)), n
 
 
 def test_the_trim_follows_the_overview_pages_opening_view():
@@ -386,6 +491,26 @@ def test_the_overview_example_is_the_free_plans_and_follows_a_new_publication(gu
         assert index['as_of'] == '2026-11-23' and 'overview-day-2026-11-23' in index['files']
 
 
+def test_a_principals_own_terminal_refusal_on_the_overview_example_keeps_its_code(guests, store, overview_api, monkeypatch):
+    """The example-mode checker (ERRORS M527): the Overview example builds the principal's terminal-api headers first
+    (terminal_access.headers: a guest without a well-formed visitor key, a ticker list too long for the header, a limit
+    of 0 where the database allows one); such a refusal of the principal itself is answered with its own status, code
+    and way on, as the Terminal's relay answers it (app/pages.py), not as the example's outage EXAMPLE_UNAVAILABLE."""
+    from app.errors import Refusal
+    own = Refusal(403, 'CAPABILITY_REQUIRED', {'capability': 'terminal.files_per_hour'})
+
+    def refused(settings, p):
+        raise own
+    with TestClient(create_app(guests, store, FakeOrc())) as c:
+        index, _ = overview_example(c, VISITOR)                 # the example opens; then the principal is refused
+        monkeypatch.setattr(examples_module.terminal_access, 'headers', refused)
+        for path in ('/api/v1/examples/overview/index', '/api/v1/examples/overview/file/overview-meta'):
+            r = c.get(path, headers=VISITOR)
+            assert r.status_code == 403, (path, r.text)
+            error = r.json()['error']
+            assert (error['code'], error['details'].get('capability')) == ('CAPABILITY_REQUIRED', 'terminal.files_per_hour'), error
+
+
 # ---- the Screener: the stored catalog is the live site's for the released items (3e; ERRORS M527) -------------------
 def test_the_screener_examples_catalog_is_what_catalog_for_gives_the_released_items(settings, store):
     """terminal-publisher examples.py narrowest_catalog (its copy of the catalog's item lists and the preset rules) gives
@@ -409,3 +534,22 @@ def test_the_screener_examples_catalog_is_what_catalog_for_gives_the_released_it
     assert as_edge_bff_shows(narrowed) == narrowed
     assert len(narrowed['presets']) < len(raw['presets']) or any(e.get('access') == 'admin' for e in raw.get('metrics', []))
     assert example_docs.examples.SCREENER_PRESET in {p['id'] for p in narrowed['presets']}
+
+
+def test_the_backtest_examples_catalog_shows_what_catalog_for_gives_the_narrowest_principal():
+    """The example-mode checker (ERRORS M527): terminal-publisher examples.py released_entries (its copy of
+    catalog.tab_list for no principal) gives the Flow indicators edge-bff's rights.catalog_for gives a principal with no
+    right and no lab item, on the made-up worker catalog with an admin-only version and an unlisted (lab) id planted; and
+    catalog_for changes nothing on the catalog the example stores. Red when either side's rule moves without the other."""
+    import example_docs
+    from app import rights
+    releases = json.loads((example_docs.ROOT / 'catalog' / 'releases.json').read_text())
+    raw = example_docs.backtest_made_up()['raw']
+    first = raw['flow_indicators'][0]
+    planted = {**raw, 'flow_indicators': [*raw['flow_indicators'], {**first, 'id': 'FL_LAB_NOT_LISTED'},
+                                           {**first, 'id': first['id'] + '_PIT', 'access': 'admin'}, {'note': 'no id'}]}
+    shown = example_docs.examples.released_entries(planted['flow_indicators'], 'flow_indicator', releases)
+    assert rights.catalog_for(planted, (), None)['flow_indicators'] == shown
+    assert {'FL_LAB_NOT_LISTED', first['id'] + '_PIT'}.isdisjoint(e.get('id') for e in shown) and {'note': 'no id'} in shown
+    stored = example_docs.backtest_example()['backtest-catalog']
+    assert rights.catalog_for(stored, (), None) == stored and stored['flow_indicators']

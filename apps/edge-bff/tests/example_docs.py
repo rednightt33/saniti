@@ -132,8 +132,9 @@ def backtest_example():
         def execute(self, sql, params=()):
             rows = [tuple(r) for r in made['bars']] if sql == examples.BARS_SQL else []
             return type('Rows', (), {'fetchall': lambda self: rows})()
+    releases = json.loads((ROOT / 'catalog' / 'releases.json').read_text())
     rows = examples.build(Conn(), 'backtest', BACKTEST_AS_OF, {}, [], request=made['request'],
-                          run=lambda q: made['result'], catalog=made['raw'], built_on=made['built_on'])
+                          run=lambda q: made['result'], catalog=made['raw'], built_on=made['built_on'], releases=releases)
     docs = {r[1]: json.loads(gzip.decompress(r[6])) for r in rows}
     if docs['backtest-catalog'] != made['catalog']:
         raise AssertionError('the publisher cuts the catalog unlike example-files.ts')

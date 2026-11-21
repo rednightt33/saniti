@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import { universe } from './fake-terminal.mjs';
 import { envFor } from './helpers.ts';
 import { cutPublication, screenOn, type Publication } from './example-capture.ts';
+import { drawExampleStocks } from './example-market.ts';
 import { setLogSink } from '../src/log.ts';
 
 declare const process: { argv: string[]; stdout: { write(s: string): boolean } };
@@ -21,25 +22,7 @@ if (!/^[a-z0-9]+$/.test(preset ?? '')) throw new Error('usage: example-files.ts 
 
 setLogSink(() => {});                                       // the worker's log lines stay out of the JSON printed
 const u = universe(12, 330, { last: AS_OF });
-const days = (u.prices.IHSG as unknown[][]).map(r => r[0] as string), n = days.length;
-const bar = (d: string, c: number, v: number) => [d, c, Math.round(c * 1.01), Math.round(c * 0.99), c, v];
-const sma = (c: number[], i: number, len: number) => { let s = 0; for (let k = i - len + 1; k <= i; k++) s += c[k]; return s / len };
-// Golden Cross: a long fall, then a rise steep enough that the 50-session SMA crosses above the 200-session one a few
-// sessions before the last day (the turn is searched, so the cross lands where the preset looks: within 20 sessions)
-function crossing(): number[] {
-  for (let turn = n - 150; turn < n - 20; turn++) {
-    const c = days.map((_, i) => Math.round(i < turn ? 1500 - i * 2 : (1500 - turn * 2) + (i - turn) * 9));
-    const last = [...Array(n).keys()].filter(i => i >= 200 && sma(c, i - 1, 50) <= sma(c, i - 1, 200) && sma(c, i, 50) > sma(c, i, 200)).pop();
-    if (last !== undefined && last >= n - 8 && last <= n - 3) return c;
-  }
-  throw new Error('no golden cross could be drawn on the made-up calendar');
-}
-const golden = crossing();
-u.prices.GCRS = days.map((d, i) => bar(d, golden[i], 5e6));
-u.ref.push(['GCRS', 'Golden cross', 'stock', 'Industrials', 'Industrials industry']);
-// brk52: quiet for a year, then a close above the year's high two sessions ago and a volume spike on the last day
-u.prices.BRKA = days.map((d, i) => bar(d, Math.round(i >= n - 2 ? 530 : 500 * (1 + 0.02 * Math.sin(i / 7))), i === n - 1 ? 2e7 : 5e6));
-u.ref.push(['BRKA', 'Breakout', 'stock', 'Industrials', 'Industrials industry']);
+drawExampleStocks(u);                                        // GCRS and BRKA on the last day (tests/example-market.ts)
 const p: Publication = { finished_at: `${AS_OF}T13:03:23Z`, ...u, actions: [] };
 const releases = JSON.parse(fs.readFileSync(new URL('../../edge-bff/catalog/releases.json', import.meta.url), 'utf8'));
 const allow = Object.fromEntries(KINDS.map(k => [k, releases.items.filter((i: any) => i.kind === k && i.stage === 'released').map((i: any) => i.id).sort()]));

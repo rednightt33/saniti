@@ -16349,6 +16349,24 @@ Order of the services (CONTRACT 17, rollback floors):
           example.
         - Next: the ultracode checker (xhigh) over the example mode, its fixes, then the promotion of A2, 3e and 3f
           (the user's go of 2026-11-21, step 6).
+        - The example-mode checker (2026-11-21, ultracode `wf_33a88511-3e1`, five lenses at xhigh, a skeptic per lens):
+          20 findings confirmed, 5 refuted (ERRORS M527, its checker block; M510 for the CI rerun). Fixed on the session
+          branch with tests red on each mutation: the Overview's trim at every depth; the example pages' browser storage
+          held in memory (`shared/example-storage.ts`); the page's own handlers and its CSS tooltips (hover and focus
+          styles taken out); the shell's ended-plan words, re-read and fresh note on the example; the reference data of
+          a past date (radar-meta, backtest-catalog cut to what the opening view reads; the Watchlist's capture stops
+          when no recorded membership covers the date); the Backtest result's later stamp left out; the stored Backtest
+          catalog cut to the released items; a principal's own Terminal refusal; the tests that claimed more than they
+          checked (the sha check, the admin, the Screener's empty screen and its row dates); the smoke's Overview and
+          Watchlist; `-rR` in CI.
+        - **Stop condition met (asked 2026-11-21, open):** the checker found that the Watchlist's example list is not the
+          LQ45 of 30 October. The lists' history starts at their first capture (9 November, effective 10 November), and
+          the exchange's review announced 26 October took effect 2 November (Stockbit Research of 27 October: ELSA and
+          SMGR in, CUAN and SCMA out); the stored list holds ELSA and SMGR and lacks CUAN and SCMA (read-only job
+          `f67b0fb3`). Asked the user: A correct the list from the exchange's announcement (documented rows in
+          `Stock_List_Member_History`, a shared-table write with the user's go), B rename the list "Contoh watchlist"
+          (the same 45 stocks, no claim to be LQ45), C promote without the Watchlist's example for now. The promotion
+          waits for the answer unless C.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

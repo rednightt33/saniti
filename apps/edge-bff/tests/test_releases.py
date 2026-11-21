@@ -106,6 +106,10 @@ LAB_ITEM_HELD_UNTIL = (
     "more ids in page modules) or computed by a built-in without its id (the Backtest's rank items, ATR stops, the ma "
     "transform) is found by a test, and the release file alone can no longer put it back at the lab stage (round 2, "
     "CRIT-3)",
+    # the example-mode checker (ERRORS M527, records-promotion-3)
+    "the stored examples (edge_bff.example_files) show a catalog as the release file stood when they were captured: "
+    "an item put at the lab stage later stays in them until they are captured again, or edge-bff cuts a stored "
+    "catalog by the release file when it serves it",
 )
 
 

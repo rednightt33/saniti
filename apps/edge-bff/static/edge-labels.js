@@ -207,6 +207,9 @@ window.EdgeLabels = {
     banner:"{name} with the data of {date}, as a view of that day.", bannerNoDate:"{name}, as a view of one day.",
     guest:"Sign in to use {name} itself.", guestClosed:"Sign in to use {name} itself; registration opens soon.",
     account:"Your plan does not include {name} itself yet; upgrading is coming soon.",
+    // an account whose plan ended (access.expired_plan; the 3e checker 3E-CW-1 on the example too)
+    ended:"Your {plan} plan has ended, so {name} shows this view of one day. Renew the plan to use {name} itself again; your data is kept.",
+    dialogEndedLead:"This is an example of {name}: a view of one day. Your {plan} plan has ended; renew it to use {name} itself again. Your data is kept.",
     dialogGuestLead:"This is an example of {name}: a view of one day. Sign in to use {name} itself, or create an account.",
     dialogGuestLeadClosed:"This is an example of {name}: a view of one day. Sign in to use {name} itself; registration opens soon.",
     dialogUpgradeLead:"This is an example of {name}: a view of one day. Your EDGE plan does not include {name} itself yet. Upgrading is coming soon."

@@ -70,10 +70,24 @@ def open_example(page, path='/radar'):
     return frame
 
 
+# resolves once the page has made no change to its document for 300 ms (at most 15 s): the test's own observer, run in
+# the frame by the test (the pages' bundles may not hold one)
+SETTLED = """() => new Promise(done => { let last = performance.now();
+  const seen = new MutationObserver(() => { last = performance.now() });
+  seen.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+  const until = performance.now() + 15000;
+  const look = () => { if (performance.now() - last >= 300 || performance.now() > until) { seen.disconnect(); done(performance.now() - last >= 300) }
+    else setTimeout(look, 50) };
+  look() })"""
+
+
 def no_title_after_hover(page, frame):
     """3e: a native tooltip needs the pointer on its element and shows only after a delay; once the pointer is on the page,
     no title attribute and no SVG <title> is left in it (shared/example-view.ts sweeps them on every pointer entry, with
-    no observer or timer: the Screener's bundle forbids both)."""
+    no observer or timer: the Screener's bundle forbids both). The page is let finish drawing first: a title it draws
+    after the pointer came is swept on the pointer's next entry, and on a slow machine the page may still be drawing
+    (ERRORS M510: the Backtest's slow variant, rerun once in CI, failed here when the results were drawn after the move)."""
+    assert frame.locator('body').evaluate(SETTLED), 'the page kept drawing for 15 s'
     box = page.locator('main.example-page iframe.terminal-frame').bounding_box()
     page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
     page.mouse.move(box['x'] + box['width'] / 3, box['y'] + box['height'] / 3)
@@ -85,11 +99,78 @@ def asked(requests):
     return sorted({r.split('?')[0] for r in requests if '/api/v1/' in r})
 
 
+# what another session kept on this browser (the example-mode checker, ERRORS M527): the Screener's collapsed panes,
+# its extra columns, column order and pop sizes, the Backtest's collapsed builder and its width, the Watchlist's view and
+# logo cache, a session key; the example shows none of it and changes none of it (shared/example-storage.ts)
+KEPT = {'scr.panes': '{"lw":null,"rw":null,"lcol":true,"ucol":true}', 'scr.extraCols': '["ret_1w","vol_1d","rvol"]',
+        'scr.colorder': '["ticker","last"]', 'scr.popsize': '{"cond":{"w":900,"h":700}}', 'ml.panel': '0', 'ml.bw': '520',
+        'edge.watchlist.view': '{"active":"x","view":"table"}', 'edge.watchlist.logos': '{"at":1,"map":{}}'}
+
+
+def keep_in_browser(page, origin, items=KEPT):
+    """The items in this browser's storage before the example opens (a page of the origin that runs no app)."""
+    page.goto(origin + '/favicon.svg')
+    page.evaluate("items => { for (const [k, v] of Object.entries(items)) localStorage.setItem(k, v); sessionStorage.setItem('scr.boot', 'kept') }", items)
+    return browser_storage(page)
+
+
+# the selectors left in a page's style sheets that apply only while the pointer is over, a focus is on or a press is held
+# (an interaction pseudo-class outside :not), the example's own style aside; read from the loaded sheets, not a class list
+INTERACTION_LEFT = r"""() => {
+  const re = /:(?:hover|focus|focus-visible|focus-within|active)(?![\w-])/, out = [];
+  const outsideNot = s => { let o = '', i = 0; while (i < s.length) { if (s.startsWith(':not(', i)) { let d = 0, j = i + 4;
+    for (; j < s.length; j++) { if (s[j] === '(') d++; else if (s[j] === ')' && --d === 0) break } i = j + 1; continue } o += s[i++] } return o };
+  const walk = list => { for (const r of list) {
+    if (typeof r.selectorText === 'string') for (const x of r.selectorText.split(',')) if (re.test(outsideNot(x))) out.push(x.trim());
+    if (r.cssRules) walk(r.cssRules); } };
+  for (const sh of document.styleSheets) { if (sh.ownerNode && sh.ownerNode.dataset && 'edgeExample' in sh.ownerNode.dataset) continue;
+    try { walk(sh.cssRules) } catch (e) { out.push('unreadable sheet ' + sh.href) } }
+  return out }"""
+
+
+def page_styles_still(frame, page_dir):
+    """The example-mode checker (ERRORS M527): no style of a pointer over, a focus or a press is left in the page (a CSS
+    tooltip opens without a script), while the page's built CSS has them (the check's self-test)."""
+    built = ''.join(f.read_text() for f in (ROOT / page_dir / 'dist').rglob('*.css'))
+    assert re.search(r':hover\b', built), f'{page_dir}: the built CSS has no :hover to take out'
+    assert frame.locator('body').evaluate(INTERACTION_LEFT) == []
+
+
+# a listener on the control itself (where a page's own handler runs) for every event a press or a key brings
+HANDLERS = """n => { window.__exampleRan = [];
+  for (const t of ['click', 'dblclick', 'auxclick', 'contextmenu', 'pointerdown', 'pointerup', 'mousedown', 'mouseup',
+                   'keydown', 'keyup', 'keypress', 'input', 'change', 'focusin', 'mouseover', 'pointerover'])
+    n.addEventListener(t, () => window.__exampleRan.push(t)); }"""
+
+
+def handlers_never_run(page, frame, selector):
+    """The example-mode checker (ERRORS M527): a click, a right click and the keys Enter and Space on a control of the
+    example are stopped before the page's own handlers (shared/example-view.ts viewOnly): a listener put on the control
+    itself never runs, while the shell's box opens."""
+    control = frame.locator(selector).first
+    control.evaluate(HANDLERS)
+    for act in (lambda: control.click(), lambda: control.click(button='right'), lambda: control.press('Enter'),
+                lambda: control.press(' ')):
+        act()
+        box = page.locator('.locked-dialog')
+        box.wait_for(timeout=10000)
+        box.locator('.dialog-head button[aria-label="Close"]').click()
+        box.wait_for(state='detached', timeout=10000)
+        page.wait_for_timeout(450)                                     # the layer's pause between two asks
+    assert frame.locator('body').evaluate('() => window.__exampleRan') == []
+
+
+def browser_storage(page):
+    """The browser's own storage of the origin, read from the shell's document (the example frame holds its own)."""
+    return page.evaluate("() => ({local: {...localStorage}, session: {...sessionStorage}})")
+
+
 def test_a_visitor_sees_the_radar_example_as_a_view_of_its_day(site, chromium):
     page = browser_context(chromium).new_page()
     page.set_viewport_size({'width': 1152, 'height': 640})
     requests = []
     page.on('request', lambda r: requests.append(r.url))
+    stored_before = keep_in_browser(page, site.origin)
     page.goto(site.origin + '/radar')
     frame = open_example(page)
     note = page.locator('.example-bar').inner_text()
@@ -127,6 +208,12 @@ def test_a_visitor_sees_the_radar_example_as_a_view_of_its_day(site, chromium):
     frame.locator('button').first.press('Enter')
     page.locator('.locked-dialog').wait_for(timeout=10000)
     assert frame.locator('body').evaluate('() => location.hash') == hash_before
+    page.locator('.locked-dialog .dialog-head button[aria-label="Close"]').click()
+    page.wait_for_timeout(450)
+    handlers_never_run(page, frame, '[data-act=date]')
+    assert frame.locator('.pop.menu').count() == 0 and frame.locator('[data-act=date]').get_attribute('aria-expanded') == 'false'
+    page_styles_still(frame, 'radar')
+    assert browser_storage(page) == stored_before
 
 
 def test_a_free_account_gets_the_paywall_and_a_paid_one_the_live_radar(site, chromium):
@@ -146,6 +233,57 @@ def test_a_free_account_gets_the_paywall_and_a_paid_one_the_live_radar(site, chr
     signed_in_workspace(page) if page.url.endswith('/terminal') else None
     page.locator('iframe.terminal-frame[src$="/radar-app/"]').wait_for(timeout=20000)
     assert page.locator('.example-bar').count() == 0
+
+
+def test_an_ended_plan_reads_on_the_example_that_it_ended_and_how_to_renew(site, chromium):
+    """The example-mode checker (ERRORS M527; the 3e checker 3E-CW-1 on every lock surface): an account whose paid plan
+    ended resolves to the free plan, which holds the example; its note and its box say the plan ended and how to renew
+    (the contact), never that the tab is not in the plan."""
+    make_user(site.store, 'ended_example', PASSWORD)
+    uid = site.subscribe('ended_example', 'paid')
+    db(site.store, """UPDATE edge_bff.subscriptions SET starts_at = now() - interval '30 days', expires_at = now() - interval '1 day'
+        WHERE user_id = %s AND status = 'active'""", uid)
+    page = browser_context(chromium).new_page()
+    sign_in(page, site, 'ended_example', PASSWORD)
+    signed_in_workspace(page)
+    frame = open_example(page)
+    note = page.locator('.example-bar').inner_text()
+    assert 'plan has ended' in note and 'Renew' in note and CONTACT in note and 'does not include' not in note, note
+    frame.locator('button').first.click()
+    box = page.locator('.locked-dialog')
+    box.wait_for(timeout=10000)
+    text = box.inner_text()
+    assert 'Your plan has ended' in text and 'renew' in text.lower() and CONTACT in text, text
+    assert 'not in your plan' not in text and 'Upgrading is coming soon' not in text, text
+
+
+def test_a_raised_plan_opens_the_live_tab_when_the_person_comes_back_to_the_example(site, chromium):
+    """The example-mode checker (ERRORS M527; the 3e checker SHELL-2 on the example too): a free account on the Radar
+    example whose plan is raised meanwhile gets the live Radar when it comes back to the browser tab, without a reload."""
+    make_user(site.store, 'raised_example', PASSWORD)
+    page = browser_context(chromium).new_page()
+    sign_in(page, site, 'raised_example', PASSWORD)
+    signed_in_workspace(page)
+    open_example(page)
+    site.subscribe('raised_example', 'paid')
+    page.evaluate("() => document.dispatchEvent(new Event('visibilitychange'))")      # back to this browser tab
+    page.locator('iframe.terminal-frame[src$="/radar-app/"]').wait_for(timeout=20000)
+    assert page.locator('.example-bar').count() == 0
+
+
+def test_the_note_follows_a_new_capture_when_the_tab_is_shown_again(site, chromium, monkeypatch):
+    """The example-mode checker (ERRORS M527): the shell asks the example's index again on every show, so its note names
+    the date of the example as it is now (the Overview's latest market date after the evening publication; here a
+    stored capture of another date), not the first answer of the page's life."""
+    monkeypatch.setattr(examples_module, 'REFRESH_SECONDS', 0)
+    page = browser_context(chromium).new_page()
+    page.goto(site.origin + '/radar')
+    open_example(page)
+    assert 'Radar with the data of Fri 6 Nov 2026' in page.locator('.example-bar').inner_text()
+    put(site.store, 'radar', radar_example(), as_of='2026-11-09')
+    shell_navigate(page, '/terminal')
+    shell_navigate(page, '/radar')
+    page.wait_for_function("() => (document.querySelector('.example-bar') || {}).innerText?.includes('Mon 9 Nov 2026')", timeout=15000)
 
 
 def test_without_its_example_the_tab_is_locked_as_before(site, chromium, store):
@@ -252,6 +390,7 @@ def test_a_visitor_sees_the_watchlist_example_and_a_click_asks_to_sign_in(site, 
     page = browser_context(chromium).new_page()
     requests = []
     page.on('request', lambda r: requests.append(r.url))
+    stored_before = keep_in_browser(page, site.origin)
     page.goto(site.origin + '/watchlist')
     frame_el = page.locator('main.example-page[data-example-tab="watchlist"] iframe.terminal-frame')
     frame_el.wait_for(timeout=20000)
@@ -270,7 +409,12 @@ def test_a_visitor_sees_the_watchlist_example_and_a_click_asks_to_sign_in(site, 
     box = page.locator('.locked-dialog')
     box.wait_for(timeout=10000)
     assert 'Sign in to open Watchlist' in box.inner_text() and 'This is an example of Watchlist' in box.inner_text()
+    box.locator('.dialog-head button[aria-label="Close"]').click()
+    page.wait_for_timeout(450)
     no_title_after_hover(page, frame)
+    handlers_never_run(page, frame, 'button')
+    page_styles_still(frame, 'watchlist')
+    assert browser_storage(page) == stored_before
 
 
 @pytest.mark.parametrize('slow', [False, True], ids=['quick', 'slow'])
@@ -299,6 +443,7 @@ def test_a_visitor_sees_the_backtests_stored_run_and_a_click_asks_to_sign_in(sit
     requests, errors = [], []
     page.on('request', lambda r: requests.append(r.url))
     page.on('pageerror', lambda e: errors.append(str(e)))
+    stored_before = keep_in_browser(page, site.origin)
     page.goto(site.origin + '/backtest')
     frame_el = page.locator('main.example-page[data-example-tab="backtest"] iframe.terminal-frame')
     frame_el.wait_for(timeout=20000)
@@ -326,6 +471,23 @@ def test_a_visitor_sees_the_backtests_stored_run_and_a_click_asks_to_sign_in(sit
     assert 'Sign in to open Backtest' in box.inner_text() and 'This is an example of Backtest' in box.inner_text()
     assert frame.locator('#main.vres').count() == 1 and frame.locator('#toast').text_content() == ''
     assert sum('/file/backtest-request' in u for u in requests) == 1
+    box.locator('.dialog-head button[aria-label="Close"]').click()
+    page.wait_for_timeout(450)
+    handlers_never_run(page, frame, '.js-run')
+    assert frame.locator('#main.vres').count() == 1 and sum('/file/backtest-request' in u for u in requests) == 1
+    page_styles_still(frame, 'backtest')
+    # the tooltip drawn by CSS alone stays closed on a pointer over it and on a focus (Tab still moves to it)
+    info = frame.locator('.xinfo').first
+    info.hover()
+    page.wait_for_timeout(200)
+    assert frame.locator('.xinfo-tip').first.evaluate('n => getComputedStyle(n).visibility') == 'hidden'
+    info.evaluate('n => n.focus()')
+    page.wait_for_timeout(200)
+    assert frame.locator('.xinfo-tip').first.evaluate('n => getComputedStyle(n).visibility') == 'hidden'
+    # the builder is open at its own width, whatever this browser kept (ml.panel, ml.bw), and the browser keeps its own
+    assert frame.locator('body.bcol').count() == 0
+    assert frame.locator('body').evaluate("() => document.querySelector('.app').style.getPropertyValue('--bw')").strip() == '396px'
+    assert browser_storage(page) == stored_before
 
 
 def test_a_visitor_sees_the_screeners_stored_screen_and_its_results_and_the_browser_keeps_nothing(site, chromium, store):
@@ -343,10 +505,10 @@ def test_a_visitor_sees_the_screeners_stored_screen_and_its_results_and_the_brow
     requests, errors = [], []
     page.on('request', lambda r: requests.append(r.url))
     page.on('pageerror', lambda e: errors.append(str(e)))
-    # a visitor's own last screen and panels from an earlier session on this browser: not shown, not changed
+    # a visitor's own last screen and panels, and what another session kept on this browser (its collapsed panes, its
+    # extra columns, column order and pop sizes, read by the page's modules as they load): not shown, not changed
     mine = '{"name":"Visitor own screen","definition":{"universe":{"security_types":["stock"]},"conditions":[],"logic":"all"}}'
-    page.goto(site.origin + '/favicon.svg')
-    page.evaluate("""m => { localStorage.setItem('scr.last', m); localStorage.setItem('scr.panel', '{"preview":true}') }""", mine)
+    stored_before = keep_in_browser(page, site.origin, {**KEPT, 'scr.last': mine, 'scr.panel': '{"preview":true}'})
     page.goto(site.origin + '/screener')
     frame_el = page.locator('main.example-page[data-example-tab="screener"] iframe.terminal-frame')
     frame_el.wait_for(timeout=20000)
@@ -365,8 +527,11 @@ def test_a_visitor_sees_the_screeners_stored_screen_and_its_results_and_the_brow
     assert frame.locator('#toast').text_content() == '' and errors == [], (frame.locator('#toast').text_content(), errors)
     assert frame.locator('[title]').count() > 0                 # the page draws titles (its cells) ...
     no_title_after_hover(page, frame)                           # ... and none is left once the pointer is on it
-    kept = page.evaluate("() => [localStorage.getItem('scr.last'), localStorage.getItem('scr.panel'), localStorage.getItem('scr.boot')]")
-    assert kept == [mine, '{"preview":true}', None], kept
+    assert frame.locator('body.lcol, body.ucol').count() == 0                    # the builder and the universe pane open
+    assert 'could not be loaded' not in body and 'Rel volume' not in body          # no extra column of the browser's
+    handlers_never_run(page, frame, 'button:not([aria-disabled="true"]):visible')
+    page_styles_still(frame, 'screener')
+    assert browser_storage(page) == stored_before
     frame.locator('button:visible:not([disabled]):not([aria-disabled="true"])').first.click()
     box = page.locator('.locked-dialog')
     box.wait_for(timeout=10000)

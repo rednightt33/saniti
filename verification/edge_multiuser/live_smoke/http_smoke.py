@@ -2,7 +2,8 @@
 runner's variables, where the live admin's login lives since 2026-11-20 (never printed):
     railway run -s orc-test-runner -e dev -- python3 verification/edge_multiuser/live_smoke/http_smoke.py https://app.edgefinance.id
 Checks /ready, the page and its headers, the config, a visitor's Terminal (BBCA open, another ticker refused with the
-sign-in words), every gated route (beta-only: 404 before any session; others: 401 for a visitor), registration closed,
+sign-in words), every gated route (beta-only: 404 before any session; others: 401 for a visitor), every tab's example as
+a visitor (its index and files, the tabs of app/examples.py), registration closed,
 the origin check, and, only with --admin, the admin's sign-in up to its second step (MFA_REQUIRED, no enrolment made).
 Prints only status codes, error codes and counts: never a password, an address or a cookie.
 
@@ -24,6 +25,7 @@ EDGE_BFF = Path(__file__).resolve().parents[3] / 'apps' / 'edge-bff'
 sys.path.insert(0, str(EDGE_BFF / 'tests'))
 sys.path.insert(0, str(EDGE_BFF))
 from app.principal import beta_only  # noqa: E402
+from app.examples import TABS as EXAMPLE_TABS  # noqa: E402
 from test_phase3a_gates import ROUTE_CAPS as A  # noqa: E402
 try:
     from test_phase3a_monitor_pages import ROUTE_CAPS as B  # noqa: E402
@@ -108,6 +110,22 @@ for (m, p), cap in ((r, (A.get(r) or B.get(r))) for r in routes):
     else:
         wrong[f'{m} {p}'] = {'status': st, 'expected': want}
 out['routes'] = dict(counts, total=len(routes), unexpected=wrong)
+# 3e, the example mode (ERRORS M527, the example-mode checker): every tab's example as a visitor, the tabs read from
+# app/examples.py: its index (200 once 20261121_002 gives the guest plan its flags, 403 CAPABILITY_REQUIRED before, 404
+# EXAMPLE_NOT_READY without files) and every file it lists, by its sha (200). The Market Overview's is read through
+# terminal-api for the visitor, so this is the one check of that path before a visitor meets it.
+examples = {}
+for tab in EXAMPLE_TABS:
+    o = opener()
+    st, _, raw = call(o, 'GET', f'/api/v1/examples/{tab}/index')
+    entry = {'index': st if st == 200 else f'{st} {code_of(raw)}'}
+    if st == 200:
+        index = json.loads(raw or b'{}') or {}
+        files = index.get('files') or {}
+        got = [call(o, 'GET', f'/api/v1/examples/{tab}/file/{n}?sha={f.get("sha256")}')[0] for n, f in files.items()]
+        entry.update(as_of=index.get('as_of'), files=len(files), files_200=sum(1 for g in got if g == 200))
+    examples[tab] = entry
+out['examples'] = examples
 st, _, raw = call(opener(), 'POST', '/api/v1/auth/register', {'email': 'nobody@example.invalid', 'username': 'nobody_x',
                   'password': 'a long enough password 1', 'password_repeat': 'a long enough password 1',
                   'first_name': 'No', 'last_name': 'Body'})

@@ -3,11 +3,13 @@
    of 2019-01-02..2026-10-23, from the reference's own generator; no market data), made the way the capture makes the
    real one (verification/edge_multiuser/example_mode):
      raw       the market's catalog with the worker's limits (what the capture reads from the worker)
-     catalog   raw cut as the capture cuts it (terminal-publisher examples.py backtest_catalog: from the period's first
-               day to the example's date, the broker date no later, the Flow indicators every plan may read)
+     catalog   the stored catalog (tests/example-part.ts shownCatalog, terminal-publisher examples.py backtest_shown): raw
+               cut to the period (backtest_catalog: from the period's first day to the example's date, the broker date
+               no later), its lists as built_on names them, its Flow indicators the released ones every plan may read
      built_on  the part of the cut catalog the request is built on (tests/example-part.ts catalogPart)
      request   the page's own default request on built_on (S, applyCatalog, currentRequest), as backtest_request.ts
-               builds the real one; checked to be the page's request on the whole cut catalog (ids aside)
+               builds the real one; checked to be the page's request on the whole cut catalog and on the stored one
+               (ids aside)
      result    the market's answer to that request (submit, status, result: the reference's run through the core's result
                builder; in single mode the ticker's condition and exit tracks are part of it, as in the worker's)
      bars      the ticker's bars of the period, as the publisher's BARS_SQL rows [date, open, high, low, close, volume] */
@@ -17,7 +19,8 @@ import { currentRequest } from '../src/api/request.ts';
 import { requestForm } from '../src/api/example.ts';
 import type { BacktestRequest, BacktestResultCore, Catalog } from '../src/core/contract.ts';
 import { fixtureApi } from './fixture/api.ts';
-import { catalogPart } from './example-part.ts';
+import { catalogPart, shownCatalog } from './example-part.ts';
+import RELEASES from '../../catalog/releases.json' with { type: 'json' };
 
 const FROM = S.from;                                     // the page's default start, before any catalog raised it
 
@@ -37,11 +40,12 @@ export async function madeUpExample(asOf: string, first: string): Promise<MadeUp
   const market = await api.catalog();
   // the worker's limits (the reference has none on conditions, flow series or downloads)
   const raw: Catalog = { ...market, limits: { ...market.limits, max_conditions: 32, max_flow_series: 8, max_download_bytes: 1.5e9, max_broker_rows: 2e7 } };
-  const catalog: Catalog = { ...raw, first_date: first, data_through: asOf,
-    flow: { ...raw.flow, data_through: raw.flow.data_through && raw.flow.data_through < asOf ? raw.flow.data_through : asOf },
-    flow_indicators: (raw.flow_indicators ?? []).filter(f => f.access === 'all') };
-  const whole = defaultRequestOn(catalog), built_on = catalogPart(catalog, whole), request = defaultRequestOn(built_on);
+  const cut: Catalog = { ...raw, first_date: first, data_through: asOf,
+    flow: { ...raw.flow, data_through: raw.flow.data_through && raw.flow.data_through < asOf ? raw.flow.data_through : asOf } };
+  const whole = defaultRequestOn(cut), built_on = catalogPart(cut, whole), request = defaultRequestOn(built_on);
   if (requestForm(request) !== requestForm(whole)) throw new Error('the page builds another request on the catalog part than on the whole catalog');
+  const catalog = shownCatalog(cut, built_on, RELEASES);
+  if (requestForm(defaultRequestOn(catalog)) !== requestForm(request)) throw new Error('the page builds another request on the stored catalog than on the part');
   if (request.mode !== 'single' || request.period.from !== first || request.period.to !== asOf)
     throw new Error(`the page's request is ${request.mode} ${request.period.from}..${request.period.to}, not single ${first}..${asOf}`);
   const { request_id } = await api.submit(request);

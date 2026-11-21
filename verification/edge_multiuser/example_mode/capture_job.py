@@ -9,7 +9,8 @@ params.json: {"as_of": "2026-10-30", "tabs": ["radar"], "write": false}
   worker's catalog the request is built on (backtest_catalog_job.py prints it), "request": the page's own request on
   it (backtest_request.ts)}; capture_backtest.json holds the example's. The worker's key goes as a Railway reference for
   the run only (RUN_JOB_EXTRA_VARS='BACKTEST_WORKER_KEY=${{backtest-worker.BACKTEST_WORKER_KEY}}') and
-  apps/edge-bff/catalog/releases.json goes along as an extra (the items a run may read: the released ones).
+  apps/edge-bff/catalog/releases.json goes along as an extra (the items a run may read and the stored catalog shows: the
+  released ones).
   with the tab "screener", also "screener": {} (optional "releases"): the screener-worker itself on its own input files
   cut at as_of (screener_capture.ts) runs first, on the tree screener_tree.sh stages (one extra named tree), in the node
   image (RUN_JOB_IMAGE=node), with releases.json as an extra; terminal-api's origin, the screener-worker's proxy key and
@@ -96,7 +97,7 @@ def backtest_extra(conn, spec, as_of):
         return call('GET', f'/v1/jobs/{job}/result')
     catalog = call('GET', '/v1/catalog')
     first = (spec['request'].get('period') or {}).get('from')
-    where = examples.outside(spec['built_on'], examples.backtest_catalog(catalog, first, as_of))
+    where = examples.part_outside(spec['built_on'], catalog, first, as_of, releases)
     if where:
         raise examples.ExampleError(f'the request was built on a catalog the worker\'s does not hold at {where}: build '
                                     'it again on the worker\'s catalog (backtest_catalog_job.py, backtest_request.ts)')
@@ -107,7 +108,7 @@ def backtest_extra(conn, spec, as_of):
         if request != spec['request']:
             raise examples.ExampleError('the builder asked for another request than the one run')
         return result
-    return {'request': spec['request'], 'run': ran, 'catalog': catalog, 'built_on': spec['built_on']}
+    return {'request': spec['request'], 'run': ran, 'catalog': catalog, 'built_on': spec['built_on'], 'releases': releases}
 
 
 # ---- the Screener: the screener-worker itself on its own input files cut at the date (screener_capture.ts) -------------

@@ -6,8 +6,15 @@
    The part keeps the catalog's dates, versions, flow block and limits, and cuts its lists to what the request names: its
    ticker as a stock, the brokers its conditions name, no grouping, no Flow indicator. tests/example.test.ts holds the
    rule to the page: on the made-up market the page's request on the part is its request on the whole catalog, so a
-   field the default request comes to read outside the part fails there before an example is captured on it. */
+   field the default request comes to read outside the part fails there before an example is captured on it.
+   shownCatalog is the stored catalog (terminal-publisher examples.py backtest_shown): the cut catalog with the part's
+   lists (the tickers and groups of the tables are today's, and the pickers are clicks: the example-mode checker, ERRORS
+   M527) and its Flow indicators as the narrowest principal sees them (edge-bff rights.catalog_for: no admin-only
+   version, no lab item). */
 import type { BacktestRequest, Catalog } from '../src/core/contract.ts';
+
+/** the release file's shape (apps/edge-bff/catalog/releases.json): an item not listed as released is lab */
+export interface Releases { items: { kind: string; id: string; stage: string }[] }
 
 /** every broker a request's conditions name (a 'broker' parameter at any depth), sorted */
 export function brokersOf(q: BacktestRequest): string[] {
@@ -28,4 +35,14 @@ export function catalogPart(cat: Catalog, q: BacktestRequest): Catalog {
             data_through: cat.flow.data_through },
     limits: cat.limits,
   } as unknown as Catalog;
+}
+
+/** the stored catalog (module comment): the cut catalog with the part's lists and the released Flow indicators every
+    plan may read (an entry without a string id stays, as edge-bff catalog.tab_list keeps it) */
+export function shownCatalog(cut: Catalog, part: Catalog, releases: Releases): Catalog {
+  const released = new Set(releases.items.filter(i => i.kind === 'flow_indicator' && i.stage === 'released').map(i => i.id));
+  const flowIndicators = ((cut as unknown as { flow_indicators?: { id?: unknown; access?: string }[] }).flow_indicators ?? [])
+    .filter(e => !(e && typeof e === 'object' && typeof e.id === 'string') || (e.access !== 'admin' && released.has(e.id as string)));
+  return { ...cut, tickers: [...part.tickers], groupings: [...part.groupings],
+    flow: { ...cut.flow, brokers: [...part.flow.brokers] }, flow_indicators: flowIndicators } as unknown as Catalog;
 }

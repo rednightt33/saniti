@@ -593,6 +593,14 @@ function LockedDialog({ item, guest, go, close }) {
             open && element(Button, { onClick: () => { close(); go("/register"); } }, L.register),
             primary(L.signIn, () => { close(); go("/login"); })));
     const contact = config?.upgradeContact || null;
+    // the 3e checker 3E-CW-1, every lock surface (the example-mode checker, ERRORS M527): an ended plan renews
+    const ended = endedPlan(false);
+    if (ended) return element(DialogShell, { title: L.tabEndedTitle.replace("{name}", name),
+            description: (example ? X.dialogEndedLead : L.tabEndedLead).replace(/\{name\}/g, name).replace("{plan}", ended), close, className: "locked-dialog" },
+        element("div", { className: "locked-body" },
+            element("p", { className: "locked-contact" }, contact ? [L.contactRenew, " ", element("strong", null, contact)] : L.contactSoon)),
+        element("div", { className: "locked-actions" },
+            primary(L.close, close)));
     return element(DialogShell, { title, description: example ? X.dialogUpgradeLead.replace(/\{name\}/g, name) : L.upgradeLead, close, className: "locked-dialog" },
         element("div", { className: "locked-body" },
             element("span", { className: "pill locked-soon" }, A.comingSoon),
@@ -605,16 +613,31 @@ function LockedDialog({ item, guest, go, close }) {
 // principal cannot open shows its example when the server serves one to this principal (GET
 // /api/v1/examples/<tab>/index answers 200: it holds <tab>.example and the example has files, app/examples.py); any
 // other answer, or none, shows LockedTabPage as before. The page runs in its frame with ?example=1 and stays a view of
-// one day (shared/example-view.ts): a click there asks for the lock box (kind "example"). One answer per tab and identity.
-const exampleIndexes = new Map();
+// one day (shared/example-view.ts): a click there asks for the lock box (kind "example"). The index is asked again on
+// every show (the server keeps it in memory), so the note follows a new publication or capture (the Overview's latest
+// date: the example-mode checker, ERRORS M527); the last answer per tab and identity shows while the new one comes.
+const exampleKnown = new Map();
 const exampleIndex = (tab, who) => {
     const key = `${who}\t${tab}`;
-    if (!exampleIndexes.has(key)) exampleIndexes.set(key, fetch(`/api/v1/examples/${encodeURIComponent(tab)}/index`, {credentials:"same-origin", headers:{accept:"application/json"}})
+    return fetch(`/api/v1/examples/${encodeURIComponent(tab)}/index`, {credentials:"same-origin", headers:{accept:"application/json"}})
         .then(r => r.json().catch(() => null).then(d => r.ok && d && typeof d.files === "object" && d.files && Object.keys(d.files).length ? d : null))
         .catch(() => null)
-        .then(d => { if (!d) exampleIndexes.delete(key); return d; }));
-    return exampleIndexes.get(key);
+        .then(d => { if (d) exampleKnown.set(key, d); else exampleKnown.delete(key); return d; });
 };
+// the 3e checker 3E-CW-1 on every lock surface (LockedTabPage, ExampleTabPage, LockedDialog; the example-mode checker,
+// ERRORS M527): an account whose plan ended (access.expired_plan) is told so and to renew, not to upgrade
+const endedPlan = guest => !guest && typeof Edge.auth?.access?.expired_plan === "string" && Edge.auth.access.expired_plan ? Edge.auth.access.expired_plan : null;
+// the decision came from the access the shell holds: an account's access read again on every show of a locked tab or its
+// example (a plan raised or lowered meanwhile, a second factor now needed: access.next), and the shell decides again
+// with it (the edge-auth event), so a raised plan opens the tab without a reload; the 3e checker SHELL-2: the person
+// comes back to this browser tab (a plan raised meanwhile, after a call to sales): read again once per return, never on
+// a timer
+const freshAccess = (v, guest, route) => onLifecycle(v, "fresh", () => {
+    if (guest) return;
+    Edge.refresh();
+    const back = () => { if (document.visibilityState === "visible") Edge.refresh(); };
+    document.addEventListener("visibilitychange", back);
+    return () => document.removeEventListener("visibilitychange", back); }, [route]);
 // an ISO date as the design system writes a data date: "Fri 30 Oct 2026"
 const exampleDate = iso => { const d = typeof iso === "string" && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00Z`) : null;
     return d && !isNaN(d) ? d.toLocaleDateString("en-GB", {weekday:"short", day:"numeric", month:"short", year:"numeric", timeZone:"UTC"}).replace(/,/g, "") : ""; };
@@ -624,22 +647,24 @@ function ExampleTabPage({ go, route, guest = false }) {
     const found = initialValue(v, "found", () => ({}));
     const config = initialValue(v, "config", () => null);
     onLifecycle(v, "config", () => { let live = true; Edge.config().then(c => { if (live) updateValue(v, "config", c); }); return () => { live = false; }; }, []);
+    freshAccess(v, guest, route);
     onLifecycle(v, "example", () => { let live = true;
         exampleIndex(route, who).then(d => { if (live) updateValue(v, "found", was => ({...was, [`${who}\t${route}`]: d || false})); });
         return () => { live = false; }; }, [route, who]);
-    const index = found[`${who}\t${route}`];
+    const key = `${who}\t${route}`, index = key in found ? found[key] : exampleKnown.get(key);
     if (index === undefined) return element(Shell, { route, go, guest },
         element("main", { className: "locked-tab", "data-example-tab": route, "aria-busy": "true" },
             element("span", { className: "ml-loading", role: "status" }, X.loading.replace("{name}", name))));
     if (!index) return element(LockedTabPage, { go, route, guest });
     const open = config?.registration === true, contact = config?.upgradeContact || null;
-    const date = exampleDate(index.as_of);
+    const date = exampleDate(index.as_of), ended = endedPlan(guest);
     return element(Shell, { route, go, chart: true, guest },
         element("main", { className: "terminal-page example-page", "data-example-tab": route },
             element("div", { className: "example-bar", role: "note" },
                 element("span", { className: "pill example-pill" }, X.badge),
                 element("span", { className: "example-text" }, (date ? X.banner : X.bannerNoDate).replace("{name}", name).replace("{date}", date), " ",
                     guest ? (open ? X.guest : X.guestClosed).replace("{name}", name)
+                          : ended ? [X.ended.replace(/\{name\}/g, name).replace("{plan}", ended), " ", contact ? [L.contactRenew, " ", element("strong", null, contact)] : L.contactSoon]
                           : [X.account.replace("{name}", name), contact ? [" ", L.contact, " ", element("strong", null, contact)] : null]),
                 guest && element("span", { className: "example-actions" },
                     open && element(Button, { onClick: () => go("/register") }, L.register),
@@ -655,20 +680,9 @@ function LockedTabPage({ go, route, guest = false }) {
     const v = currentView, L = EdgeLabels.locked, A = EdgeLabels.access, name = tabName(route);
     const config = initialValue(v, "config", () => null);
     onLifecycle(v, "config", () => { let live = true; Edge.config().then(c => { if (live) updateValue(v, "config", c); }); return () => { live = false; }; }, []);
-    // the decision came from the access the shell holds, and this page asks the server nothing: an account's access read
-    // again on every show (a plan raised or lowered meanwhile, a second factor now needed: access.next), and the shell
-    // decides again with it (the edge-auth event), so a raised plan opens the tab without a reload
-    onLifecycle(v, "fresh", () => {
-        if (guest) return;
-        Edge.refresh();
-        // the 3e checker SHELL-2: the person comes back to this browser tab (a plan raised meanwhile, after a call to
-        // sales): read again once per return, never on a timer
-        const back = () => { if (document.visibilityState === "visible") Edge.refresh(); };
-        document.addEventListener("visibilitychange", back);
-        return () => document.removeEventListener("visibilitychange", back); }, [route]);
+    freshAccess(v, guest, route);                       // this page asks the server nothing else (freshAccess above)
     const open = config?.registration === true, contact = config?.upgradeContact || null;
-    // the 3e checker 3E-CW-1: an account whose plan ended (access.expired_plan) is told so and to renew, not to upgrade
-    const ended = !guest && typeof Edge.auth?.access?.expired_plan === "string" && Edge.auth.access.expired_plan ? Edge.auth.access.expired_plan : null;
+    const ended = endedPlan(guest);
     const terminal = route !== "terminal" && element(Button, { onClick: () => go("/terminal") }, L.openTerminal);
     const body = guest
         ? [element("h1", { className: "locked-tab-title", id: "locked-tab-title" }, L.guestTitle.replace("{name}", name)),

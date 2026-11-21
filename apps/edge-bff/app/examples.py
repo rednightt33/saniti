@@ -44,7 +44,7 @@ from fastapi import Depends, Request
 from fastapi.responses import JSONResponse, Response
 
 from . import terminal_access
-from .errors import failure_class
+from .errors import Refusal, failure_class
 
 logger = logging.getLogger('edge_bff.examples')
 
@@ -68,14 +68,60 @@ OVERVIEW_SESSIONS = 120 + 1
 OVERVIEW_FLOW_SESSIONS = 30
 OVERVIEW_DAY = re.compile(r'overview-day-([0-9]{4}-[0-9]{2}-[0-9]{2})')
 OVERVIEW_BARS = '5m'                                    # IHSG's bars of the session (the 1D chart); '1h' is the 5D chart's
-# the fields each file keeps (a field not named here is left out, or null where the page reads it by position)
-META_KEYS = ('schema', 'market', 'benchmark', 'stocks', 'sectors', 'lists', 'dates', 'size_basis', 'prices_through',
-             'broker_through', 'periods')
+# The fields each file keeps, at every depth (the example-mode checker, ERRORS M527: a block copied whole would pass a
+# field the publisher adds inside it). A shape is KEEP (a value holding no object, kept as it is: a number, a text, a
+# list of them), {key: shape} (an object: only these keys), {'*': shape} (an object whose every key has the shape, the
+# index of a ticker) or [shape] (a list of that shape). A field not named is left out, and a value of another shape than
+# named (an object where a value was) is null: fail closed. The day's stocks are read by position: a column not named
+# is null (STOCK_KEYS).
+KEEP = 'keep'
+META_SHAPE = {'schema': KEEP, 'market': KEEP, 'benchmark': KEEP, 'stocks': {'ticker': KEEP, 'name': KEEP, 'sector': KEEP},
+              'sectors': [{'name': KEEP, 'index': KEEP}],
+              'lists': [{'key': KEEP, 'kind': KEEP, 'code': KEEP, 'name': KEEP, 'members': KEEP}],
+              'dates': KEEP, 'size_basis': KEEP, 'prices_through': KEEP, 'broker_through': KEEP, 'periods': {'flow': KEEP}}
 SERIES_KEYS = ('schema', 'dates', 'index', 'sector', 'above_ema50', 'above_ema200', 'breadth_n')
 FLOW_KEYS = ('dates', 'foreign_buy', 'foreign_sell', 'turnover')
-DAY_KEYS = ('schema', 'date', 'prior_date', 'size_basis', 'index', 'volatility', 'breadth')
+DAY_SHAPE = {'schema': KEEP, 'date': KEEP, 'prior_date': KEEP, 'size_basis': KEEP,
+             'index': {'*': {'open': KEEP, 'high': KEEP, 'low': KEEP, 'close': KEEP, 'prior_close': KEEP}},
+             'volatility': {'window': KEEP, 'value': KEEP, 'rank_1y': KEEP},
+             'breadth': {'advancers': KEEP, 'decliners': KEEP, 'unchanged': KEEP}}
 MARKET_KEYS = ('date', 'turnover', 'turnover_avg20', 'turnover_ratio', 'foreign_net_1d', 'foreign_net_10d')
+PERIOD_SHAPE = {'buy': KEEP, 'sell': KEEP, 'net': KEEP, 'from': KEEP}
+BARS_SHAPE = {'t': KEEP, 'c': KEEP}
 STOCK_KEYS = ('i', 'close', 'r1d', 'size', 'above_ema50', 'above_ema200', 'fnet_1d')
+# what the publisher writes and the opening view does not read, per file (a path names an object key, joined by '.'):
+# left out, or null where the page reads by position. tests/test_examples.py walks every path the publisher's own
+# builders write and fails on one that is neither kept by the shapes above nor named here.
+OVERVIEW_LEFT_OUT = {
+    'overview-day': ('stocks.r5d', 'stocks.r1m', 'stocks.fnet_5d', 'stocks.fnet_1m', 'stocks.fnet_3m',   # the 5D, 1M, 3M
+                     'market.periods.5D', 'market.periods.1M', 'market.periods.3M',                       # period choices
+                     'intraday.1h'),                                                                      # the 5D chart
+}
+
+
+def flat(value):
+    """Whether a JSON value holds no object at any depth (an explicit stack)."""
+    stack = [value]
+    while stack:
+        x = stack.pop()
+        if isinstance(x, dict):
+            return False
+        if isinstance(x, list):
+            stack.extend(x)
+    return True
+
+
+def kept(value, shape):
+    """value cut to shape (the comment above): the named keys only, at every depth; another shape than named is None."""
+    if shape == KEEP:
+        return value if flat(value) else None
+    if isinstance(shape, list):
+        return [kept(x, shape[0]) for x in value] if isinstance(value, list) else None
+    if not isinstance(value, dict):
+        return None
+    if '*' in shape:
+        return {k: kept(x, shape['*']) for k, x in value.items()}
+    return {k: kept(value[k], s) for k, s in shape.items() if k in value}
 
 
 def messages(label):
@@ -102,30 +148,30 @@ def overview_view(meta, series, day):
     d = day['date']
     end = max((i for i, x in enumerate(series['dates']) if x <= d), default=-1)
     lo = max(0, end + 1 - OVERVIEW_SESSIONS)
-    cut = lambda a: list(a[lo:end + 1]) if end >= 0 else []
-    s = {k: series[k] for k in SERIES_KEYS if k in series}
+    cut = lambda a: list(a[lo:end + 1]) if end >= 0 and isinstance(a, list) and flat(a) else []
+    s = {k: kept(series[k], KEEP) for k in SERIES_KEYS if k in series}
     s['dates'] = cut(series['dates'])
     for k in ('index', 'sector'):
-        s[k] = {name: cut(v) for name, v in (series.get(k) or {}).items()}
+        s[k] = {name: cut(v) for name, v in (series.get(k) or {}).items()} if isinstance(series.get(k) or {}, dict) else {}
     for k in ('above_ema50', 'above_ema200', 'breadth_n'):
         s[k] = cut(series.get(k) or [])
-    market = day.get('market') or None
-    flow = series.get('flow') or {}
+    market = day.get('market') if isinstance(day.get('market'), dict) else None
+    flow = series.get('flow') if isinstance(series.get('flow'), dict) else {}
     fe = (len(flow['dates']) - 1 - flow['dates'][::-1].index(market['date'])
           if market and market.get('date') in (flow.get('dates') or []) else -1)
     flo = max(0, fe + 1 - OVERVIEW_FLOW_SESSIONS)
-    s['flow'] = {k: list((flow.get(k) or [])[flo:fe + 1]) if fe >= 0 else [] for k in FLOW_KEYS}
-    m = {k: meta[k] for k in META_KEYS if k in meta}
+    s['flow'] = {k: list((flow.get(k) or [])[flo:fe + 1]) if fe >= 0 and flat(flow.get(k) or []) else [] for k in FLOW_KEYS}
+    m = kept(meta, META_SHAPE)
     m['dates'] = [d]
-    out = {k: day[k] for k in DAY_KEYS if k in day}
+    out = kept(day, DAY_SHAPE)
     out['market'] = None if market is None else {
-        **{k: market.get(k) for k in MARKET_KEYS},
-        'periods': {OVERVIEW_PERIOD: (market.get('periods') or {}).get(OVERVIEW_PERIOD)}}
+        **{k: kept(market.get(k), KEEP) for k in MARKET_KEYS},
+        'periods': {OVERVIEW_PERIOD: kept((market.get('periods') or {}).get(OVERVIEW_PERIOD), PERIOD_SHAPE)}}
     stocks = day['stocks']
     n = len(stocks['i'])
-    out['stocks'] = {k: (list(v) if k in STOCK_KEYS else [None] * n) for k, v in stocks.items()}
+    out['stocks'] = {k: (list(v) if k in STOCK_KEYS and flat(v) else [None] * n) for k, v in stocks.items()}
     bars = (day.get('intraday') or {}).get(OVERVIEW_BARS)
-    out['intraday'] = {OVERVIEW_BARS: bars} if bars is not None else {}
+    out['intraday'] = {OVERVIEW_BARS: kept(bars, BARS_SHAPE)} if bars is not None else {}
     return [('overview-meta', m, len(m['stocks']['ticker'])), ('overview-series', s, len(s['dates'])),
             (f'overview-day-{d}', out, n)]
 
@@ -260,6 +306,11 @@ class Examples:
                 kept = await source.current(p)
             except Refused as refused:
                 return None, refused.answer
+            except Refusal:
+                # the principal's own refusal (terminal_access.headers: a Terminal limit of 0, the guest's client): the
+                # app's handler answers it with its own code and way on, as app/pages.py lets it (the example-mode
+                # checker, ERRORS M527; AGENTS.md "Gates and evidence" (d))
+                raise
             except Exception as e:  # noqa: BLE001 - the class only; a driver error may carry connection details
                 logger.warning(json.dumps({'event': 'example_unavailable', 'tab': tab, 'error': failure_class(e)}))
                 return None, failure('EXAMPLE_UNAVAILABLE', 503)

@@ -12,6 +12,11 @@
      shows), and every title attribute (and SVG <title>) is removed whenever the pointer enters an element: a native
      tooltip needs the pointer on its element and shows only after a delay, so none ever opens. No observer and no
      timer watch the page (the pages' bundle rules: the Screener's forbids both, EXEC-SCREENER-V21);
+   - the page's own styles of a pointer over, a focus or a press (:hover, :focus, :focus-visible, :focus-within,
+     :active) are taken out of its style sheets (the example-mode checker, ERRORS M527: a tooltip drawn by CSS alone,
+     the Backtest's "Within N bars" or the Radar's rail hints, opens without any script): hover and focus change nothing
+     on the page, which stays as it was drawn. A sheet that comes later is read on the next pointer entry or focus.
+     Tab still moves between controls, shown by one plain focus ring of the example's own;
    - scrolling keeps working: the wheel and touch are stopped only for the page's handlers (a chart's zoom), never for
      the browser, and the keys that scroll are left alone outside a control.
    The Market Overview is the exception the user set (lockOnly below): it stays clickable, and only its time controls ask
@@ -36,6 +41,61 @@ export function exampleMode(search = typeof location === 'undefined' ? '' : loca
 }
 
 export interface ViewOnly { stop(): void }
+
+// a selector that applies only while the pointer is over, a focus is on or a press is held on something (an interaction
+// pseudo-class outside :not(), which keeps the rest state)
+const INTERACTION = /:(?:hover|focus|focus-visible|focus-within|active)(?![\w-])/;
+const FOCUS_RING = 'html.edge-example :focus-visible { outline: 2px solid var(--text-3, #8a8f98) !important; outline-offset: 2px !important; }';
+
+/** The selectors of a list, split at the commas outside parentheses. */
+function selectors(text: string): string[] {
+  const out: string[] = [];
+  let depth = 0, from = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (c === ',' && depth === 0) { out.push(text.slice(from, i)); from = i + 1 }
+  }
+  out.push(text.slice(from));
+  return out.map(x => x.trim()).filter(Boolean);
+}
+/** Whether a selector applies only in an interaction state: its pseudo-class outside every :not(...). */
+export function interactive(selector: string): boolean {
+  let rest = '', i = 0;
+  while (i < selector.length) {
+    if (selector.startsWith(':not(', i)) {
+      let depth = 0, j = i + 4;
+      for (; j < selector.length; j++) { if (selector[j] === '(') depth++; else if (selector[j] === ')' && --depth === 0) break }
+      i = j + 1;
+      continue;
+    }
+    rest += selector[i++];
+  }
+  return INTERACTION.test(rest);
+}
+/** Takes the interaction selectors out of a list of rules (and the rules nested in them): a rule left with none goes. */
+function stillRules(list: CSSRuleList, owner: { deleteRule(i: number): void }) {
+  for (let i = list.length - 1; i >= 0; i--) {
+    const r = list[i] as CSSRule & { selectorText?: string; cssRules?: CSSRuleList; deleteRule?(i: number): void; styleSheet?: CSSStyleSheet };
+    if (typeof r.selectorText === 'string') {
+      const all = selectors(r.selectorText), kept = all.filter(x => !interactive(x));
+      if (!kept.length) { owner.deleteRule(i); continue }
+      if (kept.length < all.length) r.selectorText = kept.join(', ');
+    }
+    if (r.cssRules && r.deleteRule) stillRules(r.cssRules, r as unknown as { deleteRule(i: number): void });
+    else if (r.styleSheet) still(r.styleSheet);
+  }
+}
+const stilled = new WeakSet<CSSStyleSheet>();
+/** A style sheet without its interaction styles (module comment); a sheet of another origin cannot be read and is left. */
+function still(sheet: CSSStyleSheet) {
+  if (stilled.has(sheet)) return;
+  let rules: CSSRuleList;
+  try { rules = sheet.cssRules } catch { return }
+  stilled.add(sheet);
+  stillRules(rules, sheet);
+}
 
 /** The shell's box, asked for at most once every LOCK_MS: {source, type: 'locked', kind: 'example', id, name}. */
 function asker(win: Window, source: string, name: string): () => void {
@@ -104,11 +164,16 @@ export function viewOnly(opts: { source: string; name: string; root?: Document }
     if (e.key === 'Enter' || e.key === ' ' || inField) ask();
   };
   const opt = { capture: true, passive: false } as AddEventListenerOptions;
+  const style = doc.createElement('style');
   // before the hover listeners below: they stop the event for every later listener of the window (module comment)
-  const untitle = () => doc.querySelectorAll('[title], svg title').forEach(n => {
-    if (n.tagName.toLowerCase() === 'title') n.remove(); else n.removeAttribute('title');
-  });
-  const SWEEPS = ['pointerover', 'mouseover'];
+  const sheets = () => { for (const sh of Array.from(doc.styleSheets)) if (sh.ownerNode !== style) still(sh) };
+  const untitle = () => {
+    sheets();
+    doc.querySelectorAll('[title], svg title').forEach(n => {
+      if (n.tagName.toLowerCase() === 'title') n.remove(); else n.removeAttribute('title');
+    });
+  };
+  const SWEEPS = ['pointerover', 'mouseover', 'focusin'];
   SWEEPS.forEach(t => win.addEventListener(t, untitle, true));
   STOPPED.forEach(t => win.addEventListener(t, stop, opt));
   HOVER.forEach(t => win.addEventListener(t, quiet, true));
@@ -118,9 +183,8 @@ export function viewOnly(opts: { source: string; name: string; root?: Document }
   win.addEventListener('keypress', quiet, true);
 
   doc.documentElement.classList.add('edge-example');
-  const style = doc.createElement('style');
   style.dataset.edgeExample = '';
-  style.textContent = 'html.edge-example svg, html.edge-example svg * { pointer-events: none !important; }';
+  style.textContent = `html.edge-example svg, html.edge-example svg * { pointer-events: none !important; }\n${FOCUS_RING}`;
   doc.head.appendChild(style);
   untitle();
 
@@ -133,7 +197,7 @@ export function viewOnly(opts: { source: string; name: string; root?: Document }
       win.removeEventListener('keyup', quiet, true);
       win.removeEventListener('keypress', quiet, true);
       SWEEPS.forEach(t => win.removeEventListener(t, untitle, true));
-      style.remove();
+      style.remove();                         // the interaction styles taken out stay out until the page loads again
       doc.documentElement.classList.remove('edge-example');
     },
   };

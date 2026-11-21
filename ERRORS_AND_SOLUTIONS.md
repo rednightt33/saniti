@@ -8920,7 +8920,7 @@ in its staleness check.
   suite before pushing. A pointer whose symbol is dotted is checked by its last part only, so a common last part
   (`routes`) can hide a wrong line: cite such a line by a name that occurs on it alone.
 
-### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT on the branch for the five data pages and written on dev; the checker and the promotion next)
+### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT on the branch for the five data pages and written on dev; the example-mode checker's findings FIXED on the branch, the Watchlist's list OPEN for the user; the promotion next)
 
 - **Symptom:** since 20261117_003 the free plan holds `overview.example`, `radar.example`, `watchlist.example`,
   `screener.example` and `backtest.example`, yet no code read them: a free account and a visitor who is not signed in got
@@ -9007,9 +9007,64 @@ in its staleness check.
     Found on the way: the view-only layer's MutationObserver broke the Screener's bundle rule (no observer, no timer);
     titles are now swept on every pointer entry, and the browser tests check no title is left once the pointer is on a
     page.
+- **The example-mode checker (2026-11-21, ultracode `wf_33a88511-3e1`, five lenses at xhigh, a skeptic per lens): 20
+  findings confirmed, 5 refuted.** Fixed on the branch, each test red on its mutation (the runs named):
+  - **Reference data of a past date (Watchlist, Radar, Backtest).** The tables of names, stock lists and tickers hold
+    today's rows, and the lists' history starts at their first capture (2026-11-09, effective 2026-11-10).
+    `members_on` took the members first recorded as those of 30 October because none changed after the first capture;
+    nothing covered the days between. Verified: the exchange's LQ45 review announced 26 October took effect 2 November
+    (Stockbit Research, 2026-10-27: ELSA and SMGR in, CUAN and SCMA out), and the stored list held ELSA and SMGR and
+    lacked CUAN and SCMA (read-only job `f67b0fb3`, `lq45_probe_job.py`: 45 rows, all FIRST_CAPTURE; only two
+    stock-list rounds exist, both on 9 November, because no Stockbit round ran since: UPDATE_TABLE.md part 0, a round
+    is started by hand with a new token). The earlier text above ("the earliest recorded members are taken only when
+    none changed since") described that wrong rule. Fix: `members_on` stops when no recorded row covers the date (the
+    table's own dated join); radar-meta keeps the names of the board's stocks and no list (`reference_cut`: the universe
+    menu is a click); backtest-catalog keeps the lists the request names (`backtest_shown`). The rule: a file keeps
+    only the reference entries its opening view reads, a membership only where a recorded row covers the date, and
+    stops where the membership is the content. **OPEN for the user:** what the Watchlist's example list is on 30
+    October (its stored rows are the wrong list until then; nothing serves them yet).
+  - **The Overview's trim at every depth.** It kept only named top-level keys and copied the index, volatility,
+    breadth, stocks, sectors, lists, periods, the 1D flow period and the 5-minute bars whole, so a field the publisher
+    added inside one reached every visitor; the text above ("a field it does not name is left out or null") held only at
+    the top. Fix: shapes per file at every depth (`app/examples.py` META_SHAPE, DAY_SHAPE, PERIOD_SHAPE, BARS_SHAPE;
+    a value that turns into an object is null) and `OVERVIEW_LEFT_OUT`, the publisher's fields the opening view does not
+    read; `tests/test_examples.py` walks every path the publisher's own builders write and fails on one neither kept nor
+    named, and plants a field in every block (five mutations red).
+  - **The example pages read and wrote the visitor's browser storage.** The Screener's layout modules read the
+    collapsed panes, column order, pop sizes and extra columns when they load, before its in-memory store; the Backtest
+    read its panel state; the Watchlist wrote its logo cache. Fix: `shared/example-storage.ts`, the first module of every
+    view-only page (after the lab module where a page has one; `tests/test_example_storage.py` derives the pages from
+    their viewOnly call), holds localStorage and sessionStorage in memory in example mode, the shell's theme read
+    through. Browser tests seed what another session kept and compare the browser's storage before and after (red with
+    the module turned off: 3 tests).
+  - **The page's own handlers and CSS tooltips.** No test checked that the view-only layer stops a page's handlers (a
+    mutation that only opened the box passed all four), and a tooltip drawn by CSS alone (the Backtest's "Within N bars",
+    the Radar's rail hints) opened on hover or focus. Fix: `viewOnly` takes the page's :hover, :focus, :focus-visible,
+    :focus-within and :active styles out of its sheets (one plain focus ring of its own; a later sheet on the next
+    pointer entry or focus); the browser tests put a listener on the clicked control itself and read the loaded sheets
+    (red with the stop removed and with the styles kept: 5 tests each).
+  - **The shell's example page lost the locked page's behaviour.** An ended plan read "not in your plan, upgrading is
+    coming soon" on all five tabs (the 3E-CW-1 wording regressed), a plan raised meanwhile no longer opened the tab on
+    return (SHELL-2), and the note kept the first index's date for the page's life. Fix: one `endedPlan` rule for the
+    locked page, the example's note and the lock box, one `freshAccess` re-read for both pages, the index asked on every
+    show; browser tests with example rows stored (four mutations red).
+  - **Smaller ones.** The stored Backtest result kept the run's stamp of the publication it read (a later date, served
+    to visitors): left out, and the exemption gone (no stored file names a later date). The Backtest's stored catalog
+    is cut to the released Flow indicators as the narrowest principal sees them (held to `rights.catalog_for` by a
+    test), and the stored examples join the first lab item's conditions (`LAB_ITEM_HELD_UNTIL`, FUTURE_PLAN.md). A
+    principal's own Terminal refusal in the Overview example keeps its code instead of 503. The tests the text above
+    claimed: the no-sha-check mutation was not red (now a body other than its sha is refused and a capture with new
+    content is served), the admin case was not tested (now: MFA_REQUIRED before its second factor, the example with
+    it). The Screener's capture test ran a preset with no row (now the example's preset and brk52 with stocks drawn to
+    match on the cut); the check of the rows' dates read a field the rows do not have (`eval_date`): it reads
+    `last_bar_date` and the cells' dates now, and refuses a row without them. The promotion's smoke lacked the Overview
+    and the Watchlist (added, and `http_smoke.py` reads every tab's example as a visitor). The Backtest's slow browser
+    test that passed on a CI rerun: ERRORS M510.
 - **Lesson for new data:** an example of a page is the files of its opening view, built by the publisher's own builder
   cut at one date and checked for later dates before it is stored; the server is the guarantee (it serves only those
-  files, only to `<tab>.example`), the page only displays.
+  files, only to `<tab>.example`), the page only displays. A table whose history starts after the example's date says
+  nothing about that date: the capture stops rather than infer it from later rows, and a trim or a check names its
+  fields at every depth (a block copied whole, or a check of a field the data does not carry, checks nothing).
 
 ### M526 — Saved screens kept a validation made under a wider context when only the rights differed; the live site lists and can cancel the admin's own beta Backtest jobs (2026-11-21; the review FIXED on the branch, the job history OPEN for the user; predates 3f)
 
@@ -9753,6 +9808,15 @@ in its staleness check.
   Again on `c44a684c` (2026-11-21, 3f): failed in the full run with another symptom: `tests/test_answer_view.py:393`,
   the "Ask AI to export data" button not found within 5 s. Alone it then failed 1 of 4. So it fails alone too, not only
   under the suite's load. 3f does not touch the answer view either.
+- **Seen in CI on a 3e test (2026-11-21, the example-mode checker, tests-ci-3):** Backend tests run 44911939281 on
+  `2f66fdbf`: `test_3e_example_browser.py::test_a_visitor_sees_the_backtests_stored_run_and_a_click_asks_to_sign_in[slow]`
+  failed once and passed on its rerun (`.......R`; the log printed no trace, `-q` without `-rR`). Reproduced here: with
+  three busy loops beside it the test failed 3 of 5, at `no_title_after_hover` (12 titles left): the page was still
+  drawing the results after the test's pointer moved, and the check read the page before it settled. A test fault, not
+  the page's: a title the page draws later is swept when the pointer next enters (`shared/example-view.ts`). Fixed: the
+  check waits until the page makes no change for 300 ms (the test's own observer, run in the frame), then 6 of 6 under
+  the same load, and the example and locked-tab browser suites 19 of 19 twice. CI now runs edge-bff's pytest with `-rR`,
+  so a test that passed only on its rerun is named with its first failure's line. The same class as below.
 
 - **Found by:** the first CI runs of edge-bff's browser tests after M509: run 44663513713 (commit `b969529b`, Playwright
   1.65.2, Chrome 159): 947 passed, 2 failed; run 44667192992 (commit `58b75888`, Playwright 1.63.0, Chrome for Testing

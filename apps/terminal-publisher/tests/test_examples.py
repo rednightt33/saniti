@@ -27,8 +27,26 @@ def test_the_radar_example_is_the_opening_view_of_its_date_as_the_tables_stood_t
     files = examples.radar_files(conn(), NAMES, LISTS, AS_OF)
     assert [f[0] for f in files] == ['radar-meta', 'radar-days', f'radar-board-{AS_OF}']   # what boot() reads
     cut = built(conn(through=AS_OF))
-    assert {n: (doc, rows, day) for n, doc, rows, day in files} == {n: cut[n] for n, *_ in files}
+    got = {n: (doc, rows, day) for n, doc, rows, day in files}
+    assert {n: got[n] for n in ('radar-days', f'radar-board-{AS_OF}')} == {n: cut[n] for n in ('radar-days', f'radar-board-{AS_OF}')}
     assert files[1][1]['boards'][-1] == AS_OF                                               # the board the page opens
+    # radar-meta: the publication's, its reference data cut to what the opening view reads (examples.reference_cut)
+    meta, was = got['radar-meta'][0], cut['radar-meta'][0]
+    assert {k: v for k, v in meta.items() if k not in ('names', 'lists')} == {k: v for k, v in was.items() if k not in ('names', 'lists')}
+    board = set(got[f'radar-board-{AS_OF}'][0]['stocks']['ticker'])
+    assert meta['names'] == {t: n for t, n in was['names'].items() if t in board} and meta['names'] and meta['lists'] == []
+
+
+def test_the_radar_examples_reference_data_holds_no_stock_listed_or_member_added_after_its_date():
+    """The example-mode checker (ERRORS M527): the names and the stock lists are today's tables (the lists' history
+    starts at their first capture), so a stock listed later and a list's later member would show in a file of a past
+    date. radar-meta keeps the names of the board's stocks and no list; red without reference_cut."""
+    names = {**NAMES, 'ZLATE': 'Listed after the date'}
+    lists = [(k, kind, code, n, [*members, 'ZLATE']) for k, kind, code, n, members in LISTS]
+    meta = dict((n, d) for n, d, *_ in examples.radar_files(conn(), names, lists, AS_OF))['radar-meta']
+    assert 'ZLATE' not in json.dumps(meta) and meta['lists'] == []
+    whole = dict((n, d) for n, d, *_ in radar.build(conn(through=AS_OF), names, lists, as_of=AS_OF))['radar-meta']
+    assert 'ZLATE' in json.dumps(whole)                                           # the self-test: the build holds it
 
 
 def test_the_rows_carry_the_bytes_the_page_reads_and_say_what_they_are():
@@ -155,18 +173,20 @@ def test_the_watchlist_example_stops_without_its_date_or_its_members():
         examples.stored('watchlist', [('watchlist-stocks', s, 2, WL_AS_OF)], WL_AS_OF)
 
 
-def test_the_members_of_a_date_are_the_rows_covering_it_or_before_the_first_capture_the_unchanged_earliest():
+def test_the_members_of_a_date_are_the_rows_covering_it_and_a_date_no_row_covers_stops_the_capture():
     rows = [('AAAA', '2026-11-10', None), ('BBBB', '2026-11-10', '2026-11-20'), ('CCCC', '2026-11-20', None)]
     assert examples.members_on(rows, '2026-11-12', 'LQ45') == (['AAAA', 'BBBB'], 'recorded for 2026-11-12')
     assert examples.members_on(rows, '2026-11-25', 'LQ45')[0] == ['AAAA', 'CCCC']
-    # before the first capture: the earliest members when nothing changed since, else no answer
+    # before the first capture no member is known, even when none changed since (the example-mode checker, ERRORS M527:
+    # a review effective between the date and the first capture is not in the table)
     still = [('AAAA', '2026-11-10', None), ('BBBB', '2026-11-10', None)]
-    assert examples.members_on(still, '2026-10-30', 'LQ45') == (
-        ['AAAA', 'BBBB'], 'earliest recorded (2026-11-10), unchanged since; none recorded for 2026-10-30')
-    with pytest.raises(examples.ExampleError, match=r'LQ45 changed after its first recording on 2026-11-10'):
-        examples.members_on(rows, '2026-10-30', 'LQ45')
-    with pytest.raises(examples.ExampleError, match='no LQ45 member covers 2026-11-30 although its history starts'):
+    for r in (still, rows):
+        with pytest.raises(examples.ExampleError, match=r'no recorded LQ45 member covers 2026-10-30 \(its history starts on 2026-11-10\)'):
+            examples.members_on(r, '2026-10-30', 'LQ45')
+    with pytest.raises(examples.ExampleError, match='no recorded LQ45 member covers 2026-11-30'):
         examples.members_on([('AAAA', '2026-11-10', '2026-11-20')], '2026-11-30', 'LQ45')
+    with pytest.raises(examples.ExampleError, match=r'no LQ45 member is recorded'):
+        examples.members_on([], '2026-11-12', 'LQ45')
 
 
 # ---- the Backtest: the page's own request, one run of the real worker, the period's prices -----------------------------
@@ -176,15 +196,22 @@ BT_REQUEST = {'schema_version': 1, 'mode': 'single', 'single': {'ticker': 'MAPI'
               'period': {'from': BT_DAYS[0], 'to': BT_AS_OF, 'oos_fraction': 0.3},
               'entry': {'logic': 'all', 'window_bars': 5, 'conditions': [{'id': 'a1', 'enabled': True, 'kind': 'flow', 'type': 'fnet'}]},
               'exit': {'signals': {'logic': 'any', 'conditions': []}}}
-BT_CATALOG = {'schema_version': 1, 'first_date': '2018-01-02', 'data_through': '2026-11-20', 'tickers': [{'ticker': 'MAPI'}],
-              'flow': {'available': True, 'reason': None, 'brokers': ['YU'], 'data_through': '2026-11-09'},
-              'flow_indicators': [{'id': 'FL01', 'access': 'all'}, {'id': 'FL18', 'access': 'admin'}], 'limits': {}}
+BT_CATALOG = {'schema_version': 1, 'first_date': '2018-01-02', 'data_through': '2026-11-20',
+              'tickers': [{'ticker': 'MAPI'}, {'ticker': 'BBCA'}, {'ticker': 'ZLATE'}],
+              'groupings': [{'id': 'lq45', 'name': 'LQ45', 'members': ['BBCA', 'MAPI', 'ZLATE']}],
+              'flow': {'available': True, 'reason': None, 'brokers': ['YU', 'ZZ'], 'data_through': '2026-11-09'},
+              'flow_indicators': [{'id': 'FL01', 'access': 'all'}, {'id': 'FL18', 'access': 'admin'}, {'id': 'FL99', 'access': 'all'}],
+              'limits': {}}
+# the release file (apps/edge-bff/catalog/releases.json): FL99 unlisted, so lab
+BT_RELEASES = {'items': [{'kind': 'flow_indicator', 'id': 'FL01', 'stage': 'released'},
+                         {'kind': 'flow_indicator', 'id': 'FL18', 'stage': 'released'}]}
 
 
 # the part of the cut catalog the request was built on (backtest_request.ts reads a catalog whose lists name only what the
 # default setup names)
 BT_BUILT_ON = {'schema_version': 1, 'first_date': BT_DAYS[0], 'data_through': BT_AS_OF, 'tickers': [{'ticker': 'MAPI'}],
-               'flow': {'available': True, 'reason': None, 'brokers': ['YU'], 'data_through': BT_AS_OF}, 'limits': {}}
+               'groupings': [], 'flow': {'available': True, 'reason': None, 'brokers': ['YU'], 'data_through': BT_AS_OF},
+               'limits': {}}
 
 
 def bt_result(days=BT_DAYS, ticker='MAPI', tracks=True):
@@ -209,32 +236,40 @@ class BacktestConn:
         return Rows()
 
 
-def bt_build(conn=None, result=None, request=BT_REQUEST, as_of=BT_AS_OF, built_on=BT_BUILT_ON):
+def bt_build(conn=None, result=None, request=BT_REQUEST, as_of=BT_AS_OF, built_on=BT_BUILT_ON, releases=BT_RELEASES):
     asked = []
 
     def run(q):
         asked.append(q)
         return bt_result() if result is None else result
     rows = examples.build(conn or BacktestConn(), 'backtest', as_of, NAMES, LISTS, request=request, run=run, catalog=BT_CATALOG,
-                          built_on=built_on)
+                          built_on=built_on, releases=releases)
     return {r[1]: json.loads(gzip.decompress(r[6])) for r in rows}, asked
 
 
 def test_the_backtest_example_is_the_pages_request_its_run_the_period_and_the_catalog_cut_to_it():
     files, asked = bt_build()
     assert asked == [BT_REQUEST] and set(files) == {'backtest-catalog', 'backtest-request', 'backtest-result', 'backtest-bars-mapi'}
-    assert files['backtest-request'] == BT_REQUEST and files['backtest-result'] == bt_result()
+    assert files['backtest-request'] == BT_REQUEST
+    # the result as the worker gave it, without the stamp of the publication the run read (a later date)
+    assert files['backtest-result'] == {**bt_result(), 'meta': {k: v for k, v in bt_result()['meta'].items() if k != 'data_through'}}
     cat = files['backtest-catalog']
     assert (cat['first_date'], cat['data_through'], cat['flow']['data_through']) == (BT_DAYS[0], BT_AS_OF, BT_AS_OF)
-    assert [f['id'] for f in cat['flow_indicators']] == ['FL01']                 # no admin-only Flow version
+    # its lists as the request names them (no later listing, no group: today's tables), the Flow indicators released
+    # and every plan's (no admin-only version, no lab one)
+    assert (cat['tickers'], cat['groupings'], cat['flow']['brokers']) == ([{'ticker': 'MAPI'}], [], ['YU'])
+    assert [f['id'] for f in cat['flow_indicators']] == ['FL01'] and 'ZLATE' not in json.dumps(cat)
+    assert {k: v for k, v in cat.items() if k not in ('tickers', 'groupings', 'flow', 'flow_indicators', 'first_date', 'data_through')} == \
+        {k: v for k, v in BT_CATALOG.items() if k not in ('tickers', 'groupings', 'flow', 'flow_indicators', 'first_date', 'data_through')}
     bars = files['backtest-bars-mapi']
     assert bars['dates'] == BT_DAYS and bars['c'] == [105.0] * 4 and set(bars) == {'ticker', 'dates', 'o', 'h', 'l', 'c', 'v'}
-    # the run stamp is stored as the worker reported it; any other later date is refused
-    assert files['backtest-result']['meta']['data_through'] == '2026-11-20'
+    # any later date in a stored file is refused, the run stamp's place included (no exemption)
     late = bt_result()
     late['meta']['warnings'] = [{'code': 'X', 'message': 'published through 2026-11-20'}]
     with pytest.raises(examples.ExampleError, match=r'backtest-result names dates after 2026-10-30: \[.\$\.meta\.warnings'):
         bt_build(result=late)
+    with pytest.raises(examples.ExampleError, match=r'backtest-result names dates after 2026-10-30: \[.\$\.meta\.data_through'):
+        examples.stored('backtest', [('backtest-result', bt_result(), 4, BT_AS_OF)], BT_AS_OF)
 
 
 @pytest.mark.parametrize('change, refused', [
@@ -249,9 +284,11 @@ def test_the_backtest_example_is_the_pages_request_its_run_the_period_and_the_ca
     (dict(built_on={**BT_BUILT_ON, 'data_through': '2026-10-29'}), r'does not hold at \$\.data_through'),
     (dict(built_on={**BT_BUILT_ON, 'limits': {'monte_carlo_runs': 500}}), r'does not hold at \$\.limits\.monte_carlo_runs'),
     (dict(built_on={**BT_BUILT_ON, 'tickers': [{'ticker': 'MAPI', 'type': 'stock'}]}), r'does not hold at \$\.tickers\[0\]'),
-    (dict(built_on={**BT_BUILT_ON, 'flow': {**BT_BUILT_ON['flow'], 'brokers': ['ZZ']}}), r'at \$\.flow\.brokers\[0\]'),
+    (dict(built_on={**BT_BUILT_ON, 'flow': {**BT_BUILT_ON['flow'], 'brokers': ['QQ']}}), r'at \$\.flow\.brokers\[0\]'),
     (dict(built_on={**BT_BUILT_ON, 'flow': {**BT_BUILT_ON['flow'], 'data_through': '2026-11-09'}}), r'at \$\.flow\.data_through'),
     (dict(built_on={**BT_BUILT_ON, 'flow_indicators': [{'id': 'FL18', 'access': 'admin'}]}), r'at \$\.flow_indicators\[0\]'),
+    # a lab Flow indicator (not released) is not in the stored catalog: the page would not build the request on it
+    (dict(built_on={**BT_BUILT_ON, 'flow_indicators': [{'id': 'FL99', 'access': 'all'}]}), r'at \$\.flow_indicators\[0\]'),
 ])
 def test_the_backtest_capture_stops_on_another_run_another_basis_or_a_missing_day(change, refused):
     with pytest.raises(examples.ExampleError, match=refused):
@@ -260,6 +297,9 @@ def test_the_backtest_capture_stops_on_another_run_another_basis_or_a_missing_da
         examples.build(BacktestConn(), 'backtest', BT_AS_OF, NAMES, LISTS)
     with pytest.raises(examples.ExampleError, match='the catalog it was built on'):
         examples.build(BacktestConn(), 'backtest', BT_AS_OF, NAMES, LISTS, request=BT_REQUEST, run=bt_result, catalog=BT_CATALOG)
+    with pytest.raises(examples.ExampleError, match='and the release file'):
+        examples.build(BacktestConn(), 'backtest', BT_AS_OF, NAMES, LISTS, request=BT_REQUEST, run=bt_result, catalog=BT_CATALOG,
+                       built_on=BT_BUILT_ON)
 
 
 def test_a_catalog_part_is_found_in_the_whole_as_it_is():
@@ -303,7 +343,9 @@ def sc_catalog():
 
 def sc_example(**over):
     run = {'schema_version': 1, 'mode': 'screen', 'data': {'evaluation_date': SC_AS_OF, 'published_at': SC_AS_OF},
-           'rows': [{'ticker': 'AAAA', 'eval_date': SC_AS_OF}, {'ticker': 'STAL', 'eval_date': '2026-10-28'}], 'match_count': 1}
+           'rows': [{'ticker': 'AAAA', 'last_bar_date': SC_AS_OF, 'cells': [{'id': 'a', 'eval_date': SC_AS_OF, 'event_date': '2026-10-27'}]},
+                    {'ticker': 'STAL', 'last_bar_date': '2026-10-28', 'cells': [{'id': 'a', 'eval_date': '2026-10-28'}]}],
+           'match_count': 1}
     ex = {'catalog': sc_catalog(), 'universe': {'data': {'evaluation_date': SC_AS_OF}, 'rows': [['AAAA'], ['STAL']]},
           'screen': {'preset': SP, 'name': 'The example preset', 'definition': SC_DEF}, 'run': run}
     ex.update(over)
@@ -330,7 +372,13 @@ def test_the_screener_example_is_the_workers_answer_and_its_catalog_as_the_live_
 @pytest.mark.parametrize('change, refused', [
     (dict(run={**sc_example()['run'], 'data': {'evaluation_date': '2026-10-29'}}), "run is evaluated on 2026-10-29"),
     (dict(universe={'data': {'evaluation_date': '2026-11-20'}, 'rows': []}), 'universe is evaluated on 2026-11-20'),
-    (dict(run={**sc_example()['run'], 'rows': [{'ticker': 'LATE', 'eval_date': '2026-11-02'}]}), r"rows evaluated after 2026-10-30: \['LATE'\]"),
+    (dict(run={**sc_example()['run'], 'rows': [{'ticker': 'LATE', 'last_bar_date': '2026-11-02', 'cells': []}]}), r"rows evaluated after 2026-10-30: \['LATE'\]"),
+    (dict(run={**sc_example()['run'], 'rows': [{'ticker': 'CELL', 'last_bar_date': SC_AS_OF,
+                                                'cells': [{'id': 'a', 'eval_date': SC_AS_OF, 'last_event_date': '2026-11-02'}]}]}),
+     r"rows evaluated after 2026-10-30: \['CELL'\]"),
+    # a row without the dates the check reads (a renamed field) is refused, never checked as nothing
+    (dict(run={**sc_example()['run'], 'rows': [{'ticker': 'BARE', 'eval_date': SC_AS_OF}]}), r"carry no last_bar_date or cell eval_date: \['BARE'\]"),
+    (dict(run={**sc_example()['run'], 'rows': [{'ticker': 'CEL2', 'last_bar_date': SC_AS_OF, 'cells': [{'id': 'a'}]}]}), r"\['CEL2'\]"),
     (dict(run={**sc_example()['run'], 'mode': 'universe_only'}), 'is not a screen: universe_only'),
     (dict(screen={'preset': SP, 'name': 'x', 'definition': {**SC_DEF, 'logic': 'any'}}), f'is not the preset {SP}'),
     (dict(screen={'preset': 'old', 'name': 'x', 'definition': SC_DEF}), f'is not the preset {SP}'),

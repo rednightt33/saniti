@@ -8,19 +8,28 @@ job (verification/edge_multiuser/example_mode/capture_job.py) writes them to edg
 20261121_001), which edge-bff serves (apps/edge-bff/app/examples.py). No publication runs this module.
 
   radar      radar-meta, radar-days, radar-board-<as_of>: what the page reads when it opens (src/app.ts boot); the date
-             picker and a filter's page are clicks, so the older boards and radar-f-<filter> are not part of the example
+             picker and a filter's page are clicks, so the older boards and radar-f-<filter> are not part of the example;
+             radar-meta keeps the names of the stocks the board shows and no stock list (reference_cut)
   watchlist  watchlist-stocks of as_of cut to the example list's stocks (the LQ45 members on that date, point in time:
-             Stock_List_Member_History; before its first capture, the earliest recorded members when none changed
-             since, members_on) and its default indicators (the other indicators' values null: adding one is a
-             click), without the upcoming corporate actions (they are dates after as_of by nature: the example leaves
-             them out, the user told); watchlist-lists, the one list in the shape of GET /api/v1/watchlist/lists. No
-             watchlist-radar: it goes only with radar.view, which the example's plans do not hold
+             Stock_List_Member_History, members_on: a date no recorded row covers stops the capture) and its default
+             indicators (the other indicators' values null: adding one is a click), without the upcoming corporate
+             actions (they are dates after as_of by nature: the example leaves them out, the user told);
+             watchlist-lists, the one list in the shape of GET /api/v1/watchlist/lists. No watchlist-radar: it goes
+             only with radar.view, which the example's plans do not hold
   backtest   the page's default setup (MAPI, single stock) over the year to as_of, run once by the real Backtest
              worker: backtest-request (built by the page's own code, backtest_request.ts, on a part of the cut
              catalog: built_on must be found in it as it is, outside), backtest-result (the worker's result as
-             edge-bff serves a single run), backtest-catalog (the worker's catalog from the period's first day to
-             as_of, the Flow indicators every plan may read) and backtest-bars-<ticker> (the ticker's final daily
-             prices of the period: the chart; no broker file, the run's condition tracks stand in)
+             edge-bff serves a single run, without the run's stamp of the publication it read), backtest-catalog (the
+             worker's catalog from the period's first day to as_of, its lists cut to what the request names and its
+             Flow indicators to the released ones every plan may read, backtest_catalog) and backtest-bars-<ticker>
+             (the ticker's final daily prices of the period: the chart; no broker file, the run's condition tracks
+             stand in)
+
+The reference data in a file of a past date (the example-mode checker, ERRORS M527): the tables of names, stock lists
+and tickers hold today's rows, and the stock lists' history starts at their first capture (2026-11-09). A file keeps
+only the reference entries its opening view reads (a list behind a click is left out, reference_cut), and a list
+membership only where a recorded row covers the date; where the membership is the page's content (the Watchlist's
+list) the capture stops instead.
 
 Each builder stops (ExampleError) rather than give another example than the approved one: the newest result date must be
 as_of itself, never an earlier one the data happens to end on.
@@ -61,6 +70,29 @@ def dates_after(doc, as_of):
     return sorted(out)
 
 
+def strings_of(doc):
+    """Every string a JSON document holds, as a value or an object key, at any depth (an explicit stack)."""
+    out, stack = set(), [doc]
+    while stack:
+        x = stack.pop()
+        if isinstance(x, dict):
+            out.update(k for k in x if isinstance(k, str))
+            stack.extend(x.values())
+        elif isinstance(x, list):
+            stack.extend(x)
+        elif isinstance(x, str):
+            out.add(x)
+    return out
+
+
+def reference_cut(meta, shown):
+    """radar-meta as the example's opening view reads it (module docstring, "The reference data"): the names of the
+    stocks the board shows (`shown`: the board's file) and no stock list (the universe menu is a click; the page opens on
+    every stock, radar/src/app.ts isDefault)."""
+    held = strings_of(shown)
+    return {**meta, 'names': {t: n for t, n in meta['names'].items() if t in held}, 'lists': []}
+
+
 def radar_files(conn, names, lists, as_of, stream=None):
     """The Radar's opening view on as_of -> [(name, doc, rows, day)]: radar-meta, radar-days and the board of as_of."""
     built = {n: (doc, rows, day) for n, doc, rows, day in radar.build(conn, names, lists, stream=stream, as_of=as_of)}
@@ -74,6 +106,8 @@ def radar_files(conn, names, lists, as_of, stream=None):
     board = f'radar-board-{as_of}'
     if board not in built or not built[board][0]['rows']['filter']:
         raise ExampleError(f'{board} has no row under the current rule version')
+    meta, rows, day = built['radar-meta']
+    built['radar-meta'] = (reference_cut(meta, built[board][0]), rows, day)
     return [(n, *built[n]) for n in ('radar-meta', 'radar-days', board)]
 
 
@@ -81,9 +115,11 @@ def radar_files(conn, names, lists, as_of, stream=None):
 # LQ45 members with the default indicators), its members on as_of as recorded then (pit_valid_*, the table's own rule)
 WATCHLIST_LIST = ('INDEX', 'LQ45')
 # every recorded membership row of the list: the members on as_of are the rows that cover it (pit_valid_from <= as_of <
-# pit_valid_to). The history starts at the list's first capture (2026-11-09, migration 20261109_001: "Holds nothing
-# before the first capture"), so for an earlier as_of no row covers it: the earliest recorded members are taken when no
-# change was recorded since (an index list changes only at its periodic review; ERRORS M527), else the capture stops.
+# pit_valid_to, the table's dated join). The history starts at the list's first capture (2026-11-09, migration
+# 20261109_001: "Holds nothing before the first capture"), so no row covers an earlier date and the capture stops: the
+# list's members on such a date are not known from the table. The example-mode checker (ERRORS M527): the earlier
+# fallback took the members first recorded (10 November) as those of 30 October because none changed after it, but
+# the exchange's review effective 2 November (announced 26 October) fell between the two dates.
 MEMBERS_SQL = ('SELECT h."Ticker", h.pit_valid_from::text, h.pit_valid_to::text FROM public."Stock_List_Member_History" '
                'AS h JOIN public."Stock_List" AS l USING (list_key) WHERE l.list_kind = %s AND l.code = %s ORDER BY 2, 1')
 
@@ -96,13 +132,8 @@ def members_on(rows, as_of, code):
     if not rows:
         raise ExampleError(f'no {code} member is recorded (Stock_List_Member_History)')
     first = min(a for _, a, _ in rows)
-    if first <= as_of:
-        raise ExampleError(f'no {code} member covers {as_of} although its history starts on {first}')
-    changed = [t for t, a, b in rows if a != first or b is not None]
-    if changed:
-        raise ExampleError(f'{code} changed after its first recording on {first} ({changed[:5]}): its members on '
-                           f'{as_of} cannot be known')
-    return sorted(t for t, _, _ in rows), f'earliest recorded ({first}), unchanged since; none recorded for {as_of}'
+    raise ExampleError(f'no recorded {code} member covers {as_of} (its history starts on {first}): its members on that '
+                       'date are not known from Stock_List_Member_History')
 # the list the page reads (watchlist/src/types.ts ListsAnswer): one list, its stocks in order, the default indicators
 EXAMPLE_LIST_ID = 'example-lq45'
 
@@ -145,10 +176,11 @@ BARS_SQL = ('SELECT date::text, open::float8, high::float8, low::float8, close::
 BASIS_SQL = ('SELECT annotation_date::text, event_type FROM public.idx_event_annotation WHERE ticker = %s '
              "AND event_family = 'CORPORATE_ACTION' AND annotation_date_role = 'EX_DATE' AND event_type = ANY(%s) "
              'AND annotation_date >= %s ORDER BY 1')
-# run stamps, not data dates (allowed after as_of by name, stored as the run reported them): the newest bar the
-# worker's publication held when the run read it. The run itself reads for day t only data up to t (the look-ahead
-# gate, AGENTS.md), and the page shows no such stamp.
-RUN_STAMPS = {'backtest-result': ('$.meta.data_through',)}
+# the result's fields that stamp the publication the run read, not the run's data: left out of the stored copy (the
+# example-mode checker, ERRORS M527: the newest bar of the worker's publication is a date after as_of, and the page
+# reads none of them: backtest/src reads the result's meta.mode, warnings, duration_ms, trials and tickers). The run
+# itself reads for day t only data up to t (the look-ahead gate, AGENTS.md).
+RESULT_STAMPS = ('data_through',)
 
 
 def outside(part, whole, at='$'):
@@ -175,26 +207,55 @@ def outside(part, whole, at='$'):
 
 
 def backtest_catalog(catalog, first, as_of):
-    """The worker's catalog as the example's page reads it: from the period's first day to as_of (so the page's
-    default period is that year), the broker date no later, the Flow indicators every plan may read."""
+    """The worker's catalog from the period's first day to as_of (so the page's default period is that year), the
+    broker date no later: the catalog the request's part must be found in (outside)."""
     flow = dict(catalog.get('flow') or {})
     if flow.get('data_through'):
         flow['data_through'] = min(flow['data_through'], as_of)
-    return {**catalog, 'first_date': first, 'data_through': as_of, 'flow': flow,
-            'flow_indicators': [f for f in catalog.get('flow_indicators') or [] if f.get('access') == 'all']}
+    return {**catalog, 'first_date': first, 'data_through': as_of, 'flow': flow}
 
 
-def backtest_files(conn, names, lists, as_of, stream=None, request=None, run=None, catalog=None, built_on=None):
+def released_entries(entries, kind, releases):
+    """A catalog's list of items as the live site shows it to a principal with no right and no lab item (edge-bff
+    catalog.tab_list for p None: an entry marked access 'admin' left out, an id the release file does not list as
+    released left out; an entry without a string id stays as it is)."""
+    stage = {(i['kind'], i['id']): i['stage'] for i in releases['items']}
+    return [e for e in entries if not (isinstance(e, dict) and isinstance(e.get('id'), str))
+            or (e.get('access') != 'admin' and stage.get((kind, e['id'])) == 'released')]
+
+
+def backtest_shown(cut, part, releases):
+    """The stored backtest-catalog (module docstring): the cut catalog with its lists as the request's part names them
+    (its ticker, the brokers its conditions name, no grouping: the pickers are clicks, and the tickers and groups of the
+    tables are today's) and its Flow indicators as the narrowest principal sees them (released_entries; edge-bff
+    tests/test_examples.py holds it to rights.catalog_for)."""
+    return {**cut, 'tickers': list(part.get('tickers') or []), 'groupings': list(part.get('groupings') or []),
+            'flow': {**(cut.get('flow') or {}), 'brokers': list((part.get('flow') or {}).get('brokers') or [])},
+            'flow_indicators': released_entries(cut.get('flow_indicators') or [], 'flow_indicator', releases)}
+
+
+def part_outside(built_on, catalog, first, as_of, releases):
+    """Where the request's part is not found as it is (outside), or None: in the worker's catalog cut to the period (its
+    ticker, brokers, dates and limits are the worker's), and in the stored catalog (backtest_shown: a Flow indicator
+    the narrowest principal does not see is not shown there)."""
+    cut = backtest_catalog(catalog, first, as_of)
+    return outside(built_on, cut) or outside(built_on, backtest_shown(cut, built_on, releases))
+
+
+def backtest_files(conn, names, lists, as_of, stream=None, request=None, run=None, catalog=None, built_on=None,
+                   releases=None):
     """The Backtest's example -> [(name, doc, rows, day)] (module docstring). request: the page's own request
-    (backtest_request.ts) built on built_on; run(request) -> the worker's result; catalog: the worker's catalog."""
-    if request is None or run is None or catalog is None or built_on is None:
-        raise ExampleError('the Backtest example needs the page\'s request, the catalog it was built on, the worker and '
-                           'its catalog')
+    (backtest_request.ts) built on built_on; run(request) -> the worker's result; catalog: the worker's catalog;
+    releases: the release file."""
+    if request is None or run is None or catalog is None or built_on is None or releases is None:
+        raise ExampleError('the Backtest example needs the page\'s request, the catalog it was built on, the worker, '
+                           'its catalog and the release file')
     q, t = request, (request.get('single') or {}).get('ticker')
     first, last = (q.get('period') or {}).get('from'), (q.get('period') or {}).get('to')
     if q.get('mode') != 'single' or not t or last != as_of or not first:
         raise ExampleError(f'the request is not a single run ending on {as_of}: {q.get("mode")} {t} {first}..{last}')
-    where = outside(built_on, backtest_catalog(catalog, first, as_of))
+    cut = backtest_catalog(catalog, first, as_of)
+    where = part_outside(built_on, catalog, first, as_of, releases)
     if where:
         raise ExampleError(f'the request was built on a catalog the worker\'s does not hold at {where}: build it again '
                            'on the worker\'s catalog (backtest_request.ts)')
@@ -216,9 +277,11 @@ def backtest_files(conn, names, lists, as_of, stream=None, request=None, run=Non
         raise ExampleError(f'{t} has no final daily price on {as_of}')
     col = lambda k: [r[k] for r in rows]
     bars = {'ticker': t, 'dates': col(0), 'o': col(1), 'h': col(2), 'l': col(3), 'c': col(4), 'v': col(5)}
-    return [('backtest-catalog', backtest_catalog(catalog, first, as_of), len(catalog.get('tickers') or []), as_of),
+    shown = backtest_shown(cut, built_on, releases)
+    kept = {**result, 'meta': {k: v for k, v in meta.items() if k not in RESULT_STAMPS}}
+    return [('backtest-catalog', shown, len(shown['tickers']), as_of),
             ('backtest-request', q, len(q['entry']['conditions']), as_of),
-            ('backtest-result', result, len(days), as_of),
+            ('backtest-result', kept, len(days), as_of),
             (f'backtest-bars-{t.lower()}', bars, len(rows), as_of)]
 
 
@@ -297,6 +360,19 @@ def narrowest_catalog(doc, releases):
     return out
 
 
+SCREENER_ROW_DATES = ('last_bar_date',)                          # a run row's dates (contract.ts Row)
+SCREENER_CELL_DATES = ('eval_date', 'event_date', 'last_event_date')  # its cells' (contract.ts Cell)
+
+
+def row_dates(row):
+    """Every date a run row and its cells carry."""
+    out = [row.get(k) for k in SCREENER_ROW_DATES]
+    for c in row.get('cells') or []:
+        if isinstance(c, dict):
+            out += [c.get(k) for k in SCREENER_CELL_DATES]
+    return out
+
+
 def screener_files(conn, names, lists, as_of, stream=None, example=None, releases=None):
     """The Screener's example -> [(name, doc, rows, day)]: screener-catalog (narrowest_catalog), screener-universe,
     screener-screen (the preset the page opens: its id, name and definition) and screener-run (the worker's answer to
@@ -315,7 +391,14 @@ def screener_files(conn, names, lists, as_of, stream=None, example=None, release
         raise ExampleError(f"the example's screen is not the preset {SCREENER_PRESET} of the catalog shown")
     if run.get('mode') != 'screen' or not isinstance(run.get('rows'), list):
         raise ExampleError(f"the worker's answer is not a screen: {run.get('mode')}")
-    late = sorted({r.get('ticker') for r in run['rows'] if str(r.get('eval_date') or '') > as_of})
+    # the dates a row carries (apps/edge-bff/screener/src/core/contract.ts Row and Cell; the example-mode checker, ERRORS
+    # M527: the check read a field the rows do not have, so it saw nothing): a row without its bar's date is refused, as
+    # a check of nothing
+    bare = sorted({str(r.get('ticker')) for r in run['rows'] if not isinstance(r.get('last_bar_date'), str)
+                   or any(not (isinstance(c, dict) and 'eval_date' in c) for c in r.get('cells') or [])})
+    if bare:
+        raise ExampleError(f"the worker's rows carry no {SCREENER_ROW_DATES[0]} or cell eval_date: {bare[:3]}")
+    late = sorted({r.get('ticker') for r in run['rows'] if any(str(d or '') > as_of for d in row_dates(r))})
     if late:
         raise ExampleError(f'rows evaluated after {as_of}: {late[:3]}')
     shown = {'preset': SCREENER_PRESET, 'name': preset.get('name'), 'definition': preset.get('definition')}
@@ -340,8 +423,7 @@ def stored(tab, files, as_of):
         seen.add(name)
         late = [d for d in ISO.findall(name) + ([str(day)] if day is not None else []) if d > as_of]
         body, sha = encode(doc)
-        stamps = set(RUN_STAMPS.get(name, ()))
-        late += [f'{p}: {d}' for p, d in dates_after(json.loads(gzip.decompress(body)), as_of) if p not in stamps]
+        late += [f'{p}: {d}' for p, d in dates_after(json.loads(gzip.decompress(body)), as_of)]
         if late:
             raise ExampleError(f'{name} names dates after {as_of}: {late[:3]}')
         if len(body) > MAX_BYTES:

@@ -41,7 +41,11 @@ contoh dengan fungsi yang sama (`build` dengan `as_of`): tanggal harga adalah ta
 Oktober, tanggal broker dan tanggal Radar juga dibatasi sampai hari itu; tanpa `as_of` file harian tetap seperti biasa.
 Isinya satu list, anggota LQ45 pada 30 Oktober menurut riwayat keanggotaan (`Stock_List_Member_History`, aturan
 *point in time* tabel itu), dengan empat indikator bawaan; nilai indikator lain kosong karena menambah indikator adalah
-klik. Aksi korporasi mendatang tidak ikut, karena tanggalnya sesudah 30 Oktober (hari itu belum tentu diketahui), dan
+klik. Riwayat itu baru mulai dari rekaman pertama 9 November 2026 (berlaku 10 November), jadi untuk 30 Oktober tidak ada
+baris yang menutupinya: pembuat contoh berhenti, tidak menebak (pemeriksa mode contoh, ERRORS M527). Tebakan lama
+(daftar 10 November dianggap daftar 30 Oktober karena tidak berubah sesudahnya) keliru: evaluasi LQ45 yang diumumkan BEI
+26 Oktober berlaku 2 November (ELSA dan SMGR masuk, CUAN dan SCMA keluar), di antara kedua tanggal itu. Isi list contoh
+untuk 30 Oktober menunggu keputusan user. Aksi korporasi mendatang tidak ikut, karena tanggalnya sesudah 30 Oktober (hari itu belum tentu diketahui), dan
 badge Radar tidak ada karena butuh hak Radar.
 
 ## 3. Harga, 1D, 1M dan Trend
