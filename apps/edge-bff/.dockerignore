@@ -8,10 +8,12 @@ preview
 terminal/node_modules
 terminal/tests
 static/terminal-app
+static/terminal-app-lab
 backtest/node_modules
 backtest/tests
 backtest/dist*
 static/backtest-app
+static/backtest-app-lab
 screener/node_modules
 screener/tests
 screener/dist*

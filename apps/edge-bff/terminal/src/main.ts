@@ -5,6 +5,9 @@
    exists only in a fixture build (`npx vite build --mode fixture`); the production build
    (`npm run build`, the one edge-bff serves at /terminal-app/ without a session) drops it as dead code
    (tests/data/fixture_bundle.test.mjs). */
+// 3f (CONTRACT.md 8a "Lab code"): the lab formulas, registered before anything reads the formula maps; nothing in the
+// public build (src/lab/none.ts), src/lab/index.ts in the lab build edge-bff serves only to the admin on the beta
+import '@edge-lab';
 import './styles/terminal.css';
 import './styles/spin.css';                                  // EXEC-BACKTEST-SPIN: the shared loading ring
 import * as L from 'lightweight-charts';

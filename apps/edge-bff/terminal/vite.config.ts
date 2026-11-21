@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
+import { labAlias, releaseFilter } from '../shared/release-filter.mjs';
 
 /* The reference page inlines lightweight-charts-drawing 0.6.2 with one change: its accent colour "#1e53e5" is "#171717"
    (selection handles and default ink follow the terminal's black). The same one-constant patch is applied to the npm
@@ -34,11 +35,22 @@ function classicScriptAtEnd(): Plugin {
   };
 }
 
-// Built into ../static/terminal-app and served by edge-bff at /terminal-app/ (FRONTEND_ARCHITECTURE.md section 2).
-export default defineConfig({
-  base: '/terminal-app/',
-  plugins: [drawingInk(), classicScriptAtEnd()],
-  optimizeDeps: { exclude: ['lightweight-charts-drawing'] },
-  build: { outDir: '../static/terminal-app', emptyOutDir: true, assetsDir: 'assets', sourcemap: false, target: 'es2022', cssCodeSplit: false,
-           rollupOptions: { output: { format: 'iife', inlineDynamicImports: true } } },
-});
+/* Built into ../static/terminal-app and served by edge-bff at /terminal-app/ (FRONTEND_ARCHITECTURE.md section 2).
+   3f (EXEC option A item 4; CONTRACT.md 8a "Lab code"): `npm run build` makes two builds. The public one keeps only the
+   released items of the registries (shared/release-filter.mjs) and has no lab formula ('@edge-lab' is src/lab/none.ts).
+   The lab one (--mode lab) keeps every item and the lab formulas (src/lab/index.ts), into ../static/terminal-app-lab;
+   edge-bff serves it at /terminal-app/lab/ only to the admin on the beta. */
+/** The build's configuration; `extra`, `labModule` and `outDir` are for the proof builds of the tests only
+    (tests/lab/proof.config.ts: a fixture lab item that never enters the release file). */
+export function terminalConfig({ lab = false, extra = {}, labModule = undefined as string | undefined, outDir = '' } = {}) {
+  return {
+    base: lab ? '/terminal-app/lab/' : '/terminal-app/',
+    plugins: [releaseFilter({ lab, extra }), drawingInk(), classicScriptAtEnd()],
+    resolve: { alias: labAlias({ lab, module: labModule }) },
+    optimizeDeps: { exclude: ['lightweight-charts-drawing'] },
+    build: { outDir: outDir || (lab ? '../static/terminal-app-lab' : '../static/terminal-app'), emptyOutDir: true, assetsDir: 'assets',
+             sourcemap: false, target: 'es2022', cssCodeSplit: false, rollupOptions: { output: { format: 'iife' as const, inlineDynamicImports: true } } },
+  };
+}
+
+export default defineConfig(({ mode }) => terminalConfig({ lab: mode === 'lab' }));

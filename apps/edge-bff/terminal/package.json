@@ -5,7 +5,7 @@
   "type": "module",
   "description": "EDGE financial terminal (EXEC-TERMINAL-API T5): the reference 03-terminal-right-panel.html as modular TypeScript.",
   "scripts": {
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && vite build --mode lab",
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

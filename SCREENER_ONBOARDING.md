@@ -592,7 +592,7 @@ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session 
   50, `screener.py:81-82`; since EXEC-WATCHLIST 2A the star fills the first watchlist, so the limit is that list's
   `PER_LIST`, `apps/edge-bff/app/watchlist.py`).
 - **Page and frame**: `/screener` (`main.py:522`) and `/screener-app/` with its assets (`main.py:620-632`) under
-  `SCREENER_CSP` (`main.py:114-117`: `connect-src 'self'`).
+  `SCREENER_CSP` (`main.py:118-121`: `connect-src 'self'`).
 - **A new metric needs no edge-bff change:** the catalog is relayed as the worker built it.
 
 Tests: `apps/edge-bff/tests/test_screener.py` (35 tests, on a disposable PostgreSQL through `EDGE_TEST_POSTGRES_URL`;

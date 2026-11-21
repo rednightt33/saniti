@@ -76,6 +76,16 @@ st, _, raw = call(v, 'GET', '/api/v1/session')
 out['visitor_session'] = {'status': st, 'role': (json.loads(raw or b'{}') or {}).get('role') if st == 200 else code_of(raw)}
 for page_path in ('/terminal', '/monitor', '/c/conv_' + '0' * 32, '/admin'):
     out[f'page {page_path}'] = call(v, 'GET', page_path)[0]
+# 3f (CONTRACT.md 8a "Lab code"): the pages with a lab build serve their public build to a visitor, and the lab build's
+# files answer 404 (on the live site to everyone): the Web Worker file has the same name in both builds, so its lab path
+# is a file the image holds
+for app, worker in (('terminal-app', r'worker-[\w-]+\.js'), ('backtest-app', r'load\.worker-[\w-]+\.js')):
+    st, _, html = call(v, 'GET', f'/{app}/')
+    script = re.search(rf'/{app}/assets/(index-[\w-]+\.js)', (html or b'').decode('utf-8', 'replace'))
+    st_js, _, js = call(v, 'GET', f'/{app}/assets/{script.group(1)}') if script else (None, None, b'')
+    name = re.search(worker, (js or b'').decode('utf-8', 'replace'))
+    out[f'lab build {app}'] = {'page': st, 'public_build': bool(script) and f'/{app}/lab/' not in (html or b'').decode('utf-8', 'replace'),
+                               'lab_worker_file': call(v, 'GET', f'/{app}/lab/assets/{name.group(0)}')[0] if name else 'no worker name found'}
 st, _, raw = call(v, 'GET', '/api/terminal/v1/manifest/BBCA')
 out['visitor BBCA manifest'] = st
 st, _, raw = call(v, 'GET', '/api/terminal/v1/manifest/TLKM')

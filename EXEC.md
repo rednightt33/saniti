@@ -16219,6 +16219,23 @@ Order of the services (CONTRACT 17, rollback floors):
         Feature 01/04 and 06 index tables 44 and 184, the Radar's measures 856, its gate 1 and its results 2,300. The
         newest dates: prices and Features 01 and 04 20 November; broker data and Features 02, 03, 05, 06 and 07 9 November.
         The date waits for the user's confirmation.
+    - Item 4, 3f (built on the branch, 2026-11-21; CONTRACT 8, 8a "Tab catalogs", 8b "3f"; LIVE_PROMOTION section 3):
+      - The design, refined from the first draft with the advisor's review: the page build is partitioned by release
+        stage. The public build keeps the released items (`shared/release-filter.mjs`, fail closed). The lab build keeps
+        every item and the lab formulas (`terminal/src/lab/`, alias `@edge-lab`). edge-bff serves the lab build to the
+        admin on the beta only (`auth.lab_viewer`), and a lab tab the same way.
+      - The public Terminal and Backtest builds are byte-identical to before 3f (built from `ec1bd29c` in a separate
+        worktree and compared). The lab builds equal them but for the base path. The workers' hashed sources are
+        untouched: the Backtest engine stays `f984058aaaf38748`.
+      - The tab catalogs list a lab item only to its holders (`catalog.tab_list`). ERRORS M520: the Screener worker
+        dropped the core's admin mark, so six admin-only Flow versions reached every principal with the Screener; it
+        copies the mark now. The Screener engine version changes once, through `src/catalog.ts`.
+      - Proven: a fixture lab indicator is in the Terminal's and the Backtest's lab builds and in no public one; every
+        public file, Web Worker files included, carries no lab item; no page or worker entry reaches `src/lab/`.
+      - Not built: a registration point for a lab Flow indicator's formula (LIVE_PROMOTION section 3).
+      - The two tests that refused any lab item or lab tab are replaced: the items of the first release and the six
+        live tabs stay released.
+      - Next: the ultracode checker at xhigh, then its fixes; then the example mode (option A, the date to be confirmed).
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

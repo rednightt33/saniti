@@ -462,8 +462,9 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 
 - **Release stage per item** lives in the repository, because it decides which code chunk an item ships in:
   `apps/edge-bff/catalog/releases.json` with `{kind, id, stage: "lab"|"released"}`.
-  - Kinds: `indicator`, `flow_indicator`, `backtest_indicator`, `screener_metric`, `preset`, `feature`.
-  - A test fails when a registry id has no entry; a new item defaults to `lab`.
+  - Kinds (`app/releases.py` KINDS): `indicator`, `flow_indicator`, `candle_pattern`, `screener_metric`,
+    `screener_preset`.
+  - A test fails when a registry id has no entry; an unlisted id is `lab`.
 - **Capability names:**
   - `<tab>.<item kind>:<id>` for items (for example `terminal.indicator:I01`, `terminal.flow_indicator:FL24`);
   - `terminal.dataset:<name>`, `terminal.tickers` (list), `terminal.history_days` (limit), `backtest.run`,
@@ -473,11 +474,18 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
     `backtest.view` (8b). A per-section gate would be a new decision.
   - Plan `admin` receives `*` (every item at any stage).
   - A `released` item reaches plan `paid` only when a `plan_capabilities` row grants it.
-- **Definitions are served, not bundled:** `GET /api/v1/catalog/{kind}` returns only the entries the principal holds.
-  `flowRegistry.json`, `indRegistry.json`, `indNotes.json` and the backtest registry stop being imported into public
-  bundles.
-- **Lab code** ships in a separate chunk served only to principals holding the lab capability, through
-  `/{app}-app/lab/{name}` (admin-only route). The released code stays in the main bundle for speed.
+- **Lab code (3f, built 2026-11-21; refined from the first draft, see 8b "3f"):** a lab item's definition and formula
+  are in no file a visitor downloads.
+  - The page build filters every registry by release stage (`apps/edge-bff/shared/release-filter.mjs`). The public
+    build keeps the released entries. The lab build keeps every entry and the lab formulas
+    (`apps/edge-bff/terminal/src/lab/index.ts`, reached only through the alias `@edge-lab`).
+  - edge-bff serves the lab build from the page's own address to the admin on the beta only (admin.access and the
+    second factor passed, `auth.lab_viewer`). Its files are at `/{app}-app/lab/assets/{name}`, 404 to everyone else and
+    on the live site.
+  - The released definitions and formulas stay in the public bundles for speed: a released item's name shows locked to
+    a plan without it (3e), so serving its definition per principal would hide nothing.
+  - `GET /api/v1/catalog/{kind}` answers the ids and stages the principal holds; the tab catalogs follow its rule
+    (8a "Tab catalogs").
 
 ## 8a. Phase 2 build specification (main agent, 2026-11-17; refines sections 1, 2 and 8)
 
@@ -597,8 +605,9 @@ catalog-only change reaches the browser through `X-Edge-Entitlements`.
     `hidden_tabs` hides the tab from the rail. The beta keeps it.
   - `tests/test_live_switch.py` fails when a capability tab or a shell page has no entry and is not in
     `BETA_ONLY_TABS`.
-  - Every tab is `released` today. Until 3f moves lab code out of the public bundles, the same test fails on a `lab`
-    tab, as `test_releases.py` does on a `lab` item.
+  - Every tab is `released` today. Since 3f a `lab` tab's page and assets are served to the admin on the beta only
+    (`app/main.py` page_app), so its code is in no file a visitor downloads; the six tabs of the live site stay
+    released (`test_live_switch.py`).
 - Kinds and their registries (the id space is shared across tabs):
   - `indicator`: `terminal/src/data/indRegistry.json`;
   - `flow_indicator`: `flowRegistry.json` `indicators`;
@@ -614,8 +623,15 @@ catalog-only change reaches the browser through `X-Edge-Entitlements`.
   `context.rights` do not change in Phase 2 (Phase 3).
 - `app/releases.py` loads the file once and exposes `stage_of(kind, id)` and `KIND_OF_FAMILY`.
 - `GET /api/v1/catalog/{kind}` (principal) returns `{"kind", "entries": [{"id", "stage"}]}` for the entries the
-  principal holds in any family of that kind, and 404 `NOT_FOUND` for an unknown kind. Definitions stay in the bundles
-  until Phase 3 moves them behind this route.
+  principal holds in any family of that kind, and 404 `NOT_FOUND` for an unknown kind. The released definitions stay
+  in the bundles; a lab item's are only in the lab build (section 8 "Lab code").
+- **Tab catalogs (3f, ERRORS M520).** The Screener's and the Backtest's catalogs, as the workers answer them, list
+  items too.
+  - edge-bff decides each entry with this route's rule (`catalog.tab_list`): a lab item only for a principal that
+    holds it, an unlisted id being lab, and on the live site for nobody, `*` included.
+  - The workers' mark `access: 'admin'` (the point-in-time Flow versions) still needs the right `flow_point_in_time`.
+    The admin rights are beta-only, so on the live site nobody has it.
+  - A kept lab entry carries `release: 'lab'`. A preset that reads an entry left out is left out too.
 
 **Front-end (no visible change).**
 - `shared/edge-session.ts`:
@@ -1128,16 +1144,32 @@ today.
 - **Catalogs:** Backtest and Screener read their catalogs from the routes. The upgrade prompt gets the contact
   (decision D7).
 
-**3f. Lab code out of the public bundles (CONTRACT 8).**
-- The bundled definitions (`indRegistry.json`, `flowRegistry.json`, the backtest and screener registries) are read
-  through `GET /api/v1/catalog/{kind}`.
-- Lab formulas ship in a dynamic chunk served by an admin-only route.
-- A bundle test fails on a lab id or formula in a public chunk.
-- No item is `lab` today, so nothing leaks before 3f. Until 3f lands, a test fails when `releases.json` holds a `lab`
-  item, so the first lab item cannot ship in a public bundle.
-- The catalogs' `access:'admin'` marks (`screener/src/core/catalog.ts`, `backtest-worker/src/catalog.ts`) still filter
-  by `access == 'admin'` (`rights.py`, `screener.py restricted()`); they become release plus capability fields here
-  (R2-41 item 5; **to build, 3f**).
+**3f. Lab code out of the public bundles (CONTRACT 8). Built 2026-11-21 (EXEC option A item 4).**
+- **The refinement of the first draft.**
+  - The draft served every definition through `GET /api/v1/catalog/{kind}` and the lab formulas as a dynamic chunk.
+  - The pages build as one IIFE file each, and a released item's name shows locked anyway (3e). So the build is
+    partitioned instead: the public build keeps the released items, and the lab build keeps every item and the lab
+    formulas.
+  - The lab build is served from the page's own address to the admin on the beta only (section 8 "Lab code"). Today
+    it equals the public build but for its base path, and the public builds are byte-identical to before 3f.
+- **Lab tabs.** A lab tab's page and assets answer 404 to everyone but the admin on the beta, and on the live site.
+- **The catalogs' `access:'admin'` marks** stay on the wire (the live site's older edge-bff reads them). edge-bff
+  adds the release stage and the hold itself (8a "Tab catalogs"). ERRORS M520: the Screener worker had dropped the
+  mark; it copies it now.
+- **Tests:**
+  - `tests/test_3f_public_bundles.py`: the scan of every public file, the scan's self-test, and the proof builds with
+    a fixture lab indicator;
+  - `terminal/tests/lab/public-entries.test.mjs`: every page and Web Worker entry reaches no lab module;
+  - `tests/test_3f_lab_pages.py`, `tests/test_3f_tab_catalogs.py`.
+- **Proven and not built.**
+  - Admin delivery is proven for a lab technical indicator in the Terminal and the Backtest page (the proof builds).
+  - A lab candle pattern, Screener metric or preset is data. The public builds and the catalogs leave it out, and the
+    workers read it whole.
+  - Not built: a registration point for a lab Flow indicator's formula (`calc/flow.ts` does not export its map). The
+    first one adds it (LIVE_PROMOTION.md section 3).
+- **Hashed sources untouched:** the formula modules and registries that both workers hash were not changed. The
+  Backtest engine version stays `f984058aaaf38748`. The Screener engine changes once, through the worker's own
+  `src/catalog.ts` (M520).
 - On the live site every lab item is refused, `*` included (section 17; built, `fix-site`).
 
 **Tests per stage** (with the code; checkers C1-C3 per stage as in Phases 1 and 2):
@@ -1389,11 +1421,12 @@ hand.
   - Tabs are always shown (user decision); a tab without `<tab>.view` shows its example.
 - **The `rights` wire field stays.**
   - `context.rights` is what the workers read today. They refuse unknown keys and values (`KNOWN_RIGHTS`,
-    `apps/backtest-worker/src/server.ts:62`).
+    `apps/backtest-worker/src/server.ts`).
   - Phase 2 keeps the field and fills it with resolved capability names.
   - The workers' known names are extended **before** edge-bff sends new ones (deploy order: workers first).
-  - The catalogs' `access:'admin'` marks (`screener/src/core/catalog.ts:78-79,141`, `backtest-worker/src/catalog.ts:72`)
-    become `release` plus `capability` fields (**to build, 3f**; still filtered by `access == 'admin'` today).
+  - The catalogs' `access:'admin'` marks (`screener/src/core/catalog.ts` `flowMetric`, `backtest-worker/src/catalog.ts`
+    `flowIndicators`) stay on the wire; edge-bff decides the release stage and the hold of each entry (8a "Tab
+    catalogs"; built in 3f).
 - **Browser storage added:** `edge.watchlist.view` (a user's list id), `edge.watchlist.logos` and `ml.symbol` in the new
   apps; all go into the storage registry. Overview, Radar and Watchlist `api.ts` also get the error contract (M471).
 - **Build:** the radar, overview and watchlist Dockerfile stages copy only their own folder (`Dockerfile:42-69`). The

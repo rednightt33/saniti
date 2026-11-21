@@ -12,7 +12,8 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "paths": { "@edge-lab": ["../terminal/src/lab/index.ts"] }
   },
   "include": ["src", "tests", "../terminal/src/calc"]
 }

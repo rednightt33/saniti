@@ -66,19 +66,52 @@ stage. The beta (switch off) shows everything to the admin.
 | A catalog item: an indicator, Flow indicator, candle pattern, Screener metric or preset | `items` | lab | its key `<family>:<id>` is refused (`releases.KIND_OF_FAMILY`) |
 | A tab that never goes live | `principal.BETA_ONLY_TABS` (`admin`, `monitor`) | — | its keys are refused and its routes answer 404 before any session |
 
+Since 3f (EXEC option A item 4, CONTRACT.md 8a "Lab code"), a lab tab or item is also in no file a visitor downloads:
+
+- **Page builds.** `npm run build` of the Terminal and the Backtest page makes two builds.
+  - The public build (`static/terminal-app`, `backtest/dist`) keeps only the released entries of each registry
+    (`apps/edge-bff/shared/release-filter.mjs`; an unlisted id is lab; a missing release file stops the build).
+  - The lab build (`static/terminal-app-lab`, `backtest/dist-lab`) keeps every entry and the lab formulas.
+  - edge-bff serves the lab build from the same address to the admin on the beta only: admin.access and the second
+    factor passed (`auth.lab_viewer`). Its files answer under `/<app>/lab/assets/`, and 404 to everyone else and on the
+    live site.
+- **Tab catalogs.** The Screener's and the Backtest's catalogs list a lab item only to a principal that holds it
+  (`catalog.tab_list`, the rule of `/api/v1/catalog`).
+- **Lab tabs.** A tab at the lab stage is served, page and assets, to the admin on the beta only.
+
 These tests enforce the switches:
 
 - `apps/edge-bff/tests/test_live_switch.py` fails when a capability tab (the first part of a key in
   `edge_bff.capabilities`) or a page of the shell (`static/edge-app.js`, routes with `auth:true`) has no entry. Each
   must be listed as lab or released, or belong to `BETA_ONLY_TABS`. The same file shows that a lab tab is refused on
-  the live site, the admin's `*` included, is hidden from the live rail, and stays on the beta.
-- `apps/edge-bff/tests/test_releases.py` covers the items.
+  the live site, the admin's `*` included, is hidden from the live rail, and stays on the beta. It also keeps the six
+  tabs of the live site released.
+- `apps/edge-bff/tests/test_releases.py` covers the items: every registry id has an entry, and the items of the first
+  release (2026-11-17) stay released (the counts change only with a release the user asks for).
+- `apps/edge-bff/tests/test_3f_public_bundles.py` scans every file served without the admin check (each page's
+  build, its Web Worker files and the shell) for every lab item's id and formula key. Its proof builds add a fixture lab
+  indicator to the Terminal and the Backtest page and show it is in the lab build and in no public one.
+- `apps/edge-bff/terminal/tests/lab/public-entries.test.mjs` walks every page and Web Worker entry: none reaches a
+  module under `terminal/src/lab/` but `none.ts`.
+- `apps/edge-bff/tests/test_3f_lab_pages.py` (who is served a lab build and a lab tab) and `tests/test_3f_tab_catalogs.py`
+  (the catalogs, on the beta and the live site).
 
 How a new piece of work enters:
 
 - **A new tab or page.** Add it to `tabs` as `"lab"` in the same commit that adds it. A tab you leave out is lab
   anyway, but `test_live_switch.py` fails until it is listed.
-- **A new catalog item.** Leave it out of `items` (lab) or add it as `"lab"`.
+- **A new catalog item.** Add it to `items` as `"lab"` (every registry id needs an entry, `test_releases.py`).
+  - Its definition goes into its registry as usual. The public build leaves it out, and the lab build keeps it.
+  - A lab technical indicator's formula goes into `apps/edge-bff/terminal/src/lab/index.ts`, registered into the
+    formula map `F` under its registry `key`. Never put it in `calc/indicators.ts` while it is lab: that file is in
+    every public build.
+  - Releasing it moves the formula into `calc/indicators.ts` and the stage to `"released"`, in one commit. The workers'
+    engine version follows.
+  - **Not built yet:** a lab Flow indicator's formula has no registration point (the `FLOW` map of `calc/flow.ts` is not
+    exported). The first lab Flow indicator adds one; the workers' engine version follows.
+  - A lab candle pattern, Screener metric or preset is data the workers read. The public page builds and the catalogs
+    leave it out.
+  - The workers (backtest-worker, screener-worker) are private and read every registry and module whole.
 - **A change to a released tab.** This needs care: once `live` moves, the change is live. Either keep it off with its
   own new item or tab at the lab stage, or tell the user it will be live when `live` moves (section 4, step 3).
 
@@ -143,7 +176,8 @@ CI → `main` → the beta runs it), and then `live` moves to it. The user's req
      answers 404;
    - registration 403 `REGISTRATION_CLOSED` while in pre-launch;
    - a foreign origin 403;
-   - an unknown login 401.
+   - an unknown login 401;
+   - `lab build terminal-app` and `lab build backtest-app`: the public build, and the lab build's Web Worker file 404.
 
    The browser smoke expects the Terminal to open, the rail to have no Monitor or lab tab, and no model list to be
    asked for.

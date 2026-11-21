@@ -5,7 +5,7 @@
   "type": "module",
   "description": "EDGE backtest page: the reference backtest.html as modular TypeScript on the shared backtest core (src/core) and the edge-bff backtest API.",
   "scripts": {
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && vite build --mode lab",
     "build:smoke": "vite build --mode smoke",
     "build:fixture": "vite build --mode fixture",
     "dev": "vite",

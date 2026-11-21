@@ -1,0 +1,39 @@
+{
+ "id": "I_LAB_PROOF",
+ "key": "lab_proof_7f3a",
+ "name": "Lab proof indicator 7f3a",
+ "category": "Trend",
+ "function": "F.lab_proof_7f3a",
+ "inputs": [
+  "C"
+ ],
+ "price_input": "close",
+ "outputs": [
+  "sma"
+ ],
+ "params": [
+  {
+   "key": "length",
+   "type": "integer",
+   "default": 20,
+   "min": 1,
+   "step": 1
+  },
+  {
+   "key": "source",
+   "type": "enum",
+   "default": "close",
+   "options": [
+    "open",
+    "high",
+    "low",
+    "close",
+    "hl2",
+    "hlc3",
+    "ohlc4"
+   ]
+  }
+ ],
+ "not_accepted": [],
+ "available_for_backtest": true
+}

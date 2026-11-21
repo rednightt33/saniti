@@ -1540,7 +1540,9 @@ def test_the_image_builds_the_backtest_page_beside_the_sources_it_imports():
     assert [line for line in stage.strip().splitlines() if line.strip() and not line.startswith('#')] == [
         'WORKDIR /build/backtest', 'COPY backtest/package.json backtest/package-lock.json ./',
         'RUN npm ci --no-audit --no-fund', 'COPY terminal/src /build/terminal/src',
-        'COPY screener/src /build/screener/src', 'COPY shared /build/shared', 'COPY backtest/ ./', 'RUN npm run build']
+        'COPY screener/src /build/screener/src', 'COPY shared /build/shared',
+        # 3f: the release file the page build filters the registries by (shared/release-filter.mjs, fail closed)
+        'COPY catalog/releases.json /build/catalog/releases.json', 'COPY backtest/ ./', 'RUN npm run build']
     root = Path(__file__).resolve().parents[1].resolve()
     page = root / 'backtest'
     spec_rx = re.compile(r"""(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]""")
@@ -1591,7 +1593,9 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
                  'overview/dist/index.html', 'overview/dist-fixture/index.html', 'static/overview-app/index.html',
                  # EXEC-WATCHLIST L5: the Watchlist page, the sixth
                  'watchlist/node_modules/vite/package.json', 'watchlist/tests/fixture/watchlist-stocks.sample.json',
-                 'watchlist/dist/index.html', 'watchlist/dist-fixture/index.html', 'static/watchlist-app/index.html'):
+                 'watchlist/dist/index.html', 'watchlist/dist-fixture/index.html', 'static/watchlist-app/index.html',
+                 # 3f: the lab builds (CONTRACT.md 8a "Lab code"), built in their stages, never taken from the context
+                 'static/terminal-app-lab/index.html', 'backtest/dist-lab/index.html', 'static/backtest-app-lab/index.html'):
         assert docker_ignored(patterns, path), path
     copied = [source for line in (root / 'Dockerfile').read_text().splitlines() if line.startswith('COPY ') and '--from' not in line
               for source in line.split()[1:-1]]
@@ -1600,8 +1604,10 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
     # (EXEC-MU-ACCOUNTS Phase 2: the final stage takes catalog/, the release stages app/releases.py reads at start)
     # (EXEC-MU-ACCOUNTS re-check R1-35, user 2026-11-19 "1a": and the Screener catalog, whose shown universe attributes
     # app/catalog.py reads at start)
-    assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'shared', 'terminal/', 'backtest/package.json',
-                      'backtest/package-lock.json', 'terminal/src', 'screener/src', 'shared', 'backtest/', 'screener/package.json',
+    # (3f: the Terminal and Backtest stages take the release file their page build filters the registries by)
+    assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'shared', 'catalog/releases.json', 'terminal/',
+                      'backtest/package.json', 'backtest/package-lock.json', 'terminal/src', 'screener/src', 'shared',
+                      'catalog/releases.json', 'backtest/', 'screener/package.json',
                       'screener/package-lock.json', 'terminal/src', 'backtest/src', 'shared', 'screener/', 'radar/package.json',
                       'radar/package-lock.json', 'shared', 'radar/', 'overview/package.json', 'overview/package-lock.json', 'shared',
                       'overview/', 'watchlist/package.json', 'watchlist/package-lock.json', 'shared', 'watchlist/',

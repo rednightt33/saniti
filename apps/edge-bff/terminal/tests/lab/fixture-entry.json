@@ -1,0 +1,58 @@
+{
+ "id": "I_LAB_PROOF",
+ "cat": "Trend",
+ "name": "Lab proof indicator 7f3a",
+ "key": "lab_proof_7f3a",
+ "short": "LABPROOF7F3A",
+ "req": "C",
+ "zone": "overlay",
+ "unit": "price",
+ "colorRule": "solid:auto",
+ "outs": [
+  {
+   "k": "sma",
+   "label": "SMA",
+   "r": "line",
+   "role": "numeric_line",
+   "vis": true,
+   "w": 2,
+   "rule": "solid:auto",
+   "cond": ""
+  }
+ ],
+ "params": [
+  {
+   "k": "length",
+   "label": "Length",
+   "type": "integer",
+   "def": 20,
+   "ev": "PROPOSED_DEFAULT",
+   "min": 1,
+   "step": 1,
+   "hint": "Lookback bar count"
+  },
+  {
+   "k": "source",
+   "label": "Source",
+   "type": "enum",
+   "def": "close",
+   "ev": "PROPOSED_DEFAULT",
+   "opts": [
+    "open",
+    "high",
+    "low",
+    "close",
+    "hl2",
+    "hlc3",
+    "ohlc4"
+   ],
+   "hint": "Bar price source"
+  }
+ ],
+ "guides": [],
+ "fill": null,
+ "tip": "The 3f proof: a fixture lab indicator that never enters the release file.",
+ "info": "SMA menghaluskan fluktuasi harga agar arah pergerakan lebih mudah dilihat. Setiap harga dalam jendela perhitungan memiliki pengaruh yang sama.",
+ "display": "Garis MA di atas candlestick",
+ "position": "Price chart overlay (candle pane)"
+}

@@ -76,7 +76,9 @@ drawings in the browser (and says so once) and moves them to the account the nex
 the browser before (`ml.drawings.*`) move to the account once, merged by drawing id. A change is written 0.4 s after the
 last one (a drag sends many); one still waiting when the page goes away is sent then (keepalive).
 
-Build and checks, from `terminal/`: `npm ci`, `npm run build` (typecheck + build), `npx vitest run tests/calc`
+Build and checks, from `terminal/`: `npm ci`, `npm run build` (typecheck, then the public build into
+`static/terminal-app/` and the admin's lab build into `static/terminal-app-lab/`, 3f: LIVE_PROMOTION.md section 3),
+`npx vitest run tests/calc`
 (parity), and the 1:1 check `TERMINAL_REFERENCE_HTML=<reference file> node tests/visual/compare.mjs <out>` then
 `python3 tests/visual/diff.py <out>` (must report 0 differing pixels). `/terminal-app/?fixture=reference` runs the
 page on the reference's synthetic data, but only in a fixture build (ERRORS M469): run `npx vite build --mode fixture`

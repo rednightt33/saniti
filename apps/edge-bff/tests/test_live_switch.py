@@ -40,11 +40,10 @@ def test_every_capability_tab_and_page_of_the_shell_has_a_live_switch(database):
                          'only) or "released" (LIVE_PROMOTION.md)')
 
 
-def test_today_every_listed_tab_is_released_so_the_live_site_keeps_its_pages():
-    # until 3f moves lab code out of the public bundles (CONTRACT.md 3f), a lab tab's page code would still ship in the
-    # live site's bundles, as a lab item's would (test_releases.py): the first lab tab waits for 3f
-    assert releases.lab_tabs() == frozenset(), ('a lab tab before 3f: its page code would still ship in the public '
-                                                'bundles (CONTRACT.md 3f)')
+def test_the_six_tabs_of_the_live_site_stay_released():
+    # the live site opened with these six tabs (2026-11-20); moving one back to the lab is the user's decision. A new
+    # tab may start in the lab since 3f: its page and assets are served to the admin on the beta only
+    # (tests/test_3f_lab_pages.py), so its code is in no file a visitor downloads
     assert {t for t, st in releases.CURRENT.tabs().items() if st == 'released'} == {
         'terminal', 'backtest', 'screener', 'watchlist', 'radar', 'overview'}
 

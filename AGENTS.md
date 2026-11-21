@@ -216,6 +216,8 @@ admin only, every feature first) and the live site (`edge-bff-live`, app.edgefin
   the commit (whole commits move, not one feature).
 - A new tab, page or catalog item enters at the lab stage in `apps/edge-bff/catalog/releases.json` (`tabs`, `items`;
   unlisted is lab). Lab stays off on the live site for everyone, the admin's `*` included, and stays on the beta.
+  Since 3f a lab item is in no public file: the public page build leaves its definition out, and a lab indicator's
+  formula goes into `apps/edge-bff/terminal/src/lab/index.ts`, never `calc/` (LIVE_PROMOTION.md section 3).
   `tests/test_live_switch.py` fails when a capability tab or a page of the shell has no entry. Migrations stay
   expand-only while the live site runs older code on the shared database.
 - Connecting a repository or changing a deploy trigger is an account action the session's project token may not do

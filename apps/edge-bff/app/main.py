@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .backtest import Backtests
-from . import catalog, logs, terminal_access
+from . import catalog, logs, releases, terminal_access
 from .client import OrcClient, OrcError, public_data
 from .config import LIVE, Settings
 from .errors import Refusal, UnexpectedErrors, http_refusal, refusal, set_registration_open, validation_refusal
@@ -95,6 +95,10 @@ TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
 # /fonts/, inline style attributes) and, for the signal preview, the ticker files the /api/terminal/v1/bundle answer
 # presigns on the bucket, so it takes the terminal page's policy.
 BACKTEST_APP = STATIC / 'backtest-app'
+# 3f (EXEC option A item 4; CONTRACT.md 8a "Lab code"): the lab builds of the pages that carry definitions and formulas
+# (every item, the lab formulas of terminal/src/lab), served at /<app>/lab/ only to the admin on the beta (auth.lab_viewer)
+TERMINAL_LAB_APP = STATIC / 'terminal-app-lab'
+BACKTEST_LAB_APP = STATIC / 'backtest-app-lab'
 BACKTEST_CSP = TERMINAL_CSP
 # EDGE screener (EXEC-SCREENER; report FRONTEND INTEGRATION 9.1, 9.7): the built screener page (apps/edge-bff/screener ->
 # static/screener-app), shown in the Screener tab's frame. It loads what the backtest page loads except the bucket: its
@@ -603,74 +607,57 @@ def create_app(settings=None, store=None, orc=None):
         return FileResponse(STATIC / name, media_type=media, headers={'Cache-Control': 'public, max-age=86400'})
 
     # EXEC-TERMINAL-API T5: the terminal page itself carries no data (the page asks /api/terminal for it), so it is
-    # served like EDGE's own page; its hashed assets never change and are cached.
-    @app.get('/terminal-app/')
-    async def terminal_page():
-        target = TERMINAL_APP / 'index.html'
-        if not target.is_file():
-            return error('NOT_FOUND', 404)
-        return FileResponse(target, media_type='text/html')
+    # served like EDGE's own page; its hashed assets never change and are cached. The same for the backtest page (EDGE
+    # backtest, CONTRACT.md section 10: it asks /api/v1/backtests and /api/terminal for its data), the screener page
+    # (report FRONTEND INTEGRATION 9.1), and the Radar, Market Overview and Watchlist pages (EXEC-RADAR R6, EXEC-OVERVIEW
+    # O4, EXEC-WATCHLIST).
+    # 3f (EXEC option A item 4; CONTRACT.md 8a "Lab code"):
+    # - a page with a lab build (`lab`) is served from it to the admin on the beta (auth.lab_viewer): its index refers to
+    #   its own assets under /<app>/lab/assets/, which answer 404 to everyone else and on the live site, and are cached
+    #   by the admin's browser only (private);
+    # - a tab at the lab stage (releases.tab_stage) is served to the admin on the beta only: its page and assets answer
+    #   404 to everyone else and on the live site, so a lab tab's code is in no file a visitor downloads.
+    # (the folders are this module's names, read when a request comes, so a test can point one elsewhere)
+    def page_app(prefix, folder_name, tab, lab_name=None):
+        async def shown(request):
+            if releases.tab_stage(tab) == releases.LAB:
+                return await auth.lab_viewer(request)
+            return True
 
-    @app.get('/terminal-app/assets/{name}')
-    async def terminal_asset(name: str):
-        target = TERMINAL_APP / 'assets' / name
-        if not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
-            return error('NOT_FOUND', 404)
-        return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
-
-    # EDGE backtest (CONTRACT.md section 10): the backtest page is served like the terminal page (no data in it; it asks
-    # /api/v1/backtests and /api/terminal for it); its hashed assets never change and are cached.
-    @app.get('/backtest-app/')
-    async def backtest_page():
-        target = BACKTEST_APP / 'index.html'
-        if not target.is_file():
-            return error('NOT_FOUND', 404)
-        return FileResponse(target, media_type='text/html')
-
-    @app.get('/backtest-app/assets/{name}')
-    async def backtest_asset(name: str):
-        target = BACKTEST_APP / 'assets' / name
-        if not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
-            return error('NOT_FOUND', 404)
-        return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
-
-    # EDGE screener (report FRONTEND INTEGRATION 9.1): the screener page is served like the backtest page (no data in it;
-    # it asks /api/v1/screener for it); its hashed assets never change and are cached.
-    @app.get('/screener-app/')
-    async def screener_page():
-        target = SCREENER_APP / 'index.html'
-        if not target.is_file():
-            return error('NOT_FOUND', 404)
-        return FileResponse(target, media_type='text/html')
-
-    @app.get('/screener-app/assets/{name}')
-    async def screener_asset(name: str):
-        target = SCREENER_APP / 'assets' / name
-        if not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
-            return error('NOT_FOUND', 404)
-        return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
-
-    # EXEC-RADAR R6, EXEC-OVERVIEW O4: the Radar and Market Overview pages, served like the Screener page (no data in
-    # them; their hashed assets never change)
-    def page_app(prefix, folder):
-        async def page():
-            target = folder / 'index.html'
+        async def page(request: Request):
+            if not await shown(request):
+                return error('NOT_FOUND', 404)
+            target = globals()[folder_name] / 'index.html'
+            lab = globals()[lab_name] if lab_name else None
+            if lab is not None and (lab / 'index.html').is_file() and await auth.lab_viewer(request):
+                target = lab / 'index.html'
             if not target.is_file():
                 return error('NOT_FOUND', 404)
             return FileResponse(target, media_type='text/html')
 
-        async def asset(name: str):
-            target = folder / 'assets' / name
-            if not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
+        async def asset(request: Request, name: str):
+            target = globals()[folder_name] / 'assets' / name
+            if not await shown(request) or not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
                 return error('NOT_FOUND', 404)
             return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
 
+        async def lab_asset(request: Request, name: str):
+            target = globals()[lab_name] / 'assets' / name
+            if not TERMINAL_ASSET.fullmatch(name) or not await auth.lab_viewer(request) or not target.is_file():
+                return error('NOT_FOUND', 404)
+            return FileResponse(target, headers={'Cache-Control': 'private, max-age=31536000, immutable'})
+
         app.get(f'/{prefix}/', name=f'{prefix}_page')(page)
         app.get(f'/{prefix}/assets/{{name}}', name=f'{prefix}_asset')(asset)
+        if lab_name:
+            app.get(f'/{prefix}/lab/assets/{{name}}', name=f'{prefix}_lab_asset')(lab_asset)
 
-    page_app('radar-app', RADAR_APP)
-    page_app('overview-app', OVERVIEW_APP)
-    page_app('watchlist-app', WATCHLIST_APP)
+    page_app('terminal-app', 'TERMINAL_APP', 'terminal', 'TERMINAL_LAB_APP')
+    page_app('backtest-app', 'BACKTEST_APP', 'backtest', 'BACKTEST_LAB_APP')
+    page_app('screener-app', 'SCREENER_APP', 'screener')
+    page_app('radar-app', 'RADAR_APP', 'radar')
+    page_app('overview-app', 'OVERVIEW_APP', 'overview')
+    page_app('watchlist-app', 'WATCHLIST_APP', 'watchlist')
 
     # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan /api/terminal/... ke terminal-api --> OK"): the owner's
     # EDGE session reaches terminal-api as its one terminal account (quotas and audit there); writes keep EDGE's

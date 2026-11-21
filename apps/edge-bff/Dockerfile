@@ -7,6 +7,9 @@ WORKDIR /build/terminal
 COPY terminal/package.json terminal/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY shared /build/shared
+# 3f (CONTRACT.md 8a "Lab code"): the page build filters the registries by release stage (shared/release-filter.mjs) and
+# stops without the release file; it builds the public page and the admin's lab page (static/terminal-app-lab)
+COPY catalog/releases.json /build/catalog/releases.json
 COPY terminal/ ./
 RUN npm run build
 
@@ -22,6 +25,8 @@ RUN npm ci --no-audit --no-fund
 COPY terminal/src /build/terminal/src
 COPY screener/src /build/screener/src
 COPY shared /build/shared
+# 3f: the release file the page build filters by (shared/release-filter.mjs); dist/ is the public page, dist-lab/ the lab page
+COPY catalog/releases.json /build/catalog/releases.json
 COPY backtest/ ./
 RUN npm run build
 
@@ -90,7 +95,9 @@ COPY catalog ./catalog
 COPY screener/src/core/screener-metrics.json ./screener/src/core/screener-metrics.json
 COPY static ./static
 COPY --from=terminal /build/static/terminal-app ./static/terminal-app
+COPY --from=terminal /build/static/terminal-app-lab ./static/terminal-app-lab
 COPY --from=backtest /build/backtest/dist ./static/backtest-app
+COPY --from=backtest /build/backtest/dist-lab ./static/backtest-app-lab
 COPY --from=screener /build/screener/dist ./static/screener-app
 COPY --from=radar /build/radar/dist ./static/radar-app
 COPY --from=overview /build/overview/dist ./static/overview-app

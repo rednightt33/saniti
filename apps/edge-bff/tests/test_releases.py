@@ -86,11 +86,14 @@ def test_every_registry_id_has_an_entry_and_every_entry_names_a_registry_id():
                        f'the id: {stale}')
 
 
-def test_every_item_of_today_is_released():
-    """User decision 2026-11-17: every item that exists today starts 'released'."""
+def test_the_items_of_the_first_release_stay_released():
+    """User decision 2026-11-17: every item that existed then is released (the counts below). Since 3f a new item may
+    start in the lab: its definition and formula stay out of every public file (tests/test_3f_public_bundles.py,
+    terminal/tests/lab/public-entries.test.mjs), its page build is the admin's (tests/test_3f_lab_pages.py) and the
+    catalogs list it to its holders only (tests/test_3f_tab_catalogs.py). A release (lab to released) is a commit the
+    user asks for, and it changes these counts with it (LIVE_PROMOTION.md section 3)."""
     current = releases.load(FILE)
-    assert {e['stage'] for kind in KINDS for e in current.entries(kind)} == {'released'}
-    assert {kind: len(current.entries(kind)) for kind in KINDS} == {
+    assert {kind: sum(1 for e in current.entries(kind) if e['stage'] == 'released') for kind in KINDS} == {
         'indicator': 53, 'flow_indicator': 56, 'candle_pattern': 20, 'screener_metric': 55, 'screener_preset': 26}
 
 
