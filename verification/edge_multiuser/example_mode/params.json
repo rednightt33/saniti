@@ -1,0 +1,7 @@
+{"date": "2026-10-30", "from": "2026-10-26", "to": "2026-11-06",
+ "tickers": ["BBCA", "BBRI", "TLKM", "ASII"],
+ "tables": ["Price_Stock_Indonesia_IDX", "IDX_Broker_Summary", "Feature_01_Stock_Daily", "Feature_01_Stock_Daily_INDEX",
+            "Feature_02_Broker_Rolling", "Feature_03_Stock_Broker_Daily", "Feature_04_Technical_Indicator",
+            "Feature_04_Technical_Indicator_INDEX", "Feature_05_Foreign_Domestic_Broker_Detail",
+            "Feature_06_Foreign_Domestic", "Feature_06_Foreign_Domestic_INDEX", "Feature_07_Radar_Measure",
+            "Feature_07_Radar_Gate", "Feature_07_Radar_Result", "idx_event_annotation"]}
