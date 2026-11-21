@@ -8948,6 +8948,16 @@ in its staleness check.
     unknown field, every bar series or the older days are kept), the browser (the EMA and the group filter work; 5D,
     Custom, 1Y and the date picker ask to sign in or for the paywall; a stock opens the Terminal), each red on its
     mutation.
+  - The Watchlist (30 October 2026): `watchlist.build(run, as_of)` bounds the price, broker and Radar dates (tests: the
+    as-of build equals the build on the cut tables; red with any plain date statement). `examples.py` watchlist_files:
+    the LQ45 members of the date (`Stock_List_Member_History`, its point-in-time rule; before the lists' first capture
+    on 2026-11-10 none is recorded, so the earliest recorded members are taken only when none changed since, else the
+    capture stops: members_on), their four default indicators (the others null), no upcoming corporate action (dates
+    after the example's by nature; `events_loaded` null), the one list in the shape of the lists route; no
+    `watchlist-radar` (radar.view). Written on dev by job `b77b0506` (2 files, READBACK OK). The page reads only the
+    example's routes in that mode (no account list, no logo list), keeps no view choice in the browser, and stays still
+    (`shared/example-view.ts`). Browser test: the 45-row list's made-up twin shows, only the example's files are read,
+    a click asks to sign in.
 - **Lesson for new data:** an example of a page is the files of its opening view, built by the publisher's own builder
   cut at one date and checked for later dates before it is stored; the server is the guarantee (it serves only those
   files, only to `<tab>.example`), the page only displays.

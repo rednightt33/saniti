@@ -23,7 +23,8 @@ from test_examples import put  # noqa: E402
 from test_guest_browser import CONTACT  # noqa: E402
 from test_principal import db, make_user  # noqa: E402
 
-from example_docs import RADAR_AS_OF as AS_OF, OVERVIEW_DAYS, overview_files, radar_example  # noqa: E402
+from example_docs import (RADAR_AS_OF as AS_OF, OVERVIEW_DAYS, WATCHLIST_AS_OF, overview_files, radar_example,  # noqa: E402
+                          watchlist_example)
 from test_examples import gz  # noqa: E402
 
 
@@ -35,6 +36,7 @@ def site(settings, store, monkeypatch):
     on = Live(dataclasses.replace(settings, site='live', guests_enabled=True, prelaunch_enabled=False, orc_url='',
                                   orc_key='', upgrade_contact=CONTACT), store, monkeypatch)
     put(store, 'radar', radar_example(), as_of=AS_OF)
+    put(store, 'watchlist', watchlist_example(), as_of=WATCHLIST_AS_OF)
     on.terminal.pages['overview'] = {n: gz(doc) for n, doc in overview_files().items()}     # the live publication
     try:
         yield on
@@ -229,3 +231,31 @@ def test_a_free_account_meets_the_paywall_on_the_overviews_time_controls(site, c
     frame = open_overview(page)
     frame.locator('#spp button').first.click()
     assert 'Overview is not in your plan' in box_text(page)
+
+
+# ---- the Watchlist: one example list on its date, a view of that day ---------------------------------------------------
+def test_a_visitor_sees_the_watchlist_example_and_a_click_asks_to_sign_in(site, chromium):
+    if not (ROOT / 'watchlist' / 'dist' / 'index.html').is_file():
+        pytest.skip('the Watchlist page is not built (cd apps/edge-bff/watchlist && npm run build)')
+    page = browser_context(chromium).new_page()
+    requests = []
+    page.on('request', lambda r: requests.append(r.url))
+    page.goto(site.origin + '/watchlist')
+    frame_el = page.locator('main.example-page[data-example-tab="watchlist"] iframe.terminal-frame')
+    frame_el.wait_for(timeout=20000)
+    assert frame_el.get_attribute('src').endswith('/watchlist-app/?example=1')
+    frame = page.frame_locator('main.example-page iframe.terminal-frame')
+    tickers = watchlist_example()['watchlist-stocks']['ticker']
+    frame.locator(f'text={tickers[0]}').first.wait_for(timeout=20000)
+    body = frame.locator('body').inner_text()
+    assert 'LQ45' in body and all(t in body for t in tickers), body[:400]
+    assert 'Watchlist with the data of Fri 13 Nov 2026' in page.locator('.example-bar').inner_text()
+    # the page's data came from the example's files only: no account list, no live figures, no logo list
+    urls = sorted({u.split('?')[0].replace(site.origin, '') for u in requests if '/api/' in u})
+    assert [u for u in urls if not u.startswith(('/api/v1/examples/watchlist/', '/api/v1/auth/'))] == [], urls
+    assert {u.rsplit('/', 1)[1] for u in urls if '/file/' in u} == {'watchlist-stocks', 'watchlist-lists'}
+    frame.locator('button').first.click()
+    box = page.locator('.locked-dialog')
+    box.wait_for(timeout=10000)
+    assert 'Sign in to open Watchlist' in box.inner_text() and 'This is an example of Watchlist' in box.inner_text()
+    assert frame.locator('[title], svg title').count() == 0

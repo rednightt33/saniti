@@ -22,7 +22,7 @@ type View = 'cards' | 'table';
 interface Menu extends HTMLDivElement { _for?: HTMLElement }
 interface Dlg { bd: HTMLElement; opener: Element | null; onKey?: (e: KeyboardEvent) => void; onClose?: () => void }
 
-export function start(api0: WatchlistApi, PAGE: HTMLElement) {
+export function start(api0: WatchlistApi, PAGE: HTMLElement, opts: { example?: boolean } = {}) {
   const api = cached(api0);
   let index: WatchlistIndex, F: StocksFile, CAT: M.Catalog, BY = new Map<string, M.Stock>(), UL: M.Stock[] = [];
   let RN: Record<string, string> = {}, LISTS: WList[] = [], LIM: M.Limits = M.limitsOf([]), LOGOS: Record<string, string> = {};
@@ -30,8 +30,10 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
   let HAS_RADAR = false;                  // Phase 3d: this account reads the Radar's screens (else no badge, no filter)
   let FILE_ERR: string | null = null;     // M466 (a): the figures could not be read; the lists are shown without them
   const st: { active: string; view: View } = { active: '', view: 'cards' };
-  try { const s = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null'); if (s) { st.active = String(s.active || ''); st.view = s.view === 'table' ? 'table' : 'cards' } } catch { /* storage off */ }
-  const persist = () => { try { localStorage.setItem(VIEW_KEY, JSON.stringify(st)) } catch { /* storage off */ } };
+  // 3e, the example mode (ERRORS M527): the page as it opens, its own list and view; this browser's choice is neither
+  // read nor written
+  if (!opts.example) try { const s = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null'); if (s) { st.active = String(s.active || ''); st.view = s.view === 'table' ? 'table' : 'cards' } } catch { /* storage off */ }
+  const persist = () => { if (opts.example) return; try { localStorage.setItem(VIEW_KEY, JSON.stringify(st)) } catch { /* storage off */ } };
 
   const L = (id?: string) => LISTS.find(l => l.id === (id || st.active)) as WList;
   const S = (t: string) => BY.get(t) || M.unknownStock(t, FILE_ERR ? '' : undefined);

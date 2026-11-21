@@ -156,3 +156,50 @@ def test_the_radar_output_is_a_file_of_its_own():
     # a day without a Radar date still publishes both files: the badges are empty, never stale
     none = W.build(Fake(radar=None).run)['watchlist-radar']
     assert none['radar'] == {} and none['radar_date'] is None
+
+
+# ---- EXEC-MU-ACCOUNTS 3e, the example mode (user 2026-11-21): the file as it was on a past date -----------------------
+class CutFake(Fake):
+    """Fake answered from each statement's parameters (the base answers every date statement whatever it asks), with the
+    price, broker and Radar dates after the example's date; through: the same tables cut at that date."""
+
+    def __init__(self, through=None, **kw):
+        super().__init__(**kw)
+        self.dates = [d for d in DATES if through is None or d <= through]
+        if through:
+            self.broker, self.radar = min(self.broker, through), min(self.radar, through)
+
+    def run(self, sql, params):
+        if sql in (W.RECENT_SQL, W.RECENT_ASOF_SQL):
+            self.seen.append((sql, params))
+            return [(d,) for d in reversed(self.dates) if sql == W.RECENT_SQL or d <= params['asof']][:W.COMPLETE_SCAN]
+        if sql == W.BROKER_DATE_ASOF_SQL:
+            self.seen.append((sql, params))
+            return [(min(self.broker, params['asof']),)]
+        if sql == W.RADAR_DATE_ASOF_SQL:
+            self.seen.append((sql, params))
+            return [(min(self.radar, params['asof']),)]
+        if sql == W.DATES_SQL:
+            self.seen.append((sql, params))
+            return [(d,) for d in reversed(self.dates) if d <= params['p']][:params['n']]
+        if sql == W.CLOSES_SQL:
+            self.seen.append((sql, params))
+            return [r for r in super().run(sql, params) if r[1] in params['d']]
+        return super().run(sql, params)
+
+
+def test_an_as_of_build_on_the_full_tables_equals_the_build_on_the_tables_cut_at_that_date():
+    full = CutFake(broker='2026-11-12', radar='2026-11-12')
+    for as_of in ('2026-11-06', '2026-11-08', '2026-11-10'):
+        through = max(d for d in DATES if d <= as_of)
+        cut = CutFake(through=as_of, broker='2026-11-12', radar='2026-11-12')
+        assert W.build(full.run, as_of=as_of) == W.build(cut.run), as_of
+        s = W.build(full.run, as_of=as_of)['watchlist-stocks']
+        assert s['prices_through'] == through and max(s['dates']) == through and s['broker_through'] <= as_of
+    assert W.build(full.run)['watchlist-stocks']['prices_through'] == DATES[-1]       # the later dates are there to cut
+
+
+def test_without_as_of_the_watchlist_build_runs_the_publication_statements_only():
+    f = CutFake()
+    W.build(f.run)
+    assert not [s for s, _ in f.seen if s in (W.RECENT_ASOF_SQL, W.BROKER_DATE_ASOF_SQL, W.RADAR_DATE_ASOF_SQL)]

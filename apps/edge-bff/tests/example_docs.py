@@ -78,3 +78,24 @@ def overview_files():
                                 'fnet_dates': OVERVIEW_DATES, 'close': [[1000.0] * len(OVERVIEW_DATES)] * len(TICKERS),
                                 'fnet': [[1.0e9] * len(OVERVIEW_DATES)] * len(TICKERS)}
     return files
+
+
+WATCHLIST_AS_OF = '2026-11-13'
+
+
+def watchlist_example():
+    """The two files of the Watchlist's example in the shapes apps/terminal-publisher/examples.py writes: the figures of
+    the example list's stocks (the page's own made-up sample, cut to eight stocks, the default indicators only, no
+    upcoming corporate actions, no Radar fields) and the one list."""
+    import json
+    sample = json.loads((ROOT / 'watchlist' / 'tests' / 'fixture' / 'watchlist-stocks.sample.json').read_text())
+    keep = list(range(8))
+    pick = lambda a: [a[i] for i in keep]
+    doc = {k: v for k, v in sample.items() if not k.startswith('radar')}
+    doc.update(ticker=pick(sample['ticker']), name=pick(sample['name']), sector=pick(sample['sector']),
+               last=pick(sample['last']), r1d=pick(sample['r1d']), r1m=pick(sample['r1m']), trend=pick(sample['trend']),
+               values={k: (pick(v) if k in sample['default'] else [None] * len(keep)) for k, v in sample['values'].items()},
+               events={}, events_loaded=None)
+    lists = {'lists': [{'id': 'example-lq45', 'name': 'LQ45', 'position': 0, 'indicators': None,
+                        'tickers': [{'ticker': t, 'position': i} for i, t in enumerate(doc['ticker'])]}], 'limits': []}
+    return {'watchlist-stocks': doc, 'watchlist-lists': lists}

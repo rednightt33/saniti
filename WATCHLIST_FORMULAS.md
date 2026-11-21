@@ -6,7 +6,7 @@ baru** ("selight as possible yang mana tidak perlu ada calculation lagi"). Karen
 yang **sudah tersimpan** di database, dibaca apa adanya. Satu-satunya hitungan adalah jarak harga ke EMA (satu pembagian
 di baris yang sama).
 
-<!-- explained-for: watchlist.py=a25656cbeeca71ccf324cb42a02f6474, app/watchlist.py=943ecc862a6c5a628be9b099f75a90de -->
+<!-- explained-for: watchlist.py=0fd9f284452665831e3feda5b1cbb59f, app/watchlist.py=943ecc862a6c5a628be9b099f75a90de -->
 
 ## 1. Dari mana angkanya datang
 
@@ -34,6 +34,15 @@ File dibangun ulang hanya bila isinya berubah (stempelnya adalah isi file itu se
 - **Tanggal broker** ("Broker data to …"): tanggal terbaru data asing (Feature 06, papan Regular). Biasanya beberapa
   hari di belakang tanggal harga, karena ronde broker dijalankan terpisah. Contoh: harga 13 Nov, broker 9 Nov. Setiap
   angka asing di halaman diberi tanggal ini.
+
+**Mode contoh (EXEC-MU-ACCOUNTS 3e, keputusan user 2026-11-21; ERRORS M527).** Pengunjung yang belum login dan paket
+gratis melihat Watchlist sebagai contoh satu hari: data **30 Oktober 2026**. File contoh dibuat sekali oleh job pengambil
+contoh dengan fungsi yang sama (`build` dengan `as_of`): tanggal harga adalah tanggal lengkap terbaru **sampai** 30
+Oktober, tanggal broker dan tanggal Radar juga dibatasi sampai hari itu; tanpa `as_of` file harian tetap seperti biasa.
+Isinya satu list, anggota LQ45 pada 30 Oktober menurut riwayat keanggotaan (`Stock_List_Member_History`, aturan
+*point in time* tabel itu), dengan empat indikator bawaan; nilai indikator lain kosong karena menambah indikator adalah
+klik. Aksi korporasi mendatang tidak ikut, karena tanggalnya sesudah 30 Oktober (hari itu belum tentu diketahui), dan
+badge Radar tidak ada karena butuh hak Radar.
 
 ## 3. Harga, 1D, 1M dan Trend
 
@@ -143,7 +152,7 @@ Ditulis oleh `scripts/watchlist_formulas_doc.py --write` dari kode di repo; jang
 
 | Kode | Sidik jari (md5) |
 |---|---|
-| `watchlist.py` | `a25656cbeeca71ccf324cb42a02f6474` |
+| `watchlist.py` | `0fd9f284452665831e3feda5b1cbb59f` |
 | `app/watchlist.py` | `943ecc862a6c5a628be9b099f75a90de` |
 
 <!-- watchlist-live:end -->

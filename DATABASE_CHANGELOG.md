@@ -24,6 +24,13 @@
 - **Source:** the Feature 07 tables (`Feature_07_Radar_Gate`, `_Result`, `_Measure`, `_Filter`, `_Rule`, the current
   rule version), the final daily prices and `IDX_Stock_Universe`, read in one READ ONLY transaction.
 - **Not a large update:** three rows of about 105 KB; the reads are the daily publication's own. No Postgres restart.
+- **The Watchlist's example of 30 October 2026** (the same job; `watchlist.build` with `as_of`, `examples.py`
+  watchlist_files): dry runs `9579f1cb` (DRY_RUN_OK) and a first one refused (`VERDICT REFUSED "no LQ45 member is
+  recorded for 2026-10-30"`: the membership history starts at the lists' first capture); the write `b77b0506` wrote 2 rows and read
+  them back (READBACK OK, VERDICT WRITTEN): `watchlist-stocks` 45 rows 5,773 bytes `4deaaf6b07e4cc20…` (the 45 LQ45
+  members, the four default indicators, no upcoming corporate action), `watchlist-lists` 394 bytes
+  `a6827ccdf8f9389d…`. The members: the earliest recorded (2026-11-10), unchanged since; none is recorded for 30
+  October (ERRORS M527). Not a large update.
 
 ## 2026-11-20 — The A2 fix: a reset code bound to its browser, a registration's client (edge_bff, migrations 20261120_001 and _002)
 

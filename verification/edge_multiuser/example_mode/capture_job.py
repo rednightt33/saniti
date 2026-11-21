@@ -51,6 +51,9 @@ def main():
                                        stream=lambda sql, params: list(publisher.stream_rows(conn, sql, params)))
                 for _, name, day, n, size, sha, _ in built:
                     out(step='built', tab=tab, name=name, as_of=day, rows=n, bytes=size, sha256=sha[:16])
+                for note in examples.NOTES:                   # what a builder took as given (no data value)
+                    out(step='note', tab=tab, note=note)
+                examples.NOTES.clear()
                 rows += built
         if not write:
             out(step='dry_run', files=len(rows))

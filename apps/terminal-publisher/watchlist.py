@@ -96,6 +96,11 @@ COUNTS_SQL = (f"SELECT (SELECT count(*) FROM {PRICE} WHERE date = %(d)s AND time
               f'AND ticker IN {STOCK_SET})')
 BROKER_DATE_SQL = f"SELECT max(trade_date)::text FROM {F06I} WHERE ticker = %(m)s AND market_board = 'Regular'"
 RADAR_DATE_SQL = f'SELECT max(trade_date)::text FROM {RADAR}'
+# EXEC-MU-ACCOUNTS 3e, the example mode (user 2026-11-21; ERRORS M527): the file as it was on a past date (build's as_of):
+# the price, broker and Radar dates bounded by it. Only an as-of build runs these; a publication runs the ones above.
+RECENT_ASOF_SQL = RECENT_SQL.replace("AND is_final ", "AND is_final AND date <= %(asof)s ")
+BROKER_DATE_ASOF_SQL = BROKER_DATE_SQL + ' AND trade_date <= %(asof)s'
+RADAR_DATE_ASOF_SQL = RADAR_DATE_SQL + ' WHERE trade_date <= %(asof)s'
 EVENTS_LOADED_SQL = f"SELECT max(source_fetched_at)::date::text FROM {ACTION} WHERE event_family = 'CORPORATE_ACTION'"
 DATES_SQL = (f"SELECT date::text FROM {PRICE} WHERE ticker = %(m)s AND timeframe = 'Daily' AND is_final AND date <= %(p)s "
              'ORDER BY date DESC LIMIT %(n)s')
@@ -145,27 +150,34 @@ def num(v, digits):
     return round(f, digits) if math.isfinite(f) else None
 
 
-def price_date(run, m):
+def price_date(run, m, as_of=None):
     """The newest complete market date (COUNTS_SQL equal for price, Feature 01 and Feature 04), asked one date at a time
-    from the newest, so a normal run counts one date (review 2026-11-16: counting the 10 dates at once read 98k pages)."""
-    for (d,) in run(RECENT_SQL, {'m': m}):
+    from the newest, so a normal run counts one date (review 2026-11-16: counting the 10 dates at once read 98k pages).
+    as_of: the newest complete date up to it."""
+    for (d,) in (run(RECENT_SQL, {'m': m}) if as_of is None else run(RECENT_ASOF_SQL, {'m': m, 'asof': as_of})):
         px, f01, f04 = run(COUNTS_SQL, {'d': d})[0]
         if px and f01 >= px and f04 >= f01:
             return d
     return None
 
 
-def build(run):
+def build(run, as_of=None):
     """The two files' documents {name: document} from run(sql, params) -> rows, or None when there is no market or no
-    complete price date. watchlist-radar holds what the Radar shows; watchlist-stocks everything else (Phase 3d)."""
+    complete price date. watchlist-radar holds what the Radar shows; watchlist-stocks everything else (Phase 3d).
+    as_of (an ISO date, the example mode): the price, broker and Radar dates are the newest up to it; the corporate
+    actions after the price date are read as stored now (the example leaves them out, examples.py)."""
     m = (run(MARKET_SQL, {}) or [[None]])[0][0]
     if not m:
         return None
-    p = price_date(run, m)
+    p = price_date(run, m, as_of)
     if not p:
         return None
-    b = (run(BROKER_DATE_SQL, {'m': m}) or [[None]])[0][0]
-    r = (run(RADAR_DATE_SQL, {}) or [[None]])[0][0]
+    if as_of is None:
+        b = (run(BROKER_DATE_SQL, {'m': m}) or [[None]])[0][0]
+        r = (run(RADAR_DATE_SQL, {}) or [[None]])[0][0]
+    else:
+        b = (run(BROKER_DATE_ASOF_SQL, {'m': m, 'asof': as_of}) or [[None]])[0][0]
+        r = (run(RADAR_DATE_ASOF_SQL, {'asof': as_of}) or [[None]])[0][0]
     loaded = (run(EVENTS_LOADED_SQL, {}) or [[None]])[0][0]
     dates = sorted(x[0] for x in run(DATES_SQL, {'m': m, 'p': p, 'n': TREND_SESSIONS}))
     stocks = run(STOCKS_SQL, {})

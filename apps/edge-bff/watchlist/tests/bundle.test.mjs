@@ -12,6 +12,7 @@ describe.skipIf(!existsSync(dir))('the production bundle', () => {
       expect(js).not.toContain('ALFQ');                       // a made-up ticker of the sample file
       expect(js).not.toMatch(/storageapi\.dev|X-Amz-/);
       expect(js).toContain('/api/v1/watchlist/');
+      expect(js).toContain('/api/v1/examples/watchlist');   // 3e, the example mode's data path (src/api.ts)
       expect(js).toContain('/api/terminal/v1/logo/');
     }
   });

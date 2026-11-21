@@ -95,3 +95,75 @@ def test_the_check_reads_a_document_of_any_depth_and_sees_a_build_without_the_cu
 def test_only_a_tab_with_a_builder_is_captured():
     with pytest.raises(examples.ExampleError, match="no example builder for the tab 'monitor'"):
         examples.build(conn(), 'monitor', AS_OF, NAMES, LISTS)
+
+
+# ---- the Watchlist: the LQ45 members on the date, the default indicators, no upcoming corporate actions ---------------
+from test_watchlist import CutFake  # noqa: E402
+import watchlist as W  # noqa: E402
+
+WL_AS_OF = '2026-11-06'
+
+
+class WatchlistConn:
+    """A connection over test_watchlist's CutFake, with the LQ45 members recorded for each date."""
+
+    def __init__(self, members=('BBBB', 'AAAA'), **kw):
+        self.fake, self.members, self.asked = CutFake(broker='2026-11-12', radar='2026-11-12', **kw), list(members), []
+
+    def execute(self, sql, params=()):
+        class Rows:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def fetchall(self):
+                return self.rows
+        if sql == examples.MEMBERS_SQL:
+            self.asked.append(params)
+            return Rows([(t, '2026-11-01', None) for t in sorted(self.members)])
+        return Rows(self.fake.run(sql, params))
+
+
+def test_the_watchlist_example_is_the_lists_stocks_on_the_date_with_the_default_indicators_only():
+    conn = WatchlistConn()
+    files = dict((n, d) for n, d, *_ in examples.watchlist_files(conn, NAMES, LISTS, WL_AS_OF))
+    assert set(files) == {'watchlist-stocks', 'watchlist-lists'}
+    assert conn.asked == [('INDEX', 'LQ45')]                                       # the list's recorded members
+    s, full = files['watchlist-stocks'], W.build(CutFake(through=WL_AS_OF, broker='2026-11-12', radar='2026-11-12').run)['watchlist-stocks']
+    assert s['ticker'] == ['AAAA', 'BBBB'] and s['prices_through'] == WL_AS_OF and max(s['dates']) == WL_AS_OF
+    for k in full['values']:
+        want = [full['values'][k][full['ticker'].index(t)] for t in s['ticker']]
+        assert s['values'][k] == (want if k in full['default'] else [None, None]), k
+    assert s['catalog'] == full['catalog'] and s['default'] == full['default']     # the menu shows what exists
+    assert s['events'] == {} and s['events_loaded'] is None and full['events']    # upcoming actions left out
+    lists = files['watchlist-lists']['lists']
+    assert [(x['id'], x['name'], x['indicators'], [t['ticker'] for t in x['tickers']]) for x in lists] == \
+        [(examples.EXAMPLE_LIST_ID, 'LQ45', None, ['AAAA', 'BBBB'])]
+    rows = examples.build(conn, 'watchlist', WL_AS_OF, NAMES, LISTS)              # the date check passes
+    assert [r[1] for r in rows] == ['watchlist-stocks', 'watchlist-lists']
+
+
+def test_the_watchlist_example_stops_without_its_date_or_its_members():
+    with pytest.raises(examples.ExampleError, match=r'no LQ45 member is recorded \(Stock_List_Member_History\)'):
+        examples.watchlist_files(WatchlistConn(members=()), NAMES, LISTS, WL_AS_OF)
+    with pytest.raises(examples.ExampleError, match=r'outside the universe of the file: \[.ZZZZ.\]'):
+        examples.watchlist_files(WatchlistConn(members=('AAAA', 'ZZZZ')), NAMES, LISTS, WL_AS_OF)
+    with pytest.raises(examples.ExampleError, match='2026-11-08 is not complete'):
+        examples.watchlist_files(WatchlistConn(), NAMES, LISTS, '2026-11-08')          # no price on the date itself
+    # a build that kept the upcoming actions names dates after the example's: the check refuses it (the self-test)
+    s = W.build(CutFake(broker='2026-11-12', radar='2026-11-12').run, as_of=WL_AS_OF)['watchlist-stocks']
+    with pytest.raises(examples.ExampleError, match=f'watchlist-stocks names dates after {WL_AS_OF}'):
+        examples.stored('watchlist', [('watchlist-stocks', s, 2, WL_AS_OF)], WL_AS_OF)
+
+
+def test_the_members_of_a_date_are_the_rows_covering_it_or_before_the_first_capture_the_unchanged_earliest():
+    rows = [('AAAA', '2026-11-10', None), ('BBBB', '2026-11-10', '2026-11-20'), ('CCCC', '2026-11-20', None)]
+    assert examples.members_on(rows, '2026-11-12', 'LQ45') == (['AAAA', 'BBBB'], 'recorded for 2026-11-12')
+    assert examples.members_on(rows, '2026-11-25', 'LQ45')[0] == ['AAAA', 'CCCC']
+    # before the first capture: the earliest members when nothing changed since, else no answer
+    still = [('AAAA', '2026-11-10', None), ('BBBB', '2026-11-10', None)]
+    assert examples.members_on(still, '2026-10-30', 'LQ45') == (
+        ['AAAA', 'BBBB'], 'earliest recorded (2026-11-10), unchanged since; none recorded for 2026-10-30')
+    with pytest.raises(examples.ExampleError, match=r'LQ45 changed after its first recording on 2026-11-10'):
+        examples.members_on(rows, '2026-10-30', 'LQ45')
+    with pytest.raises(examples.ExampleError, match='no LQ45 member covers 2026-11-30 although its history starts'):
+        examples.members_on([('AAAA', '2026-11-10', '2026-11-20')], '2026-11-30', 'LQ45')

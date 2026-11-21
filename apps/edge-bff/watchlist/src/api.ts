@@ -91,6 +91,40 @@ export const live: WatchlistApi = {
   logoSrc: (t, v) => `/api/terminal/v1/logo/${enc(t)}?v=${enc(v)}`,
 };
 
+/* EXEC-MU-ACCOUNTS 3e, the example mode (user 2026-11-21; ERRORS M527): the files of the page's opening view on one past
+   date, for watchlist.example (edge-bff app/examples.py): watchlist-stocks of the example list and watchlist-lists, the
+   one list in the shape of GET /api/v1/watchlist/lists. Read without the session (a visitor has none); nothing is
+   written (the page is a view: shared/example-view.ts stops every click before it could ask), no logo is read. */
+const EXAMPLE = '/api/v1/examples/watchlist';
+async function exampleJson<T>(url: string): Promise<T> {
+  let r: Response;
+  try { r = await fetch(url, { credentials: 'same-origin', headers: { accept: 'application/json' } }) }
+  catch { throw new WatchlistError('OFFLINE', OFFLINE, 0) }
+  let data: any = null;
+  try { data = await r.json() } catch { data = null }
+  if (!r.ok) {
+    const e = data && typeof data.error === 'object' ? data.error : null;
+    throw new WatchlistError(e?.code || `HTTP_${r.status}`, e?.message || 'The example could not be read. Try again in a minute.', r.status);
+  }
+  return data as T;
+}
+const exampleFile = <T>(name: string, sha: string) => exampleJson<T>(`${EXAMPLE}/file/${enc(name)}?sha=${enc(sha)}`);
+const viewOnly = (): never => { throw new WatchlistError('EXAMPLE', 'This is an example: sign in or upgrade to change it.', 403) };
+export const example: WatchlistApi = {
+  index: () => exampleJson<WatchlistIndex>(`${EXAMPLE}/index`),
+  file: exampleFile,
+  lists: async () => {
+    const index = await exampleJson<WatchlistIndex>(`${EXAMPLE}/index`), e = index.files['watchlist-lists'];
+    if (!e) throw new WatchlistError('EXAMPLE_NOT_READY', 'The example list is not ready yet.', 404);
+    return exampleFile<ListsAnswer>('watchlist-lists', e.sha256);
+  },
+  create: async () => viewOnly(), rename: async () => viewOnly(), setIndicators: async () => viewOnly(),
+  setIndicatorsAll: async () => viewOnly(), remove: async () => viewOnly(), addTickers: async () => viewOnly(),
+  removeTicker: async () => viewOnly(),
+  logos: async () => ({}),
+  logoSrc: () => '',
+};
+
 /** One copy of each file per page: a file is fetched once per sha and kept in memory. */
 export function cached(api: WatchlistApi): WatchlistApi {
   const files = new Map<string, Promise<any>>();
