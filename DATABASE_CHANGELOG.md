@@ -80,6 +80,13 @@
     bytes `45988b3fd21a6709…` (the Standard/Broad counts of the 7 shown filters, the gate cuts); `radar-board-2026-10-30`
     127 hits of 78 stocks 5,250 bytes `5acce65ec91f0071…` (no measure; it held 2,300 rows). M340 before: 0 EDGE jobs, 0
     orc turns. Not a large update.
+  - The user's answer on the Watchlist's list (2026-11-21: "Untuk table watchlist nggak apa-apa pakai data latest saja,
+    karena yang dibutuhkan hanya harga saham"): a read-only probe of what an example on the latest data would hold
+    (`latest_probe_job.py`, the publication's own `watchlist.build`; job `cc2d4a5a`, VERDICT PROBED): prices through
+    2026-11-20, broker data through 2026-11-09, the trend line's 30 sessions from 2026-10-12, 862 stocks; LQ45 45
+    members in `Stock_List_Member`, the same 45 as the history rows covering 2026-11-20 (first recorded 2026-11-10, none
+    closed); all 45 in the file with a price, 1D, 1M, a full trend line and the four default indicators; 2 with a
+    corporate action in the next 30 days. Dates and counts only. Postgres memory 0.37 GB after it (no restart).
 
 ## 2026-11-20 — The A2 fix: a reset code bound to its browser, a registration's client (edge_bff, migrations 20261120_001 and _002)
 
