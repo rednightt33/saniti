@@ -237,7 +237,7 @@ export default defineRailway(() => {
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "apps/screener-worker/Dockerfile",
       watchPatterns: ["/apps/screener-worker/**", "/apps/edge-bff/screener/src/core/**",
         "/apps/edge-bff/screener/scripts/build-screener-registry.mjs", "/apps/edge-bff/backtest/src/core/**",
-        "/apps/edge-bff/terminal/src/calc/**", "/apps/edge-bff/terminal/src/data/indRegistry.json",
+        "/apps/edge-bff/terminal/src/calc/**", "/apps/edge-bff/terminal/src/lab/**", "/apps/edge-bff/terminal/src/data/indRegistry.json",
         "/apps/backtest-worker/src/terminal.ts", "/apps/backtest-worker/loader/**", "/apps/backtest-worker/scripts/build-registry.mjs"] },
     healthcheck: "/ready",
     healthcheckTimeout: 300,

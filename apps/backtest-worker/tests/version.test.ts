@@ -18,6 +18,7 @@ function tree(): string {
   put('apps/backtest-worker/src/run.ts', 'c');
   put('apps/backtest-worker/src/pit/anchored.ts', 'd');
   put('apps/edge-bff/terminal/src/calc/flow.ts', 'e');
+  put('apps/edge-bff/terminal/src/lab/index.ts', 'g');           // 3f TR-2: the lab formulas the worker registers
   put('apps/edge-bff/terminal/src/data/flowRegistry.json', '{}');
   put('apps/edge-bff/screener/src/core/condition.ts', 'f');
   put('apps/edge-bff/screener/src/core/screener-metrics.json', '{}');
@@ -25,8 +26,10 @@ function tree(): string {
 }
 
 test('the sources are the core, the worker, the Terminal calculation module, the flow registry and the Screener core', () => {
+  // changed with 3f TR-2 (2026-11-22, a stated reason): the lab formulas ('@edge-lab', terminal/src/lab) decide a number
+  // as the calculation module does, so they are a source too
   assert.deepEqual(SOURCES.map(([e]) => e), ['apps/edge-bff/backtest/src/core', 'apps/backtest-worker/src', 'apps/edge-bff/terminal/src/calc',
-    'apps/edge-bff/terminal/src/data/flowRegistry.json', 'apps/edge-bff/screener/src/core']);
+    'apps/edge-bff/terminal/src/lab', 'apps/edge-bff/terminal/src/data/flowRegistry.json', 'apps/edge-bff/screener/src/core']);
   const files = sourceFiles();
   for (const f of ['apps/edge-bff/terminal/src/calc/flow.ts', 'apps/edge-bff/terminal/src/calc/indicators.ts', 'apps/edge-bff/terminal/src/data/flowRegistry.json',
     'apps/edge-bff/screener/src/core/condition.ts', 'apps/edge-bff/screener/src/core/screener-metrics.json', 'apps/edge-bff/screener/src/core/screener-registry.json'])
@@ -37,11 +40,12 @@ test('a change in any source, a subfolder included, changes engine_version; a fi
   const root = tree(), v0 = engineVersion(root);
   assert.deepEqual(sourceFiles(root), ['apps/backtest-worker/src/pit/anchored.ts', 'apps/backtest-worker/src/run.ts', 'apps/edge-bff/backtest/src/core/engine.ts',
     'apps/edge-bff/backtest/src/core/grammar/transforms.ts', 'apps/edge-bff/screener/src/core/condition.ts', 'apps/edge-bff/screener/src/core/screener-metrics.json',
-    'apps/edge-bff/terminal/src/calc/flow.ts', 'apps/edge-bff/terminal/src/data/flowRegistry.json']);
+    'apps/edge-bff/terminal/src/calc/flow.ts', 'apps/edge-bff/terminal/src/data/flowRegistry.json', 'apps/edge-bff/terminal/src/lab/index.ts']);
   fs.writeFileSync(path.join(root, 'apps/edge-bff/backtest/src/core/notes.md'), 'changed');
   assert.equal(engineVersion(root), v0);
   for (const rel of ['apps/edge-bff/backtest/src/core/grammar/transforms.ts', 'apps/backtest-worker/src/pit/anchored.ts', 'apps/edge-bff/terminal/src/calc/flow.ts',
-    'apps/edge-bff/terminal/src/data/flowRegistry.json', 'apps/edge-bff/screener/src/core/condition.ts', 'apps/edge-bff/screener/src/core/screener-metrics.json']) {
+    'apps/edge-bff/terminal/src/data/flowRegistry.json', 'apps/edge-bff/screener/src/core/condition.ts', 'apps/edge-bff/screener/src/core/screener-metrics.json',
+    'apps/edge-bff/terminal/src/lab/index.ts']) {
     const at = path.join(root, rel), before = fs.readFileSync(at, 'utf8'), v = engineVersion(root);
     fs.writeFileSync(at, before + ' ');
     assert.notEqual(engineVersion(root), v, rel);

@@ -136,8 +136,8 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
    section); any other change fails the tripwire. Why: the Backtest's
    `engine_version` hashes every core file (`apps/backtest-worker/src/version.ts:18-21`, `SOURCES`) and its
    `registry_version` hashes `indRegistry.json` plus `indicators.ts`
-   (`apps/backtest-worker/scripts/build-registry.mjs:25`, `registryVersion`); either change alters every Backtest result
-   key, and a stale registry stops the backtest worker at start (`apps/backtest-worker/src/server.ts:403`,
+   (`apps/backtest-worker/scripts/build-registry.mjs:26`, `registryVersion`); either change alters every Backtest result
+   key, and a stale registry stops the backtest worker at start (`apps/backtest-worker/src/server.ts:404`,
    `registry_mismatch`). The tripwire `scripts/screener/check_backtest_untouched.mjs` (BRANCH; `npm run tripwire` in
    `apps/edge-bff/screener`) fails on any of that against `origin/main`, also for `features/feature04`,
    `apps/feature-04-worker` and `apps/stockbit-updater` (`PROTECTED`). New indicators therefore arrive only through a
@@ -308,16 +308,16 @@ and the borrowed backtest-worker files.
 
 - **Threads** (`src/pool.ts`, `src/thread.ts`): the HTTP thread answers `/health`, `/ready`, the catalog, the universe
   and cache hits; K compute threads (`SCREENER_THREADS`) run screens, previews and counts; a builder thread is started
-  for one refresh and killed after it (`apps/screener-worker/src/server.ts:250`, `:277`). Every thread runs under
+  for one refresh and killed after it (`apps/screener-worker/src/server.ts:251`, `:278`). Every thread runs under
   `SCREENER_THREAD_HEAP_MB` (`pool.ts:56-66`, `resourceLimits.maxOldGenerationSizeMb`): a thread that needs more stops
-  alone, its request answers `500 OUT_OF_MEMORY` (`server.ts:576`), and it is started again with every snapshot
+  alone, its request answers `500 OUT_OF_MEMORY` (`server.ts:577`), and it is started again with every snapshot
   installed before it takes work (`pool.ts:99-107`). Tests: `tests/heap.test.ts`, `tests/pool.test.ts` "a thread that
   does not stop is terminated after the grace and started again with the snapshots installed".
 - **Configuration** (`apps/screener-worker/src/config.ts:79-132` `loadConfig`): 30 variables, every limit without a default; a missing or
   invalid one stops the start with `config_invalid` naming the variable, never its value. The full list with the
   proposed dev values (LOCAL, provisional) is the worker README's "Configuration" table. Tests: `tests/config.test.ts`;
   `tests/readme_config.test.ts` (the README table against `loadConfig` itself).
-- **Start-up check** (`apps/screener-worker/src/version.ts:67-82` `checkStartup`): the screener registry has no problem against the base
+- **Start-up check** (`apps/screener-worker/src/version.ts:69-84` `checkStartup`): the screener registry has no problem against the base
   registry (`registry.ts:150` `registryProblems`); `screener-metrics.json` and `presets.json` pass `catalogProblems`
   with the transforms and patterns `transforms.ts` computes (`IMPLEMENTED_TRANSFORMS`, `IMPLEMENTED_PATTERNS`); the
   backtest registry artifact matches its sources; every source `screener-registry.json` names (except the build-only
@@ -333,7 +333,7 @@ and the borrowed backtest-worker files.
    `refresh.ts:333-334`, else `DATA_UNAVAILABLE`). Other indexed names are ignored by the refresh.
 3. **Skip unchanged.** The same sha256 for both files and the same reference contents (`referenceHash`,
    `snapshot.ts:146`): nothing is downloaded, recomputed or swapped; only `published_at` and the state fields advance
-   (`refresh.ts:338-354`, server `advance`, `server.ts:306-326`: the snapshot's cached answers and counts are dropped
+   (`refresh.ts:338-354`, server `advance`, `server.ts:307-327`: the snapshot's cached answers and counts are dropped
    and the presets computed again, so no answer names the older publication). Test: `tests/refresh.test.ts` "the same
    files on a new publication: no download, no recompute, no swap; only published_at advances (6d.2)".
 4. **Caps before any grant.** An indexed size above `SCREENER_MAX_FILE_BYTES`, or downloads above
@@ -342,15 +342,15 @@ and the borrowed backtest-worker files.
    skewed answer (terminal-api's two processes may lag each other up to a minute) is asked again
    `SCREENER_DOWNLOAD_RETRIES` times, then deferred 15 s (`SKEW_RETRY_MS`, `:77`; log `refresh_deferred`), never a
    failure. Every URL must be on `SCREENER_FILE_ORIGIN`.
-6. **Build** on the builder thread (`thread.ts:95-112`): `TerminalClient.file` downloads (or reads the disk cache by
+6. **Build** on the builder thread (`thread.ts:96-113`): `TerminalClient.file` downloads (or reads the disk cache by
    sha256) and `inflateVerified` checks sha256 and size; `buildSnapshot` decodes (section 1.7.3).
 7. **Cross-check** every ticker against its `/manifest`: rows = the sum of its yearly files, last date = their newest
    (`refresh.ts:461-470`).
-8. **Pre-warm, digest, install, presets, documents, swap** (`server.ts` host `complete`, `:267-304`): the pinned series
+8. **Pre-warm, digest, install, presets, documents, swap** (`server.ts` host `complete`, `:268-305`): the pinned series
    are computed on the builder alone while a snapshot serves, at a cold start on the builder and every compute thread
-   in chunks (`:265-273`); `snapshot_digest`; install on every compute thread, all-or-nothing (`pool.ts:224-230`); the
-   available presets are computed in the system lane and pinned in the result cache (`server.ts:358-372`); catalog and
-   universe documents; the swap (`server.ts:334-348`). The previous snapshot keeps serving requests pinned to it for
+   in chunks (`:266-274`); `snapshot_digest`; install on every compute thread, all-or-nothing (`pool.ts:224-230`); the
+   available presets are computed in the system lane and pinned in the result cache (`server.ts:359-373`); catalog and
+   universe documents; the swap (`server.ts:335-349`). The previous snapshot keeps serving requests pinned to it for
    `SCREENER_PREVIOUS_GRACE_S`, then is dropped with its caches.
 9. **Failure.** Any integrity failure keeps the previous snapshot, logs `REFRESH_FAILED` with its code, and the same
    publication is retried after 60 s doubling to 16 min; a newer one is tried at once (`refresh.ts:418-428`).
@@ -479,7 +479,7 @@ series 24-62 times until the tracker has seen it and mispredicts up to 4.36 time
 
 ### 1.7.6 Admission, lanes and per-owner budgets (P33, built in Phase 1)
 
-In this order (`src/pool.ts` header `:4-23`; `server.ts:406-427` `compute`):
+In this order (`src/pool.ts` header `:4-23`; `server.ts:407-428` `compute`):
 
 1. a result-cache hit (and a counts hit) is answered at once, outside every queue and budget;
 2. the per-request compute budget (above);
@@ -490,7 +490,7 @@ In this order (`src/pool.ts` header `:4-23`; `server.ts:406-427` `compute`):
    refresh) is not counted (`pool.ts:256-262`; test `tests/pool.test.ts` and the integration's defect 7);
 5. the owner's lane: at most `SCREENER_OWNER_INFLIGHT` of its requests run at once; a free thread takes the next one by
    deficit round robin across lanes weighted by predicted cost, quantum `SCREENER_MAX_CPU_MS / 4`
-   (`pool.ts:337-361`; `server.ts:218`), so a heavy user slows only themself; a newer request of the same page replaces
+   (`pool.ts:337-361`; `server.ts:219`), so a heavy user slows only themself; a newer request of the same page replaces
    a waiting older one (`pool.ts:246-252`; it answers `409 SCREEN_REPLACED` or `PREVIEW_REPLACED`, `REPLACED` `:200`).
 
 The deadline is `SCREENER_DEADLINE_MS` from arrival, queue included (`504 TIMEOUT`); a running request past it, or one
@@ -506,8 +506,8 @@ with K - 1 it rose 1.6 times.
 
 | Cache (per replica) | Key | Bound | Code |
 |---|---|---|---|
-| Result cache: run and preview answers as gzip bytes with `ETag` | `resultKey`: kind, `sid`, `screener_engine`, `registry`, `screener_registry`, `definition_hash`, `exhaustive`, `explain` (preview adds the ticker); nothing of the owner | one share of `SCREENER_CACHE_BYTES`, LRU; the presets pinned | `run.ts:271-272`, `server.ts:100-125` |
-| Counts cache | (snapshot, definition hash) | 50,000 entries (`COUNTS_KEEP`), LRU; the presets pinned | `server.ts:131-152` |
+| Result cache: run and preview answers as gzip bytes with `ETag` | `resultKey`: kind, `sid`, `screener_engine`, `registry`, `screener_registry`, `definition_hash`, `exhaustive`, `explain` (preview adds the ticker); nothing of the owner | one share of `SCREENER_CACHE_BYTES`, LRU; the presets pinned | `run.ts:271-272`, `server.ts:101-126` |
+| Counts cache | (snapshot, definition hash) | 50,000 entries (`COUNTS_KEEP`), LRU; the presets pinned | `server.ts:132-153` |
 | Series LRU (custom parameters) and the pinned tails | `seriesKey` (`metrics.ts:321`) per ticker | one share of `SCREENER_CACHE_BYTES` per compute thread; pinned tails not counted | `metrics.ts:328` `SeriesCache`, `snapshot.ts:438-454` |
 | One request's views | ticker | `CALC_KEEP` 256 tickers hold a `Calc` (released on eviction) | `run.ts:355`, `:364-404` |
 | Disk cache of the files | sha256 | `SCREENER_CACHE_DIR_BYTES` in `SCREENER_CACHE_DIR` (the container's disk, no volume) | `TerminalClient` `DiskCache` |
@@ -516,11 +516,11 @@ with K - 1 it rose 1.6 times.
 `SCREENER_CACHE_BYTES` is split K + 1 ways (`apps/screener-worker/src/config.ts:136` `cacheShare`). Every cache is dropped with its snapshot.
 Two owners with one definition share one computation byte for byte (test `tests/server.test.ts` "the result cache: two
 owners with one definition share one computation, byte for byte"). An answer computed before an advance is sent to its
-caller but never cached under the newer publication (`server.ts:413-416`, `:494-501`; semantic review S4; test
+caller but never cached under the newer publication (`server.ts:414-417`, `:495-502`; semantic review S4; test
 `tests/refresh.test.ts` "a screen still computing when the same files advance the publication is never cached under the
 newer one").
 
-**Pinning** (`server.ts:395-404` `pinned`): `data_version` pins run, counts and preview to the current snapshot, or to
+**Pinning** (`server.ts:396-405` `pinned`): `data_version` pins run, counts and preview to the current snapshot, or to
 the previous one during `SCREENER_PREVIOUS_GRACE_S`; an older version answers `409 DATA_VERSION_CHANGED`; one this
 replica has not loaded while terminal-api names a newer publication answers `409 DATA_VERSION_PENDING` (edge-bff
 retries it once). Test: `tests/refresh.test.ts` "versions: a run pinned to the previous snapshot is served in the grace
@@ -528,9 +528,9 @@ window and refused after it ...".
 
 ### 1.7.8 Private API and logs
 
-Header `x-screener-worker-key` (at least 32 characters, compared in constant time, `server.ts:155-159`) on every route
+Header `x-screener-worker-key` (at least 32 characters, compared in constant time, `server.ts:156-160`) on every route
 except `/health` and `/ready`; `x-screener-owner` (16 hex: the first 16 of HMAC-SHA256(`SCREENER_WORKER_KEY`,
-`owner_key`) computed by edge-bff) selects the owner's lane and budget (`server.ts:428-433`). Routes (`server.ts` header
+`owner_key`) computed by edge-bff) selects the owner's lane and budget (`server.ts:429-434`). Routes (`server.ts` header
 `:5-16`, `contract.ts:676` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
 state), `GET /ready` (200 only with a loaded snapshot, else 503 `SCREENER_NOT_READY` with `Retry-After`: the Railway
 healthcheck), `GET /v1/catalog` and `/v1/universe` (`ETag`, `304`), `POST /v1/run`, `/v1/preview`, `/v1/counts` (gzip
@@ -654,7 +654,7 @@ available; it never runs with a leg removed.
 - **FACT.** `build-registry.mjs` accepts a parameter only when `DEFAULTS` has it, takes the module's default, and
   records the others under `not_accepted` with a reason; it throws when a registry row has no function in `F` or
   `DEFAULTS` has a key the registry lacks. `npm run registry:check` fails on a stale file; the backtest worker exits at
-  start when the artifact does not match its sources (`apps/backtest-worker/src/server.ts:403`).
+  start when the artifact does not match its sources (`apps/backtest-worker/src/server.ts:404`).
 - **The approved formula contract (FACT, user 2026-10-25).** "Yang ada kita sesuaikan saja dengan feature 4, tapi jika
   tidak ada kita pakai HTML": an indicator Feature 04 stores follows Feature 04 (TA-Lib seeds); the others follow the
   Terminal reference engine. Verified in `apps/edge-bff/terminal/tests/calc/PARITY.md`.
@@ -723,9 +723,9 @@ pattern of `tests/page/plain-words.ts` and fails naming the field.
 set; `REQUIRES_DATA` when `requires.file` is not in the publication's `state.json` xsection index, or is indexed but is
 not a file the worker reads (below); else `AVAILABLE`. Columns are checked only against an index entry that lists them,
 and the entries terminal-api serves carry no column list, so today only the file name is checked. `NOT_APPLICABLE` is
-per ticker, from `applies_to`. The worker takes the map at each swap (`apps/screener-worker/src/server.ts:283`,
+per ticker, from `applies_to`. The worker takes the map at each swap (`apps/screener-worker/src/server.ts:284`,
 `apps/screener-worker/src/catalog.ts:41-41` `metricAvailability`, with the names of the files the snapshot was built
-from) and again, by the same rule, at a skip-unchanged advance from that publication's index (`server.ts:301-321`).
+from) and again, by the same rule, at a skip-unchanged advance from that publication's index (`server.ts:302-322`).
 Tests: `tests/core/catalog.test.ts` "derives availability from the published index: flow needs its files, technical
 metrics need none, a decision wins" and "counts a published file only when the reader reads it". Nothing is enumerated
 in the page or in validation code.
@@ -794,7 +794,7 @@ Other parity and oracle checks every change must keep green (BRANCH):
 | `flow_data` | sha256 over the sorted `name:sha256` of the loaded broker day files (EXEC-SCREENER-FLOW-CANDLES P4, BRANCH; `snapshot.ts:273`; null when none) | a broker day loads, changes or leaves the window | every answer; result cache key |
 | `registry` | `registry_version` of `backtest-registry.json`, passed through | `indRegistry.json` or `indicators.ts` changes (a registry release) | every answer; saved items |
 | `screener_registry` | sha256 of the generated `screener-registry.json` without the field (`apps/edge-bff/screener/src/core/registry.ts:79`) | the overlay, the base, the generator or a probe result changes | every answer; saved items |
-| `screener_engine` | the first 16 hex of the sha256 over `<path> \t <sha256>` of the screener core (`.ts`, `.json`), the worker's `src`, the backtest core, the Terminal's calc module and `apps/backtest-worker/src/terminal.ts`, plus the Node major (`apps/screener-worker/src/version.ts:28-50`) | any of that code changes | every answer; cache keys |
+| `screener_engine` | the first 16 hex of the sha256 over `<path> \t <sha256>` of the screener core (`.ts`, `.json`), the worker's `src`, the backtest core, the Terminal's calc module and `apps/backtest-worker/src/terminal.ts`, plus the Node major (`apps/screener-worker/src/version.ts:28-52`) | any of that code changes | every answer; cache keys |
 | `definition_hash` | sha256 of the canonical JSON of the normalized definition, parameters resolved, labels removed (`apps/edge-bff/screener/src/core/validate.ts:595` `definitionHash`) | the screen changes | run and counts; result cache; saved items |
 | `sid` (internal) | price_data + the actions contents + the reference hash + flow_data (P4, BRANCH; `snapshot.ts:277`) | any of the four changes | every cache key |
 | `snapshot_digest` (log only) | the pinned series keys, tickers and tails (`snapshot.ts:406-412`) | any pinned value changes | the `refresh` line; equal across replicas |
@@ -1168,8 +1168,8 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
    index entry.
 4. The worker's next refresh picks the file up, and the metric turns `AVAILABLE` at the next swap without another
    deploy. A skip-unchanged publication (the same price and actions files) advances `published_at` and takes the
-   availability map again from its index by the same rule (`apps/screener-worker/src/server.ts:283` at a swap,
-   `:301-321` at an advance), so the catalog never answers by an index the publication no longer has.
+   availability map again from its index by the same rule (`apps/screener-worker/src/server.ts:284` at a swap,
+   `:302-322` at an advance), so the catalog never answers by an index the publication no longer has.
 5. Verify live: the `refresh` line, a screen with the metric, the page. Claim each step only at `SUCCESS` and with the
    read-back.
 

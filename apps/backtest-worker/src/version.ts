@@ -24,6 +24,8 @@ export const SOURCES: [entry: string, pattern: RegExp][] = [
   ['apps/edge-bff/backtest/src/core', /\.(ts|json)$/],
   ['apps/backtest-worker/src', /\.ts$/],
   ['apps/edge-bff/terminal/src/calc', /\.ts$/],
+  // 3f TR-2: the lab formulas the workers register ('@edge-lab'): a lab formula changes an answer like a released one
+  ['apps/edge-bff/terminal/src/lab', /\.ts$/],
   ['apps/edge-bff/terminal/src/data/flowRegistry.json', /\.json$/],
   // EXEC-BACKTEST-REVAMP P1: the Screener's grammar computes the conditions of kind 'test' (grammar.ts)
   ['apps/edge-bff/screener/src/core', /\.(ts|json)$/],

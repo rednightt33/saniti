@@ -37,11 +37,16 @@ const SPEC = [/(?:^|\n)\s*import\s+(?!type\b)[^'"`;]*?from\s*['"]([^'"]+)['"]/g,
 export function importsOf(text) {
   const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const out = new Set();
-  for (const re of SPEC) for (const m of code.matchAll(re)) if (/^\.\.?\//.test(m[1])) out.add(m[1]);
+  for (const re of SPEC) for (const m of code.matchAll(re)) if (/^\.\.?\//.test(m[1]) || ALIASES[m[1]]) out.add(m[1]);
   return [...out];
 }
+/** the bare specifiers the workers' loader maps to a file of the repository (apps/backtest-worker/loader/resolve.mjs;
+    3f TR-2: '@edge-lab', the lab formulas' one registration point): followed like a relative import, so a mapped module
+    the image lacks is found before the worker stops at its start (ERRORS M405) */
+const ALIASES = { '@edge-lab': 'apps/edge-bff/terminal/src/lab/index.ts' };
 /** a relative specifier as the workers' loader resolves it (apps/backtest-worker/loader/resolve.mjs) */
 function resolveSpec(from, spec) {
+  if (ALIASES[spec]) return ALIASES[spec];
   const base = join(dirname(join(ROOT, from)), spec);
   for (const c of [base, `${base}.ts`, join(base, 'index.ts')]) if (existsSync(c) && statSync(c).isFile()) return relative(ROOT, c).split('\\').join('/');
   return null;

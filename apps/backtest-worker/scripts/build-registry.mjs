@@ -8,6 +8,7 @@
    - visual settings (colour, width, panel, guides, tooltips) are left out; price_input says what "price" means in a
      condition (the close, or the volume for the volume-pane indicators), as the backtest page does.
    Run: npm run registry (writes) / npm run registry:check (fails when the committed file is stale). */
+import '../../edge-bff/terminal/src/lab/index.ts';      // the lab formulas' one registration point, by path: vitest loads this file too (3f TR-2)
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';

@@ -21,6 +21,8 @@ COPY apps/backtest-worker/scripts ./apps/backtest-worker/scripts
 COPY apps/backtest-worker/loader ./apps/backtest-worker/loader
 COPY apps/edge-bff/backtest/src/core ./apps/edge-bff/backtest/src/core
 COPY apps/edge-bff/terminal/src/calc ./apps/edge-bff/terminal/src/calc
+# 3f TR-2: the lab formulas' one registration point ('@edge-lab', loader/resolve.mjs)
+COPY apps/edge-bff/terminal/src/lab ./apps/edge-bff/terminal/src/lab
 COPY apps/edge-bff/terminal/src/data/indRegistry.json ./apps/edge-bff/terminal/src/data/indRegistry.json
 # EXEC-BACKTEST-REVAMP P0.3 (ERRORS M453): calc/flow.ts reads its defaults from the flow registry, and engine_version
 # hashes it (src/version.ts SOURCES)

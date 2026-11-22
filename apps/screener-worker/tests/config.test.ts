@@ -47,7 +47,8 @@ test('screener_engine is a content hash of the files that decide a number, and o
   assert.notEqual(engineVersion(REPO_ROOT, '23'), ENGINE_VERSION, 'another Node major is another engine');
   // a copy of the sources with one byte changed in the screener core hashes differently
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-'));
-  for (const d of ['apps/edge-bff/screener/src/core', 'apps/screener-worker/src', 'apps/edge-bff/backtest/src/core', 'apps/edge-bff/terminal/src/calc']) fs.cpSync(path.join(REPO_ROOT, d), path.join(tmp, d), { recursive: true });
+  // 3f TR-2 (2026-11-22, a stated reason): the lab formulas the worker registers are a source too
+  for (const d of ['apps/edge-bff/screener/src/core', 'apps/screener-worker/src', 'apps/edge-bff/backtest/src/core', 'apps/edge-bff/terminal/src/calc', 'apps/edge-bff/terminal/src/lab']) fs.cpSync(path.join(REPO_ROOT, d), path.join(tmp, d), { recursive: true });
   fs.mkdirSync(path.join(tmp, 'apps/backtest-worker/src'), { recursive: true });
   fs.copyFileSync(path.join(REPO_ROOT, 'apps/backtest-worker/src/terminal.ts'), path.join(tmp, 'apps/backtest-worker/src/terminal.ts'));
   // P5a: the flow registry decides the flow indicators' defaults
@@ -57,6 +58,9 @@ test('screener_engine is a content hash of the files that decide a number, and o
   fs.appendFileSync(path.join(tmp, 'apps/edge-bff/terminal/src/data/flowRegistry.json'), ' ');
   assert.notEqual(engineVersion(tmp), ENGINE_VERSION, 'a changed flow registry is another engine');
   fs.copyFileSync(path.join(REPO_ROOT, 'apps/edge-bff/terminal/src/data/flowRegistry.json'), path.join(tmp, 'apps/edge-bff/terminal/src/data/flowRegistry.json'));
+  fs.appendFileSync(path.join(tmp, 'apps/edge-bff/terminal/src/lab/index.ts'), ' ');
+  assert.notEqual(engineVersion(tmp), ENGINE_VERSION, 'a changed lab formula is another engine');
+  fs.copyFileSync(path.join(REPO_ROOT, 'apps/edge-bff/terminal/src/lab/index.ts'), path.join(tmp, 'apps/edge-bff/terminal/src/lab/index.ts'));
   fs.appendFileSync(path.join(tmp, 'apps/edge-bff/screener/src/core/match.ts'), '\n');
   assert.notEqual(engineVersion(tmp), ENGINE_VERSION);
   fs.rmSync(tmp, { recursive: true, force: true });

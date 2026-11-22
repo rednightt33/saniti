@@ -25,6 +25,7 @@
    caller that leaves before its answer cancels its work (8.11). Logs: one `http` line per request and one `run`,
    `preview` or `counts` line that explains it (6.16): stages with tickers in and out and ms, conditions with their
    source and the tickers evaluated, pruned, cache hits, queue, busy and total ms, payload bytes. */
+import '@edge-lab';                         // the lab formulas' one registration point (loader/resolve.mjs, 3f TR-2)
 import crypto from 'node:crypto';
 import http from 'node:http';
 import zlib from 'node:zlib';

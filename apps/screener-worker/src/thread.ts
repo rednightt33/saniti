@@ -12,6 +12,7 @@
    EXEC-SCREENER-FLOW-CANDLES P4 (user 2026-11-07): a build also reads the broker days the refresh planned (cached or
    granted), each checked and kept as typed columns as soon as it is read (broker.ts decodeBrokerDay: one parsed
    document at a time, never all of them), and carries the others from the held snapshot's store (task.broker.from). */
+import '@edge-lab';                         // the lab formulas' one registration point (loader/resolve.mjs, 3f TR-2)
 import { isMainThread, parentPort, workerData } from 'node:worker_threads';
 import type { PresetDefinition } from '../../edge-bff/screener/src/core/catalog.ts';
 import { TerminalClient } from '../../backtest-worker/src/terminal.ts';

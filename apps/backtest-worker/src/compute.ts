@@ -18,6 +18,7 @@
                 serialisation and packing happen here, not on the HTTP thread; packResult: at most
                 BACKTEST_MAX_RESULT_BYTES of JSON, LIMIT_EXCEEDED otherwise); an error crosses as errors.ts
                 SerialError (its class does not survive the message). */
+import '@edge-lab';                         // the lab formulas' one registration point (loader/resolve.mjs, 3f TR-2)
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import zlib from 'node:zlib';
 import type { BacktestResult, JobContext, JobProgress, SignalsPreview } from '../../edge-bff/backtest/src/core/contract.ts';

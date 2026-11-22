@@ -19,6 +19,8 @@ COPY apps/edge-bff/screener/src/core ./apps/edge-bff/screener/src/core
 COPY apps/edge-bff/screener/scripts/build-screener-registry.mjs ./apps/edge-bff/screener/scripts/build-screener-registry.mjs
 COPY apps/edge-bff/backtest/src/core ./apps/edge-bff/backtest/src/core
 COPY apps/edge-bff/terminal/src/calc ./apps/edge-bff/terminal/src/calc
+# 3f TR-2: the lab formulas' one registration point ('@edge-lab', loader/resolve.mjs)
+COPY apps/edge-bff/terminal/src/lab ./apps/edge-bff/terminal/src/lab
 COPY apps/edge-bff/terminal/src/data/indRegistry.json ./apps/edge-bff/terminal/src/data/indRegistry.json
 COPY apps/edge-bff/terminal/src/data/flowRegistry.json ./apps/edge-bff/terminal/src/data/flowRegistry.json
 COPY apps/backtest-worker/src/terminal.ts ./apps/backtest-worker/src/terminal.ts

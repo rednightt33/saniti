@@ -40,6 +40,7 @@
    Start: the registry artifact must match the files in the image (version.ts checkRegistry), and the Screener's
    registry and catalog too (grammar.ts grammarProblems, the conditions in its grammar), else exit 1. Logs are
    JSON lines without secrets (no header, body, key or presigned URL). */
+import '@edge-lab';                         // the lab formulas' one registration point (loader/resolve.mjs, 3f TR-2)
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';

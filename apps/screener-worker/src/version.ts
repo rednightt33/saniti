@@ -31,6 +31,8 @@ const ENGINE_SOURCES: [string, RegExp][] = [
   ['apps/screener-worker/src', /\.ts$/],
   ['apps/edge-bff/backtest/src/core', /\.(ts|json)$/],
   ['apps/edge-bff/terminal/src/calc', /\.ts$/],
+  // 3f TR-2: the lab formulas the workers register ('@edge-lab'): a lab formula changes an answer like a released one
+  ['apps/edge-bff/terminal/src/lab', /\.ts$/],
   // P5a: the flow indicators' registry decides their defaults (calc/flow.ts flowDefaults)
   ['apps/edge-bff/terminal/src/data/flowRegistry.json', /\.json$/],
   ['apps/backtest-worker/src/terminal.ts', /\.ts$/],

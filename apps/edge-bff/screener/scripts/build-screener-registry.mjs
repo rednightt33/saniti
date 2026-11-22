@@ -35,6 +35,7 @@
    is stale: every probe field is re-derived and compared). Needs python3 for the oracle mapping. The cost probe runs
    in a child process of this script (--cost-work, see costWork). `--check --against <file>` compares the cost classes
    with that registry instead of the committed one (committedRegistry; the tests use it; never when writing). */
+import '../../terminal/src/lab/index.ts';      // the lab formulas' one registration point, by path: vitest loads this file too (3f TR-2)
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';

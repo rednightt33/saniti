@@ -7,6 +7,12 @@
    relative specifier without an extension is tried as Vite tries it for TypeScript: <specifier>.ts, then
    <specifier>/index.ts. Anything Node resolves itself resolves as before, and anything neither finds fails with Node's
    own error. */
+/* 3f checker TR-2, B3 (FUTURE_PLAN.md "Before the first lab item or tab"; the user's go 2026-11-22): the one registration
+   point of the lab formulas. '@edge-lab' is the Terminal's src/lab/index.ts in every Node process that runs a formula
+   (both workers, their compute threads, the registry generators: each imports '@edge-lab' first); a browser page build
+   resolves it with its own alias (shared/release-filter.mjs labAlias: the formulas in the lab build, none.ts in the
+   public one). The workers compute for principals by their allow, so they hold every formula, a lab one included. */
+const LAB = new URL('../../edge-bff/terminal/src/lab/index.ts', import.meta.url).href;
 const RELATIVE = /^\.\.?\//;
 const NOT_FOUND = new Set(['ERR_MODULE_NOT_FOUND', 'ERR_UNSUPPORTED_DIR_IMPORT']);
 
@@ -14,6 +20,7 @@ const NOT_FOUND = new Set(['ERR_MODULE_NOT_FOUND', 'ERR_UNSUPPORTED_DIR_IMPORT']
 const hasExtension = specifier => /\.[^./]+$/.test(specifier.split('/').pop());
 
 export async function resolve(specifier, context, next) {
+  if (specifier === '@edge-lab') return next(LAB, context);
   try {
     return await next(specifier, context);
   } catch (error) {

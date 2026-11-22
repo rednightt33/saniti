@@ -96,8 +96,11 @@ LAB_ITEM_HELD_UNTIL = (
     # the worker is shared and deploys from main, so it holds for both sites from that deploy
     "the screener-worker that checks the allow before the normalizer is deployed (run.ts gateSent; until then the "
     "running worker answers UNKNOWN_INDICATOR with every registry id and names items outside allow by their name)",
-    'one registration point for lab formulas is loaded by both registry generators and both workers, with '
-    'terminal/src/lab in both engine versions (checker TR-2, B3)',
+    # checker TR-2, B3: built 2026-11-22 ('@edge-lab' in loader/resolve.mjs, imported by both workers, their threads and
+    # both generators; terminal/src/lab in both engine versions and both images). The workers are shared; the
+    # backtest-worker is uploaded by hand (its service is not GitHub-connected)
+    "the backtest-worker and the screener-worker that load the lab registration point are deployed (screener-worker "
+    "from main; backtest-worker by its CLI upload), and the screener-worker's watch patterns hold terminal/src/lab",
     # checker L5 (the live site runs 3f's server part) closed 2026-11-21: `live` 4b35b5ed holds ec1bd29c
     # 3f round 2 of the checker (ERRORS M523)
     # round 2, CRIT-1: built 2026-11-22 (terminal data/inputs.ts restoreSaved, the user's go); it holds once the live
