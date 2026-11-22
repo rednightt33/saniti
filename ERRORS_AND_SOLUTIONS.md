@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M547 — The AI page's Sources: a part the user just opened closed again when the panel was drawn anew (2026-11-22; found by the agent from a flaky test; FIXED on the branch, `4f1e6d3e`)
+### M547 — The AI page's Sources: a part the user just opened closed again when the panel was drawn anew (2026-11-22; found by the agent from a flaky test; FIXED in `4f1e6d3e`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Found by:** the agent, from `tests/test_answer_view.py::test_sources_list_the_answers_tables_with_an_export_request`
   failing in the full local run (`assert '' == 'out.1'`) and in CI 45043526824 (passed on its rerun).
@@ -8905,7 +8905,7 @@ in its staleness check.
   test catches it only part of the time; step 8 to judge whether a deterministic probe is needed).
 - **Status:** FIXED on the branch, `4f1e6d3e`; its test-out joins step 8 (EXEC UD23).
 
-### M546 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; FIXED on the branch, `6b3edc6c`)
+### M546 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; FIXED in `6b3edc6c`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Same defect as M541** (another session's entry of the same day, with the same root cause and the same proposed fix,
   written while this one was on the branch): the fix below is the one M541 proposes; M541's status follows it.
@@ -8992,7 +8992,7 @@ in its staleness check.
 - **Lesson:** a tool that reads `$_` to find itself breaks under any wrapper; when a version check contradicts
   `--version`, look at how the check finds the program before upgrading anything.
 
-### M541 — CI edge-bff: the admin sign-in test from /backtest counts the backtest page's 404 (2026-11-22, cause verified; FIXED on the branch, `6b3edc6c`, M546)
+### M541 — CI edge-bff: the admin sign-in test from /backtest counts the backtest page's 404 (2026-11-22, cause verified; FIXED in `6b3edc6c` (M546), on the live site since 2026-11-22 (`ec739a06`))
 
 - **Symptom:** `tests/test_admin_page.py::test_a_sign_in_through_the_authenticator_code_keeps_the_page_it_was_shown_at`
   fails with `AssertionError: ([], [], [('GET', '/backtest-app/', 404)])`. Backend tests 45039209166 (`6cc859ee`):
@@ -9033,7 +9033,7 @@ in its staleness check.
   `buy`/`both`/lainnya.
 - **Status:** open; dilaporkan ke user 2026-11-22.
 
-### M539 — CI edge-bff: "too many clients" di database uji; tes-tes yang sama gagal di `main` dua kali (2026-11-22, cause verified; FIXED on the branch, `4f1e6d3e`)
+### M539 — CI edge-bff: "too many clients" di database uji; tes-tes yang sama gagal di `main` dua kali (2026-11-22, cause verified; FIXED in `4f1e6d3e`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Gejala:** Backend tests (job edge-bff) run 45029226701 (`27e33943`, commit dokumen saja) dan 45039209166 (`6cc859ee`):
   `ERROR at setup of test_a_value_outside_its_capabilitys_domain_is_refused_when_written[terminal.tickers-…]`,
@@ -9119,7 +9119,7 @@ in its staleness check.
   layar atau sekecil satu titik; pekerjaan sebesar seluruh riwayat menunggu layar berhenti; format tanggal/angka Intl
   di jalur ini disimpan per nilai. Ukur drag dengan `drag_lag/drag_live.py` setelah menambah indikator yang mengikuti layar.
 
-### M536 — The Phase 4 checker's 18 confirmed findings: an admin page acting with no known actor, a sign-in through the authenticator code losing its page, support limits applied after the work, and guards judged only at the present moment (2026-11-22; FIXED, on the beta since `259972a8`, edge-bff `bd2c4a84`; the live site does not serve the admin page)
+### M536 — The Phase 4 checker's 18 confirmed findings: an admin page acting with no known actor, a sign-in through the authenticator code losing its page, support limits applied after the work, and guards judged only at the present moment (2026-11-22; FIXED in `259972a8`, on the live site since 2026-11-22 (`ec739a06`); the live site does not serve the admin page)
 
 - **Found by:** the ultracode checker at xhigh over Phase 4 (workflow `wf_9a01b336-48e`: five lenses, one skeptic
   each): 18 confirmed (3 medium, 15 low), 1 refuted (a test of "no account deletion", not a defect).
@@ -9204,7 +9204,7 @@ in its staleness check.
   capability the user did not ask for, above all one that deletes, is named to the user as the agent's own proposal
   before it enters a plan.
 
-### M534 — The two-user route walk watched only the rows kept by an owner key: an account's rows kept by its user id (its support tickets) were outside it, and the admin routes had no ids (2026-11-22; on the beta)
+### M534 — The two-user route walk watched only the rows kept by an owner key: an account's rows kept by its user id (its support tickets) were outside it, and the admin routes had no ids (2026-11-22; on the live site since 2026-11-22 (`ec739a06`))
 
 - **Seen:** the full local edge-bff run of slice 4a: `tests/test_two_users_every_route.py::test_b_reaches_nothing_of_a_on_any_route`
   refused the seven admin routes with path parameters ("add A's value for ['user_id'] to `ids` ..."), its own guard. A
@@ -9224,7 +9224,7 @@ in its staleness check.
 - **Lesson:** derive what an isolation test watches from every ownership column the schema has, and give each write the
   body that would act; an empty request proves nothing about the route.
 
-### M533 — The session branch's CI red on the contact-support panel's first commit: a hand count of the capabilities and the Screener document's pointers into main.py (2026-11-22; on the beta)
+### M533 — The session branch's CI red on the contact-support panel's first commit: a hand count of the capabilities and the Screener document's pointers into main.py (2026-11-22; on the live site since 2026-11-22 (`ec739a06`))
 
 - **Seen:** `1e77efe8` on `claude/pensive-feynman-4ahfe3`: Backend tests run 44985088213, edge-bff job: `1 failed, 1118
   passed, 1 rerun` (`tests/test_plan_catalog.py::test_every_seed_capability_has_a_plain_meaning`: 49 capabilities, the
@@ -9244,7 +9244,7 @@ in its staleness check.
 - **Lesson:** M528's again: before any push that touches `apps/edge-bff/app/main.py`, run
   `apps/screener-worker/tests/onboarding_pointers.test.ts` (and every suite of the two workflows), not only the app's own.
 
-### M532 — An account without chart drawings is told "Chart drawings is not part of your EDGE plan" as soon as it opens the Terminal, before it draws anything (2026-11-22; found by the contact-support panel's screenshots; older than Phase 4; FIXED with the user's go "3A" in `135f8051`, on the beta)
+### M532 — An account without chart drawings is told "Chart drawings is not part of your EDGE plan" as soon as it opens the Terminal, before it draws anything (2026-11-22; found by the contact-support panel's screenshots; older than Phase 4; FIXED with the user's go "3A" in `135f8051`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Seen:** a new free account (`register()` of the browser tests, the beta's switch-on test server) opens `/terminal`:
   the red toast "Chart drawings is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in."
@@ -9346,7 +9346,7 @@ in its staleness check.
   suite before pushing. A pointer whose symbol is dotted is checked by its last part only, so a common last part
   (`routes`) can hide a wrong line: cite such a line by a name that occurs on it alone.
 
-### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT for the five data pages and written on dev, the example-mode checker's findings FIXED, the Watchlist's list SETTLED by the user and its example on the latest data `a30815c1`, on the live site since 2026-11-21, `4b35b5ed`; the Watchlist members' upcoming corporate actions, the user's "B" of 2026-11-22, in `1c972f22`, on the beta; the stored examples held to their release file, 2026-11-22, in `4d7d1a22`, on the branch, not deployed)
+### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT for the five data pages and written on dev, the example-mode checker's findings FIXED, the Watchlist's list SETTLED by the user and its example on the latest data `a30815c1`, on the live site since 2026-11-21, `4b35b5ed`; the Watchlist members' upcoming corporate actions, the user's "B" of 2026-11-22, in `1c972f22`, on the live site since 2026-11-22 (`ec739a06`); the stored examples held to their release file, 2026-11-22, in `4d7d1a22`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Symptom:** since 20261117_003 the free plan holds `overview.example`, `radar.example`, `watchlist.example`,
   `screener.example` and `backtest.example`, yet no code read them: a free account and a visitor who is not signed in got
@@ -9586,7 +9586,7 @@ in its staleness check.
   nothing about that date: the capture stops rather than infer it from later rows, and a trim or a check names its
   fields at every depth (a block copied whole, or a check of a field the data does not carry, checks nothing).
 
-### M526 — Saved screens kept a validation made under a wider context when only the rights differed; the live site lists and can cancel the admin's own beta Backtest jobs (2026-11-21; the review FIXED in `9723caf7`, on the live site; the job history, the user's "pisahkan per situs ... OK fix it" of 2026-11-22, FIXED in `97740c79` on the branch, not deployed: until then the live site lists the beta's jobs; predates 3f)
+### M526 — Saved screens kept a validation made under a wider context when only the rights differed; the live site lists and can cancel the admin's own beta Backtest jobs (2026-11-21; the review FIXED in `9723caf7`, on the live site; the job history, the user's "pisahkan per situs ... OK fix it" of 2026-11-22, FIXED in `97740c79`, on the live site since 2026-11-22 (`ec739a06`); predates 3f)
 
 - **Found by:** 3f's checker, round 2 (W4, unverified), then verified by its skeptic (`wf_d4d13dbc-fff`, xhigh) with
   local probes. No live row was read.
@@ -10900,7 +10900,7 @@ in its staleness check.
 - **Lesson:** a verifier names its cost so the cost can change; CPU-heavy work reachable without a session gets its
   own bounded pool; a security parameter "as today" is decided again when real accounts arrive.
 
-### M494 — Authentication limits keyed or counted wrongly: answers that told whether an account exists, limits anyone could hold at their cap, shared counter scopes, sends that held back the reset code (2026-11-18/19, re-check R1-8, R1-9, R1-10, R1-12, R1-13, R1-16, R2-10; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-16 changed by the user ("4A", 2026-11-22), the beta's 100-failure lock, fixed in `24d35f1b` on the branch, not deployed)
+### M494 — Authentication limits keyed or counted wrongly: answers that told whether an account exists, limits anyone could hold at their cap, shared counter scopes, sends that held back the reset code (2026-11-18/19, re-check R1-8, R1-9, R1-10, R1-12, R1-13, R1-16, R2-10; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-16 changed by the user ("4A", 2026-11-22), the beta's 100-failure lock, fixed in `24d35f1b`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Symptom:**
   - the reset answered 429 `LIMIT_REACHED` after 20 wrong codes only for an address with an account (R1-8);
@@ -11113,7 +11113,7 @@ in its staleness check.
 - **Lesson:** a store that is not a tab's own route but carries a tab's data needs that tab's capability, declared
   per key where the key is registered (the M481 lesson for routes, applied to stores).
 
-### M488 — Gates placed on one path while the same values reach the person by another: a seeded capability no route reads, gated conditions on values every row shows, Terminal limits that bind the Terminal path only, page files behind shared caches (2026-11-18, re-check R1-5, R1-31, R1-32, R1-35, R1-36, R1-37, with R2-41 item 4; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-37 accepted; R1-5 changed by the user ("A1 ok", 2026-11-22), each reader counted once an hour, fixed in `5d2b8ba4` on the branch, not deployed)
+### M488 — Gates placed on one path while the same values reach the person by another: a seeded capability no route reads, gated conditions on values every row shows, Terminal limits that bind the Terminal path only, page files behind shared caches (2026-11-18, re-check R1-5, R1-31, R1-32, R1-35, R1-36, R1-37, with R2-41 item 4; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-37 accepted; R1-5 changed by the user ("A1 ok", 2026-11-22), each reader counted once an hour, fixed in `5d2b8ba4`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Symptom:**
   - no route read `screener.preset`, so the Screener catalog listed presets, with their match counts, that the plan
@@ -11247,7 +11247,7 @@ in its staleness check.
   entitlement sent to a separately deployed service needs proof it was applied; an unknown entry on an allow-list is
   "not granted", never a failure of the whole request; a default handed to many principals is immutable.
 
-### M485 — One plan-limit concept answered with different codes and numbers: caps 422, the queue 429, `PLAN_EXPIRED` never for a list or limit, `access.limits` the raw value (2026-11-18/19, re-check R1-23, R1-29, R2-39; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-23's remainder, the 0-day window judged against the ended plan, fixed in `39e301f2` on the branch, not deployed)
+### M485 — One plan-limit concept answered with different codes and numbers: caps 422, the queue 429, `PLAN_EXPIRED` never for a list or limit, `access.limits` the raw value (2026-11-18/19, re-check R1-23, R1-29, R2-39; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-23's remainder, the 0-day window judged against the ended plan, fixed in `39e301f2`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Symptom:** the saved-item caps answered 422 `LIMIT_EXCEEDED` while the backtest queue cap answered 429
   `LIMIT_REACHED`, so the shared module treated only one as a plan refusal; an ended plan that set no ticker list or

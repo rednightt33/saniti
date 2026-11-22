@@ -16679,7 +16679,13 @@ Order of the services (CONTRACT 17, rollback floors):
   | Lab tab rail entry (checker SERVE-3, TR-13; FUTURE_PLAN "The shell") | edge-bff hands each lab tab's rail entry (label, path, its own `<tab>-app`) only to principals holding it, and the shell draws and routes it | the lab-gap owner of this execution | before the first tab is set to `lab` in `catalog/releases.json`, held by `LAB_TAB_HELD_UNTIL` in `apps/edge-bff/tests/test_live_switch.py` |
   | Live smoke lab probe (checker L11; FUTURE_PLAN "Optional") | a fixed-name probe file in the lab build, so the live smoke proves the lab file is absent by name rather than by the builds differing | the live-promotion owner (LIVE_PROMOTION.md) | before the first lab item or tab, the gate of `LAB_ITEM_HELD_UNTIL` and `LAB_TAB_HELD_UNTIL` |
   | The five failing Screener smoke steps (ERRORS M417) | run `node apps/edge-bff/screener/tests/smoke/smoke.mjs`; diagnose or retire each failing step | the Screener owner | the next Screener change, or step 8 (the deep checker), whichever comes first |
+  | terminal-publisher's upload (test-out fix round 1, guest-exposure-2) | the publisher is a CLI upload and still runs the `examples.py` before the Radar cut by name (`c9aef344`); the same bytes today, so nothing leaks now | the publisher's owner, through this execution | its next upload, or step 8 |
   | The other readers of `TELEGRAM_NOTIFY_URL` (test-out deploy-3) | market-sql-governor, market-audit-store and market-python-sandbox (`app/queue_alarm.py`), idx-price-cron (`price_update.py`, `intraday_update.py`), fixed-income-price-cron, stockbit-updater, terminal-publisher, feature-04-worker and `scripts/restart_postgres.py` read the address with no start check: a wrong value starts the service and only its alerts fail; one shared check like edge-bff's `notify_url_problem` (`app/config.py`) at each start | ops, through this execution | the next change of telegram-monitor's address or port, the next change of each service, or step 8, whichever comes first |
+
+- **The round's close (2026-11-22, the user's go):** the full edge-bff suite 1214 passed after ERRORS M539 and M547 were
+  fixed; CI green; the beta (`e594bba8`) and the live site (`306c1190`) on `ec739a06`, the workers with it
+  (backtest-worker `df495720` by CLI, screener-worker `4438dbb0`), the live smoke green (RAILWAY_CHANGELOG.md 2026-11-22).
+  Next: step 7, the payment shell's infrastructure only (the user's words above).
 
 - **The step-8 ledger (UD23's answer):** `verification/records/step8_ledger.json` (workflow `wf_877859a9-d28`, 2026-11-22):
   376 rows: 111 fixed and tested out, 168 fixed and not tested out, 23 open with an owner row, 65 open without one, 4

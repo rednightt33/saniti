@@ -1,5 +1,45 @@
 # Railway changelog
 
+## 2026-11-22 — The round's close: the beta and the live site on `ec739a06` (the user's go: "langsung saja go untuk promosi live dan deploy")
+
+- **The user's words (2026-11-22):** "Oke, deploy beta dan promosi live go. Setelah itu lanjut ke langkah 7. Setelah
+  seluruh tes aplikasi situs web selesai. Apabila ada error di tes, harap dicatat untuk perbaikan bisa langsung
+  dijalankan sebelum deploy beta dan promosi live go." and "langsung saja go untuk promosi live dan deploy ... You have
+  my go. Only for this turn only." (AGENTS.md "Deploys": every deploy waits for the user's confirmation.)
+- **Commit `ec739a06`** on `main` and `live` (fast-forwards from `f31bd73d` and `4b35b5ed`): Phase 4 (the admin page,
+  beta only), the contact-support panel, group A (R2-37 part, R1-23, SH1, R1-16, R1-5, C3-6), the lab gaps (L2/CAT-3,
+  TR-2, CRIT-1, CRIT-3, SERVE-2/3/4, CAT-5, W4, the stored examples' release cut), fix round 1 of the test-out, the
+  full-suite fixes (ERRORS M539, M547) and the other session's Terminal drag rounds (M538). No new migration
+  (`20261122_001` was applied on dev with Phase 4).
+- **Before:** the full edge-bff suite 1214 passed (after M539 and M547 were fixed; the first run had 5 setup errors and 1
+  failure); the page, worker, publisher and script suites green. CI green on the branch, on `main` and on `live` for
+  `ec739a06` (Backend tests 45066019127, 45066248909, 45069066330). M340: 0 EDGE jobs, 0 orc turns (20:21, 20:53 UTC).
+- **Order:**
+  1. **backtest-worker `df495720`** SUCCESS 20:23 UTC: CLI upload of `git archive ec739a06` of its Dockerfile's COPY
+     paths (the lab folder included), `--path-as-root`; start log `engine_version` `f88ab6246833eaaa`.
+  2. **`railway config apply`**: screener-worker `build.watchPatterns` gains `/apps/edge-bff/terminal/src/lab/**` (the
+     plan empty afterwards).
+  3. **`main` `f31bd73d` → `ec739a06`**: `edge-bff` `e594bba8` and `screener-worker` `4438dbb0` waited for CI, then
+     SUCCESS 20:52 UTC; the beta's `/version` names `ec739a06`, `/ready` 200, `startup_done` with that commit.
+     market-ai-orc SKIPPED (no change in its paths).
+  4. **edge-bff-live variables** (references, no value typed; `--skip-deploys`, so they took effect with step 5):
+     `TELEGRAM_NOTIFY_URL` = telegram-monitor's private address on port 8080, `TELEGRAM_SUPPORT_SECRET` = telegram-monitor's,
+     `EDGE_ADMIN_ORIGIN` = the beta's address (LIVE_PROMOTION.md, the contact-support row). `.railway/railway.ts` preserves
+     them; `railway config plan`: up to date.
+  5. **`live` `4b35b5ed` → `ec739a06`**: `edge-bff-live` `306c1190` waited for CI on `live`, SUCCESS; `/version` names
+     `ec739a06`, `/ready` 200.
+- **Live smoke (from outside):** `http_smoke.py`: `/ready` 200, CSP and HSTS, `hidden_tabs` admin and monitor, `/admin`
+  and `/monitor` 404, a visitor's BBCA 200 and TLKM 403 with the sign-in words, `routes.unexpected` `{}` (62 routes),
+  registration 403 `REGISTRATION_CLOSED`, a foreign origin 403, an unknown login 401, the public builds without the lab
+  worker file, every example 200. `browser_smoke.cjs /terminal`: the Terminal on BBCA (the screenshot; `shows_bbca`
+  reads the shell's text), the rail with Contact support and no Monitor or lab tab, no model list asked.
+  `example_smoke.py`: the five examples in their frames, only `/api/v1/examples/...` read, VERDICT OK.
+- **Not uploaded:** terminal-publisher (a CLI upload) still runs its older `examples.py`; the Radar cut by name of the
+  test-out fix round gives the same bytes today (EXEC-MU-ACCOUNTS, Carried open parts).
+- **Rollback:** `live` back to `4b35b5ed` (deployment `f1d6a921`) with the user's go; the beta: redeploy `edge-bff`
+  `61a8928b` (`db481c2b`); the workers: backtest-worker `ac092f2e`, screener-worker `4f68955c`.
+- **Not a large update:** no database change; no Postgres restart.
+
 ## 2026-11-22 — Terminal drag, round 2 on the beta (ERRORS M538 round 2; user "U1 + U2 + U4 go, U3 setelah diukur")
 
 - **Commit `db481c2b`:** U1 (recompute after the release), U2 (no data for a line not drawn), U3 (a line's data from its
