@@ -16404,6 +16404,12 @@ Order of the services (CONTRACT 17, rollback floors):
           mode, 3f and their fixes and records, nothing else. The live site stays in its pre-launch mode (registration
           closed). Next, in the approved order: Phase 4 (the admin page), the payment shell, the deep checker and the
           registration test window.
+        - **The user's answer on the Watchlist example's corporate actions (2026-11-22): "B", "jangan execute dulu".**
+          Asked: A keep them out (as the build does now), B show them, as the live page does (the badge of an upcoming
+          corporate action on a card, 2 of the 45 on 2026-11-21, and the "Corporate action" control). Approved: B. Not
+          built: it waits for the user's go. When built: the example keeps the list's members' upcoming corporate actions
+          and `events_loaded` (app/examples.py `watchlist_view`, its tests, the browser test, WATCHLIST_FORMULAS.md), then
+          the beta, and the live site only on the user's request (LIVE_PROMOTION.md).
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
