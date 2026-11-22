@@ -32,10 +32,11 @@ MESSAGES = {
     'ORIGIN_REJECTED': 'This request did not come from the EDGE page. Open EDGE again and retry from there.',
     'REQUEST_TOO_LARGE': 'This request is too large. Send less at once and try again.',
     # Phase 4, the contact-support panel (app/support.py)
-    'MFA_UNAVAILABLE': 'The authenticator cannot be checked on this site: EDGE_MFA_KEY is not set. Set it to the live '
-                       'site\'s value, then try again.',
-    'TELEGRAM_UNAVAILABLE': 'Telegram is not connected on this site. Set TELEGRAM_NOTIFY_URL and TELEGRAM_SUPPORT_SECRET, '
-                            'then send the summary again.',
+    # (the operator learns which setting is missing from the log line the refusal writes; app/admin.py)
+    'MFA_UNAVAILABLE': 'The authenticator cannot be checked on this site yet. Ask the operator to connect it to the live '
+                       'site\'s authenticator, then try again.',
+    'TELEGRAM_UNAVAILABLE': 'Telegram is not connected on this site, so the summary cannot be sent from here. The ticket '
+                            'is kept here and in the email.',
     'SUPPORT_STORAGE_FULL': 'Images cannot be stored right now. Send your message without images; we will ask you for '
                             'them by email if we need them.',
     'SERVICE_UNAVAILABLE': 'EDGE cannot answer right now. Wait a moment, then try again.',

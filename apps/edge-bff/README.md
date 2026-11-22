@@ -1242,7 +1242,8 @@ admin actions on accounts are slice 5, account deletion slice 6.
   would be gone there. Codes locked (the live site's count): 403 `MFA_LOCKED` with `details.step_up` and no `use`
   ("...locked on both sites for now. Wait 24 hours..."). Before the step every admin data route answers 403
   `MFA_REQUIRED` with `details.step_up` ("The admin page needs your authenticator code..."). It needs `EDGE_MFA_KEY`
-  equal to the live site's (`config.shared_key_marks` logs both marks at start); unset: 503 `MFA_UNAVAILABLE`. With the
+  equal to the live site's (`config.shared_key_marks` logs both marks at start); unset: 503 `MFA_UNAVAILABLE`, whose
+  words name no setting (they ask for the operator) while the log line `admin_step_up_unavailable` names it. With the
   switch on: 404.
 - **Reads:** `overview` (accounts by status and plan, live sessions, tickets, image bytes, emails waiting or failed),
   `users` (`q`: any part of a username or name, with `%` and `_` taken as typed, or an address in full, any case, never a
@@ -1259,7 +1260,7 @@ admin actions on accounts are slice 5, account deletion slice 6.
   `{field: email|phone, reason}` (`account.reveal`; an account without the value answers `value: null`, unaudited); `support/{id}/status` `{status: done|new, reason?}`
   (`support.status`; done sets `done_at` and `done_by_user_id`, which starts the images' 90 days, new clears them);
   `support/{id}/telegram` (the summary sent again while it was never answered; 503 `TELEGRAM_UNAVAILABLE` when the site
-  has no Telegram settings); `DELETE support/{id}` `{reason}` (`support.delete`; the ticket and its images). A reason is
+  has no Telegram settings, the log line `support_telegram_unavailable` naming each missing one); `DELETE support/{id}` `{reason}` (`support.delete`; the ticket and its images). A reason is
   1 to 1000 characters with no hidden character but line breaks. A refusal is 400 `INVALID_INPUT` naming the field and
   the fix, or 404 `NOT_FOUND`.
 

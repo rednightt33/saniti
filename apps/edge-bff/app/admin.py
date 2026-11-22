@@ -35,6 +35,7 @@ import asyncio
 import csv
 import io
 import json
+import logging
 import re
 import secrets
 from datetime import datetime
@@ -46,6 +47,8 @@ from . import mailer, support as support_module, text_rules
 from .errors import Refusal
 from .principal import Principal
 from .security import csrf_token, token_hash
+
+logger = logging.getLogger('edge_bff.admin')
 
 PAGE = 50
 PAGE_MAX = 200
@@ -374,7 +377,9 @@ class Admin:
             if settings.multiuser:
                 raise Refusal(404, 'NOT_FOUND')      # with the switch on the sign-in itself asked for the code
             if not settings.mfa_key:
-                # the authenticator's secret is derived from EDGE_MFA_KEY, the live site's (config.shared_key_marks)
+                # the authenticator's secret is derived from EDGE_MFA_KEY, the live site's (config.shared_key_marks); the
+                # page's words name no setting (tests/test_contract_requirements.py), the log tells the operator
+                logger.warning(json.dumps({'event': 'admin_step_up_unavailable', 'missing': ['EDGE_MFA_KEY']}))
                 raise Refusal(503, 'MFA_UNAVAILABLE')
             b = await body_of(request)
             if b.get('recovery_code') not in (None, ''):
@@ -509,6 +514,10 @@ class Admin:
             if info is None:
                 raise Refusal(404, 'NOT_FOUND')
             if not (settings.telegram_notify_url and settings.telegram_support_secret):
+                logger.warning(json.dumps({'event': 'support_telegram_unavailable', 'ticket_id': ticket_id,
+                                           'missing': [n for n, v in (('TELEGRAM_NOTIFY_URL', settings.telegram_notify_url),
+                                                                      ('TELEGRAM_SUPPORT_SECRET',
+                                                                       settings.telegram_support_secret)) if not v]}))
                 raise Refusal(503, 'TELEGRAM_UNAVAILABLE')
             sent = info['sent'] or await self.support.to_telegram(info)
             return {'sent': bool(sent)}

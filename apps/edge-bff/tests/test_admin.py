@@ -165,12 +165,16 @@ def test_on_the_beta_the_admin_page_asks_for_the_authenticator_code_and_nothing_
             assert 'locked on both sites' in error_of(r)['message'] and 'recovery code' not in error_of(r)['message']
 
 
-def test_the_code_step_names_a_missing_key_and_is_not_offered_with_the_switch_on(settings, store):
+def test_the_code_step_names_a_missing_key_and_is_not_offered_with_the_switch_on(settings, store, caplog):
     with TestClient(create_app(settings, store, FakeOrc())) as c:                    # the beta without EDGE_MFA_KEY
         h = login(c)
         assert c.get('/api/v1/admin/step-up').json()['available'] is False
+        caplog.set_level('WARNING', logger='edge_bff.admin')
         r = c.post('/api/v1/admin/step-up', headers=h, json={'code': '123456'})
-        assert (r.status_code, error_of(r)['code']) == (503, 'MFA_UNAVAILABLE') and 'EDGE_MFA_KEY' in error_of(r)['message']
+        # the page says what to do in plain words; the log names the missing setting for the operator
+        assert (r.status_code, error_of(r)['code']) == (503, 'MFA_UNAVAILABLE') and 'operator' in error_of(r)['message']
+        assert 'EDGE_MFA_KEY' not in error_of(r)['message']
+        assert any('admin_step_up_unavailable' in m and 'EDGE_MFA_KEY' in m for m in caplog.messages), caplog.messages
     on = dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key=KEY)
     with TestClient(create_app(on, store, FakeOrc())) as c:
         h = sign_in_admin(c, store)                                       # the sign-in itself passed the code
@@ -341,3 +345,19 @@ def test_the_support_inbox_shows_a_ticket_serves_its_images_and_audits_each_chan
                          json={'reason': 'again'}).status_code == 404
         overview = c.get('/api/v1/admin/overview').json()
         assert overview['support']['new'] == 1 and overview['site'] == 'beta'
+
+
+def test_the_telegram_summary_names_no_setting_to_the_page_and_each_missing_one_to_the_log(beta, store, caplog):
+    with TestClient(create_app(dataclasses.replace(beta, telegram_notify_url='http://telegram-monitor.invalid/notify'),
+                               store, FakeOrc())) as c:
+        h = passed(c, store, beta)
+        alice = make_user(store, 'alice', 'alice-password')
+        p = type('P', (), {'user_id': alice['user_id'], 'plan_key': 'free'})()
+        ticket = SupportStore(store, beta).create(p, 'question', 'A question', 'How?', {}, [])['ticket_id']
+        caplog.set_level('WARNING', logger='edge_bff.admin')
+        r = c.post(f'/api/v1/admin/support/{ticket}/telegram', headers=h)
+        assert (r.status_code, error_of(r)['code']) == (503, 'TELEGRAM_UNAVAILABLE'), r.text
+        assert 'TELEGRAM' not in error_of(r)['message'] and 'email' in error_of(r)['message']
+        logged = [m for m in caplog.messages if 'support_telegram_unavailable' in m]
+        assert logged and json.loads(logged[-1])['missing'] == ['TELEGRAM_SUPPORT_SECRET'], caplog.messages
+        assert c.post('/api/v1/admin/support/999999/telegram', headers=h).status_code == 404
