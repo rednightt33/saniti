@@ -252,6 +252,9 @@ Ditemukan saat rilis perbaikan drag Terminal; masing-masing dengan penyebab terv
   bisa tertahan acak (sudah dua kali 2026-11-22).
 - **M541** (tes admin dari `/backtest` menghitung 404 halaman Backtest): server tes melayani sub-app dari tempat langkah CI
   mem-build-nya (satu helper untuk semua tes browser); tes tetap menolak 404 yang tidak diharapkan. Hanya kode tes.
+  **Sudah dibangun** di branch `claude/pensive-feynman-4ahfe3` (`6b3edc6c`, ERRORS M546: `tests/conftest.py` `built_pages`,
+  diturunkan dari baris COPY Dockerfile; 10 dari 10 run lulus); sampai di `main` bersama branch itu, dengan konfirmasi
+  user (AGENTS.md "Deploys").
 - **M540** (judul FL51 menulis "Sell" saat Show = Loaders): kata sisi di judul indikator Flow diambil dari label pilihan
   registry. Mengubah teks legenda yang user lihat.
 

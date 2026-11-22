@@ -8886,7 +8886,10 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M543 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; FIXED on the branch, `6b3edc6c`)
+### M546 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; FIXED on the branch, `6b3edc6c`)
+
+- **Same defect as M541** (another session's entry of the same day, with the same root cause and the same proposed fix,
+  written while this one was on the branch): the fix below is the one M541 proposes; M541's status follows it.
 
 - **Found by:** the agent, running `tests/test_admin_page.py::test_a_sign_in_through_the_authenticator_code_keeps_the_page_it_was_shown_at`
   for the SERVE-3 change.
@@ -8906,7 +8909,7 @@ in its staleness check.
   as they are on disk. `tests/test_built_pages.py` locks the derivation. The two sign-in tests passed 10 of 10 runs.
 - **Status:** FIXED on the branch, `6b3edc6c`.
 
-### M542 — The OpenRouter key expired on 2026-11-22: the beta's AI and the web governor refused since 03:55 UTC, and nobody was told (2026-11-22; found by the agent from the open-items report NC29; OPEN, the key is the user's)
+### M545 — The OpenRouter key expired on 2026-11-22: the beta's AI and the web governor refused since 03:55 UTC, and nobody was told (2026-11-22; found by the agent from the open-items report NC29; OPEN, the key is the user's)
 
 - **Found by:** the agent, checking NC29 of the open-items report (the key recorded on 2026-10-30 "expires 2026-11-22").
 - **Verified (logs, 2026-11-22):** market-web-governor `web_provider_key_invalid` state INVALID, status 401, every 15
@@ -8925,12 +8928,13 @@ in its staleness check.
   that work.
 - **Lesson:** a credential with an end date needs an alert before the date, not a log line after it.
 
-### M541 — Verified checker findings left unsolved when the work moved to the next phase (2026-11-22; found by the user; FIXED as working rules, AGENTS.md "Findings and fixes")
+### M544 — Verified checker findings left unsolved when the work moved to the next phase (2026-11-22; found by the user; FIXED as working rules, AGENTS.md "Findings and fixes")
 
-- **Renumbered:** written as M538 (and the two entries above as M539, M540) on branch `claude/pensive-feynman-4ahfe3`
-  while another session put its own M538-M540 on `main` (Terminal drag, CI connections, the Loaders title); the commit
-  messages of that branch up to `d33aeb35` still say M538-M540 for these three. Two sessions writing ERRORS at once
-  take the next free number when they merge, not when they write.
+- **Renumbered twice:** written as M538 (and the two entries above as M539, M540) on branch
+  `claude/pensive-feynman-4ahfe3`, renumbered M541-M543 when another session's M538-M540 reached `main`, and M544-M546
+  when its M541 followed; the commit messages of that branch say M538-M540 up to `d33aeb35` and M541-M543 up to
+  `852ac1b0` for these three. Two sessions writing ERRORS at once take the next free number of `main` when they merge,
+  not when they write.
 - **Found by:** the user ("Tapi kenapa itu tidak di-solve sebelum kita continue ke fase selanjutnya"), traced by the
   workflow `wf_539660fc-8ff` over every checker run of EXEC-MU-ACCOUNTS (scratchpad `fate_result.json`).
 - **Verified:** 270 confirmed findings outside Phase 4: 209 fixed, 28 fixed and then reopened by a later checker (26 of
@@ -8969,7 +8973,7 @@ in its staleness check.
 - **Lesson:** a tool that reads `$_` to find itself breaks under any wrapper; when a version check contradicts
   `--version`, look at how the check finds the program before upgrading anything.
 
-### M541 — CI edge-bff: the admin sign-in test from /backtest counts the backtest page's 404 (2026-11-22, cause verified, fix awaiting the user)
+### M541 — CI edge-bff: the admin sign-in test from /backtest counts the backtest page's 404 (2026-11-22, cause verified; FIXED on the branch, `6b3edc6c`, M546)
 
 - **Symptom:** `tests/test_admin_page.py::test_a_sign_in_through_the_authenticator_code_keeps_the_page_it_was_shown_at`
   fails with `AssertionError: ([], [], [('GET', '/backtest-app/', 404)])`. Backend tests 45039209166 (`6cc859ee`):
@@ -8989,6 +8993,11 @@ in its staleness check.
   browser test, so the page under test is the built one; the test keeps refusing any unexpected 404. Not chosen: adding
   `('GET', '/backtest-app/', 404)` to the test's expected answers (it would hide a real missing page).
 - **Status:** cause verified; fix awaiting the user's go. Not related to the Terminal change it held.
+- **Update 2026-11-22 (branch `claude/pensive-feynman-4ahfe3`):** the proposed fix was built there as the Phase 4 checker's
+  page-tests-records-2 (the user's "OK fix it" for the round's findings): `tests/conftest.py` `built_pages`, derived from
+  the Dockerfile's COPY lines, for every browser test; lab builds stay on disk; `tests/test_built_pages.py`; 10 of 10
+  runs pass (ERRORS M546). It reaches `main` with that branch, which needs the user's confirmation (AGENTS.md
+  "Deploys").
 
 ### M540 — Terminal: judul Loaders (FL51) menulis "Sell" saat pilihan Show = Loaders (2026-11-22, open)
 
@@ -9137,7 +9146,7 @@ in its staleness check.
   - page-tests-records-6: the admin page's Accounts table draws the usage counters (a Usage column: the total, each kind
     in its title, hidden on a phone; `admin/src/model.ts` `usageOf`, the kinds the server sends). Red when the column
     is gone (`tests/test_admin_page.py`); fits 1440, 1152, 390 and 360 in both themes.
-  - page-tests-records-2: its flaky lock, ERRORS M543.
+  - page-tests-records-2: its flaky lock, ERRORS M546.
 
 ### M535 — An account deletion action entered the Phase 4 plan although the user never decided that one is offered (2026-11-22; found by the user; FIXED: dropped before any code)
 

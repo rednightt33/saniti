@@ -95,6 +95,18 @@ def test_the_deployed_commits_are_the_ones_the_newest_deploy_entries_name():
                        'and that commit, in the same commit')
 
 
+def test_a_ci_bullet_or_a_bare_service_name_is_not_a_deploy():
+    """The record of 2026-11-22 ("Terminal drag, round 2 on the beta") names a later docs commit in its CI bullet, next to
+    the words "the edge-bff job"; neither makes it the commit the beta runs."""
+    log = (f'# Railway changelog\n\n## 2026-11-23 — something on the beta\n\n'
+           f'- **CI:** the edge-bff job failed once; its rerun was cancelled when `{NEW}` reached the branch\n'
+           f'- **Beta:** deployed with `{OLD}` → `edge-bff` SUCCESS\n- **Live:** unchanged (`edge-bff-live`, `{OLD}`)\n')
+    assert record_status.deployed_unrecorded({'beta': OLD, 'live': OLD}, log) == []
+    bad = record_status.deployed_unrecorded({'beta': OLD, 'live': OLD},
+                                            log.replace('- **CI:** the edge-bff job', '- **Beta:** `edge-bff` job'))
+    assert [s for s, _ in bad] == ['beta'], bad                                    # the same words as a deploy bullet
+
+
 def test_the_deploy_record_check_catches_a_file_the_changelog_does_not_name():
     log = (f'# Railway changelog\n\n## 2026-11-23 — something on the beta\n\n- **Commit `{NEW}`:** `edge-bff` SUCCESS\n'
            f'- **Live:** unchanged (`edge-bff-live` stays on `{OLD}`)\n\n## 2026-11-20 — older\n\n- `edge-bff` `{OLD}`\n')

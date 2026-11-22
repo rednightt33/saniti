@@ -207,7 +207,7 @@ class FakeOrc:
     def close(self):pass
 
 
-# ERRORS M543 (the Phase 4 checker's page-tests-records-2, its test-out wf_c72ae04c-a73): app/main.py serves each page's
+# ERRORS M546 (the Phase 4 checker's page-tests-records-2, its test-out wf_c72ae04c-a73): app/main.py serves each page's
 # frame from static/<page>-app, which only the image fills (Dockerfile COPY --from=... /build/<page>/dist ./static/...);
 # a local run or CI builds into <page>/dist, so a browser test whose shell opens a tab without pointing that folder at
 # the build got 404 for the frame (/backtest-app/, /admin-app/), caught by its Watch whenever the frame loaded before the

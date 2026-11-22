@@ -74,7 +74,7 @@ User decisions 2026-10-19 (verbatim in `EXEC.md`, EXEC-FASTLANE-LEN):
 User decisions 2026-11-22 (verbatim in `EXEC.md`, EXEC-MU-ACCOUNTS "The user's decisions of 2026-11-22"): "Perbaikan
 proses di atas: setuju saya terapkan dan catat sebagai aturan kerja mulai sekarang? OK setuju" and "Setelah selesai bisa
 assign 5 sub-agents Opus 5,5 medium untuk actually test out whether perbaikan bug sudah selesai." They answer the root
-causes of ERRORS M541 (verified findings left unsolved between phases, workflow `wf_539660fc-8ff`).
+causes of ERRORS M544 (verified findings left unsolved between phases, workflow `wf_539660fc-8ff`).
 
 1. **Done means every part.** A finding is closed only when every part of it is fixed, the other places with the same
    mechanism included. A part left open becomes an item in `PLAN.md` or `EXEC.md` with an owner and a trigger, never

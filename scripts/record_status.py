@@ -15,8 +15,8 @@ deployed / on the branch, on the beta, on the live site. Each claim is judged in
   commit).
 
 deployed_commits.json is tied to the deploy records: each site's commit there is named, and no newer commit is, by the
-bullets of the newest RAILWAY_CHANGELOG.md entry that name the site's service (`edge-bff`, `edge-bff-live`) and a git
-commit, so a deploy recorded without the file, or the file changed without a deploy entry, fails.
+bullets of the newest RAILWAY_CHANGELOG.md entry that name the site's service as code (`` `edge-bff` ``,
+`` `edge-bff-live` ``) and a git commit (a **CI** bullet is not a deploy), so a deploy recorded without the file, or the file changed without a deploy entry, fails.
 
 Read-only; it needs the full git history (git merge-base --is-ancestor). `python3 scripts/record_status.py` prints the
 stale entries; exit 1 when there are any."""
@@ -31,7 +31,10 @@ ERRORS = ROOT / 'ERRORS_AND_SOLUTIONS.md'
 DEPLOYED = ROOT / 'verification' / 'records' / 'deployed_commits.json'
 CHANGELOG = ROOT / 'RAILWAY_CHANGELOG.md'
 # The service of each website, as RAILWAY_CHANGELOG.md names it: the beta is `edge-bff` (not `edge-bff-live`).
-SITE_SERVICE = {'beta': re.compile(r'\bedge-bff\b(?!-)'), 'live': re.compile(r'\bedge-bff-live\b')}
+# A deploy bullet names the service as code (in backticks); a bullet about CI runs is not a deploy, even when it names the
+# service's test job (the record of 2026-11-22, "Terminal drag, round 2 on the beta", names a later docs commit there).
+SITE_SERVICE = {'beta': re.compile(r'`edge-bff`'), 'live': re.compile(r'`edge-bff-live`')}
+NOT_A_DEPLOY = re.compile(r'^- \*\*CI\b')
 NOT_DEPLOYED = re.compile(r'not deployed|fixed on (?:the )?branch|on (?:the )?branch\b|built on the branch', re.I)
 ON_BETA = re.compile(r'on the beta', re.I)
 ON_LIVE = re.compile(r'on the live site|live since|promoted', re.I)
@@ -153,7 +156,7 @@ def newest_deploy_entry(site, text=None):
     for part in re.split(r'(?m)^(?=## )', text):
         if not part.startswith('## '):
             continue
-        named = [b for b in bullets(part) if SITE_SERVICE[site].search(b)]
+        named = [b for b in bullets(part) if SITE_SERVICE[site].search(b) and not NOT_A_DEPLOY.match(b)]
         commits = [c for c in dict.fromkeys(c for b in named for c in COMMIT.findall(b)) if known(c)]
         if commits:
             return part.split('\n', 1)[0][3:], commits

@@ -1,4 +1,4 @@
-"""ERRORS M543 (its test-out wf_c72ae04c-a73, admin-support page-tests-records-2): the browser tests point every page's
+"""ERRORS M546 (its test-out wf_c72ae04c-a73, admin-support page-tests-records-2): the browser tests point every page's
 frame folder at the build the image would copy there (conftest.built_pages, derived from the Dockerfile's COPY lines).
 This locks the derivation: every folder app/main.py serves a page from has its COPY line, so a new page is in the image
 and in the browser tests alike, and the fixture applies to every test that opens a browser."""
