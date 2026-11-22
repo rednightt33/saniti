@@ -68,6 +68,38 @@ CONTACT = re.compile(r'[^\x00-\x1f\x7f<>]{1,200}')
 LEGAL_URL = re.compile(r'(?=.{1,500}$)(https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[^\s"<>\\]*)?|/(?!/)[^\s"<>\\]*)')
 
 
+
+HOST_LABEL = re.compile(r'[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?')
+
+
+def notify_url_problem(url):
+    """What is wrong with a TELEGRAM_NOTIFY_URL, or '' (the Phase 4 checker's deploy-3 and its test-out): http or https,
+    a real host (dot-separated labels, none empty, none starting or ending with '-'), a port from 1 to 65535 when one is
+    written, the path /notify, nothing unresolved (a Railway reference "${{...}}" left in the value). A host on Railway's
+    private network (*.railway.internal) must name its port: that network has no port mapping, so the default port 80
+    reaches nothing (telegram-monitor listens on 8080) and every support summary would fail at run time while the site
+    starts. A public host may leave the port out (the scheme's own)."""
+    if '${{' in url or '}}' in url:
+        return 'holds a Railway reference that did not resolve'
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        return 'has a port that is not a whole number from 1 to 65535'
+    if parts.scheme not in ('http', 'https'):
+        return 'starts with http:// or https://'
+    host = parts.hostname or ''
+    if not host or not all(HOST_LABEL.fullmatch(label) for label in host.split('.')) or '@' in parts.netloc:
+        return 'needs a host name such as telegram-monitor.railway.internal'
+    netloc_port = parts.netloc.rpartition(':')[2] if parts.netloc.count(':') == 1 else None
+    if netloc_port == '' or (port is not None and not 1 <= port <= 65535):
+        return 'has a port that is not a whole number from 1 to 65535'
+    if host.lower().endswith('.railway.internal') and port is None:
+        return 'names a host on Railway\'s private network without its port (add :8080, the port telegram-monitor listens on)'
+    if parts.path != '/notify' or parts.query or parts.fragment:
+        return 'ends with the path /notify'
+    return ''
+
 @dataclass(frozen=True)
 class Settings:
     # secrets never appear in repr(settings) (a traceback, a log line; ERRORS M478 C1 P1-L2)
@@ -306,12 +338,9 @@ class Settings:
                 raise ValueError(f'{name} is a whole number from 1 to {top}; or unset it for the default')
         if self.admin_origin and not re.fullmatch(r'https://[A-Za-z0-9.-]+(:[0-9]{1,5})?', self.admin_origin):
             raise ValueError('EDGE_ADMIN_ORIGIN is the admin page\'s origin: the beta\'s own address, https and no path')
-        # a real host, and a port after a colon (the Phase 4 checker's deploy-3: ':' inside the host's characters let
-        # 'http://:/notify' and a reference that resolved to an empty port, '...internal:/notify', start the site)
-        if self.telegram_notify_url and not re.fullmatch(r'https?://[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*(:[0-9]{1,5})?/notify',
-                                                         self.telegram_notify_url):
-            raise ValueError('TELEGRAM_NOTIFY_URL is telegram-monitor\'s /notify address with its host and, after a colon, '
-                             'its port, e.g. http://telegram-monitor.railway.internal:8080/notify')
+        if self.telegram_notify_url and (why := notify_url_problem(self.telegram_notify_url)):
+            raise ValueError(f'TELEGRAM_NOTIFY_URL {why}; it is telegram-monitor\'s /notify address, e.g. '
+                             'http://telegram-monitor.railway.internal:8080/notify')
         for name, value in (('EDGE_PRIVACY_URL', self.privacy_url), ('EDGE_TERMS_URL', self.terms_url)):
             if value and not LEGAL_URL.fullmatch(value):
                 raise ValueError(f'{name} is an https address or a path of this site (/...), at most 500 characters')

@@ -15,7 +15,7 @@ import { keyedMarkers } from '../data/chartTime';
 import { onCandles } from '../data/timeframe';
 import { sumOverDays } from './flow';
 import { withPicked } from '../data/brokerAgg';
-import { fits, inputsOf, needsOf, restoreSaved, withParked, type Input } from '../data/inputs';
+import { fits, inputsOf, needsOf, restoreList, withParked, type Input } from '../data/inputs';
 import { newPaneId } from '../data/drawingsApi';
 import { StripSeries, STRIP_PANE_PX } from './stripSeries';
 import { followPointer, viewFollower } from './viewFollow';
@@ -1412,11 +1412,14 @@ export function initIndicators(ctx: Ctx) {
     }
     return { ...o, params };
   };
-  /* a saved list's entries: those this ticker can draw, the others parked; an entry whose definition this build lacks is
-     parked too, never dropped (3f round 2 CRIT-1, data/inputs.ts restoreSaved) */
+  /* a saved list's entries: those this ticker can draw, the others parked; an entry whose definition this build lacks,
+     or whose drawing throws, is parked too, never dropped (3f round 2 CRIT-1 and its test-out, data/inputs.ts
+     restoreList). An add that threw after taking the entry holds it (the list grew). */
   const restore = (saved: any[]) => {
-    const s = restoreSaved(saved, migrate, (id: string) => !!defOf(id), dropStale, (o: any) => usable(o.def));
-    parked = s.parked; s.drawn.forEach(o => add(o.def, o));
+    parked = restoreList(saved, migrate, (id: string) => !!defOf(id), dropStale, (o: any) => usable(o.def), (o: any) => {
+      const before = list.length;
+      try { return add(o.def, o) != null } catch(e) { return list.length > before }
+    });
   };
   try { restore(JSON.parse(store.get(KEY) || '[]')) } catch(e) {}
   save();

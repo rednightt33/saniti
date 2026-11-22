@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 import uuid
 from urllib.parse import urlsplit,urlunsplit
@@ -204,3 +205,34 @@ class FakeOrc:
     def models(self,owner):self.model_reads=getattr(self,'model_reads',0)+1;return self.MODELS
     def progress(self,owner,id):return getattr(self,"PROGRESS",{}).get(id)
     def close(self):pass
+
+
+# ERRORS M543 (the Phase 4 checker's page-tests-records-2, its test-out wf_c72ae04c-a73): app/main.py serves each page's
+# frame from static/<page>-app, which only the image fills (Dockerfile COPY --from=... /build/<page>/dist ./static/...);
+# a local run or CI builds into <page>/dist, so a browser test whose shell opens a tab without pointing that folder at
+# the build got 404 for the frame (/backtest-app/, /admin-app/), caught by its Watch whenever the frame loaded before the
+# check: a failure in about half the runs, passed in CI only through EDGE_TEST_BROWSER_RERUNS. Every test that opens a
+# browser now gets every sub-app the image would hold: the mapping is read from the Dockerfile's COPY lines, so a new
+# page is covered when its COPY line is added. A folder the test points elsewhere itself (a stand-in, 'not-built')
+# keeps the test's own value (its setattr comes after this fixture); a folder already built in static/ is left as it is.
+DOCKERFILE = Path(__file__).resolve().parents[1] / 'Dockerfile'
+COPIED_BUILD = re.compile(r'^COPY --from=\S+ /build/(\S+) \./static/(\S+)\s*$', re.M)
+
+
+def image_builds():
+    """{static folder name: the page build the image copies there}, from the Dockerfile."""
+    root = DOCKERFILE.parent
+    return {folder: root / source for source, folder in COPIED_BUILD.findall(DOCKERFILE.read_text())}
+
+
+@pytest.fixture(autouse=True)
+def built_pages(request, monkeypatch):
+    if not opens_browser(request.node):
+        return
+    from app import main
+    builds = image_builds()
+    for name, value in list(vars(main).items()):
+        if name.endswith('_APP') and isinstance(value, Path) and value.parent == main.STATIC:
+            build = builds.get(value.name)
+            if build and not (value / 'index.html').is_file() and (build / 'index.html').is_file():
+                monkeypatch.setattr(main, name, build)

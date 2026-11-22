@@ -9,7 +9,7 @@
    server's words, each field's reason under that field. */
 import { AdminError } from './api.ts';
 import { actionsOf as auditActions, ago, bytes, changeOf, codeOf, count, day, endOf, fileName, fullName, nameOf, plural, reasonProblem,
-         REASON_CHARS, valueText, VIEW_LABEL, VIEWS, when, type View } from './model.ts';
+         REASON_CHARS, usageOf, valueText, VIEW_LABEL, VIEWS, when, type View } from './model.ts';
 import type { Account, AccountDetail, AdminApi, AuditRow, Overview, Plans, StepState, Ticket, TicketRow } from './types.ts';
 
 type Child = Node | string | number | null | undefined | false;
@@ -422,9 +422,11 @@ export function start(api: AdminApi, root: HTMLElement, opts: { ticket: number |
           h('td', { class: 'l' }, a.plan ?? '—'),
           h('td', { class: 'l' }, h('span', { class: `pill ${a.status === 'active' ? 'pos' : a.status === 'disabled' ? 'neg' : 'warn'}` }, a.status),
             a.test_account ? h('span', { class: 'pill' }, 'test') : null),
+          // CONTRACT 10's usage counters (the checker's page-tests-records-6): the total, each kind in its title
+          h('td', { class: 'num hide-sm usage', title: usageOf(a.usage).text }, count(usageOf(a.usage).total)),
           h('td', { class: 'l hide-sm nowrap', title: when(a.last_sign_in_at) }, a.last_sign_in_at ? ago(a.last_sign_in_at) : 'never')) as HTMLTableRowElement;
       });
-      const t = table(['#', 'Username', 'Name', 'Email', 'Plan', 'Status', 'Last sign-in'], trs, 'accounts');
+      const t = table(['#', 'Username', 'Name', 'Email', 'Plan', 'Status', 'Usage', 'Last sign-in'], trs, 'accounts');
       put(body, t, page.next ? h('div', { class: 'card-f' }, h('button', { class: 'btn sm', type: 'button',
         onclick: (e: Event) => { (e.currentTarget as HTMLButtonElement).disabled = true; void more(String(page.next)).catch(err => failed(err)) } }, 'Show more accounts')) : null);
     };

@@ -26,7 +26,7 @@ from .errors import Refusal, UnexpectedErrors, http_refusal, refusal, set_regist
 from .hooks import is_hook_path
 from .layouts import Layouts
 from .monitor import ModelCatalog, run_refusal, visible as visible_models
-from .auth_flows import AuthFlows
+from .auth_flows import AuthFlows, ended_here
 from .mailer import EmailSender
 from .preferences import Preferences
 from .presets import Presets
@@ -1097,11 +1097,7 @@ def create_app(settings=None, store=None, orc=None):
         response.delete_cookie(session_cookie, path='/', secure=settings.secure_cookie)
         if session_cookie != COOKIE:
             response.delete_cookie(COOKIE, path='/')
-        # 3f checker SERVE-2 (the lab gaps' optional row; the user's go 2026-11-22): the files the session's browser kept
-        # (a lab build's bundles and page files, kept as private, no-cache) leave its cache at sign-out, so the next person
-        # of the same browser finds none of them; the browser's storage is the shell's (edge-session.ts STORAGE)
-        response.headers['Clear-Site-Data'] = '"cache"'
-        return response
+        return ended_here(response)                  # 3f checker SERVE-2: the browser's cache of this site goes
 
     @app.post('/api/v1/runs', status_code=202)
     async def submit(body: RunInput, p: Principal = Depends(auth.need(MONITOR_CHAT, write=True))):

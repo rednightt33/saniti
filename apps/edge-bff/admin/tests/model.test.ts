@@ -1,7 +1,7 @@
 /* Phase 4, the admin page: its pure functions (src/model.ts). */
 import { describe, expect, it } from 'vitest';
 import { actionsOf, ago, bytes, changeOf, codeOf, count, day, endOf, fileName, nameOf, plural, queryOf, reasonProblem, ticketOf,
-         valueText, VIEWS, when } from '../src/model.ts';
+         usageOf, valueText, VIEWS, when } from '../src/model.ts';
 
 describe('the ticket of the address', () => {
   it('reads ?ticket=<id> alone or among other parameters, and nothing else', () => {
@@ -101,5 +101,16 @@ describe('the name an account is shown by', () => {
     expect(nameOf({ user_id: 4, username: null, requested_username: 'pat' })).toBe('pat (registering)');
     expect(nameOf({ user_id: 5, username: null, requested_username: null })).toBe('account #5');
     expect(nameOf({ user_id: 6, username: null })).toBe('account #6');
+  });
+});
+
+describe('an account\'s usage counters (the Accounts list, CONTRACT 10)', () => {
+  it('total every kind the server sends and name the non-zero ones, singular or plural', () => {
+    expect(usageOf({ backtest_jobs: 3, screener_items: 0, support_tickets: 1, watchlist_items: 1200 }))
+      .toEqual({ total: 1204, text: '3 backtest jobs · 1 support ticket · 1,200 watchlist items' });
+    expect(usageOf({ backtest_jobs: 0 })).toEqual({ total: 0, text: 'Nothing saved yet' });
+    expect(usageOf(undefined)).toEqual({ total: 0, text: 'Nothing saved yet' });
+    // a kind the page does not know yet is shown by its own name (derived from the server's keys)
+    expect(usageOf({ alerts: 2 })).toEqual({ total: 2, text: '2 alerts' });
   });
 });

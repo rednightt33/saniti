@@ -342,6 +342,9 @@ def test_an_account_is_shown_in_full_only_with_a_reason_and_the_audit_file_downl
     try:
         alice = make_user(store, 'alice_shown', 'alice-password', email='alice.shown@example.com')
         db(store, "UPDATE edge_bff.users SET phone_e164 = '+6281234567890' WHERE user_id = %s", alice['user_id'])
+        asker = type('P', (), {'user_id': alice['user_id'], 'plan_key': 'free'})()
+        for subject in ('First question', 'Second question'):          # two tickets: her usage in the list
+            SupportStore(store, settings).create(asker, 'question', subject, 'How do I read this?', {'page': '/terminal'}, [])
         uid = seed_id(store, beta)
         nonce = enrol(store, uid)
         with playwright.sync_playwright() as pw:
@@ -353,6 +356,15 @@ def test_an_account_is_shown_in_full_only_with_a_reason_and_the_audit_file_downl
                 f.locator('#code').fill(code_of(uid, nonce))
                 f.get_by_role('button', name='Open the admin page').click()
                 f.locator('#tab-accounts').click()
+                # CONTRACT 10's usage counters in the list (the checker's page-tests-records-6): a column over its
+                # numbers, each account's total, each kind named in the cell's title
+                row = f.locator('table.accounts tbody tr').filter(has=f.locator('.linklike', has_text='alice_shown'))
+                row.wait_for()
+                heads = f.locator('table.accounts thead th').all_inner_texts()
+                usage = row.locator('td.usage')
+                assert 'Usage' in heads and heads.index('Usage') == row.locator('td').evaluate_all(
+                    'cells => cells.findIndex(c => c.classList.contains("usage"))')
+                assert usage.inner_text() == '2' and usage.get_attribute('title') == '2 support tickets'
                 f.locator('table.accounts .linklike', has_text='alice_shown').click()
                 f.locator('#account-name', has_text='alice_shown').wait_for()
                 email_row = f.locator('.account .kv').filter(has=f.get_by_text('Email', exact=True))

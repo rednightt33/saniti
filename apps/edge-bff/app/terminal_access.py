@@ -171,12 +171,14 @@ def capabilities_header(p):
     """The header's value: compact ASCII JSON of capabilities(p), at most MAX_HEADER_BYTES. A longer one (a ticker list
     of more than about 900 names) is refused with 503 TERMINAL_UNAVAILABLE and logged, never cut short or dropped. A
     quota of 0 (terminal-api takes 1 to 10^9; leaving it out would give terminal-api's default, a wider one) answers 403
-    CAPABILITY_REQUIRED naming the limit, before terminal-api is asked: the plan allows none of it, so waiting would not
-    help (R1-22). A ticker of the plan outside terminal-api's rule is left out (capabilities) and logged here."""
+    naming the limit, before terminal-api is asked: the plan allows none of it, so waiting would not help (R1-22). A
+    call uses at least one unit of the quota, judged against an ended plan's own quota (R1-23: PLAN_EXPIRED when the
+    ended plan held one, renewing it is the way; else CAPABILITY_REQUIRED). A ticker of the plan outside
+    terminal-api's rule is left out (capabilities) and logged here."""
     caps = capabilities(p)
     for name, value in caps['quota'].items():
         if value < 1:
-            raise p.refusal(f'terminal.{name}')
+            raise p.refusal(f'terminal.{name}', amount=1)
     if not admin(p) and (dropped := _tickers(p)[1]):
         logger.warning(json.dumps({'event': 'terminal_tickers_dropped', 'owner_key': p.owner_key,
                                    'count': len(dropped), 'rule': TICKER.pattern}))
@@ -358,6 +360,11 @@ def relayed(p, status, data, headers, where):
             return Refusal(503, 'TERMINAL_UNAVAILABLE'), None
         return None, public_data(data)
     refused = refused_answer(status, data, headers, where)
+    if refused.code == 'CAPABILITY_REQUIRED':
+        # R1-23: terminal-api's own capability refusal is judged against the account's ended plan as edge-bff's are
+        # (PLAN_EXPIRED when that plan held it); terminal-api names no item or amount, so a list or a limit is judged
+        # by its row alone (Principal.ended_allows)
+        refused = p.refusal(refused.details['capability'])
     if p.guest and refused.code in ('CAPABILITY_REQUIRED', 'LIMIT_REACHED'):
         refused.details['visitor'] = True                        # errors.words: a visitor's sentence (C3-9)
     return refused, None

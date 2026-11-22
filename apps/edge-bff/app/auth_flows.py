@@ -103,6 +103,16 @@ class CheckedStep(NamedTuple):
     step: int
 
 
+def ended_here(response):
+    """The answer of a route that ends this browser's session (sign-out, sign-out everywhere, a finished password
+    reset): the files the session's browser kept (a lab build's bundles and page files, kept as private, no-cache) leave
+    its cache, so the next person of the same browser finds none of them (3f checker SERVE-2, the user's go 2026-11-22;
+    its test-out wf_c72ae04c-a73 found sign-out-all without it). The browser's storage is the shell's
+    (edge-session.ts STORAGE). A route that keeps this browser's session (a password change) does not call it."""
+    response.headers['Clear-Site-Data'] = '"cache"'
+    return response
+
+
 def invalid(reasons):
     """400 INVALID_INPUT naming each field and how to fix it (never its value)."""
     return Refusal(400, 'INVALID_INPUT', {'fields': list(reasons), 'reasons': reasons})
@@ -888,7 +898,7 @@ class AuthFlows:
             response = JSONResponse({'next': 'sign_in'})
             response.delete_cookie(session_cookie, path='/', secure=settings.secure_cookie)
             response.delete_cookie(reset_cookie, path=registration_at, secure=settings.secure_cookie)
-            return response
+            return ended_here(response)
 
         @app.post('/api/v1/auth/password/change')
         async def password_change(request: Request, _on=Depends(switched_on), p: Principal = Depends(auth.writer)):
@@ -939,7 +949,7 @@ class AuthFlows:
             await asyncio.to_thread(auth.accounts.revoke_all, p.user_id)
             response = JSONResponse({'authenticated': False})
             response.delete_cookie(session_cookie, path='/', secure=settings.secure_cookie)
-            return response
+            return ended_here(response)
 
         @app.post('/api/v1/auth/mfa/enroll')
         async def mfa_enroll(_on=Depends(switched_on), p: Principal = Depends(auth.second_factor_holder())):

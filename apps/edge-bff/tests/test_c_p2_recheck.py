@@ -75,6 +75,68 @@ def test_a_terminal_window_of_0_days_is_judged_against_the_ended_plans_own_windo
     assert p.refusal('terminal.history_days', *refused.asked).code == 'CAPABILITY_REQUIRED'
 
 
+def test_a_terminal_quota_of_0_is_judged_against_the_ended_plans_own_quota(on, store, monkeypatch):
+    """Test-out of R1-23 (wf_c72ae04c-a73, sign-in round:R1-23 "partly"): the same mechanism as the 0-day window, in
+    capabilities_header. A quota of 0 (the database refuses one: capability_value_check, 1 to 10^9; so 0 is only the
+    value of a limit that cannot be read) was refused with no amount, so an account whose ENDED plan held that quota was
+    told "upgrade" where renewing is the way. A call uses at least one unit of the quota (amount=1)."""
+    from app import terminal_access
+    rows = db(store, "SELECT plan_key, capability_key FROM edge_bff.plan_capabilities "
+                     "WHERE capability_key = ANY(%s) ORDER BY plan_key, capability_key",
+              [f'terminal.{name}' for name in terminal_access.QUOTA])
+    assert rows, 'no plan holds a Terminal quota row'
+    plan, name = rows[0]['plan_key'], rows[0]['capability_key'].split('.', 1)[1]
+    alice = make_user(store, 'alice_q0', 'alice-password')
+    subscribe(store, alice['user_id'], plan, starts="now() - interval '2 days'", expires="now() - interval '1 second'")
+    ended = Auth(on, store).owner_principal(alice['owner_key'])
+    bob = make_user(store, 'bob_q0', 'bob-password')                 # no plan ever ended: upgrading is the way
+    never = Auth(on, store).owner_principal(bob['owner_key'])
+    assert ended.expired_plan == plan and not never.expired_plan
+    real = terminal_access.capabilities
+    monkeypatch.setattr(terminal_access, 'capabilities', lambda q: {**real(q), 'quota': {**real(q)['quota'], name: 0}})
+    with pytest.raises(Exception) as renew:
+        terminal_access.capabilities_header(ended)
+    assert (renew.value.code, renew.value.details.get('expired_plan'), renew.value.details['capability']) == \
+        ('PLAN_EXPIRED', plan, f'terminal.{name}')
+    with pytest.raises(Exception) as upgrade:
+        terminal_access.capabilities_header(never)
+    assert upgrade.value.code == 'CAPABILITY_REQUIRED'
+
+
+def test_terminal_apis_own_capability_refusal_is_judged_against_the_ended_plan(on, store):
+    """The same class at the relay: terminal-api's 403 capability_required was rebuilt as CAPABILITY_REQUIRED without
+    the principal (refused_answer), so an account whose ended plan held that capability was told "upgrade". It is now
+    built by the principal (relayed -> p.refusal); terminal-api names no item, so a list is judged by its row alone."""
+    import httpx
+    from app import terminal_access
+    plan = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'terminal.dataset'
+        AND value = '{"all": true}'::jsonb ORDER BY plan_key LIMIT 1''')[0]['plan_key']
+    alice = make_user(store, 'alice_rel', 'alice-password')
+    subscribe(store, alice['user_id'], plan, starts="now() - interval '2 days'", expires="now() - interval '1 second'")
+    p = Auth(on, store).owner_principal(alice['owner_key'])
+    refused, data = terminal_access.relayed(p, 403, {'error': 'capability_required', 'capability': 'terminal.dataset:broker'},
+                                            httpx.Headers(), 'files')
+    assert data is None and (refused.code, refused.details.get('expired_plan')) == ('PLAN_EXPIRED', plan)
+
+
+def test_a_refusal_rebuilt_without_what_was_asked_never_turns_into_plan_expired(on, store):
+    """Why the `asked` carry of main.py refuse() cannot change an answer today (test-out R1-23: "turns no test red"):
+    refuse() rebuilds only a CAPABILITY_REQUIRED, so ended_allows(capability, item, amount) was false; without the item
+    or the amount ended_allows is true only where it is true for every item and amount (no row, or '*'), so the
+    rebuilt refusal is CAPABILITY_REQUIRED too. This locks that property for every capability of every plan, so a
+    change to ended_allows that breaks it (and would make the carry load-bearing) fails here."""
+    plans = [r['plan_key'] for r in db(store, 'SELECT DISTINCT plan_key FROM edge_bff.plan_capabilities ORDER BY 1')]
+    keys = [r['capability_key'] for r in db(store, 'SELECT DISTINCT capability_key FROM edge_bff.plan_capabilities ORDER BY 1')]
+    for i, plan in enumerate(plans):
+        user = make_user(store, f'asked{i}', 'asked-password')
+        subscribe(store, user['user_id'], plan, starts="now() - interval '2 days'", expires="now() - interval '1 second'")
+        p = Auth(on, store).owner_principal(user['owner_key'])
+        for key in keys:
+            for asked in ((None, None), ('BBCA', None), (None, 1), (None, 10 ** 9)):
+                if p.refusal(key, *asked).code == 'CAPABILITY_REQUIRED':
+                    assert p.refusal(key).code == 'CAPABILITY_REQUIRED', (plan, key, asked)
+
+
 # ---- 2. the most restrictive list is never shared between principals ------------------------------------------------
 
 def row_of(user_id, grants):

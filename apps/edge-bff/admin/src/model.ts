@@ -72,6 +72,16 @@ export function count(n: number | null | undefined): string {
   return typeof n === 'number' && Number.isFinite(n) ? Math.round(n).toLocaleString('en-US') : '—';
 }
 
+/** An account's usage counters (GET /api/v1/admin/users, each account's `usage`): the total and one line naming each
+    non-zero kind, from the keys the server sends (the page lists no kind itself), e.g. "3 backtest jobs · 1 support
+    ticket"; an account with none: total 0, "Nothing saved yet". */
+export function usageOf(usage: Record<string, number> | null | undefined): { total: number; text: string } {
+  const kinds = Object.entries(usage ?? {}).filter(([, n]) => typeof n === 'number' && Number.isFinite(n) && n > 0);
+  const total = kinds.reduce((sum, [, n]) => sum + n, 0);
+  const text = kinds.map(([k, n]) => `${count(n)} ${k.replace(/_/g, ' ').replace(/s$/, n === 1 ? '' : 's')}`).join(' · ');
+  return { total, text: text || 'Nothing saved yet' };
+}
+
 /** 1 image, 2 images */
 export const plural = (n: number, one: string, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
 

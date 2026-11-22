@@ -24,6 +24,7 @@ from conftest import FakeOrc
 from test_beta_live_site import db, live_of, sign_in_admin
 from test_edge import ORIGIN, login
 from test_3f_public_bundles import missing
+from test_auth_flows import on  # noqa: F401 - the fixture `on` (the switch on)
 from test_phase3a_gates import override, paid_user
 
 LAB_APPS = (('terminal-app', main.TERMINAL_CSP), ('backtest-app', main.BACKTEST_CSP))
@@ -324,3 +325,35 @@ def test_sign_out_clears_the_browsers_cache_of_this_site(settings, store):
         h = login(c)
         r = c.post('/api/v1/auth/sign-out', headers=h, json={})
         assert r.status_code == 200 and r.headers.get('clear-site-data') == '"cache"', r.headers
+
+
+def test_every_route_that_ends_this_browsers_session_clears_its_cache_and_a_password_change_does_not(on, store):
+    """Its test-out (wf_c72ae04c-a73, terminal-shell SERVE-2): POST /api/v1/auth/sign-out-all ended this browser's
+    session and deleted its cookie without Clear-Site-Data. Every route that ends this browser's session asks for it
+    (auth_flows.ended_here): sign-out, sign-out everywhere, a finished password reset. A password change keeps this
+    browser's session (its other sessions end), so it does not; nor does an admin action, which never targets the
+    admin's own account (admin.py OWN)."""
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+    from conftest import FakeOrc
+    from test_auth_flows import PASSWORD, cooldown_over, last_code, make_account
+    from test_edge import ORIGIN
+    application = create_app(on, store, FakeOrc())
+    application.state.auth_flows.pwned_fetch = lambda prefix: ''
+    with TestClient(application) as c:
+        h = {**ORIGIN, 'X-CSRF-Token': make_account(c, store).json()['csrf_token']}
+        changed = c.post('/api/v1/auth/password/change', headers=h, json={
+            'current_password': PASSWORD, 'password': 'another password', 'password_repeat': 'another password'})
+        assert changed.json() == {'status': 'PASSWORD_CHANGED'} and 'clear-site-data' not in changed.headers
+        everywhere = c.post('/api/v1/auth/sign-out-all', headers=h)
+        assert everywhere.json() == {'authenticated': False} and everywhere.headers.get('clear-site-data') == '"cache"'
+        h = {**ORIGIN, 'X-CSRF-Token': c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={
+            'login': 'ana_putri', 'password': 'another password'}).json()['csrf_token']}
+        out = c.post('/api/v1/auth/sign-out', headers=h, json={})
+        assert out.status_code == 200 and out.headers.get('clear-site-data') == '"cache"'
+        cooldown_over(store)
+        assert c.post('/api/v1/auth/password/forgot', headers=ORIGIN, json={'email': 'ana@example.com'}).status_code == 202
+        reset = c.post('/api/v1/auth/password/reset', headers=ORIGIN, json={
+            'email': 'ana@example.com', 'code': last_code(store, 'ana@example.com'), 'password': 'a third password',
+            'password_repeat': 'a third password'})
+        assert reset.json() == {'next': 'sign_in'} and reset.headers.get('clear-site-data') == '"cache"'

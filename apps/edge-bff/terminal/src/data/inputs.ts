@@ -71,6 +71,30 @@ export function restoreSaved<T extends { def: string }>(saved: unknown, migrate:
     .map(migrate).map(o => known(o.def) ? prepare(o) : o);
   return splitSaved(entries, o => known(o.def) && drawable(o));
 }
+/** The Terminal's restore of a saved list (src/app/indicators.ts restore, whose only logic is this call): each entry is
+    drawn when this build knows its definition and the ticker can feed it, else parked at its place; and an entry whose
+    migration, preparation or drawing throws is parked as it was saved too (its test-out, wf_c72ae04c-a73 CRIT-1: one
+    throwing build() ended the loop, and the save after the restore wrote the list without the entries after it). So the
+    list saved after a restore holds every entry that was saved: the drawn ones and the parked ones (withParked).
+    `draw` returns whether the entry is now held by the chart's list (it may throw after taking it: then it is held and
+    the caller says so). Returns the parked entries. */
+export function restoreList<T extends { def: string }>(saved: unknown, migrate: (o: T) => T, known: (id: string) => boolean,
+                                                      prepare: (o: T) => T, drawable: (o: T) => boolean,
+                                                      draw: (o: T) => boolean): { at: number; o: T }[] {
+  const parked: { at: number; o: T }[] = [];
+  const entries = (Array.isArray(saved) ? saved : [])
+    .filter((o): o is T => !!o && typeof o === 'object' && typeof (o as { def?: unknown }).def === 'string');
+  entries.forEach((raw, at) => {
+    let o = raw, held = false;
+    try {
+      o = migrate(raw);
+      if (known(o.def)) o = prepare(o);
+      held = known(o.def) && drawable(o) && draw(o);
+    } catch { held = false }
+    if (!held) parked.push({ at, o });
+  });
+  return parked;
+}
 /** the list to save: the drawn entries with the parked ones back at their places */
 export function withParked<T>(drawn: T[], parked: { at: number; o: T }[]): T[] {
   const out = [...drawn];

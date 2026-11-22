@@ -578,7 +578,9 @@ def test_the_admin_link_is_https_only_and_a_ticket_without_admin_email_is_logged
 
 def test_the_settings_hold_their_ranges(settings, monkeypatch):
     dataclasses.replace(settings, support_per_hour=1, support_per_day=1000, support_storage_mb=100000).validate()
-    for good in ('http://telegram-monitor.railway.internal:8080/notify', 'http://telegram-monitor.invalid/notify'):
+    # the beta's value has the first shape; a public host may leave its port out (the tests' stand-in, NOTIFY)
+    for good in ('http://telegram-monitor.railway.internal:8080/notify', 'http://telegram-monitor.invalid/notify',
+                 'https://notify.example.com/notify', 'http://notify.example.com:65535/notify'):
         dataclasses.replace(settings, telegram_notify_url=good).validate()
     for change in ({'support_per_hour': 0}, {'support_per_hour': 101}, {'support_per_day': 0}, {'support_storage_mb': 0},
                    {'admin_origin': 'http://admin.example.test'}, {'admin_origin': 'https://admin.example.test/admin'},
@@ -586,7 +588,20 @@ def test_the_settings_hold_their_ranges(settings, monkeypatch):
                    {'telegram_notify_url': 'ftp://telegram-monitor.invalid/notify'},
                    # the checker's deploy-3: no host, and a port reference that resolved empty
                    {'telegram_notify_url': 'http://:/notify'},
-                   {'telegram_notify_url': 'http://telegram-monitor.railway.internal:/notify'}):
+                   {'telegram_notify_url': 'http://telegram-monitor.railway.internal:/notify'},
+                   # its test-out (wf_c72ae04c-a73): a private host without its port (80 reaches nothing on Railway's
+                   # private network), port 0 and above 65535, a host '-' or with an empty label, an IPv6 literal, a
+                   # user part, a query, and a reference that did not resolve
+                   {'telegram_notify_url': 'http://telegram-monitor.railway.internal/notify'},
+                   {'telegram_notify_url': 'http://telegram-monitor.railway.internal:0/notify'},
+                   {'telegram_notify_url': 'http://telegram-monitor.railway.internal:99999/notify'},
+                   {'telegram_notify_url': 'http://-:1/notify'}, {'telegram_notify_url': 'http://a..b:8080/notify'},
+                   {'telegram_notify_url': 'http://.internal:8080/notify'},
+                   {'telegram_notify_url': 'http://[::1]:8080/notify'},
+                   {'telegram_notify_url': 'http://u@telegram-monitor.railway.internal:8080/notify'},
+                   {'telegram_notify_url': 'http://telegram-monitor.railway.internal:8080/notify?x=1'},
+                   {'telegram_notify_url': 'http://${{telegram-monitor.RAILWAY_PRIVATE_DOMAIN}}:8080/notify'},
+                   {'telegram_notify_url': 'http://telegram-monitor.railway.internal:${{telegram-monitor.PORT}}/notify'}):
         with pytest.raises(ValueError):
             dataclasses.replace(settings, **change).validate()
     monkeypatch.setenv('EDGE_SUPPORT_PER_HOUR', '0')                                 # an explicit 0 is not the default
