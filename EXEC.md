@@ -16129,7 +16129,7 @@ Order of the services (CONTRACT 17, rollback floors):
      Terminal's lock prompts replacing the TEMPORARY F1 stopgap, the example mode, the menus by plan);
   4. 3f, lab code out of the public bundles (CONTRACT 8b "3f");
   5. Phase 4, the admin page (CONTRACT 10: users, plan changes and extensions, disable, sessions, account deletion,
-     every action audited);
+     every action audited; account deletion dropped by the user on 2026-11-22, "Tidak usah ada opsi ini", ERRORS M535);
   6. the payment shell (CONTRACT 11, no real gateway);
      - **The user's direction (2026-11-22):** "Untuk kerangka pembayaran, rencananya kita akan pakai Mitrans. Dengan
        pembayaran QRIS atau virtual account. Kamu boleh lakukan research lebih dahulu ... Kemudian untuk halaman admin,
