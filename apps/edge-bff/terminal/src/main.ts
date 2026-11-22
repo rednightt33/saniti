@@ -40,6 +40,7 @@ import { initAssets } from './app/assets';
 import { askLocked, lockMark, lockWord, type LockedItem } from './app/locked';
 import { asTimeframe, isIntraday, periodsPerYear, tfLabel, tfTitle, type Timeframe } from './data/timeframe';
 import { keyedCharts, safeCharts } from './data/chartTime';
+import { dateFormat } from './data/intlCache';
 
 /* EXEC-TERMINAL-WM (user 2026-10-27: "time frame ditambah weekly dan monthly"), live: D, W and M. The page's sections
    take the candles once when they start, so another timeframe is remembered and the page loads again (its files come
@@ -129,7 +130,7 @@ function lockedPage(M: MarketData) {
    read as the ticker's first day */
 function historyNote(M: MarketData) {
   const c = $('chart'); if (!c || !M.history) return;
-  const after = new Date(M.history.after + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' }).replace('Sept', 'Sep');
+  const after = dateFormat('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' }).format(new Date(M.history.after + 'T00:00:00Z')).replace('Sept', 'Sep');
   const n = document.createElement('div');
   n.className = 'tf-note history-note';
   n.textContent = `Last ${M.history.days} days of history (after ${after})`;

@@ -6,6 +6,7 @@ import type { FlowRows } from '../calc/flow';
 import type * as LWC from 'lightweight-charts';
 import type { Bar, Combo, CompareSpec, Instrument, MarketData, Point, VolumePoint } from '../data/types';
 import { fromChart } from '../data/chartTime';
+import { numberFormat } from '../data/intlCache';
 
 export const $ = (id: string): any => document.getElementById(id);
 
@@ -20,7 +21,7 @@ export const store = {
 
 export const nfCompact = new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});
 /** EXEC-QA5-FIX (QA 2026-11-07, S-08): an axis tick keeps two decimals, so 1,250 reads 1.25K, not "1.3K" beside 1.3K */
-export const tickCompact = (v: number) => (v < 0 ? '−' : v > 0 ? '+' : '') + new Intl.NumberFormat('en-US', { notation:'compact', maximumFractionDigits:2 }).format(Math.abs(v));
+export const tickCompact = (v: number) => (v < 0 ? '−' : v > 0 ? '+' : '') + numberFormat('en-US', { notation:'compact', maximumFractionDigits:2 }).format(Math.abs(v));
 /** EXEC-QA5-FIX (S-09): the candles with any part on screen (a monthly candle half in view counts, as the eye reads it);
     the broker windows, the inventory panel and the Flow anchor share this one rule */
 export const visibleBars = (r: { from: number; to: number } | null, N: number): [number, number] =>

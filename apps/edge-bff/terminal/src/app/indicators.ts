@@ -18,10 +18,12 @@ import { withPicked } from '../data/brokerAgg';
 import { fits, inputsOf, needsOf, splitSaved, withParked, type Input } from '../data/inputs';
 import { newPaneId } from '../data/drawingsApi';
 import { StripSeries, STRIP_PANE_PX } from './stripSeries';
+import { followPointer, viewFollower } from './viewFollow';
+import { numberFormat } from '../data/intlCache';
 
 export function initIndicators(ctx: Ctx) {
   const { L, chart, ohlc, volume, N, closes, BOARDS, INVESTORS, allBrokers, makeFilter, IND_REG, Ind, volCtl, Hist, displayHooks, tipHooks } = ctx;
-  const NF = new Intl.NumberFormat('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  const NF = numberFormat('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
   const PALETTE = ['#171717', '#f5a623', '#7928ca', '#12a594', '#d6409f', '#0070f3', '#f23645', '#8f8f8f', '#089981'];
   const LINE_STYLES = { Solid:L.LineStyle.Solid, Dashed:L.LineStyle.Dashed, Dotted:L.LineStyle.Dotted };
   const UP = '#089981', DOWN = '#f23645';
@@ -558,6 +560,19 @@ export function initIndicators(ctx: Ctx) {
       if(has && later && i + 1 < pts.length && pts[i + 1].value === undefined) pts[i] = { ...pts[i], color:GAP };
       if(has) later = true }
     return pts };
+  /* U3 (EXEC-TERMINAL-LAG-2, measured before it entered): a line's data runs from its first to its last value; the bars
+     before its start (an anchor or start on the first candle in view) and after its end carry no point. setData of the
+     whole history was the cost of a recompute; whitespace inside the run stays (a gap is never bridged). A line with no
+     value at all keeps every bar as whitespace, as before. */
+  const inRange = (a: any[], f: (v: any, i: number) => any) => {
+    let lo = 0, hi = a.length - 1;
+    while(lo <= hi && (a[lo] === null || a[lo] === undefined)) lo++;
+    while(hi >= lo && (a[hi] === null || a[hi] === undefined)) hi--;
+    if(lo > hi) { lo = 0; hi = a.length - 1 }
+    const out: any[] = [];
+    for(let i = lo; i <= hi; i++) { const r = f(a[i], i); if(Array.isArray(r)) { for(const x of r) out.push(x) } else out.push(r) }
+    return out;
+  };
   function refreshMulti(inst) {
     const r = inst.def.reg, st = inst.style, p = inst.params, N2 = N, off = st.offset | 0, op = (st.opacity ?? 100) / 100;
     const ret = r.zone === 'overlay' && ctx.displayMode === 'return', base = closes[0], conv = v => ret ? (v / base - 1) * 100 : v;
@@ -585,19 +600,24 @@ export function initIndicators(ctx: Ctx) {
         const host = ctx.chartStyle === 'line' || ctx.displayMode === 'return' ? ctx.mainLine : ctx.candle;
         if(pt.plugin && pt.host !== host) { pt.plugin.detach(); pt.plugin = null }
         if(!pt.plugin) { pt.plugin = L.createSeriesMarkers(host, []); pt.host = host }
-        pt.plugin.setMarkers(keyedMarkers(vis ? a.flatMap((v, i) => v === 1 ? [{ time:T(i), position:'belowBar', color:c1, shape:'arrowUp', size:1 }] : []) : []));
+        pt.plugin.setMarkers(keyedMarkers(vis ? inRange(a, (v, i) => v === 1 ? [{ time:T(i), position:'belowBar', color:c1, shape:'arrowUp', size:1 }] : []) : []));
         return;
       }
+      /* U2 (EXEC-TERMINAL-LAG-2, user 2026-11-22): a line not drawn (the indicator hidden or folded, the output off) gets no
+         data. Sending the data (setData of every bar) is the cost of a recompute; the numbers themselves (inst.disp, above,
+         which the legend reads) are cheap and stay current, so the legend never shows an old value. Every path that shows
+         it again (eye, unfold, the output's switch, a setting) runs refresh, which sends the data then. */
+      if(!vis) { [pt.series, pt.series2].filter(Boolean).forEach(se => se.applyOptions({ visible:false })); return }
       if(pt.kind === 'hist' && pt.o.quad) {
         /* EXEC-DQ-SIZE (FL49): the quadrant's colour, the bar as tall as |Foreign| + |Domestic| */
         const size = (inst.raw && inst.raw[pt.o.size]) || [];
-        pt.series.setData(a.flatMap((v, i) => v === null || v === undefined || size[i - off] == null ? [{ time:T(i) }]
+        pt.series.setData(inRange(a, (v, i) => v === null || v === undefined || size[i - off] == null ? [{ time:T(i) }]
           : [{ time:T(i), value:size[i - off], color:alpha(quadColor(s, pt.o, v), op) }]));
         pt.series.applyOptions({ visible:vis });
       } else if(pt.kind === 'hist') {
         const rising = /rising/.test(pt.o.rule), states = s.states && /optional_state/.test(pt.o.rule), V = BARS.V;
         /* EXEC-QA5-FIX (QA 2026-11-07, agent 5 F1): a day without a value is a gap (whitespace), never bridged */
-        pt.series.setData(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [{ time:T(i), value:v,
+        pt.series.setData(inRange(a, (v, i) => v === null ? [{ time:T(i) }] : [{ time:T(i), value:v,
           color: states ? (i && a[i - 1] !== null ? alpha(STATE_COLORS[v >= a[i - 1] ? (V[i] >= V[i - 1] ? 0 : 2) : (V[i] >= V[i - 1] ? 3 : 1)], op) : c1)
                : rising ? (i && a[i - 1] !== null && v < a[i - 1] ? c2 : c1) : (v >= 0 ? c1 : c2) }]));
         pt.series.applyOptions({ visible:vis });
@@ -607,21 +627,21 @@ export function initIndicators(ctx: Ctx) {
         const m = Math.max(1, ...a.filter(v => v !== null && v !== undefined).map(v => Math.abs(v)));
         /* EXEC-FLOW-NEW-3 (FL49): a code's own colour (the quadrant), at full strength */
         const q = pt.o.quad;
-        pt.series.setData(a.map((v, i) => v === null || v === undefined ? { time:T(i) } : { time:T(i), value:1,
+        pt.series.setData(inRange(a, (v, i) => v === null || v === undefined ? { time:T(i) } : { time:T(i), value:1,
           color:q ? alpha(quadColor(s, pt.o, v), op) : alpha(v >= 0 ? s.color : (s.color2 || s.color), op * (.18 + .82 * Math.abs(v) / m)) }));
         pt.series.applyOptions({ visible:vis });
       } else if(pt.kind === 'cells') {
-        pt.series.setData(a.map((v, i) => v === null || v === undefined ? { time:T(i) } : { time:T(i), value:v, color:alpha(v >= 0 ? s.color : (s.color2 || s.color), op) }));
+        pt.series.setData(inRange(a, (v, i) => v === null || v === undefined ? { time:T(i) } : { time:T(i), value:v, color:alpha(v >= 0 ? s.color : (s.color2 || s.color), op) }));
         pt.series.applyOptions({ visible:vis });
       } else if(pt.kind === 'seg') {
-        const data = want => gapped(a.map((v, i) => v === null || dir[i] !== want ? { time:T(i) } : { time:T(i), value:conv(v) }));   // a transparent segment at every trend flip (whitespace alone is joined)
+        const data = want => gapped(inRange(a, (v, i) => v === null || dir[i] !== want ? { time:T(i) } : { time:T(i), value:conv(v) }));   // a transparent segment at every trend flip (whitespace alone is joined)
         pt.series.setData(data(1)); pt.series2.setData(data(-1));
         pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width }); pt.series2.applyOptions({ visible:vis, color:c2, lineWidth:s.width });
       } else if(pt.kind === 'dots') {
-        pt.series.setData(a.flatMap((v, i) => v === null ? [] : [{ time:T(i), value:conv(v), color:dir && dir[i] === -1 ? c2 : c1 }]));
+        pt.series.setData(inRange(a, (v, i) => v === null ? [] : [{ time:T(i), value:conv(v), color:dir && dir[i] === -1 ? c2 : c1 }]));
         pt.series.applyOptions({ visible:vis, color:c1, pointMarkersRadius:Math.max(1, s.width) });
       } else {
-        pt.series.setData(gapped(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [breaks.has(i + 1) ? { time:T(i), value:cv(v), color:GAP } : { time:T(i), value:cv(v) }])))   // a gap, not a bridge (agent 5 F1);
+        pt.series.setData(gapped(inRange(a, (v, i) => v === null ? [{ time:T(i) }] : [breaks.has(i + 1) ? { time:T(i), value:cv(v), color:GAP } : { time:T(i), value:cv(v) }])))   // a gap, not a bridge (agent 5 F1);
         pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width });
       }
       if(r.zone === 'overlay' && !own(pt)) [pt.series, pt.series2].filter(Boolean).forEach(se => se.applyOptions({ priceFormat:ctx.formatMode() }));
@@ -822,8 +842,9 @@ export function initIndicators(ctx: Ctx) {
       const value = sub ? Math.round(v) : +v.toFixed(4);
       return inst.sType === 'hist' ? { time:ohlc[i].time, value, color:v >= 0 ? inst.style.color : inst.style.colorNeg } : { time:ohlc[i].time, value };
     };
-    const pts = inst.vals.flatMap((v, i) => v === null ? [{ time:ohlc[i].time }] : [point(v, i)]);
-    inst.series.setData(inst.sType === 'line' ? gapped(pts) : pts);   // a gap, not a bridge
+    /* U2: a hidden or folded indicator gets its data when it is shown again (eye and unfold run refresh) */
+    if(drawn(inst)) { const pts = inst.vals.flatMap((v, i) => v === null ? [{ time:ohlc[i].time }] : [point(v, i)]);
+      inst.series.setData(inst.sType === 'line' ? gapped(pts) : pts) }   // a gap, not a bridge
     const o = { visible:drawn(inst) };
     if(inst.sType === 'line') Object.assign(o, { color:inst.style.color, lineWidth:inst.style.width || 2, lineStyle:LINE_STYLES[inst.style.lineStyle || 'Solid'] });
     inst.series.applyOptions(o);
@@ -871,33 +892,36 @@ export function initIndicators(ctx: Ctx) {
      "sangat laggy kalau di klik kiri kemudian drag"): a recompute (the whole series, setData, the legend) costs 100-200 ms,
      so the earlier "one per 120 ms while the view moves" (front-end audit I12) left no idle frame during a drag (live NTBK:
      80-step pan 19 s, 70 long tasks; after: 2 s, none) */
-  let viewTimer: any = 0;
+  /* U1 (EXEC-TERMINAL-LAG-2): and never while the pointer is still held (src/app/viewFollow.ts) */
   /* re-test R2-01: the same "in view" rule as the anchor itself (visibleBars), so a pan that moves the anchor recomputes */
   const firstVisibleIdx = () => visibleBars(chart.timeScale().getVisibleLogicalRange(), N)[0];
   const followView = () => {
-    viewTimer = 0;
     const fv = firstVisibleIdx();
     /* EXEC-FLOW-NEW-3: what each indicator follows (its first or last candle in view), from its definition */
     list.forEach(inst => { if(!inst.def.viewBound) return; const k = inst.def.viewKey ? inst.def.viewKey(inst.params) : inst.params.anchor === 'view' ? String(fv) : null;
       if(k !== null && inst.viewAt !== k) { inst.viewAt = k; recompute(inst) } });
   };
-  chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
-    if(!list.some(inst => inst.def.viewBound)) return;
-    clearTimeout(viewTimer); viewTimer = setTimeout(followView, 150);
-  });
+  const follow = viewFollower(followView);
+  followPointer(follow);
+  chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if(list.some(inst => inst.def.viewBound)) follow.moved() });
 
   function paintRow(inst, i = ctx.lastTipIdx) {
     if(!inst.row || (inst.def.multi && !inst.disp)) return;          // still being built
     const r = inst.row, ret = ctx.displayMode === 'return';
-    { const k = r.querySelector('.ind-k'), t = inst.def.title(inst.params); k.textContent = t; k.title = t }   // re-test R2-06: the full title on a narrow screen
+    /* U4 (EXEC-TERMINAL-LAG-2, user 2026-11-22): every row is painted on each crosshair move and pan frame; a text is
+       written only when it changed (an unchanged write still costs the browser a style and layout pass) */
+    const put = (el, prop: string, v) => { if(el[prop] !== v) el[prop] = v };
+    const t = inst.def.title(inst.params);
+    { const k = r.querySelector('.ind-k'); put(k, 'textContent', t); put(k, 'title', t) }   // re-test R2-06: the full title on a narrow screen
     const b = r.querySelector('b');
+    const html = (h: string) => { if(b._html !== h) { b.innerHTML = h; b._html = h; return true } return false };
     if(inst.def.multi) {                                     // one coloured value per visible output
       // QA F2-11: an output names itself only beside another visible output ("Silent Accumulation Silent Accumulation No")
       /* re-test R2-02: an output names itself beside another visible output, or when it is the only one shown but not the
          first (the one the title names: FL27's Net trigger, FL29's Balance %) */
       const onParts = inst.parts.filter(pt => inst.style.out[pt.o.k]?.on && !pt.o.hidden), many = onParts.length > 1 || (onParts.length === 1 && onParts[0] !== inst.parts[0]);
       const reg = inst.def.reg, dir = inst.disp.direction, overlay = reg.zone === 'overlay';
-      b.innerHTML = inst.parts.map(pt => {
+      let h = inst.parts.map(pt => {
         const s = inst.style.out[pt.o.k], v = inst.disp[pt.o.k][i];
         if(!s.on || pt.o.hidden || v === null || v === undefined) return '';
         const prev = inst.disp[pt.o.k][i - 1];
@@ -910,24 +934,25 @@ export function initIndicators(ctx: Ctx) {
           : overlay && pt.kind !== 'marker' && pt.o.scale !== 'right' ? (ret ? spec.change((v / closes[0] - 1) * 100) : ctx.priceText ? ctx.priceText(v) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
-      if(!b.innerHTML && inst.def.note && inst.on && inst.parts.some(pt => !pt.o.hidden)) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
+      if(!h && inst.def.note && inst.on && inst.parts.some(pt => !pt.o.hidden)) { const n = inst.def.note(i, inst.raw, inst.params); if(n) h = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
       if(inst.def.key && inst.on) { const qp = inst.parts.find(pt => pt.o.quad);
-        b.innerHTML = `<span class="ind-keys">${inst.def.key(qp ? (v: number) => quadColor(inst.style.out[qp.o.k], qp.o, v) : null)}</span>` + b.innerHTML }   // EXEC-DQ-SIZE: the colour key (FL49) before the reading
-      b.title = b.textContent || '';                       // QA R2-M4: the full value or note when the row is narrow
+        h = `<span class="ind-keys">${inst.def.key(qp ? (v: number) => quadColor(inst.style.out[qp.o.k], qp.o, v) : null)}</span>` + h }   // EXEC-DQ-SIZE: the colour key (FL49) before the reading
+      if(html(h)) b.title = b.textContent || '';          // QA R2-M4: the full value or note when the row is narrow
       /* QA round 4 (L2): the panel repeats the full title (shortened on the row) with the value or note */
-      const full = r.querySelector('.ind-fltnote'); if(full) { full.textContent = ''; const t = document.createElement('b'); t.textContent = inst.def.title(inst.params); full.append(t, document.createTextNode(b.textContent ? ` · ${b.textContent}` : '')) }
-      b.style.color = '';
+      const full = r.querySelector('.ind-fltnote'), ft = t + '\u0000' + b.textContent;
+      if(full && full._ft !== ft) { full._ft = ft; full.textContent = ''; const tb = document.createElement('b'); tb.textContent = t; full.append(tb, document.createTextNode(b.textContent ? ` · ${b.textContent}` : '')) }
+      put(b.style, 'color', '');
     } else if(inst.def.lines) {
-      b.innerHTML = (inst.lines || []).map(l => { const x = l.vals[i]; return `<span style="color:${l.color}">${l.id} ${x === null || x === undefined ? '' : inst.def.format(x)}</span>` }).join(' &nbsp;');
-      b.style.color = '';
+      html((inst.lines || []).map(l => { const x = l.vals[i]; return `<span style="color:${l.color}">${l.id} ${x === null || x === undefined ? '' : inst.def.format(x)}</span>` }).join(' &nbsp;'));
+      put(b.style, 'color', '');
     } else {
       const v = inst.vals ? inst.vals[i] : null, none = v === null || v === undefined;
-      b.textContent = none ? '' : inst.def.format(v);
-      b.style.color = v >= 0 ? inst.style.color : inst.style.colorNeg;
+      put(b, 'textContent', none ? '' : inst.def.format(v));
+      put(b.style, 'color', v >= 0 ? inst.style.color : inst.style.colorNeg);
     }
     r.classList.toggle('off', !inst.on);
     const eye = r.querySelector('[data-act="eye"]');
-    eye.setAttribute('aria-pressed', String(inst.on)); eye.dataset.label = inst.on ? 'Hide' : 'Show';
+    put(eye.dataset, 'label', inst.on ? 'Hide' : 'Show'); if(eye.getAttribute('aria-pressed') !== String(inst.on)) eye.setAttribute('aria-pressed', String(inst.on));
   }
 
   const HOVER_GRACE_MS = 500;

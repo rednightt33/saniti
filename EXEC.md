@@ -16841,3 +16841,21 @@ berhenti + cache tanggal; B: hanya cache tanggal); user: "Go" (dibaca sebagai A,
 - Kode: `apps/edge-bff/terminal/src/app/indicators.ts` (hitung ulang trailing 150 ms), `src/ui/calendar.ts` (`longDay`
   per tanggal). Bukti dan verifikasi: ERRORS M538. Alat ukur: `verification/terminal_api/drag_lag/drag_live.py`.
 - Rilis: `main` → edge-bff (beta) sesudah CI hijau; situs live tidak dipindah (hanya atas permintaan user).
+- 2026-11-22, sesudah pengukuran pembanding (kode lama di beta, BBCA: 4 indikator Loaders/Broker Inventory 22,7 s 71
+  long task; tanpa keempatnya 2,0 s 0 long task): user "saya setuju dengan solusi kamu untuk di execute" (rilis A
+  diteruskan) dan, atas usulan U1–U5 (CPU 4× lebih lambat dengan perbaikan A: setiap frame 60–100 ms, 1–8 kali macet
+  1,0–1,7 s di tengah drag, 1,0–1,5 s sesudah berhenti), user: "U1 + U2 + U4 go, U3 setelah diukur".
+  - U1: indikator yang mengikuti layar dihitung ulang sesudah tombol mouse/jari dilepas (roda/keyboard: 150 ms tanpa
+    gerakan seperti sekarang).
+  - U2: indikator yang disembunyikan atau dilipat tidak dihitung ulang; dihitung saat ditampilkan lagi bila layarnya
+    berubah.
+  - U4: format angka memakai ulang satu formatter per pilihan (bukan membuat baru setiap panggilan); judul legenda
+    ditulis hanya bila berubah. Tampilan tidak berubah.
+  - U3 (garis dikirim ke chart hanya dari tanggal mulainya): diukur dulu; masuk bila penghematannya terukur. Diukur
+    2026-11-22 (CPU 4× lebih lambat, keempat indikator tampil): jeda sesudah dilepas 0,9–1,4 s → 0,69–0,77 s, tampilan
+    identik (0 piksel berbeda di 4 posisi, `verification/terminal_api/drag_lag/compare_builds.py`): masuk.
+  - Ditemukan saat verifikasi dan ikut diperbaiki (bagian dari U1, judul harus sama dengan angka): tanggal hitungan
+    terakhir disimpan per instance, bukan per definisi (ERRORS M538 ronde 2). Dilaporkan, belum dikerjakan: judul Loaders
+    "Sell" saat Show = Loaders (M540), dan kebocoran koneksi di tes CI edge-bff (M539); keduanya menunggu user.
+  - U5 (hitungan indikator ke background worker): tidak sekarang.
+  - Rilis: `main` → edge-bff (beta) sesudah CI hijau; situs live tidak dipindah.

@@ -3,6 +3,7 @@
    for pixel (FRONTEND_ARCHITECTURE.md section 4). Never used for live figures. */
 import { BK_BASE, BK_BUMN, BK_FOREIGN, BROKSUM_PROFILE, CATALOG, INSTRUMENTS } from './fixtureConstants';
 import type { Bar, BrokerRow, Combo, MarketData, MarketEvent, Point, VolumePoint } from './types';
+import { numberFormat } from './intlCache';
 
 export function makeRng(seed: number) {
   let t = seed >>> 0;
@@ -135,7 +136,7 @@ function brokerFixture(): MarketData['broker'] {
 function mockEvents(SYMBOL: string, dates: string[], ohlc: Bar[]): MarketEvent[] {
   const TYPE_IDS = ['dividend', 'stocksplit', 'reversesplit', 'rightissue', 'bonus', 'rups', 'tenderoffer', 'warrant'];
   const addDays = (d: string, n: number) => new Date(Date.parse(d) + n * 864e5).toISOString().slice(0, 10);
-  const idr = (n: number) => 'Rp ' + Math.round(n).toLocaleString('en-US');
+  const idr = (n: number) => 'Rp ' + numberFormat('en-US').format(Math.round(n));
   const r = makeRng(hashSeed(SYMBOL) + 4242), n = dates.length, int = (a: number, b: number) => a + Math.floor(r() * (b - a + 1));
   const out: MarketEvent[] = [], at = () => r() < .5 ? int(n - 125, n - 6) : int(12, n - 6);      // about half fall inside the opening view
   const px = (i: number) => ohlc[i].close;

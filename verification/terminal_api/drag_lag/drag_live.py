@@ -1,6 +1,7 @@
 """Terminal drag lag on the beta (edge-bff dev), signed in as the owner (ERRORS M538): frame intervals, long tasks and a
 CPU profile (self and inclusive time per function) during a horizontal, a vertical and a diagonal pan of 80 steps.
-Credentials come from Railway into memory only (verification/screener/live_candles_dev.py), never printed.
+Credentials come from Railway into memory only (verification/screener/live_candles_dev.py), never printed; every
+write to the owner's settings is refused in the browser.
   TERMINAL_LOCAL=<dir>   serve a local build (vite build --minify false --outDir <dir>) in place of the live bundle:
                          the live page and data, readable function names in the profile
   OPEN_PANELS=1          open the Statistics and Broker activity panels first
@@ -58,6 +59,11 @@ def profile_top(profile, n=22):
 with sync_playwright() as pw:
     br = pw.chromium.launch(executable_path='/opt/pw-browsers/chromium', args=['--no-sandbox'])
     ctx = br.new_context(viewport={'width': 1600, 'height': 960}); p = ctx.new_page()
+    # the owner's settings are read, never written (the page saves its indicator list on load; EXEC-TERMINAL-LAG-2)
+    def no_writes(route):
+        if route.request.method != 'GET': return route.abort()
+        route.continue_()
+    ctx.route('**/api/v1/preferences**', no_writes); ctx.route('**/api/v1/terminal/**', no_writes)
     LOCAL = os.environ.get('TERMINAL_LOCAL')
     if LOCAL:                                   # serve the local unminified build in place of the live bundle
         import mimetypes

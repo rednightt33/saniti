@@ -8,6 +8,7 @@ import { UNIT } from '../data/timeframe';
 import { anchorTimeScale } from '../data/chartTime';
 import type { Ctx, FilterApi } from './context';
 import { $, cls, keyOf, nfCompact, rupiah, spin, store } from './context';
+import { dateFormat } from '../data/intlCache';
 
 /** EXEC-TERMINAL-CUM: where the Flow's cumulative line starts, live: 'view' = the first visible candle (Stockbit's F
     Flow), 'history' = the first session of the data (the line before 2026-10-27). */
@@ -194,7 +195,7 @@ export function initFlow(ctx: Ctx) {
           label kuning di judul"): the sessions after the broker data's last date are hatched on the Flow chart, and the
           Flow title carried "Broker through … · price …" until EXEC-TERMINAL-FULL (user 2026-10-27: "untuk A dihapus
           saja") ---- */
-  const weekdayDay = (t: string) => new Date(t + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' }).replace('Sept', 'Sep').replace(',', '');
+  const weekdayDay = (t: string) => dateFormat('en-GB', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' }).format(new Date(t + 'T00:00:00Z')).replace('Sept', 'Sep').replace(',', '');
   const through = ctx.M.through?.broker;                  // the broker data's own last date (the manifest)
   const brokerThroughText = () => through ? weekdayDay(through) : 'unknown';
   const noData = document.createElement('div'); noData.className = 'flow-nodata'; noData.hidden = true;
@@ -272,7 +273,7 @@ export function initFlow(ctx: Ctx) {
   let cumOn = store.get('ml.flow.cum') !== '0';
   // EXEC-TERMINAL-LAG: formatted once per session (toLocaleDateString on every crosshair move cost ~0.5 s per drag)
   const dmyCache = new Map<number, string>();
-  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i].slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace('Sept', 'Sep').replace(',', ''); dmyCache.set(i, s) } return i === N - 1 ? s + partial() : s };   // 28 Nov 2025
+  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = dateFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(dates[i].slice(0,10)+'T00:00:00Z')).replace('Sept', 'Sep').replace(',', ''); dmyCache.set(i, s) } return i === N - 1 ? s + partial() : s };   // 28 Nov 2025
   /* EXEC-QA5-FIX (QA 2026-11-07, Q10, agent 5 F10): the last weekly or monthly candle while its week or month is still
      running (its last session before Friday, or before the month's last weekday) says how many sessions it holds so far */
   const partial = () => {

@@ -1,5 +1,24 @@
 # Railway changelog
 
+## 2026-11-22 — Terminal drag lag, fix A on the beta (ERRORS M538, EXEC-TERMINAL-LAG-2)
+
+- **Commit `6cc859ee`:** the view-following indicators recompute once the view has settled (150 ms) and the legend dates
+  are formatted once per date (`c918a669`), with their records and `verification/terminal_api/drag_lag/drag_live.py`
+  (user 2026-11-22: "Go"; then "saya setuju dengan solusi kamu untuk di execute").
+- **CI on `main`:** Backend tests 45039209166 failed once on the edge-bff job, 1,183 passed and 1 error at a test's setup
+  ("too many clients" in the CI database; the same error on `27e33943`, a commit of documents only; ERRORS M539); the
+  same commit on the branch passed (45039207127). The failed job was rerun (attempt 2): success. The other workflows
+  (image builds 45039209149, generated files, look-ahead gate, page smoke) were green.
+- **Beta:** the automatic deployment `a5fb0155` was SKIPPED (its checks had failed). Before the manual deployment: M340
+  check, 0 EDGE jobs and 0 orc turns running. `serviceInstanceDeployV2` with commit `6cc859ee` → `edge-bff`
+  `431916ed` SUCCESS; `/ready` 200 on the beta and the live site; the served Terminal bundle holds the settle timer.
+- **Measured on the beta as served (BBCA, the owner's four view-following indicators shown, writes refused):** one-way
+  drags with no long task while the pointer is held, 0.19–0.28 s once released; before the fix the 80-step pan took
+  22.7 s with 71 long tasks.
+- **Live:** unchanged (`edge-bff-live` stays on `4b35b5ed`); moving `live` waits for the user's request.
+- **Not a large update:** no database change; no Postgres restart.
+- **Rollback:** redeploy `edge-bff` `bd2c4a84` (commit `259972a8`).
+
 ## 2026-11-22 — Phase 4 (the admin page and the contact-support panel) on the beta
 
 - **Commit `259972a8`:** Phase 4 (EXEC-MU-ACCOUNTS step 6 of the order approved with "Go" on 2026-11-20): the admin

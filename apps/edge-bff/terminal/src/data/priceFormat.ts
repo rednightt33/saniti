@@ -2,6 +2,7 @@
    instrument's own data, not a list): the price axis writes a price with thousands separators and as many decimals as the
    instrument's prices carry. IDX shares trade in whole Rupiah (0 decimals: 1,320), an index carries two (7,123.45), a bond
    keeps its three. Derived from the prices, so a new data source is covered without a code change. */
+import { numberFormat } from './intlCache';
 
 /** the fewest decimals (0..max) that write every price exactly; a price with more keeps `max` */
 export function priceDecimals(values: Iterable<number>, max = 4): number {
@@ -23,7 +24,7 @@ export function priceDecimals(values: Iterable<number>, max = 4): number {
 /** a price with thousands separators and exactly `decimals` decimals: 1,320 · 7,123.45 · 4.108 */
 export function priceText(v: number, decimals: number): string {
   if (!Number.isFinite(v)) return '';
-  return v.toLocaleString('en-US', { minimumFractionDigits:decimals, maximumFractionDigits:decimals });
+  return numberFormat('en-US', { minimumFractionDigits:decimals, maximumFractionDigits:decimals }).format(v);
 }
 
 /** the decimals of a bar list (open, high, low, close) */

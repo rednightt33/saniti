@@ -8,6 +8,7 @@ import { aggregate, avgPrice, fdQuadrant, fdShown, fdSplit, FD_QUADRANTS, SPLIT_
 import { atLeast } from '../calc/flow';
 import FLOW_REG from '../data/flowRegistry.json';
 import { fdPct, mapLimit, mapReadout, mapSvg, quadrantTag, type MapPoint } from './fdMap';
+import { dateFormat, numberFormat } from '../data/intlCache';
 
 /* EXEC-TERMINAL-FLOW-IND (user 2026-10-30: "Kita pakai B dulu ya which B: pakai batas Screener (6/10%), default Top 3"),
    live: the Bandar panel's verdict is the agreed bandar balance, Bandar Balance · % (FL24); its levels and Top N are read
@@ -297,9 +298,9 @@ export function initBroker(ctx: Ctx) {
 
   /* ---- state ---- */
   RS.d = BK_DAYS-1;
-  const bkFmtDay = d => { const t = new Date(bkDates[d]+'T00:00:00Z'); return t.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace('Sept', 'Sep') };
+  const bkFmtDay = d => { const t = new Date(bkDates[d]+'T00:00:00Z'); return dateFormat('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).format(t).replace('Sept', 'Sep') };
   // QA (2026-11-06): en-GB writes September "Sept"; the Terminal's other dates use three letters
-  const dayShort = d => new Date(bkDates[d]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'}).replace('Sept', 'Sep');
+  const dayShort = d => dateFormat('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'}).format(new Date(bkDates[d]+'T00:00:00Z')).replace('Sept', 'Sep');
   const cv = v => nfCompact.format(Math.abs(v));
   const sgn = v => { const c = cv(v); return c === '0' ? '0' : (v<0?'−':'+') + c };   // QA round 2: one minus sign; round 4 (L3): no "+0"
   const bkTag = (b) => `<span class="bk ${bkCat(b)}"><i></i>${b}</span>`;
@@ -402,7 +403,7 @@ export function initBroker(ctx: Ctx) {
          (value ÷ (lots × 100)), as the window's Avg buy / Avg sell; net value ÷ net lots is not a price (NI read 11,681 in
          a 2,660-2,950 period). The fixture keeps the reference (1:1 check) */
       const avg = live ? avgPrice(side==='b'?o.bv:o.sv, side==='b'?o.bl:o.sl) : lot ? Math.round(val/(lot*100)) : 0;
-      return `<tr data-b="${o.b}" class="${o.b===RS.broker?'sel':''}" data-tip="${o.b}|Buy ${live ? 'Rp ' : ''}${cv(o.bv)} · Sell ${live ? 'Rp ' : ''}${cv(o.sv)} · Net ${live ? sgn(netOf(o)).replace(/^([+−]?)/, '$1Rp ') : sgn(netOf(o))}"><td>${bkTag(o.b)}</td>${IDX ? '' : `<td>${cv(lot)}</td>`}<td class="${side==='b'?'up':'down'}">${cv(val)}</td>${IDX ? '' : `<td>${avg == null ? '–' : Math.round(avg).toLocaleString('en-US')}</td>`}</tr>`;
+      return `<tr data-b="${o.b}" class="${o.b===RS.broker?'sel':''}" data-tip="${o.b}|Buy ${live ? 'Rp ' : ''}${cv(o.bv)} · Sell ${live ? 'Rp ' : ''}${cv(o.sv)} · Net ${live ? sgn(netOf(o)).replace(/^([+−]?)/, '$1Rp ') : sgn(netOf(o))}"><td>${bkTag(o.b)}</td>${IDX ? '' : `<td>${cv(lot)}</td>`}<td class="${side==='b'?'up':'down'}">${cv(val)}</td>${IDX ? '' : `<td>${avg == null ? '–' : numberFormat('en-US').format(Math.round(avg))}</td>`}</tr>`;
     }).join('') || `<tr><td colspan="${IDX ? 2 : 4}" class="rp-empty">${!live ? 'Tidak ada data' : !list.length ? 'No broker trades in this period' : gross ? 'No trades on this side' : `No net ${side === 'b' ? 'buyer' : 'seller'}: ${buyers.length || sellers.length ? 'every other broker nets to 0' : 'every broker nets to 0 (crossing)'}`}</td></tr>`;
     // live: the average's side is named, with how it is computed (EXEC-QA5-FIX H1)
     const head = (side: 'b' | 's') => IDX ? `<thead><tr><th>Broker</th><th>Value</th></tr></thead>` : `<thead><tr><th>Broker</th><th>Lot</th><th>Value</th>${live ? `<th data-tip="${side === 'b' ? 'Avg buy|Buy value ÷ (buy lots × 100): the price the broker paid' : 'Avg sell|Sell value ÷ (sell lots × 100): the price the broker received'}">${side === 'b' ? 'Avg buy' : 'Avg sell'}</th>` : '<th>Avg</th>'}</tr></thead>`;
@@ -547,7 +548,7 @@ export function initBroker(ctx: Ctx) {
      starts before the broker data, that the data starts there */
   const invNote = (f: number, viewStart: string) => `Net ${RS.invUnit === 'lot' ? 'lots' : 'value'} bought since ${longDay(bkDates[f])}, the first session in view${viewStart < bkDates[0] ? ', where the broker data starts' : ''}. Not shares held.`;
   /* an axis date as the rest of the page writes it, "02 Jan", with its year when the span crosses one (re-test N-4) */
-  const axDay = (f: number, t: number, d: number) => { const x = new Date(bkDates[d] + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', timeZone:'UTC' }).replace('Sept', 'Sep');
+  const axDay = (f: number, t: number, d: number) => { const x = dateFormat('en-GB', { day:'2-digit', month:'short', timeZone:'UTC' }).format(new Date(bkDates[d] + 'T00:00:00Z')).replace('Sept', 'Sep');
     return bkDates[f].slice(0, 4) === bkDates[t].slice(0, 4) ? x : `${x} ${bkDates[d].slice(2, 4)}` };
   function renderInvLive(){
     const picks = [...invSel], r = ctx.chart.timeScale().getVisibleLogicalRange();
@@ -709,7 +710,7 @@ export function initBroker(ctx: Ctx) {
   }
 
   /* ---- wiring ---- */
-  $('rpSub').textContent = `${M.broker.label} · ${bkDates[RS.d].slice(8)} ${new Date(bkDates[RS.d]+'T00:00:00Z').toLocaleDateString('en-GB',{month:'short',timeZone:'UTC'}).replace('Sept', 'Sep')} ${bkDates[RS.d].slice(0,4)}`;
+  $('rpSub').textContent = `${M.broker.label} · ${bkDates[RS.d].slice(8)} ${dateFormat('en-GB',{month:'short',timeZone:'UTC'}).format(new Date(bkDates[RS.d]+'T00:00:00Z')).replace('Sept', 'Sep')} ${bkDates[RS.d].slice(0,4)}`;
   const renderAll = () => { renderBS(); renderAcc(); renderFD(); renderInv(); renderBD() };
   // EXEC-TERMINAL-PANELS C1: a period dragged on the chart applies to every panel (each can change it again)
   applyChartRange = (f, t) => { closeRangeCalendar(); [bsRange, accRange, fdRange, invRange, bdRange].forEach(r => r.setDates(f, t)) };

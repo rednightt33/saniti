@@ -4,8 +4,9 @@
      Harga 0 desimal · Perubahan tanda + 2 desimal · Nilai transaksi Rp + B (miliar) / T (triliun), never "M"
      Rasio 1-2 desimal + × · Indikator 1 desimal, parameter in parentheses: RSI (14)
    A value below 0.1 keeps three significant digits (an indicator of 0.0042 does not read 0.0). */
+import { numberFormat } from './intlCache';
 const NF = new Map<number, Intl.NumberFormat>();
-const nf = (d: number) => { let f = NF.get(d); if (!f) NF.set(d, f = new Intl.NumberFormat('en-US', { minimumFractionDigits:d, maximumFractionDigits:d })); return f };
+const nf = (d: number) => { let f = NF.get(d); if (!f) NF.set(d, f = numberFormat('en-US', { minimumFractionDigits:d, maximumFractionDigits:d })); return f };
 const ok = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v);
 const minus = (s: string) => s.replace(/^-/, '−');
 

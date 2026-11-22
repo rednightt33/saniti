@@ -461,13 +461,18 @@ export function initFlowIndicators(ctx: Ctx) {
     const marketWide = !r.params.some(q => q.key === 'scope' || q.key === 'top' || q.key === 'brokers' || q.key === 'inst') && r.params.some(q => q.key === 'investors');
     /* the date a value starts from: the anchor (default: the first candle in view) or a fixed start (Broker Inventory) */
     /* re-test R2-01: a start that follows the view is the one the last computation used (the title never runs ahead of the
-       numbers while the view moves) */
-    let usedStart: string | null = null;
-    const startOf = (p: any): string | null => {
-      const dq = r.params.find(q => q.kind === 'date');
-      if (dq) { const a = p?.[dq.key]; return a === 'view' || a == null ? usedStart ?? firstVisible() : String(a).slice(0, 10) }
-      return fixedStart ? usedStart ?? firstVisible() : null;
+       numbers while the view moves). EXEC-TERMINAL-LAG-2 (2026-11-22): kept per instance (its parameters object) and for
+       the end as well: two Loaders shared one value, so the one with fixed dates made the other's title follow the view
+       while its numbers waited for the view to settle (ERRORS M538) */
+    const used = new WeakMap<object, { start: string | null; end: string | null }>();
+    const usedOf = (p: any) => (p && typeof p === 'object' && used.get(p)) || null;
+    const startOf = (p: any, key: any = p): string | null => {
+      const dq = r.params.find(q => q.kind === 'date'), u = usedOf(key)?.start;
+      if (dq) { const a = p?.[dq.key]; return a === 'view' || a == null ? u ?? firstVisible() : String(a).slice(0, 10) }
+      return fixedStart ? u ?? firstVisible() : null;
     };
+    /* FL51's end: "view" is the last candle in view the last computation used */
+    const endOf = (p: any, key: any = p): string => (p?.end ?? 'view') === 'view' ? usedOf(key)?.end ?? lastVisible() : String(p.end).slice(0, 10);
     /* EXEC-BROKER-INV-PANEL: an indicator that counts from the first candle on screen (a fixed `start`) marks its 0 in the
        pane; the pane's own broker, board and investor buttons are the user's choice for Broker Inventory (2026-11-06) */
     const zeroLabel = r.place === 'pane' && fixedStart;
@@ -497,14 +502,15 @@ export function initFlowIndicators(ctx: Ctx) {
       outsOf:(p: any) => outs(fixedPlot ?? (['hist', 'line', 'strip', 'cells'].includes(p.plot) ? plotOf(p.plot) : plotDefault), p),
       compute:(p: any) => {
         if (emptyChoice(p)) return {};                 // nothing chosen: no line (the row says what to choose)
-        const q = { ...p };
-        if (q.anchor === 'view' || q.anchor == null) { q.anchor = firstVisible(); usedStart = q.anchor }
-        if (fixedStart) { q.start = firstVisible(); usedStart = q.start }
+        const q = { ...p }, u = { start:null as string | null, end:null as string | null };
+        if (p && typeof p === 'object') used.set(p, u);
+        if (q.anchor === 'view' || q.anchor == null) { q.anchor = firstVisible(); u.start = q.anchor }
+        if (fixedStart) { q.start = firstVisible(); u.start = q.start }
         /* a start date without an end (FL52's box: "In view" or a date picked on the chart) */
-        if (byKey.start?.kind === 'date' && !byKey.end) { if (q.start === 'view' || q.start == null) { q.start = firstVisible(); usedStart = q.start } else usedStart = null }
+        if (byKey.start?.kind === 'date' && !byKey.end) { if (q.start === 'view' || q.start == null) { q.start = firstVisible(); u.start = q.start } }
         /* FL51: a period of dates, each end "view" by default (the first and the last candle in view) */
-        if (byKey.end) { if (q.start === 'view' || q.start == null) { q.start = firstVisible(); usedStart = q.start } else usedStart = null;
-          if (q.end === 'view' || q.end == null) q.end = lastVisible() }
+        if (byKey.end) { if (q.start === 'view' || q.start == null) { q.start = firstVisible(); u.start = q.start }
+          if (q.end === 'view' || q.end == null) { q.end = lastVisible(); u.end = q.end } }
         /* FL52: a list still on its token (the panel's brokers not loaded yet) draws nothing until it is resolved */
         if (typeof q.brokers === 'string' && byKey.brokers?.default === q.brokers) { const c = brokersOf(q.brokers, q); if (!c.length) return {}; q.brokers = c }
         noLot(q);
@@ -565,7 +571,7 @@ export function initFlowIndicators(ctx: Ctx) {
         /* FL51: cost lines are the loaders'; with Sellers only there is none (audit U19) */
         if (byKey.end && p?.side === 'sell') return 'Cost lines are drawn for loaders; Sellers lists none';
         /* FL51: a candle after the period's end (the legend reads the last candle, the period ends at the last one in view) */
-        if (byKey.end) { const e = (p?.end ?? 'view') === 'view' ? lastVisible() : String(p.end).slice(0, 10); if (dates[di] && dates[di].slice(0, 10) > e) return `Period ends ${dayText(e)}` }
+        if (byKey.end) { const e = endOf(p); if (dates[di] && dates[di].slice(0, 10) > e) return `Period ends ${dayText(e)}` }
         /* QA M8, R2-M2 (2026-11-06): a value still empty because the indicator's window reaches before the first broker
            candle. The need is read from the indicator's own first value (exact for every formula); with no value yet it
            is the sum of its windows, said as "at least" */
@@ -631,9 +637,9 @@ export function initFlowIndicators(ctx: Ctx) {
         if (p.recent && p.baseline) parts.push(`last ${p.recent}${letter} vs ${p.baseline}${letter}`);
         else if (p.baseline && baseUsed) parts.push(`vs ${p.baseline}${letter}`);
         // the date the value starts from (QA F2-01: the anchor followed the zoom without being shown)
-        const start0 = startOf(p), fbd = firstBrokerDay(), start = start0 && fbd && start0 < fbd ? fbd : start0;   // re-test N5
+        const start0 = startOf(p, p0), fbd = firstBrokerDay(), start = start0 && fbd && start0 < fbd ? fbd : start0;   // re-test N5
         if (start) parts.push(`from ${dayText(start)}`);
-        if (byKey.end) { const e = (p.end ?? 'view') === 'view' ? lastVisible() : String(p.end).slice(0, 10); if (e) parts.push(`to ${dayText(e)}`) }
+        if (byKey.end) { const e = endOf(p, p0); if (e) parts.push(`to ${dayText(e)}`) }
         /* QA round 2/3 (open Low "units not written"): a figure in lots per trade says so (a lot/value choice is named by
            its select above, Rupiah figures carry "Rp" themselves) */
         if (r.unit === 'lot/tx') parts.push('lot per trade');

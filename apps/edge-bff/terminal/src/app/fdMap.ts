@@ -4,6 +4,7 @@
    so x + y = the Bandar verdict's ratio (Top brokers). The verdict's ±6%/±10% lines are not drawn (user 2026-11-06); the
    verdict tag above the map carries them. Values are percent. */
 import { FD_DP, FD_QUADRANTS, fdQuadrant, fdShown } from '../data/brokerAgg';
+import { dateFormat } from '../data/intlCache';
 
 export interface MapPoint { label: string; x: number; y: number; r: number; cur: boolean; tip: string; empty?: boolean }
 
@@ -90,7 +91,7 @@ export function mapReadout(cur0: MapPoint, all0: MapPoint[], open = true): strin
    per sesi (opsi A)"; "pake seperti HTML terlampir", verification/terminal_api/fd_map_expand/aaaa.html): the window's
    map with one point per session, a line through them, older points fainter, the newest larger and named "now" ---- */
 export interface TrailPoint { d: string; x: number; y: number; r: number; empty?: boolean; nf?: number; nd?: number; total?: number }   // nf, nd, total: Rupiah (A1)
-const dayOf = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', timeZone:'UTC' }).replace('Sept', 'Sep');
+const dayOf = (d: string) => dateFormat('en-GB', { day:'2-digit', month:'short', timeZone:'UTC' }).format(new Date(d + 'T00:00:00Z')).replace('Sept', 'Sep');
 
 /** each session's change from the session before, in percentage points, on the figures as shown (fdShown), so
     Δ verdict = Δ foreign + Δ domestic on screen too; the driver is the side that moved more (Foreign on a tie), none when
