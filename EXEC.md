@@ -16552,8 +16552,9 @@ Order of the services (CONTRACT 17, rollback floors):
           - **The user's decision (2026-11-22): "Siapa yang suruh kamu untuk buat opsi untuk bisa menghapus akun user?
             Tidak usah ada opsi ini."** No account deletion from the admin page: slice 6 is dropped and nothing of it
             was built. Its origin (ERRORS M535), told to the user: the re-check's R2-27 left to the user whether a
-            deletion is offered; the question of 2026-11-19 asked only what a deletion keeps ("ok rekomendasi"); the main
-            agent then carried the action into the fix round's records and the order approved with "Go" on 2026-11-20.
+            deletion is offered; the question of 2026-11-19 (item 6, "Saat akun pengguna dihapus: ... Setuju?") asked only
+            what a deletion keeps ("ok rekomendasi"); the main agent then carried the action into the fix round's records
+            and the order approved with "Go" on 2026-11-20.
             The user had not asked for it. The manual procedure of CONTRACT 10 stays the operator's, only with the
             user's go for each account. The same path brought the account menu's "Password and sign-in" dialog (R2-20,
             on the live site since the switch-on): named to the user, kept unless the user asks otherwise.

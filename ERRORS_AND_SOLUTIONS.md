@@ -8882,14 +8882,16 @@ in its staleness check.
 ### M535 — An account deletion action entered the Phase 4 plan although the user never decided that one is offered (2026-11-22; found by the user; FIXED: dropped before any code)
 
 - **Seen:** when the slice 6 design was about to be drafted, the user asked "Maksudnya menghapus akun apa? Akunnya apa
-  yang dihapus? Kenapa perlu akunnya dihapus?" and then "Siapa yang suruh kamu untuk buat opsi untuk bisa menghapus akun
-  user? Tidak usah ada opsi ini."
+  yang dihapus? Kenapa perlu akunnya dihapus?". The main agent's answer said the action was already in the plan by
+  "keputusan R2-27 (19 Nov) dan go Phase 4 (20 Nov)" and offered to build it now or later; the user answered "Siapa yang
+  suruh kamu untuk buat opsi untuk bisa menghapus akun user? Tidak usah ada opsi ini."
 - **Root cause (verified):** the re-check's R2-27 (`verification/edge_multiuser/access_tiers/recheck/r2_result.json`,
   its `approval_needed`) said "The user decides whether an account deletion is offered, and the retention of job inputs,
-  outbox rows and audit identifiers. Ask with context before Phase 4 and 6." The question put to the user on 2026-11-19
-  (`verification/edge_multiuser/fix_round/records.md`, item 3) asked only what a deletion keeps (the address's
-  `email_suppression` row, how long Phase 5 payment records are kept). Its answer, "ok rekomendasi", was read as a go
-  for the action: the fix round wrote "It is to be built as a Phase 4 admin action" (`recheck/fix_round_result.json`,
+  outbox rows and audit identifiers. Ask with context before Phase 4 and 6." The question the user saw on 2026-11-19
+  (item 6 of the decisions after the fix round; the agent's own list in `verification/edge_multiuser/fix_round/records.md`,
+  item 3) began "Saat akun pengguna dihapus:" and asked only what is kept (the bounced or spam-marked address with its
+  reason; payment records without identity for the legal period), then "Setuju?"; it named no admin action and did not
+  ask whether accounts are deleted at all. Its answer, "ok rekomendasi", was read as a go for the action: the fix round wrote "It is to be built as a Phase 4 admin action" (`recheck/fix_round_result.json`,
   R2-27), and the order approved with "Go" on 2026-11-20 named account deletion inside Phase 4 (`EXEC.md`, item 5). The
   decision whether to offer it was never asked.
 - **General class:** a decision the user owns ("whether X is offered") narrowed into a question about X's details, or
