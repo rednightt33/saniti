@@ -16832,3 +16832,12 @@ dipakai accross chat sebagai referencec?"
     phases are done (the user's words).
   - So the plan stays Phases 3c-3f, Phase 4 and the payment adapter skeleton, plus the beta/live split, with no extra
     guardrail work; round 2 of the re-check is resumed (the remaining finders, then three refuters per finding).
+
+## EXEC-TERMINAL-LAG-2 — drag chart Terminal laggy lagi (go 2026-11-22)
+
+User 2026-11-22: "Sync with latest main bisa? Coba cek bagian terminal kita, saat ini sangat laggy kalau di klik kiri
+kemudian drag kiri kanan atas bawah." Usulan dua pilihan (A: indikator yang mengikuti layar dihitung ulang sesudah layar
+berhenti + cache tanggal; B: hanya cache tanggal); user: "Go" (dibaca sebagai A, rekomendasi dan versi yang disiapkan).
+- Kode: `apps/edge-bff/terminal/src/app/indicators.ts` (hitung ulang trailing 150 ms), `src/ui/calendar.ts` (`longDay`
+  per tanggal). Bukti dan verifikasi: ERRORS M538. Alat ukur: `verification/terminal_api/drag_lag/drag_live.py`.
+- Rilis: `main` → edge-bff (beta) sesudah CI hijau; situs live tidak dipindah (hanya atas permintaan user).

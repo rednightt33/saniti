@@ -8894,6 +8894,36 @@ in its staleness check.
 - **Lesson:** a tool that reads `$_` to find itself breaks under any wrapper; when a version check contradicts
   `--version`, look at how the check finds the program before upgrading anything.
 
+### M538 — Terminal: drag kiri-kanan sangat laggy; indikator yang mengikuti layar dihitung ulang terus selama chart bergeser (2026-11-22, fixed)
+
+- **User 2026-11-22:** "Coba cek bagian terminal kita, saat ini sangat laggy kalau di klik kiri kemudian drag kiri kanan
+  atas bawah."
+- **Bukti (beta, login pemilik, NTBK, susunan indikator user; `verification/terminal_api/drag_lag/drag_live.py`, pan 80
+  langkah):** horizontal 19,0 s, 70 long task 14,4 s, frame p95 217 ms; vertikal mulus (0 long task). Profil CPU dengan
+  bundle lokal tanpa minify di halaman live: 14,36 dari 14,4 s di rantai `followView` → `recompute` → `refreshPlot` →
+  `refresh` → `refreshMulti` (setData seluruh seri 9,3 s; `showTip` → `paintRow` → `title` → `dayText` → `longDay`
+  6,3 s).
+- **Verified root cause:** (1) indikator yang mengikuti layar (`def.viewBound`, mis. Loaders "from … to …" yang memakai
+  candle pertama/terakhir yang terlihat) dihitung ulang setiap 120 ms selama chart bergeser
+  (`apps/edge-bff/terminal/src/app/indicators.ts`, scheduler front-end audit I12); satu hitung ulang (seluruh seri,
+  setData, legenda) memakan 100–200 ms, lebih lama dari jedanya, sehingga browser tidak punya frame kosong; (2) judul
+  legenda memformat tanggal dengan `toLocaleDateString` (`src/ui/calendar.ts` `longDay`) pada setiap gerakan crosshair dan
+  frame geser.
+- **Kelas masalah:** pekerjaan seukuran seluruh riwayat (hitung ulang seri, setData, format Intl) di handler interaksi yang
+  berulang (geser/zoom, crosshair). Kelas yang sama dengan EXEC-TERMINAL-LAG (2026-10-29: format tanggal tooltip Flow,
+  inventory per frame); jalur indikator yang mengikuti layar ditambahkan sesudahnya dan membawa kembali kelas itu.
+- **Solution:** indikator yang mengikuti layar dihitung ulang sekali, 150 ms sesudah layar berhenti bergeser (trailing,
+  untuk semua `def.viewBound`, dari definisinya; pola yang sama dengan panel Broker inventory); `longDay` menyimpan hasil
+  per tanggal (16 pemanggil). Garis Cumulative Flow Timeline tetap mengikuti langsung (biaya < 0,2 s per drag).
+- **Verifikasi:** halaman live dengan bundle perbaikan: horizontal 2,0–2,1 s, 0 long task, p95 16,8 ms; juga dengan panel
+  Statistics dan Broker activity terbuka (sebelumnya 20,9 s, 70 task). Hanya cache tanggal: 11,0 s, 69 task, p95 117 ms.
+  Sesudah drag berhenti, rentang judul indikator sama dengan candle tepi yang terlihat (selisih ≤ 1 sesi, ketelitian alat
+  ukur). tsc dan 1.003 vitest lulus.
+- **Status:** fixed; deploy beta dicatat di RAILWAY_CHANGELOG.md. Situs live (app.edgefinance.id) menerima perbaikan ini
+  hanya bila user meminta pemindahan `live`.
+- **Lesson:** handler `subscribeVisibleLogicalRangeChange` / `subscribeCrosshairMove` hanya melakukan pekerjaan sebesar
+  layar atau sekecil satu titik; pekerjaan sebesar seluruh riwayat menunggu layar berhenti; format tanggal/angka Intl
+  di jalur ini disimpan per nilai. Ukur drag dengan `drag_lag/drag_live.py` setelah menambah indikator yang mengikuti layar.
 ### M536 — The Phase 4 checker's 18 confirmed findings: an admin page acting with no known actor, a sign-in through the authenticator code losing its page, support limits applied after the work, and guards judged only at the present moment (2026-11-22; FIXED, on the beta since `259972a8`, edge-bff `bd2c4a84`; the live site does not serve the admin page)
 
 - **Found by:** the ultracode checker at xhigh over Phase 4 (workflow `wf_9a01b336-48e`: five lenses, one skeptic
