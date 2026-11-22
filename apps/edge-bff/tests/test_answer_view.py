@@ -11,7 +11,6 @@ import time
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import expect
 import uvicorn
 
 from app.main import create_app
@@ -380,6 +379,7 @@ def test_sources_list_the_answers_tables_with_an_export_request(fixture_server, 
     # MONITOR-REVAMP (AI_revamp.html): each part starts folded under its title and count; the tables part is opened
     tables = sources.locator('details.edge-source-fold').filter(has=page.locator('summary', has_text='Result tables'))
     assert tables.locator('.edge-section-count').inner_text() == '1' and not tables.evaluate('node => node.open')
+    from playwright.sync_api import expect  # here, not at the top: other suites import this module without a browser
     tables.locator('summary').click()
     # ERRORS M547: every read waits until the opened part shows its rows; read at once, a closed or redrawn part gave ''
     # (CI 45043526824; locally 1 run in 2 under load)
