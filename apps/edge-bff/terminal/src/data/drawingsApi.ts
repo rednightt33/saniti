@@ -11,7 +11,7 @@
    makes says them (ERRORS M532; the user, 2026-11-22: "3A", the Terminal stays silent when it opens). */
 import { savedClient, sendOnLeave, primeToken, LayoutApiError } from './layoutsApi';
 import { store } from '../app/context';
-import { edge, isLastLogin, loginKey, onReset } from '../../../shared/edge-session';
+import { edge, isLastLogin, loginKey, onReset, stampedCopy } from '../../../shared/edge-session';
 
 /* M468 (EXEC-MU-ACCOUNTS Phase 0): a copy kept in this browser is stamped with the login that wrote it,
    {"owner": login, "drawings": [...]}, and joins the account only for that login. A copy of the older form (a bare
@@ -36,6 +36,9 @@ export function stampCopy(text: string, login: string): string | null {
    another account when one signs in in another tab (C1 M2, C2 #3). Phase 1: the session's stable owner key. */
 const signedIn = () => edge.identity;
 const keepCopy = (local: string, text: string) => { const stamped = stampCopy(text, signedIn()); if (stamped !== null) store.set(local, stamped) };
+/* C3-6's remainder: a copy stamped with another owner (an account whose session ended into a visitor here, or another
+   account of this browser) is that owner's: this page neither shows, removes nor overwrites it */
+const foreign = (local: string) => { const v = store.get(local); return stampedCopy(v) && ownCopy(v, signedIn()) === null };
 
 const BASE = '/api/v1/terminal/drawings';
 const call = savedClient(BASE, 'drawing');
@@ -80,7 +83,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
   /* the plan's refusal: nothing of the drawings stays in this browser for it; its own words are said once, when the
      person draws (`quiet`: the read of a chart that opens, which the person did not ask for, says nothing) */
   const refused = (e: LayoutApiError, local?: string, quiet = false) => {
-    if (local) store.remove(local);
+    if (local && !foreign(local)) store.remove(local);
     locked = true;
     if (quiet || said) return; said = true;
     say(e.message, true);
@@ -97,7 +100,9 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     // Phase 1: the page's identity (owner:<owner key> once the session carries it, else the login), as the stamps hold
     const who = await edge.session().then(() => edge.identity, () => edge.identity);
     const mine = ownCopy(here, who);
-    if (here !== null && mine === null) store.remove(local);          // M468: another login's copy (or not a list)
+    // M468: a copy that is not this login's is dropped, except one stamped with its owner, which waits for that owner
+    // (C3-6's remainder: an account's unsynced drawings outlive its session ending into a visitor; shared/edge-session.ts)
+    if (here !== null && mine === null && !stampedCopy(here)) store.remove(local);
     if (sets instanceof LayoutApiError) { refused(sets, local, true); return '[]' }
     if (!sets) { unreachable(); return mine ? JSON.stringify(mine) : '[]' }
     const got = sets.get(s);
@@ -140,7 +145,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
 
   /** a change: written a moment after the last one (a drag sends many); kept in this browser if the account is away */
   function save(t: string, s: string, text: string, local: string) {
-    if (!fits(t, s)) { store.set(local, text); return }
+    if (!fits(t, s)) { if (!foreign(local)) store.set(local, text); return }
     const key = k(t, s), was = pending.get(key);
     if (was) clearTimeout(was.timer);
     const timer = setTimeout(async () => {

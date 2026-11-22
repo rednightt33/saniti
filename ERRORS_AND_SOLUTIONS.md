@@ -10288,6 +10288,20 @@ in its staleness check.
   counted; migration `20261119_071`).
 - **Tests:** `apps/edge-bff/tests/test_c3c_guest_recheck.py`, `test_c3c_guest_recheck_browser.py`,
   `test_c3c_guest_ceiling.py`.
+- **C3-6's remainder (2026-11-22; the fate trace `wf_539660fc-8ff`: the spec refuter's caution was not applied; the
+  user's group A "OK fix it"):** verified by reading the code: with guests on (the live site), an account's own 401
+  became a visitor through `clearUserState()`, which removed the account's M468 offline copies (drawings stamped with
+  their owner, kept while the account could not be reached), and the visitor's Terminal then removed or overwrote any
+  such copy left (`drawingsApi` load, the plan's refusal, an unfit set's save). So drawings made while the account
+  was unreachable were lost when its session ended there. Fixed in `apps/edge-bff/shared/edge-session.ts`
+  (`stampOwner`, `clearUserState({keepStampsOf})`: the visitor switch keeps the copies stamped with the account that
+  left, and an account signing in after a visitor keeps those stamped with itself; any other change of identity and a
+  sign-out clear them as before) and `terminal/src/data/drawingsApi.ts` (`foreign`: a copy stamped with another owner
+  is never shown, removed or overwritten). `static/edge-session.js` rebuilt. Tests:
+  `terminal/tests/data/guest_session.test.ts` (the visitor switch, the same account back, another account),
+  `tests/data/c_p1s_drawings_plan.test.ts` (another owner's copy under a refused plan); two mutations red; the earlier
+  rule that another account clears a stranger's copy (`c4_seed_phase0_mark.test.ts`) still holds. Holds on the live
+  site once it runs it.
 - **Status:** fixed; deployed on dev 2026-11-20 (edge-bff `b11278c3`); the Railway client-address probe OPEN (before the live site opens
   to visitors).
 - **Lesson:** a header that may repeat is read as all its lines; a person who is not signed in is still an identity of

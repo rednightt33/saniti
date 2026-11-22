@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=1de404cae8ea75a99325ac51588b014c848b0c7a1ca876f7727034e7d28309d3 by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=e5d0c840d609a78b31f946d7a20d54e1fd538e7c5345102217758e7895430f50 by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -57,7 +57,9 @@ var EdgeSession = (() => {
     reloadPage: () => reloadPage,
     retryAfter: () => retryAfter,
     sessionClient: () => sessionClient,
-    setRole: () => setRole
+    setRole: () => setRole,
+    stampOwner: () => stampOwner,
+    stampedCopy: () => stampedCopy
   });
   var STORAGE = Object.freeze([
     // the shell (static/index.html, static/edge-client.js)
@@ -186,12 +188,23 @@ var EdgeSession = (() => {
     } catch {
     }
   }
-  function clearArea(area, signOut) {
+  function stampOwner(value) {
+    if (!value || value[0] !== "{") return null;
+    try {
+      const v = JSON.parse(value);
+      return v && typeof v === "object" && typeof v.owner === "string" && v.owner ? v.owner : null;
+    } catch {
+      return null;
+    }
+  }
+  var stampedCopy = (value) => stampOwner(value) !== null;
+  function clearArea(area, signOut, keepStampsOf) {
     const s = areaOf(area);
     if (!s) return;
     for (const k of keysOf(s)) {
       if (k === LAST_LOGIN_KEY ? signOut : isUserKey(k, area)) {
         try {
+          if (!signOut && keepStampsOf && stampOwner(s.getItem(k)) === keepStampsOf) continue;
           s.removeItem(k);
         } catch {
         }
@@ -206,8 +219,8 @@ var EdgeSession = (() => {
       } catch {
       }
     });
-    clearArea("local", !!opts.signOut);
-    clearArea("session", !!opts.signOut);
+    clearArea("local", !!opts.signOut, opts.keepStampsOf);
+    clearArea("session", !!opts.signOut, opts.keepStampsOf);
     post({ type: "cleared", signOut: !!opts.signOut });
     const idb = (() => {
       try {
@@ -287,7 +300,7 @@ var EdgeSession = (() => {
     else if (upgraded) migrateIdentity(norm(login), now);
     const unknown = !was && !ownStamps && !seed && hasUserState();
     const changed = !!was && was !== now && !upgraded && !seed || unknown;
-    if (changed) clearUserState();
+    if (changed) clearUserState(was === GUEST_IDENTITY ? { keepStampsOf: now } : {});
     try {
       areaOf("local")?.setItem(LAST_LOGIN_KEY, now);
     } catch {
@@ -306,7 +319,7 @@ var EdgeSession = (() => {
       migrateBare(now);
       return false;
     }
-    clearUserState();
+    clearUserState(was === GUEST_IDENTITY ? { keepStampsOf: now } : {});
     return true;
   }
   var isLastLogin = (login) => !!norm(login) && lastLogin() === norm(login);
@@ -578,7 +591,7 @@ ${identity}`;
             reloadPage();
           }
           const was = lastLogin();
-          if (was && was !== GUEST_IDENTITY) void clearUserState();
+          if (was && was !== GUEST_IDENTITY) void clearUserState({ keepStampsOf: was });
           try {
             areaOf("local")?.setItem(LAST_LOGIN_KEY, GUEST_IDENTITY);
           } catch {

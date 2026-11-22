@@ -165,18 +165,31 @@ function post(message: Record<string, unknown>) {
 /** removes every `user` key of localStorage and sessionStorage and the `user` IndexedDB databases of this browser.
     `signOut` also removes the last-login mark (nothing of the account remains). Resolves when the databases are gone
     or, when a page still holds one open, once the browser has queued their removal (they go when that page closes). */
-function clearArea(area: 'local' | 'session', signOut: boolean) {
+/* C3-6's remainder (the open-items trace; the user's group A "OK fix it", 2026-11-22): a copy an account kept in this
+   browser while it could not be reached is stamped with its owner (M468: {"owner": <identity>, ...}, the Terminal's
+   drawings) and joins that account only (drawingsApi ownCopy). When the account's own session ends into a visitor on
+   this page, its stamped copies stay (the visitor's page neither shows, removes nor overwrites them, drawingsApi
+   foreign), and when an account signs in after a visitor, the copies stamped with that account stay for it. Any other
+   change of identity, and a sign-out, clears them as before (another account never keeps a stranger's copy). */
+export function stampOwner(value: string | null): string | null {
+  if (!value || value[0] !== '{') return null;
+  try { const v = JSON.parse(value); return v && typeof v === 'object' && typeof v.owner === 'string' && v.owner ? v.owner : null } catch { return null }
+}
+export const stampedCopy = (value: string | null): boolean => stampOwner(value) !== null;
+function clearArea(area: 'local' | 'session', signOut: boolean, keepStampsOf?: string) {
   const s = areaOf(area); if (!s) return;
   for (const k of keysOf(s)) {
-    if (k === LAST_LOGIN_KEY ? signOut : isUserKey(k, area)) { try { s.removeItem(k) } catch { /* storage off */ } }
+    if (k === LAST_LOGIN_KEY ? signOut : isUserKey(k, area)) {
+      try { if (!signOut && keepStampsOf && stampOwner(s.getItem(k)) === keepStampsOf) continue; s.removeItem(k) } catch { /* storage off */ }
+    }
   }
 }
 /* Phase 2: what a page holds in memory for its account (the catalog answers) goes with the user state */
 const memoryClears = new Set<() => void>();
-export function clearUserState(opts: { signOut?: boolean } = {}): Promise<void> {
+export function clearUserState(opts: { signOut?: boolean; keepStampsOf?: string } = {}): Promise<void> {
   memoryClears.forEach(fn => { try { fn() } catch { /* the others still run */ } });
-  clearArea('local', !!opts.signOut);
-  clearArea('session', !!opts.signOut);
+  clearArea('local', !!opts.signOut, opts.keepStampsOf);
+  clearArea('session', !!opts.signOut, opts.keepStampsOf);
   post({ type:'cleared', signOut:!!opts.signOut });
   const idb: IDBFactory | undefined = (() => { try { return globalThis.indexedDB } catch { return undefined } })();
   const names = STORAGE.filter(e => e.area === 'idb' && e.kind === 'user').map(e => e.key);
@@ -261,7 +274,8 @@ export function noteIdentity(login: string, ownerKey?: string | null, opts: { se
   if (seed) migrateBare(now); else if (upgraded) migrateIdentity(norm(login), now);
   const unknown = !was && !ownStamps && !seed && hasUserState();
   const changed = (!!was && was !== now && !upgraded && !seed) || unknown;
-  if (changed) clearUserState();
+  // after a visitor, the copies this account stamped before its session ended stay for it (C3-6's remainder)
+  if (changed) clearUserState(was === GUEST_IDENTITY ? { keepStampsOf:now } : {});
   try { areaOf('local')?.setItem(LAST_LOGIN_KEY, now) } catch { /* storage off: nothing of the account is kept either */ }
   return { changed, same:(!!was && (was === now || upgraded || seed)) || (!was && (ownStamps || seed)) };
 }
@@ -276,7 +290,7 @@ export function checkUser(login: string, ownerKey?: string | null, opts: { seed?
   if (!now || !was || was === now) return false;
   if (ownerKey && was === norm(login)) { migrateIdentity(was, now); return false }
   if (seedKeeps(was, now, opts.seed)) { migrateBare(now); return false }       // user #1 under its Phase 0 mark (C4)
-  clearUserState();
+  clearUserState(was === GUEST_IDENTITY ? { keepStampsOf:now } : {});
   return true;
 }
 
@@ -528,7 +542,7 @@ export function sessionClient(fetchImpl?: typeof fetch) {
         // here (its mark) goes before the visitor reads or writes any of it, and the visitor's mark is written, so the
         // next account's sign-in sees a change of identity and clears the visitor's keys (noteIdentity), never adopts them
         const was = lastLogin();
-        if (was && was !== GUEST_IDENTITY) void clearUserState();
+        if (was && was !== GUEST_IDENTITY) void clearUserState({ keepStampsOf:was });   // its stamped copies stay for it
         try { areaOf('local')?.setItem(LAST_LOGIN_KEY, GUEST_IDENTITY) } catch { /* storage off: nothing is kept either */ }
         if (!identity) identity = GUEST_IDENTITY;
         now = visitor;

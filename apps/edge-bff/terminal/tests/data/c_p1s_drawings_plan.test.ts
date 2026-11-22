@@ -88,3 +88,19 @@ describe('a plan without terminal.drawings, as the chart opens', () => {
     expect(said).toEqual([]);
   });
 });
+
+/* C3-6's remainder (the user's group A "OK fix it", 2026-11-22): a copy stamped with another owner (an account whose
+   session ended into a visitor here) is that owner's. A page of another identity, refused its own drawings, neither
+   shows, removes nor overwrites it; its own copy is still dropped as above. */
+describe('another owner\'s stamped copy, under a plan without terminal.drawings', () => {
+  it('is left as it is by the load, the refusal and the save', async () => {
+    const drawings = accountDrawings(() => {}, 0);
+    await edge.session();
+    const theirs = JSON.stringify({ owner:'owner:u_dddddddddddddddddddddddd', drawings:[{ id:'unsynced' }] });
+    local.setItem('ml.drawings.BBCA', theirs);
+    expect(await drawings.load('BBCA', 'chart', 'ml.drawings.BBCA')).toBe('[]');
+    drawings.save('BBCA', 'chart', '[{"id":"mine","kind":"trend-line"}]', 'ml.drawings.BBCA');
+    await new Promise(r => setTimeout(r, 30));
+    expect(local.getItem('ml.drawings.BBCA')).toBe(theirs);
+  });
+});

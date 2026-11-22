@@ -101,3 +101,41 @@ describe('the words of the box are the shell\'s (static/edge-labels.js EdgeLabel
     delete (globalThis as any).window;
   });
 });
+
+describe("C3-6's remainder: an account's stamped offline copy outlives its session ending into a visitor", () => {
+  it('keeps the copy stamped with its owner, clears the rest, and a sign-out clears it too', async () => {
+    const { clearUserState, stampedCopy } = await import('../../../shared/edge-session');
+    const stamped = JSON.stringify({ owner:'owner:u_0123456789abcdef01234567', drawings:[{ id:'d1' }] });
+    local.setItem(LAST_LOGIN_KEY, 'owner:u_0123456789abcdef01234567');
+    local.setItem('ml.drawings.BBCA', stamped);                      // kept while the account could not be reached
+    local.setItem('ml.drawings.TLKM', '[{"id":"old"}]');            // an unstamped copy of the older form
+    local.setItem('ml.symbol', 'BBCA');
+    expect(stampedCopy(stamped)).toBe(true);
+    expect(stampedCopy('[{"id":"old"}]')).toBe(false);
+    expect(stampedCopy('{"owner":""}')).toBe(false);
+    // the account's own 401 with guests: the page reads the visitor; the account's state goes, its stamped copy stays
+    const s = server(), c = sessionClient(s.f as any);
+    c.allowGuest();
+    await c.session();
+    await new Promise(r => setTimeout(r, 5));
+    expect(local.getItem('ml.drawings.BBCA')).toBe(stamped);
+    expect(local.getItem('ml.drawings.TLKM')).toBeNull();
+    expect(local.getItem('ml.symbol')).toBeNull();
+    expect(local.getItem(LAST_LOGIN_KEY)).toBe('guest:');
+    // the same account signs in again after the visitor: its copy stays for it (drawingsApi then moves it to the account)
+    const { noteIdentity } = await import('../../../shared/edge-session');
+    expect(noteIdentity('alice', 'u_0123456789abcdef01234567').changed).toBe(true);
+    expect(local.getItem('ml.drawings.BBCA')).toBe(stamped);
+    // a sign-out leaves nothing of an account behind
+    await clearUserState({ signOut:true });
+    expect(local.getItem('ml.drawings.BBCA')).toBeNull();
+  });
+  it('another account signing in after the visitor clears the first account\'s stamped copy', async () => {
+    const { noteIdentity } = await import('../../../shared/edge-session');
+    const stamped = JSON.stringify({ owner:'owner:u_0123456789abcdef01234567', drawings:[{ id:'d1' }] });
+    local.setItem(LAST_LOGIN_KEY, 'guest:');
+    local.setItem('ml.drawings.BBCA', stamped);
+    expect(noteIdentity('bob', 'u_bbbbbbbbbbbbbbbbbbbbbbbb').changed).toBe(true);
+    expect(local.getItem('ml.drawings.BBCA')).toBeNull();
+  });
+});
