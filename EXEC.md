@@ -16131,6 +16131,12 @@ Order of the services (CONTRACT 17, rollback floors):
   5. Phase 4, the admin page (CONTRACT 10: users, plan changes and extensions, disable, sessions, account deletion,
      every action audited);
   6. the payment shell (CONTRACT 11, no real gateway);
+     - **The user's direction (2026-11-22):** "Untuk kerangka pembayaran, rencananya kita akan pakai Mitrans. Dengan
+       pembayaran QRIS atau virtual account. Kamu boleh lakukan research lebih dahulu ... Kemudian untuk halaman admin,
+       boleh suggest kira-kira di halaman tersebut akan ada apa saja. Research dulu aja agar tidak bolak-balik." The
+       research: `verification/edge_multiuser/payments/MIDTRANS_RESEARCH.md` (the webhook carries our order number,
+       not a user id; QRIS and VA cannot renew automatically). Proposed to the user the same day with its open
+       choices; nothing built.
   7. the registration test window (above), last, after A2.
   Each phase as before: built in basic mode, the beta first, its checker in ultracode, the live site only on the user's
   request. Not in this list: the Postgres restart times (the user has not answered), the real payment method.
