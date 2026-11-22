@@ -1,0 +1,6 @@
+{
+  "note": "The commit each website runs, written at each deploy (AGENTS.md \"Findings and fixes\", rule 9; scripts/record_status.py reads it). beta: edge-bff (main); live: edge-bff-live (branch live).",
+  "beta": "259972a8cc327765d7956dec7d104863ad1f70b9",
+  "live": "4b35b5ed1d0f627cc257ad1f19f904c1adb902e3",
+  "recorded": "2026-11-22"
+}

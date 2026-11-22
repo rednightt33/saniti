@@ -100,8 +100,10 @@ causes of ERRORS M538 (verified findings left unsolved between phases, workflow 
    fixed and tested out alone; at most two rounds, then what remains goes into the register. CI is green as well. A
    fix that no agent other than its author tested out is not called done in a report.
 9. **Record statuses follow the deploys.** After a deploy the statuses of the entries it carries are updated in the same
-   task; a test compares the statuses that say "on the beta", "on the live site" or "not deployed" with what each site
-   runs.
+   task, and `verification/records/deployed_commits.json` gets the commits the beta and the live site run. A test
+   (`scripts/tests/test_record_status.py`, `.github/workflows/records-status.yml`, `scripts/record_status.py`) compares
+   the headings that say "not deployed", "on the branch" or "on the beta" with those commits; an entry with such a
+   heading cites its fix's commit.
 
 ## Questions to the user
 

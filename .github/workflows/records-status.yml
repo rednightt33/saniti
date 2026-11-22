@@ -1,0 +1,20 @@
+# AGENTS.md "Findings and fixes", rule 9 (the user, 2026-11-22): the statuses the ERRORS_AND_SOLUTIONS.md headings claim
+# follow the commits each website runs (verification/records/deployed_commits.json). Needs the full history; read-only.
+name: Record statuses follow the deploys
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  records:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pytest==8.4.2
+      - run: python -m pytest -q -rs scripts/tests/test_record_status.py

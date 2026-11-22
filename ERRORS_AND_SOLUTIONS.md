@@ -5393,7 +5393,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   there only the 0.5 s grace applies.
 - **Lesson:** a control revealed on hover needs a tolerance (time and area), and nothing beside it may change width
   while it is reachable.
-### M381 — Screener operators: a universe-attribute filter with ge, le, eq, ne or outside dropped every stock (2026-11-07, fixed on branch)
+### M381 — Screener operators: a universe-attribute filter with ge, le, eq, ne or outside dropped every stock (2026-11-07, on the live site)
 
 - **Found by:** QA3 (five-agent QA of EXEC-SCREENER-FLOW-CANDLES unit A, round 1), on the branch before any release.
 - **Symptom:** `metric_filters: [{op: 'ge', value: 130, metric: {kind: 'universe', attr: 'bars'}}]` kept 0 stocks
@@ -5409,7 +5409,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Lesson:** a rule that both the page and the worker apply lives in one module both import, never in two.
 - **Status:** FIXED on branch `claude/charming-hamilton-faq25e` (`58380855`), not released.
 
-### M382 — Screener operators: a flat window gave a z-score and a slope of floating-point noise (2026-11-07, fixed on branch)
+### M382 — Screener operators: a flat window gave a z-score and a slope of floating-point noise (2026-11-07, on the live site)
 
 - **Found by:** QA1 round 1.
 - **Symptom:** `zScore(Array(9).fill(0.15585714285714286), 7)` gave −0.926 instead of missing (601 of 1,200 flat
@@ -5426,7 +5426,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Lesson:** decide a degenerate case from the data, not from the arithmetic.
 - **Status:** FIXED on branch (`58380855`), not released.
 
-### M383 — Screener operators: window tests missed a price break in their own span; their chart markers disagreed with the cell (2026-11-07, fixed on branch)
+### M383 — Screener operators: window tests missed a price break in their own span; their chart markers disagreed with the cell (2026-11-07, on the live site)
 
 - **Found by:** QA2 round 1.
 - **Symptom:** "close > 1 at least once in the last 10 sessions" with an ex-date four sessions back had no
@@ -5499,7 +5499,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   changed): a queued request on the old snapshot answered 500. **Solution:** the old one goes after SCREENER_DEADLINE_MS
   + 1 s. **Status:** FIXED on branch (`6b93c7ac`), not released.
 
-### M384 — Screener operators: the preview misread operator cells; headers did not name the operator; one range for every measure (2026-11-07, fixed on branch)
+### M384 — Screener operators: the preview misread operator cells; headers did not name the operator; one range for every measure (2026-11-07, on the live site)
 
 - **Found by:** QA5 round 1 (real Chromium on the fixture build).
 - **Symptom:** "Why it passed" showed "Yes"/"No" for a rank and "-2.1" for a z-score the table showed as "−2.07σ"; four RSI
@@ -5645,7 +5645,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   row (Design Spec v1.2); the ⤢ window may sit partly off a phone's screen (it stays draggable; the panel is not shown
   on a phone); a saved FL09 "Top net sellers" now reads Top net buyers (the old choice never fired).
 
-### M398 — Screener page: a pattern opened on "Detected" (state) although its catalog default is the event within N (2026-11-07, fixed on branch; numbered M385 in its branch commits, renumbered at the merge as main had taken M385-M397)
+### M398 — Screener page: a pattern opened on "Detected" (state) although its catalog default is the event within N (2026-11-07, on the live site; numbered M385 in its branch commits, renumbered at the merge as main had taken M385-M397)
 
 - **Found by:** the P6 page test of the candlestick patterns (EXEC-SCREENER-FLOW-CANDLES P6), on the fixture catalog.
 - **Symptom:** a pattern whose catalog `default_test` is `{test: "event", within: 3}` (breakout, breakdown, macross,
@@ -5661,7 +5661,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   writes `{kind: "event", within: 3}`); the screener vitest suite.
 - **Status:** FIXED, live on dev 2026-11-08 (PR #62, merge `31572848`).
 
-### M399 — Screener patterns (P6), page side: no window operator on a pattern, side not shown, search blind to the group heading, Customize selects cut (2026-11-08, fixed on branch)
+### M399 — Screener patterns (P6), page side: no window operator on a pattern, side not shown, search blind to the group heading, Customize selects cut (2026-11-08, on the live site)
 
 - **Found by:** QA unit C (QA3 item 4, QA5 items 1, 2 and 4; the 15 candle questions, `verification/screener/qc15_20261108/`).
 - **Symptom:** no "K of N" or "N sessions in a row" on any pattern (breakout, volume spike, the 20 candles), although
@@ -9024,7 +9024,7 @@ in its staleness check.
   capability the user did not ask for, above all one that deletes, is named to the user as the agent's own proposal
   before it enters a plan.
 
-### M534 — The two-user route walk watched only the rows kept by an owner key: an account's rows kept by its user id (its support tickets) were outside it, and the admin routes had no ids (2026-11-22; FIXED on the branch)
+### M534 — The two-user route walk watched only the rows kept by an owner key: an account's rows kept by its user id (its support tickets) were outside it, and the admin routes had no ids (2026-11-22; on the beta)
 
 - **Seen:** the full local edge-bff run of slice 4a: `tests/test_two_users_every_route.py::test_b_reaches_nothing_of_a_on_any_route`
   refused the seven admin routes with path parameters ("add A's value for ['user_id'] to `ids` ..."), its own guard. A
@@ -9044,7 +9044,7 @@ in its staleness check.
 - **Lesson:** derive what an isolation test watches from every ownership column the schema has, and give each write the
   body that would act; an empty request proves nothing about the route.
 
-### M533 — The session branch's CI red on the contact-support panel's first commit: a hand count of the capabilities and the Screener document's pointers into main.py (2026-11-22; FIXED on the branch)
+### M533 — The session branch's CI red on the contact-support panel's first commit: a hand count of the capabilities and the Screener document's pointers into main.py (2026-11-22; on the beta)
 
 - **Seen:** `1e77efe8` on `claude/pensive-feynman-4ahfe3`: Backend tests run 44985088213, edge-bff job: `1 failed, 1118
   passed, 1 rerun` (`tests/test_plan_catalog.py::test_every_seed_capability_has_a_plain_meaning`: 49 capabilities, the
@@ -9093,7 +9093,7 @@ in its staleness check.
   (the open saying it, the silent read not marking the plan, the words said every time; the browser check on a build
   of the old code). The drawing tools are not locked: the person may still draw, and is told then.
 
-### M531 — The throttle's concurrency test failed in CI when its 24 counts crossed a minute's end (2026-11-21; FIXED on the branch)
+### M531 — The throttle's concurrency test failed in CI when its 24 counts crossed a minute's end (2026-11-21; on the live site)
 
 - **Seen:** Backend tests run 44926309750 on `c362055b`: `tests/test_auth_throttle.py::test_counts_are_atomic_under_concurrency`
   read `[8, 16]` where it asserted `[24]`; the other 1084 tests passed. Not a browser test, so no rerun (M510) applied.
@@ -9125,7 +9125,7 @@ in its staleness check.
   below its own (`min(384px, 100vw)`) and the toolbar wraps or scrolls inside its own row below 380 px; a browser test
   at 360 px for every page, sized by the design system's widths, that measures the document's scroll width.
 
-### M529 — The login provisioning script did not know the example table: every provisioned-login test red, and no backend run on the session branch had finished to show it (2026-11-21; FIXED on the branch)
+### M529 — The login provisioning script did not know the example table: every provisioned-login test red, and no backend run on the session branch had finished to show it (2026-11-21; on the live site)
 
 - **Symptom:** locally, `tests/test_backtest.py::test_provisioned_login_reaches_the_backtest_tables_with_their_migration`
   failed with `role "edge_bff_login" does not exist`; under it, `scripts/provision_edge_bff_login.py` had raised "EDGE
@@ -9149,7 +9149,7 @@ in its staleness check.
   same commit (its exact grants and its group). A cancelled CI run is not a green one: before stacking pushes, let one
   Backend tests run finish, or run the backend suite locally in full.
 
-### M528 — The example routes moved three SCREENER_ONBOARDING.md pointers into edge-bff's main.py: the look-ahead gate red on the session branch (2026-11-21; FIXED on the branch)
+### M528 — The example routes moved three SCREENER_ONBOARDING.md pointers into edge-bff's main.py: the look-ahead gate red on the session branch (2026-11-21; on the live site)
 
 - **Symptom:** the Backtest look-ahead gate's screener-worker job failed on `183a07eb` and `9f5deb03` (run
   `44900390826`): `tests/onboarding_pointers.test.ts` found `TERMINAL_ROUTES` on `apps/edge-bff/app/main.py:79`, not
@@ -9393,7 +9393,7 @@ in its staleness check.
 - **Lesson:** a check cached under one context stands for another only when that one is the widest; derive the widest
   from the lists of kinds and rights, never from one part of the context.
 
-### M525 — The image built the Backtest page without terminal/tsconfig.json, so the page it ships was not the page CI tests (2026-11-21; FIXED on the branch; predates 3f)
+### M525 — The image built the Backtest page without terminal/tsconfig.json, so the page it ships was not the page CI tests (2026-11-21; on the live site; predates 3f)
 
 - **Found by:** 3f's checker, round 2 (CRIT-4), by laying out each image stage from `git archive` and building it.
 - **Symptom:** CI's image build at 33c84c1f made the Backtest page `index-BliQA-_i.js`; the repository's build, which
@@ -9453,7 +9453,7 @@ in its staleness check.
   walk unvalidated input with a list of its own. V8's own `JSON.stringify` calls itself too, so such test bodies are
   written as text.
 
-### M523 — 3f's ultracode checker: the Web Worker files unfiltered, the comparison lag outside the filter, CI blind to most pages, and what still holds back the first lab item (2026-11-21; the fixes on the branch, the rest held)
+### M523 — 3f's ultracode checker: the Web Worker files unfiltered, the comparison lag outside the filter, CI blind to most pages, and what still holds back the first lab item (2026-11-21; the fixes on the live site since 2026-11-21, the rest held)
 
 - **Found by:** the ultracode checker of 3f (workflows `wf_c367c3bb-32e`, five finder lenses, and `wf_d88b23dd-8ad`, a
   skeptic per theme; every agent at xhigh). 48 findings: 32 confirmed and 16 partly confirmed, none refuted. M521 and
@@ -9647,7 +9647,7 @@ in its staleness check.
 - **Lesson:** a mark that decides access is checked on the real producer's output, not only on a fake that is written
   to carry it.
 
-### M519 — With both ways of the second factor locked, the MFA page offered the authenticator code again (2026-11-20; FIXED on the branch)
+### M519 — With both ways of the second factor locked, the MFA page offered the authenticator code again (2026-11-20; on the live site)
 
 - **Found by:** the full edge-bff suite on the 3e branch (1 failed, 1018 passed, 2026-11-20).
   `tests/test_auth_pages.py::test_mfa_locked_shows_the_message_the_unlock_time_and_the_ways_out` waited 5 s for the
@@ -9751,7 +9751,7 @@ in its staleness check.
   not a part of it. A lock on a part must cover every way into that part: buttons, shortcuts, remembered windows and
   restored items.
 
-### M517 — A stranger who knows an account's login or address could spend the owner's allowances: the lock, the code emails, the reset code (2026-11-20; BUILT, checked by ultracode at xhigh, its findings fixed, migrations applied on dev, on the beta `f8c872e0`; live on the user's request)
+### M517 — A stranger who knows an account's login or address could spend the owner's allowances: the lock, the code emails, the reset code (2026-11-20; BUILT, checked by ultracode at xhigh, its findings fixed, migrations applied on dev, on the live site `f8c872e0`; live on the user's request)
 
 - **Found by:** the live checker before the switch-on, finding A2 (M513). It was accepted for the pre-launch mode and
   is fixed before registration opens. The user's go of 2026-11-20 ("perbaikan A2", then "Go") made it item 2 of the
@@ -10391,7 +10391,7 @@ in its staleness check.
 - **Lesson:** a contract clause changes in the commit that changes the behaviour; a status is updated in place, never
   appended; a live comment frozen in an applied migration is reset by a forward migration.
 
-### M502 — Tests and CI that did not hold what they claimed: suites wired into no workflow, walks scoped by hand, membership standing in for behaviour, requirements held by no test (2026-11-18/19, re-check R1-15, R1-21, R1-27, R1-28, R1-39, R1-40, R1-44, R1-46, R2-40, and one found at integration; fixed on branch fix-int2, not deployed)
+### M502 — Tests and CI that did not hold what they claimed: suites wired into no workflow, walks scoped by hand, membership standing in for behaviour, requirements held by no test (2026-11-18/19, re-check R1-15, R1-21, R1-27, R1-28, R1-39, R1-40, R1-44, R1-46, R2-40, and one found at integration; fixed on fix-int2, on the live site since 2026-11-20)
 
 - **Symptom:**
   - CI never ran the shared session module's tests (Terminal vitest), the Overview, Radar and Watchlist page tests, or
@@ -10793,7 +10793,7 @@ in its staleness check.
   never rewrites a row another mode lets the user change; configuration that keys shared rows is the same value on
   every service, and the start log shows it.
 
-### M490 — Browser state did not follow a change of plan or of user: cached paints of an earlier plan, a shell that never re-read its session, a frame's sign-out unseen, a plan refusal kept as an offline copy, ticker-named keys surviving sign-out (2026-11-18/19, re-check R1-17, R1-19, R1-20, R1-38, R2-16, R2-17, R2-31; fixed on branch fix-int2, not deployed)
+### M490 — Browser state did not follow a change of plan or of user: cached paints of an earlier plan, a shell that never re-read its session, a frame's sign-out unseen, a plan refusal kept as an offline copy, ticker-named keys surviving sign-out (2026-11-18/19, re-check R1-17, R1-19, R1-20, R1-38, R2-16, R2-17, R2-31; fixed on fix-int2, on the live site since 2026-11-20)
 
 - **Symptom:**
   - the Screener's boot cache painted the last result and catalog of an earlier plan after the plan lost or narrowed
@@ -10904,7 +10904,7 @@ in its staleness check.
   workers, page-built conditions) and gate where it is shown; a catalog capability with no reader is a promise the
   code does not keep, so every seeded capability needs a route that reads it.
 
-### M487 — Under Phase 3c the free plan's Terminal drew nothing, not even BBCA (2026-11-19, re-check R2-32; fixed on branch fix-int2, not deployed; the fix replaced by the user's decision of 2026-11-19)
+### M487 — Under Phase 3c the free plan's Terminal drew nothing, not even BBCA (2026-11-19, re-check R2-32; fixed on fix-int2, on the live site since 2026-11-20; the fix replaced by the user's decision of 2026-11-19)
 
 - **Symptom:** a free account opening the Terminal under 3c saw no chart at all (`test_c2_e2e_people.py`, Chromium,
   the Terminal page built).
@@ -11087,7 +11087,7 @@ in its staleness check.
   refusals are rebuilt in the contract's shape (an upstream service's own account or key problem is never the user's
   session; a 429 carries its wait), and successful bodies pass the house filter.
 
-### M482 — EXEC-MU-ACCOUNTS Phase 3b: findings of the independent checkers C1-C3 (2026-11-17; FIXED, deployed 2026-11-17 on dev with the switch off: `main` `3698a8a4`, backtest-worker `3e27dd56`, screener-worker `77563efa`/`12810270`, edge-bff `335d78b3` SUCCESS; the user's check 2026-11-18 "aman"; O3b-1 and O3b-2 decided 2026-11-18, built in the 3b follow-up with 3c, on branch fix-int2, not deployed; the re-check's findings in these parts: M484, M488)
+### M482 — EXEC-MU-ACCOUNTS Phase 3b: findings of the independent checkers C1-C3 (2026-11-17; FIXED, deployed 2026-11-17 on dev with the switch off: `main` `3698a8a4`, backtest-worker `3e27dd56`, screener-worker `77563efa`/`12810270`, edge-bff `335d78b3` SUCCESS; the user's check 2026-11-18 "aman"; O3b-1 and O3b-2 decided 2026-11-18, built in the 3b follow-up with 3c, fixed on fix-int2, on the live site since 2026-11-20; the re-check's findings in these parts: M484, M488)
 
 Three checkers read the integrated Phase 3b against CONTRACT.md 8b only:
 - the workers W1 (backtest-worker, `1510261b`) and W2 (screener-worker, `e06dff77`);
@@ -11120,7 +11120,7 @@ The fix round's own tests are in `apps/edge-bff/tests/test_phase3b_fix_round.py`
   ranking, an exit rule, a built-in card. When a gate is written per id, list what each built-in option reads (here,
   `Calc.out` keys), not only the ids a request carries.
 
-### M481 — EXEC-MU-ACCOUNTS Phase 3a: findings of the independent checkers C1-C3 (2026-11-17; FIXED, deployed 2026-11-17 on dev with the switch off: `main` `24d6c70e`, edge-bff `49e7cf88` SUCCESS, migration job `3562a182`; the "C3 gaps" row fixed on branch fix-int2, not deployed, M502)
+### M481 — EXEC-MU-ACCOUNTS Phase 3a: findings of the independent checkers C1-C3 (2026-11-17; FIXED, deployed 2026-11-17 on dev with the switch off: `main` `24d6c70e`, edge-bff `49e7cf88` SUCCESS, migration job `3562a182`; the "C3 gaps" row fixed on fix-int2, on the live site since 2026-11-20, M502)
 
 Three checkers read the integrated Phase 3a (`257a1e4c`: B1 route gates and caps, B2 Monitor and page files) against
 CONTRACT.md only. C1 (security): nothing blocking the deploy, no route open without its capability; failing tests
