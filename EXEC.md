@@ -16623,6 +16623,10 @@ Order of the services (CONTRACT 17, rollback floors):
     to `verification/records/step8_ledger.json`): every confirmed checker finding of this execution with its fate; step
     8 tests out every row whose fix no other agent tested and settles every open row. Rule 8 is unchanged for later
     rounds unless the user says otherwise; until step 8 a fix of round 1 is reported as "fixed, not tested out".
+  - On deploys (2026-11-22): "Tolong untuk selanjutnya, deploy workflow harus dengan konfirmasi saya. masukkan ke
+    memori." → AGENTS.md "Deploys": every deploy (a push or fast-forward of `main`, moving `live`, a CLI upload, a
+    redeploy, `railway config apply`, a variable change that redeploys) waits for the user's confirmation for that
+    deploy, asked with what moves and which sites it reaches; this round's beta deploy included.
 - **The user's go for the rest of the round (2026-11-22): "Lanjutkan sisa pekerjaan, kemudian penutup putaran ya.. then
   proceed ke langkah 7. Aman?"** The rest (R1-5 A1, lab gap 3 and L11, the status test of rule 9), then the close (the
   re-check by five agents with the older fixes, the beta deploy with the shared workers' check against the live site's

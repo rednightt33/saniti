@@ -174,7 +174,9 @@ A question that only makes sense to someone who has read the earlier turns or EX
    - System prompt: when the rendered orc system prompt or the final-response schema changes (any prompt text in `apps/market-ai-orc/app/orchestrator.py`, any field description in `app/schemas.py`, or a prompt switch of the dev profile), record a snapshot in the same task with `scripts/snapshot_system_prompt.py record <name> --decision "<user's words and date>" --change "<what changed>"` (repository root, the orc venv). `prompts/SYSTEM_PROMPT_HISTORY.md` lists every version and how to fall back (user decision 2026-10-08). `apps/market-ai-orc/tests/test_prompt_history.py` fails when the code renders a prompt or schema the newest snapshot does not hold.
    - Errors: record every new error, defect or data problem in `ERRORS_AND_SOLUTIONS.md`: symptom, verified root cause, solution, status and lesson for new data (Part D). When a fix lands, update the entry's status in place; never delete entries. If the lesson changes how data must be shaped, update Part A too.
    - After a direct Railway dashboard or CLI configuration change, run `railway config pull --force` and `railway config plan` so `.railway/railway.ts` matches the live project.
-6. Run `git diff --check`, review the diff, commit, push `main`, and verify the branch matches `origin/main`.
+6. Run `git diff --check`, review the diff, commit and push the working branch. Push or fast-forward `main` only with
+   the user's confirmation for that deploy (section "Deploys" below: a push to `main` deploys), then verify the branch
+   matches `origin/main`.
 7. If the GitHub push fails, report the task as incomplete and explain what remains unpushed.
 
 ## Model and provider
@@ -229,7 +231,8 @@ Entries with `unit` "reading" (O5, user 2026-10-15) are readings of words the us
 the conversation's facts come first, and the model may still ask back.
 
 To change a value: edit its `"value"` in that file (keep `unit` and `means` true), run
-`pytest apps/market-ai-orc/tests/test_fastlane.py`, push `main` (orc redeploys itself; claim it only at `SUCCESS`), and
+`pytest apps/market-ai-orc/tests/test_fastlane.py`, push `main` with the user's confirmation (orc redeploys itself;
+claim it only at `SUCCESS`; section "Deploys"), and
 record the old and new value with the user's words in `EXEC.md` (EXEC-FASTLANE). Adding or removing an entry also
 changes the decisions note (`app/orchestrator.py`, `FASTLANE_DECISIONS_NOTE`) and its test. The standard lane never
 reads this table.
@@ -239,6 +242,22 @@ reads this table.
 Never commit secret values, database URLs, passwords, private keys, Railway tokens, Stockbit JWTs, or GitHub PATs. For a secret change, record only the variable name, Railway scope, action, and verification status. Redact secrets from logs and terminal output.
 
 Railway resolves a reference variable (`${{service.NAME}}`) when the referencing service is deployed. After a secret or any referenced variable changes at its source, list its consumers with `python3 scripts/railway_reference_consumers.py <service>.<NAME>` and redeploy each of them (`--redeploy`, with the user's approval for the change); a consumer left undeployed keeps the old value (ERRORS M308: web search refused for 13 days on the OpenRouter key of an older deploy). The script reads the consumers from the live project and prints names and references only.
+
+## Deploys
+
+User decision 2026-11-22: "Tolong untuk selanjutnya, deploy workflow harus dengan konfirmasi saya. masukkan ke
+memori." Every deploy waits for the user's confirmation, asked with context (what moves, which services and sites it
+reaches, what the live site sees) and given for that deploy; an earlier go or an approved plan is not a confirmation.
+A deploy is any action that starts a deployment of a Railway service:
+- a push, merge or fast-forward of `main` (the beta's `edge-bff` and every GitHub-connected service whose watch paths
+  it touches deploy from it: the shared workers, terminal-api, the publisher and market-ai-orc reach the live site
+  too);
+- moving `live` (the rules of "The live site" below hold as well);
+- a CLI upload (`railway up`, `deploy.sh`, the backtest-worker's upload), `railway redeploy`, a Run Now that deploys,
+  `railway config apply`, and a variable change that redeploys a service.
+Before asking, read what is already waiting: a deployment of another session in WAITING or BUILDING deploys by itself
+when its CI turns green (`railway deployment list`), and is named in the question. The session branch is pushed
+freely: no service deploys from it. A scheduled cron run and the user's own Telegram buttons are not deploys.
 
 ## The live site
 
