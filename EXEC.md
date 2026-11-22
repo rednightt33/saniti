@@ -16627,6 +16627,18 @@ Order of the services (CONTRACT 17, rollback floors):
     memori." → AGENTS.md "Deploys": every deploy (a push or fast-forward of `main`, moving `live`, a CLI upload, a
     redeploy, `railway config apply`, a variable change that redeploys) waits for the user's confirmation for that
     deploy, asked with what moves and which sites it reaches; this round's beta deploy included.
+  - The go for the close and step 7 (2026-11-22): "Oke, deploy beta dan promosi live go. Setelah itu lanjut ke langkah
+    7. Setelah seluruh tes aplikasi situs web selesai. Apabila ada error di tes, harap dicatat untuk perbaikan bisa
+    langsung dijalankan sebelum deploy beta dan promosi live go. Pengecekan perbaikan tersebut dilakukan di langkah 8.
+    Untuk pengecekan atau langkah 7 berkaitan dengan pembuatan kerangka pembayaran, harap disiapkan saja
+    infrastrukturnya. Untuk tesnya nanti kita buat fase tersendiri karena akun Mitrans belum siap." → after the full
+    edge-bff suite: a failure is recorded and fixed first (its test-out in step 8); then the beta deploy and the
+    promotion of `live` to the commit the beta runs (confirmed for this close; a new commit of another session on
+    `main` is named and asked again); step 7 builds the payment skeleton's infrastructure only, with no call to
+    Midtrans; its tests against a Midtrans account are a phase of their own once the account is ready.
+    And: "Keputusan yang masih terbuka seperti UD7 dan GA2, kunci open router yang kadaluarsa, harap di drop dan tidak
+    perlu di repeat lagi. Saya udah aware itu." → UD7, GA-2 and NC29 stay in the register, marked acknowledged, and are
+    not shown again at the end of a phase.
 - **The user's go for the rest of the round (2026-11-22): "Lanjutkan sisa pekerjaan, kemudian penutup putaran ya.. then
   proceed ke langkah 7. Aman?"** The rest (R1-5 A1, lab gap 3 and L11, the status test of rule 9), then the close (the
   re-check by five agents with the older fixes, the beta deploy with the shared workers' check against the live site's
@@ -16637,15 +16649,15 @@ Order of the services (CONTRACT 17, rollback floors):
 
   | Id | Decision or action of the user | Asked | Holds back | Needed by |
   |---|---|---|---|---|
-  | GA-2 | ops:F2 alerts: inside Railway, outside it (a GitHub Actions probe with the Telegram secrets the user adds), or both | 2026-11-22 with context | the alerting work | this round |
+  | GA-2 | (acknowledged by the user 2026-11-22, not shown again) ops:F2 alerts: inside Railway, outside it (a GitHub Actions probe with the Telegram secrets the user adds), or both | 2026-11-22 with context | the alerting work | this round |
   | UD3 | A fresh Stockbit token for the broker round (broker data stops at 9 Nov) | 2026-11-20 | Radar, Flow, Foreign 5D, broker presets, corporate actions | now |
-  | NC29 | The OpenRouter key expired 2026-11-22 03:55 UTC (ERRORS M545): extend or replace it and set `OPENROUTER_API_KEY` on market-ai-orc; then the consumers' redeploy | 2026-11-22 | the beta's AI, the web governor (refused now) | now |
+  | NC29 | (acknowledged by the user 2026-11-22, not shown again) The OpenRouter key expired 2026-11-22 03:55 UTC (ERRORS M545): extend or replace it and set `OPENROUTER_API_KEY` on market-ai-orc; then the consumers' redeploy | 2026-11-22 | the beta's AI, the web governor (refused now) | now |
   | UD1 | Railway usage: a soft-limit alert and a hard limit with headroom (three stops on record stop every service, the live site included) | not yet asked with context (a row of the 2026-11-22 report; excluded by the user 2026-11-19, "4 keputusan tambahan kamu jangan dimasukin", before the live site existed) | the live site's uptime | before step 9 |
   | UD2 | Written permission per data source (TradingView, Stockbit, IDX/KSEI) and for the logos the public site shows | not yet asked with context (a row of the 2026-11-22 report) | the public examples, launch | before step 9 |
   | UD4 | A backup schedule of the shared Postgres and one restore test | not yet asked with context (a row of the 2026-11-22 report; excluded by the user 2026-11-19 with UD1) | real accounts, payments | before step 9 |
   | UD5 | The Resend webhook and its secret on edge-bff-live (bounces and complaints) | 2026-11-20 | email standing | before step 9 |
   | UD6 | Privacy and terms texts (or an explicit acceptance that the window runs without them); R1-2's condition | 2026-11-20 | registration | before step 9 |
-  | UD7 | Enforce the per-client-address sign-in and send limits (SIGNIN_IP, SEND_IP) or a daily mail ceiling, now that the probe ran; the numbers | 2026-11-22 with context (group A's design questions, Q1) | R2-37, registration | this round |
+  | UD7 | (acknowledged by the user 2026-11-22, not shown again) Enforce the per-client-address sign-in and send limits (SIGNIN_IP, SEND_IP) or a daily mail ceiling, now that the probe ran; the numbers | 2026-11-22 with context (group A's design questions, Q1) | R2-37, registration | this round |
   | UD8 | M517's residual, part 1 (CONTRACT 6 "Residual"): strangers on three or more networks can spend an address's 10 code emails a day; a browser the account never signed in on then waits for the day; accept, or a challenge | 2026-11-21 | registration | before step 9 |
   | UD21 | M517's residual, part 2 (test-out 2026-11-22, ATK-1; held by `apps/edge-bff/tests/test_m517_residuals.py`): a stranger on the owner's own network (an office, a café, a mobile carrier's shared address) who knows the login fills, for a browser the account never signed in on there, the per-login limit (15 minutes) and that network's 4 code emails a day; reachable on the live site today for the admin's login (sign-in is open there), the owner's known browsers are not affected; accept, or a challenge | not yet asked with context (found by the test-out 2026-11-22) | registration, the admin's new devices | before step 9 |
   | UD22 | M517's residual, part 3 (test-out 2026-11-22, CW-2; held by `apps/edge-bff/tests/test_m517_residuals.py`): three registrations of the same address from three other client addresses push the owner's own pending registration out of the three a sign-in compares (`PENDING_CHECKED` 3), so its sign-in answers 401 and no restart email goes out; reachable only once registration opens (not on the live site today); compare every pending registration (one password check each, which a stranger can multiply), cap pending registrations per address, or accept | not yet asked with context (found by the test-out 2026-11-22) | registration | before step 9 |
