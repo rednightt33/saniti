@@ -15,7 +15,7 @@ import { keyedMarkers } from '../data/chartTime';
 import { onCandles } from '../data/timeframe';
 import { sumOverDays } from './flow';
 import { withPicked } from '../data/brokerAgg';
-import { fits, inputsOf, needsOf, splitSaved, withParked, type Input } from '../data/inputs';
+import { fits, inputsOf, needsOf, restoreSaved, withParked, type Input } from '../data/inputs';
 import { newPaneId } from '../data/drawingsApi';
 import { StripSeries, STRIP_PANE_PX } from './stripSeries';
 
@@ -1385,10 +1385,10 @@ export function initIndicators(ctx: Ctx) {
     }
     return { ...o, params };
   };
-  /* a saved list's entries: those this ticker can draw, the others parked (an unknown id is dropped, as before) */
+  /* a saved list's entries: those this ticker can draw, the others parked; an entry whose definition this build lacks is
+     parked too, never dropped (3f round 2 CRIT-1, data/inputs.ts restoreSaved) */
   const restore = (saved: any[]) => {
-    const known = saved.map(migrate).filter(o => defOf(o.def)).map(dropStale);
-    const s = splitSaved(known, o => usable(o.def));
+    const s = restoreSaved(saved, migrate, (id: string) => !!defOf(id), dropStale, (o: any) => usable(o.def));
     parked = s.parked; s.drawn.forEach(o => add(o.def, o));
   };
   try { restore(JSON.parse(store.get(KEY) || '[]')) } catch(e) {}

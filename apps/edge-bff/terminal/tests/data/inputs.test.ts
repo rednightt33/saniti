@@ -1,7 +1,7 @@
 // ERRORS M332 (user 2026-11-01, US10Y screenshot): an indicator is drawn only on a ticker that has every input it reads;
 // the inputs come from the loaded data, the needs from the definitions (data/inputs.ts)
 import { describe, expect, it } from 'vitest';
-import { fits, inputsOf, needsOf, splitSaved, withParked } from '../../src/data/inputs';
+import { fits, inputsOf, needsOf, restoreSaved, splitSaved, withParked } from '../../src/data/inputs';
 import IND from '../../src/data/indRegistry.json';
 
 const bars = (n: number) => Array.from({ length:n }, (_, i) => ({ time:`2026-01-${String(i + 1).padStart(2, '0')}`, open:1, high:2, low:0.5, close:1.5 }));
@@ -61,5 +61,40 @@ describe('the saved list across tickers', () => {
     expect(withParked([...drawn, { def:'ema' }], parked).map(o => o.def)).toEqual(['rsi', 'FL24', 'obv', 'sma', 'FL01', 'ema']);
     // one removed on the bond page: the parked stay
     expect(withParked([drawn[1]], parked).map(o => o.def)).toEqual(['sma', 'FL24', 'obv', 'FL01']);
+  });
+});
+
+describe('restoreSaved (3f round 2 CRIT-1: a saved entry the build lacks is parked, never dropped)', () => {
+  // the admin's synced layout from the lab build: a lab indicator (I_LAB) between released ones; the public build (the
+  // live site) knows only the released ones. A session there saves the list; the lab build must find it unchanged.
+  const saved = [{ def:'rsi', params:{ length:14 } }, { def:'I_LAB', params:{ k:3 } }, { def:'sma' }, { def:'FL24' }];
+  const publicBuild = (id: string) => ['rsi', 'sma', 'FL24', 'ema'].includes(id);
+  const same = <T,>(o: T) => o;
+  it('parks the unknown entry at its place, so the saved list round-trips', () => {
+    const { drawn, parked } = restoreSaved(saved, same, publicBuild, same, () => true);
+    expect(drawn.map(o => o.def)).toEqual(['rsi', 'sma', 'FL24']);
+    expect(parked).toEqual([{ at:1, o:saved[1] }]);
+    expect(withParked(drawn, parked)).toEqual(saved);
+  });
+  it('the lab build draws it again from what the public build saved', () => {
+    const fromPublic = withParked(...Object.values(restoreSaved(saved, same, publicBuild, same, () => true)) as [any, any]);
+    const lab = restoreSaved(fromPublic, same, (id: string) => publicBuild(id) || id === 'I_LAB', same, () => true);
+    expect(lab.drawn.map(o => o.def)).toEqual(['rsi', 'I_LAB', 'sma', 'FL24']);
+    expect(lab.parked).toEqual([]);
+  });
+  it('is what the Terminal restores its saved list with (src/app/indicators.ts)', async () => {
+    // @ts-expect-error: the Terminal's tsconfig has no Node types; vitest runs in Node
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../../src/app/indicators.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/const restore = \(saved: any\[\]\) => \{\s*const s = restoreSaved\(saved, migrate,/);
+    expect(src).not.toMatch(/filter\(o => defOf\(o\.def\)\)/);          // the old drop of an unknown entry
+  });
+  it('migrates first, prepares only the known, drops what is not an entry', () => {
+    const migrate = (o: any) => o.def === 'ma' ? { ...o, def:'sma' } : o;
+    const prepare = (o: any) => ({ ...o, prepared:true });
+    const { drawn, parked } = restoreSaved([{ def:'ma' }, { def:'I_LAB' }, null, 'x', { def:7 }], migrate, publicBuild, prepare,
+      () => true);
+    expect(drawn).toEqual([{ def:'sma', prepared:true }]);
+    expect(parked).toEqual([{ at:1, o:{ def:'I_LAB' } }]);
   });
 });

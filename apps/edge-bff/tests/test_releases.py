@@ -98,9 +98,10 @@ LAB_ITEM_HELD_UNTIL = (
     'terminal/src/lab in both engine versions (checker TR-2, B3)',
     # checker L5 (the live site runs 3f's server part) closed 2026-11-21: `live` 4b35b5ed holds ec1bd29c
     # 3f round 2 of the checker (ERRORS M523)
-    "the Terminal keeps a saved chart entry whose definition its build lacks, as it keeps a locked one, so one public "
-    "build session of the admin's own account (the live site always serves it; the preferences are shared) no longer "
-    "deletes the admin's lab indicators from the synced layout ml.ind.v1 (round 2, CRIT-1)",
+    # round 2, CRIT-1: built 2026-11-22 (terminal data/inputs.ts restoreSaved, the user's go); it holds once the live
+    # site, whose public build deletes the entry today, runs it (AGENTS.md "Findings and fixes", rule 1)
+    "the live site runs the Terminal that parks a saved entry its build lacks (data/inputs.ts restoreSaved; until "
+    "`live` is past that commit, one public-build session of the admin deletes its lab indicators from ml.ind.v1)",
     # round 2, CRIT-3 (an item the shipped code names) closed 2026-11-22: test_an_item_the_shipped_code_names_is_never_lab
     # the example-mode checker (ERRORS M527, records-promotion-3); built 2026-11-22 (app/examples.py released_view, the
     # user's go): it holds for the live site only once the live site runs it (AGENTS.md "Findings and fixes", rule 1)

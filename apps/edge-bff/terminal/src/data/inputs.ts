@@ -58,6 +58,19 @@ export function splitSaved<T>(saved: T[], fitsEntry: (o: T) => boolean) {
   saved.forEach((o, at) => fitsEntry(o) ? drawn.push(o) : parked.push({ at, o }));
   return { drawn, parked };
 }
+/** 3f round 2 CRIT-1 (FUTURE_PLAN.md "Before the first lab item or tab"; the user's go 2026-11-22, "termasuk butir 4 yang
+    menyentuh kode tata letak Terminal"): a saved list's entries split into the drawn and the parked, where an entry whose
+    definition this build lacks (a lab indicator, which the public build of the live site does not hold; the preferences
+    are shared by owner, not by site) is parked as it is, never dropped, so saving the list keeps it for the build that
+    has it. `migrate` runs first (an old id may become a known one), `prepare` only on known entries. Something that is
+    not an object with a string `def` is no entry. */
+export function restoreSaved<T extends { def: string }>(saved: unknown, migrate: (o: T) => T, known: (id: string) => boolean,
+                                                       prepare: (o: T) => T, drawable: (o: T) => boolean) {
+  const entries = (Array.isArray(saved) ? saved : [])
+    .filter((o): o is T => !!o && typeof o === 'object' && typeof (o as { def?: unknown }).def === 'string')
+    .map(migrate).map(o => known(o.def) ? prepare(o) : o);
+  return splitSaved(entries, o => known(o.def) && drawable(o));
+}
 /** the list to save: the drawn entries with the parked ones back at their places */
 export function withParked<T>(drawn: T[], parked: { at: number; o: T }[]): T[] {
   const out = [...drawn];
