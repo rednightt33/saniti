@@ -135,6 +135,14 @@ def frame_of(page):
     return page.frame_locator('iframe.terminal-frame')
 
 
+def columns_match(frame):
+    """[(visible header cells, visible cells of the first row)] of every table in the view with a row: each header sits
+    over its column, a phone's hidden column hidden in both (admin/src/app.ts table)"""
+    return frame.locator('#view').evaluate('''v => [...v.querySelectorAll('table')].filter(t => t.tBodies[0] && t.tBodies[0].rows[0])
+        .map(t => [[...t.tHead.rows[0].cells].filter(c => c.offsetParent !== null).length,
+                   [...t.tBodies[0].rows[0].cells].filter(c => c.offsetParent !== null).length])''')
+
+
 def no_sideways(page):
     """(shell, frame): each document's scroll width against its own width"""
     inner = page.frame_locator('iframe.terminal-frame').locator('html')
@@ -284,6 +292,7 @@ def test_every_view_fits_each_width_in_both_themes(settings, store, monkeypatch,
                         f.locator('#view .loading').wait_for(state='detached')
                         assert no_sideways(page) == (0, 0), (width, theme, view)
                         assert not re.search(r'\b(null|undefined|NaN)\b', f.locator('#view').inner_text()), (theme, view)
+                        assert all(h == d for h, d in columns_match(f)), (width, theme, view, columns_match(f))
                     f.locator('#tab-support').click()
                     f.locator('table.tickets .linklike').first.click()
                     f.locator('#ticket-subject').wait_for()

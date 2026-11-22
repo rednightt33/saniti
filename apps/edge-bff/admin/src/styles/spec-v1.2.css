@@ -3,7 +3,7 @@
    ---------------------------------------------------------------------
    Cara pakai
    1. Pasang file ini paling awal (sebelum CSS halaman) + font Inter:
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+      <link rel="stylesheet" href="/fonts/inter-400-700.css">   (EDGE's own copy of Inter, served by edge-bff)
       <link rel="stylesheet" href="edge-design-spec.css">
    2. Elemen polos (table, button, input, select, h1–h3, a) langsung
       ikut gaya EDGE lewat layer "edge-base".

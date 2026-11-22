@@ -1227,8 +1227,31 @@ langsung ke admin dan telegram dan ke email pribadi saya"; "hanya yang login ...
 ## Admin page (EXEC-MU-ACCOUNTS Phase 4, 2026-11-22)
 
 The user, 2026-11-22: "1A 2A 3A", then "1A, 2B, 3A". `app/admin.py` (its docstring lists every route),
-`tests/test_admin.py`; CONTRACT.md 10. The page itself (the `admin` sub-app and the shell's `/admin`) is slice 4b; the
-admin actions on accounts are slice 5, account deletion slice 6.
+`tests/test_admin.py`, `tests/test_admin_page.py`; CONTRACT.md 10. The admin actions on accounts are slice 5, account
+deletion slice 6.
+
+- **The page** (`admin/`, TypeScript + Vite, built into `static/admin-app` by the image's `admin` stage; the design
+  system's spec v1.2 and canonical layer copied into `admin/src/styles/`): the code step first, then six views, the
+  Support inbox first (New, Done, All; a ticket in full with its images, Mark done or new, Send to Telegram again,
+  Delete ticket with a reason), Overview, Accounts (search, status, plan; one account with Show for its address or phone,
+  which asks why), Audit (action, from, until; Download CSV), Plans (read-only), Settings. Every text a person wrote is
+  set as text, never markup. Its own words and data paths are in its build only; the shell holds the route, an icon, the
+  four words of `admin` in `edge-labels.js` and the frame wrapper (`tests/test_admin_page.py` holds that). Its copy of the
+  spec keeps the system's rules as they are and names EDGE's own Inter in its usage note (`admin/tests/styles.test.mjs`).
+- **Who gets its files** (`main.py` `page_app(..., admin_only=True)`): the admin on the beta (`auth.lab_admin`:
+  `admin.access` past the second factor, never on the live site), before the code step, whose screen they draw; a
+  visitor, any other account and the live site get 404, the assets `private`. Its policy is the Screener's
+  (`connect-src 'self'`). `GET /admin` is the shell on the beta and 404 on the live site, as `/monitor`.
+- **The shell** (`static/edge-app.js`): the route `{path:"/admin", ..., needs:"admin.access"}`; `AdminPage` frames
+  `/admin-app/` with the ticket of its own address (`/admin?ticket=<id>`, the Telegram summary's link); the rail's
+  shield (desktop) and the account menu's "Admin page" (every width) for a principal the site offers `admin` and that
+  holds `admin.access`. **A sign-in stays where it was shown** (`landing`, `opens`): signed out at a workspace page the
+  account can open (the route's `needs`, else `<title>.view`), the sign-in keeps that page and its query; an account page
+  (`/login`, `/verify`, `/mfa`) or a page the account cannot open leads to the landing page as before. This holds for
+  every tab: a person signed out at `/backtest` lands on `/backtest`.
+- **Its session**: the code step renews the session (a new token); the page reads the session again for its next write,
+  and the shell's next write repeats once on `CSRF_INVALID` with the renewed session (`shared/edge-session.ts` send), so
+  nothing needs a reload (`tests/test_admin_page.py`: Contact support sent after the step).
 
 - **Where:** the beta only. Every `/api/v1/admin/*` route depends on `auth.admin_page`: `admin.access` is a beta-only
   capability (`BETA_ONLY_TABS`), so the live site answers 404 before any session is read.

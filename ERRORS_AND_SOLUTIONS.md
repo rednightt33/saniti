@@ -8879,6 +8879,26 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M534 — The two-user route walk watched only the rows kept by an owner key: an account's rows kept by its user id (its support tickets) were outside it, and the admin routes had no ids (2026-11-22; FIXED on the branch)
+
+- **Seen:** the full local edge-bff run of slice 4a: `tests/test_two_users_every_route.py::test_b_reaches_nothing_of_a_on_any_route`
+  refused the seven admin routes with path parameters ("add A's value for ['user_id'] to `ids` ..."), its own guard. A
+  mutation then opened the admin ticket delete to any account holding `support.send`: the walk stayed green, since B's
+  DELETE carried no body (refused for its missing reason) and `owner_tables` reads only tables with an `owner_key`.
+- **Root cause (verified):** the walk lists the watched tables by the column `owner_key`
+  (`information_schema.columns`), so a kind an account owns by `user_id` alone (`support_tickets`, Phase 4) was never
+  watched; and a DELETE got no body, so a route that acts only with a body was walked without acting.
+- **General class:** an isolation test that derives what it watches from one naming convention misses every kind that
+  follows another; and a walk that sends empty bodies proves only that an empty request does nothing. Any later kind kept
+  by user id (payment orders, Phase 5) or any write that needs a body to act falls in it.
+- **Solution:** `user_tables` derives every `edge_bff` table with a `user_id` and no `owner_key` from the schema and the
+  walk compares A's rows in them before and after each of B's calls; A sends a support ticket in the setup; `user_id`
+  and `ticket_id` are owned ids (a number's twin is one nobody made); the admin writes carry what would act (a reason, a
+  status), and a DELETE named in `BODIES` sends its body (`c3c972e5`). Mutations: the ticket read and delete opened to
+  `support.send`, each red.
+- **Lesson:** derive what an isolation test watches from every ownership column the schema has, and give each write the
+  body that would act; an empty request proves nothing about the route.
+
 ### M533 — The session branch's CI red on the contact-support panel's first commit: a hand count of the capabilities and the Screener document's pointers into main.py (2026-11-22; FIXED on the branch)
 
 - **Seen:** `1e77efe8` on `claude/pensive-feynman-4ahfe3`: Backend tests run 44985088213, edge-bff job: `1 failed, 1118

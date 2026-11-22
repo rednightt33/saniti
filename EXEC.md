@@ -16510,9 +16510,24 @@ Order of the services (CONTRACT 17, rollback floors):
               on the live site (one authenticator, one count); the code is asked once per beta session (until it ends,
               as the live sign-in); no recovery code on the beta step; pages of 50 rows (at most 200); the audit file at
               most 10,000 rows, more refused naming the dates; a reason at most 1,000 characters.
-          - Next: slice 4b, the page (`admin` sub-app, the shell's `/admin` with `?ticket=`, the code step's screen);
-            applying `20261122_001` on dev and the Railway variables with the beta's deploy; the admin actions (slice
-            5); account deletion (slice 6); then the checker at xhigh, its fixes, the beta.
+          - Slice 4b, the page (on the session branch; not deployed): `admin/` (Vite, the design system's tokens and
+            components), served to the beta's admin only; the code step's screen (and its two closed screens: the site
+            cannot check the code, or no authenticator is set up on the live site yet), the Support inbox with the
+            Telegram link's ticket, the overview, the accounts with the asked-for reveal, the audit and its file, the
+            plans and the settings; in the shell `/admin`, the rail's shield and the account menu's "Admin page". Tests:
+            `tests/test_admin_page.py` (11: who gets the files, the gate whatever the release file says, the live site,
+            the shell's words, the link's ticket after sign-in and the code, a shell write after the step, the delete with
+            a reason, every view at 1440, 1152, 390 and 360 px light and dark with each table's headers over their
+            columns, the sign-in rule on other pages, the closed screens), the page's unit, bundle and design-copy tests
+            (12); 20 mutations of the server, the shell, the page and its model, each red; the 4a route walk now reaches
+            the admin routes and watches rows kept by user id (ERRORS M534).
+            - Design values taken by the main agent (to tell the user): **a sign-in stays at the page it was shown at**
+              when the account can open it, for every tab on both sites (needed for the Telegram link; before, every
+              sign-in went to the Monitor or the Terminal); the admin page opens on the Support inbox; its entries are a
+              shield in the rail and "Admin page" in the account menu; its files are served to the admin before the code
+              step (the screen is in them), its data only after.
+          - Next: applying `20261122_001` on dev and the Railway variables with the beta's deploy; the admin actions
+            (slice 5); account deletion (slice 6); then the checker at xhigh, its fixes, the beta.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

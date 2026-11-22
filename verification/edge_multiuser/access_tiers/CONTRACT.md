@@ -1322,6 +1322,12 @@ today.
   a reason (the user's "2B"). Audit actions: `account.reveal` (after `{field}`), `support.status` (before and after
   `{ticket_id, status}`), `support.delete` (before `{ticket_id, kind, status, images, images_purged}`), each in the same
   transaction as its change, with ids, kinds and the admin's reason only, never a person's words or address.
+- **Built, slice 4b** (`admin/`, `tests/test_admin_page.py`): the page itself, in the shell's frame at `/admin`. Its
+  files reach the admin on the beta only (the same rule as lab code: `admin.access` past the second factor, never on the
+  live site; 404 to everyone else, the assets private), before its code step; its words and data paths are in its own
+  build, none in the public shell. The ticket of `/admin?ticket=<id>` opens first, also after a sign-in: a sign-in shown
+  at a workspace page the account can open stays there with its query, for every tab (a page the account cannot open,
+  and the account pages, lead to the landing page as before).
 - **Routes** `/api/v1/admin/users`:
   - list with filter and paging: username, name, email masked, phone masked, role, status, plan, expires_at,
     last_sign_in_at, created_at, usage counters;
