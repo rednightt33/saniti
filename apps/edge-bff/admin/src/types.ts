@@ -12,9 +12,10 @@ export interface Overview {
 }
 
 export interface Account {
-  user_id: number; username: string; first_name: string | null; last_name: string | null;
+  user_id: number; username: string | null; requested_username?: string | null; first_name: string | null; last_name: string | null;
   email: string | null; phone: string | null; role: string; status: string; test_account: boolean;
   plan: string | null; plan_ends: string | null; created_at: string; last_sign_in_at: string | null;
+  usage?: Record<string, number>;
 }
 export interface Accounts { users: Account[]; next: number | null }
 

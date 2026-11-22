@@ -1,6 +1,6 @@
 /* Phase 4, the admin page: its pure functions (src/model.ts). */
 import { describe, expect, it } from 'vitest';
-import { actionsOf, ago, bytes, changeOf, codeOf, count, day, endOf, fileName, plural, queryOf, reasonProblem, ticketOf,
+import { actionsOf, ago, bytes, changeOf, codeOf, count, day, endOf, fileName, nameOf, plural, queryOf, reasonProblem, ticketOf,
          valueText, VIEWS, when } from '../src/model.ts';
 
 describe('the ticket of the address', () => {
@@ -92,5 +92,14 @@ describe('what the person types', () => {
   });
   it('opens on the Support inbox first', () => {
     expect(VIEWS[0]).toBe('support');
+  });
+});
+
+describe('the name an account is shown by', () => {
+  it('is the username, else the name a registration asked for, else the number; never null', () => {
+    expect(nameOf({ user_id: 3, username: 'alice', requested_username: null })).toBe('alice');
+    expect(nameOf({ user_id: 4, username: null, requested_username: 'pat' })).toBe('pat (registering)');
+    expect(nameOf({ user_id: 5, username: null, requested_username: null })).toBe('account #5');
+    expect(nameOf({ user_id: 6, username: null })).toBe('account #6');
   });
 });

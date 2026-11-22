@@ -222,8 +222,12 @@
     sources:snapshot.response ? [...(snapshot.response.evidence || []),...(snapshot.response.annotations || []),...(snapshot.response.data_record ? [{name:'Data record',record:snapshot.response.data_record}] : [])] : previous.sources,
     steps:[{id:'state',label:{QUEUED:'Queued',RUNNING:'AI request running',RECOVERING:snapshot.error_code === 'SERVICES_INITIALIZING' ? EdgeLabels.servicesWaiting : 'Recovering delivery',FINISHED:'Saved response: '+statusLabel('completed',snapshot.run_status,snapshot.response?.execution?.pause),FAILED:'Request failed',INTERRUPTED:'Delivery interrupted'}[snapshot.state],status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : 'running',detail:snapshot.updated_at}]
   });
-  // live checker S1: a site without the Monitor has no model list (GET /api/v1/models answers 404 there)
-  const loadModels = () => models.pending || (models.pending = readConfig().then(c => c.hiddenTabs.includes('monitor') ? null : api('/models'))
+  // live checker S1: a site without the Monitor has no model list (GET /api/v1/models answers 404 there); the Phase 4
+  // checker's Watch: nor an account that cannot open the Monitor (403); it is asked again once the account can
+  const holds = key => { const caps = auth?.access?.capabilities; return !Array.isArray(caps) || caps.includes('*') || caps.includes(key); };
+  const loadModels = () => models.pending || (models.pending = readConfig().then(c => {
+      if (c.hiddenTabs.includes('monitor') || !holds('monitor.view')) { models.pending = null; return null; }
+      return api('/models'); })
     .then(data => { const ok = Array.isArray(data?.models) && data.models.length > 0; models.data = ok ? data : null; models.failed = !ok; })
     .catch(() => { models.failed = true; }));
   const settle = promise => Promise.race([promise, new Promise(resolve => setTimeout(resolve, 3000))]);

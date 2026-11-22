@@ -134,6 +134,11 @@ class OutboxStore:
             c.execute('''UPDATE edge_bff.email_outbox SET status='expired', payload=NULL, lease_token=NULL,
                 lease_expires_at=NULL WHERE outbox_id=%s AND lease_token=%s''', (row['outbox_id'], row['lease_token']))
 
+    def ticket_exists(self, ticket_id):
+        """Phase 4 (the checker's support-2): whether the support ticket an email is about still exists."""
+        with self.store.connect() as c:
+            return c.execute('SELECT 1 FROM edge_bff.support_tickets WHERE ticket_id = %s', (int(ticket_id),)).fetchone() is not None
+
     def attachments(self, refs):
         """Phase 4, the contact-support panel: the images a support email names ([{ticket_id, position, filename}]) as
         Resend's attachments ({filename, content: base64}), read when the email is sent; None when one is gone (its ticket
@@ -210,6 +215,13 @@ class EmailSender:
             await asyncio.to_thread(self.outbox.expired, row)
             return
         mail = row['payload'] or {}
+        # an email about a support ticket goes only while its ticket exists, with or without images (the checker's
+        # support-2: the check rode on the images alone, so a ticket deleted by hand was still emailed in full)
+        if mail.get('ticket_id') is not None and not await asyncio.to_thread(self.outbox.ticket_exists, mail['ticket_id']):
+            await asyncio.to_thread(self.outbox.expired, row)
+            logger.info(json.dumps({'event': 'email_dropped', 'outbox_id': row['outbox_id'], 'purpose': row['purpose'],
+                                    'why': 'ticket_gone'}))
+            return
         if self.settings.email_mode != 'resend' and mail.get('private'):
             # Phase 4 (the contact-support panel): the sender's own words never reach the log, the address masked
             logger.info(json.dumps({'event': 'email_logged', 'outbox_id': row['outbox_id'], 'purpose': row['purpose'],

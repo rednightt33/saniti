@@ -124,13 +124,23 @@ class Reads:
         return await self.app(scope, counted, send)
 
 
+def admin_user(store, name, password, **kw):
+    """An account that holds the admin right by its grant (the plan holding '*', make_user's default for the role), as
+    the admin page counts it; the role alone grants nothing (the Phase 4 checker's support-1)."""
+    return make_user(store, name, password, role='admin', **kw)
+
+
 # ---- a message, its images, its email and its summary --------------------------------------------------------------
 
 def test_an_account_sends_a_message_kept_with_its_images_emailed_to_the_admins_and_summarised(on, store):
     telegram = Telegram()
     with TestClient(app_of(on, store, telegram)) as c:
-        make_user(store, 'boss', 'boss-password', role='admin', email='boss@example.com')
-        make_user(store, 'gone', 'gone-password', role='admin', status='disabled', email='gone@example.com')
+        admin_user(store, 'boss', 'boss-password', email='boss@example.com')
+        admin_user(store, 'gone', 'gone-password', status='disabled', email='gone@example.com')
+        make_user(store, 'rolly', 'rolly-password', role='admin', everything=False, email='rolly@example.com')  # role only
+        granted = make_user(store, 'grace', 'grace-password', email='grace@example.com')    # a plain account given it
+        db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+            VALUES (%s, 'admin.access', 'true'::jsonb, 'an admin by override')''', granted['user_id'])
         make_user(store, 'carol', 'carol-password', email='carol@example.com')          # not an admin: no copy
         alice = make_user(store, 'alice', 'alice-password', email='alice@example.com')
         h = sign_in(c, 'alice', 'alice-password')
@@ -157,7 +167,8 @@ def test_an_account_sends_a_message_kept_with_its_images_emailed_to_the_admins_a
         assert [f['sha256'] for f in files] == [hashlib.sha256(x).hexdigest() for x in (PNG, JPEG, WEBP)]
         # one email per active admin with an address, queued with the ticket; Reply goes to the sender
         mails = db(store, 'SELECT to_email, purpose, status, payload FROM edge_bff.email_outbox ORDER BY outbox_id')
-        assert [(m['to_email'], m['purpose'], m['status']) for m in mails] == [('boss@example.com', 'support', 'pending')]
+        assert [(m['to_email'], m['purpose'], m['status']) for m in mails] == [('boss@example.com', 'support', 'pending'),
+                                                                            ('grace@example.com', 'support', 'pending')]
         mail = mails[0]['payload']
         assert mail['subject'] == f'EDGE support #{ticket}: Bug / Something not working: The chart does not load'
         assert (mail['reply_to'], mail['private']) == ('alice@example.com', True)
@@ -198,7 +209,7 @@ def test_the_largest_message_fits_the_request_cap(on, store):
 def test_a_visitor_a_pending_second_factor_and_an_account_without_the_right_are_refused_before_the_body_is_read(on, store):
     app = Reads(app_of(on, store))
     with TestClient(app) as c:
-        make_user(store, 'boss', 'boss-password', role='admin', email='boss@example.com')
+        admin_user(store, 'boss', 'boss-password', email='boss@example.com')
         alice = make_user(store, 'alice', 'alice-password')
 
         def refused(status, code, headers, **request):
@@ -234,6 +245,55 @@ def test_a_visitor_a_pending_second_factor_and_an_account_without_the_right_are_
         h = sign_in(c, 'boss', 'boss-password')                                                # the second factor waits
         r = refused(403, 'MFA_REQUIRED', h, json=message())
         assert db(store, 'SELECT count(*) AS n FROM edge_bff.support_tickets')[0]['n'] == 2
+
+
+def test_an_account_past_its_messages_or_its_uploads_is_refused_before_the_body_is_read(on, store):
+    """The Phase 4 checker's support-3: the work one account causes is bounded before the body is read: its 5 messages
+    an hour (and 20 a day) and 30 uploads an hour, refused ones counted too (throttle.SUPPORT_UPLOAD)."""
+    app = Reads(app_of(dataclasses.replace(on, support_per_hour=2), store))
+    with TestClient(app) as c:
+        make_user(store, 'alice', 'alice-password')
+        h = sign_in(c, 'alice', 'alice-password')
+        for _ in range(2):
+            assert c.post(PATH, headers=h, json=message()).status_code == 201
+        before = app.reads
+        r = c.post(PATH, headers=h, json=message(images=[image(PNG)]))
+        assert (r.status_code, error_of(r)['details']['limit'], app.reads) == (429, 'support_hour', before), r.text
+        assert r.headers['Retry-After'] == str(error_of(r)['details']['retry_after_s'])
+    db(store, 'DELETE FROM edge_bff.support_tickets')
+    db(store, 'DELETE FROM edge_bff.auth_throttle')
+    app = Reads(app_of(on, store))
+    with TestClient(app) as c:
+        h = sign_in(c, 'alice', 'alice-password')
+        for _ in range(30):                                       # refused uploads (no valid kind) count as well
+            assert c.post(PATH, headers=h, json=message(kind='nonsense')).status_code == 400
+        before = app.reads
+        r = c.post(PATH, headers=h, json=message())
+        assert (r.status_code, error_of(r)['details']['limit'], app.reads) == (429, 'support_uploads', before), r.text
+        assert 'Too many messages were started' in error_of(r)['message']
+        assert db(store, 'SELECT count(*) AS n FROM edge_bff.support_tickets')[0]['n'] == 0
+
+
+def test_the_image_ceiling_is_one_lock_for_every_sender(on, store):
+    """The checker's deploy-2: the sum of every ticket's images is checked under one lock for all senders, so two
+    accounts sending at once cannot both pass the ceiling: while another holds it, an upload with images waits."""
+    import threading
+    alice = make_user(store, 'alice', 'alice-password')
+    p = type('P', (), {'user_id': alice['user_id'], 'plan_key': 'free'})()
+    tickets = support_module.SupportStore(store, on)
+    done = threading.Event()
+    with store.connect() as holder:
+        holder.execute('SELECT pg_advisory_xact_lock(%s, %s)', (0x5350, 0))
+        worker = threading.Thread(target=lambda: (tickets.create(p, 'bug', 'S', 'B', {}, [('s.png', 'image/png', PNG)]),
+                                                  done.set()))
+        worker.start()
+        assert not done.wait(1.0), 'an upload with images passed the ceiling while another sender held it'
+    worker.join(10)
+    assert done.is_set()
+    # without images no ceiling is read and nothing waits for it
+    with store.connect() as holder:
+        holder.execute('SELECT pg_advisory_xact_lock(%s, %s)', (0x5350, 0))
+        tickets.create(p, 'bug', 'S', 'B', {}, [])
 
 
 def test_the_limits_words_count_one_message_and_several():
@@ -394,7 +454,7 @@ def test_the_images_of_every_ticket_together_stay_under_the_storage_ceiling(on, 
 
 def send_one(on, store, **change):
     with TestClient(app_of(on, store)) as c:
-        make_user(store, 'boss', 'boss-password', role='admin', email='boss@example.com')
+        admin_user(store, 'boss', 'boss-password', email='boss@example.com')
         make_user(store, 'alice', 'alice-password', email='alice@example.com')
         h = sign_in(c, 'alice', 'alice-password')
         r = c.post(PATH, headers=h, json=message(**change))
@@ -426,11 +486,14 @@ def test_the_email_goes_with_its_images_and_reply_to_the_sender(on, store):
     assert (row['status'], row['provider_id'], row['payload']) == ('sent', 'em_1', None)
 
 
-def test_an_email_whose_images_are_gone_is_not_sent(on, store):
-    send_one(on, store, images=[image(PNG)])
-    db(store, 'DELETE FROM edge_bff.support_tickets')                                     # the account was deleted since
+@pytest.mark.parametrize('images,mode', [([image(PNG)], 'resend'), ([], 'resend'), ([], 'log')])
+def test_an_email_whose_ticket_is_gone_is_not_sent(on, store, images, mode):
+    """With or without images, sent or logged (the checker's support-2: a ticket without images was emailed after
+    it was deleted)."""
+    send_one(on, store, images=images)
+    db(store, 'DELETE FROM edge_bff.support_tickets')                       # deleted by hand, or its account since
     seen = []
-    sender = EmailSender(dataclasses.replace(on, email_mode='resend', resend_api_key='re_test_key',
+    sender = EmailSender(dataclasses.replace(on, email_mode=mode, resend_api_key='re_test_key',
                                              email_from='EDGE <no-reply@mail.example.com>'),
                          store, transport=httpx.MockTransport(lambda r: (seen.append(r), httpx.Response(200, json={}))[1]))
 
@@ -515,10 +578,15 @@ def test_the_admin_link_is_https_only_and_a_ticket_without_admin_email_is_logged
 
 def test_the_settings_hold_their_ranges(settings, monkeypatch):
     dataclasses.replace(settings, support_per_hour=1, support_per_day=1000, support_storage_mb=100000).validate()
+    for good in ('http://telegram-monitor.railway.internal:8080/notify', 'http://telegram-monitor.invalid/notify'):
+        dataclasses.replace(settings, telegram_notify_url=good).validate()
     for change in ({'support_per_hour': 0}, {'support_per_hour': 101}, {'support_per_day': 0}, {'support_storage_mb': 0},
                    {'admin_origin': 'http://admin.example.test'}, {'admin_origin': 'https://admin.example.test/admin'},
                    {'telegram_notify_url': 'https://telegram-monitor.invalid/'},
-                   {'telegram_notify_url': 'ftp://telegram-monitor.invalid/notify'}):
+                   {'telegram_notify_url': 'ftp://telegram-monitor.invalid/notify'},
+                   # the checker's deploy-3: no host, and a port reference that resolved empty
+                   {'telegram_notify_url': 'http://:/notify'},
+                   {'telegram_notify_url': 'http://telegram-monitor.railway.internal:/notify'}):
         with pytest.raises(ValueError):
             dataclasses.replace(settings, **change).validate()
     monkeypatch.setenv('EDGE_SUPPORT_PER_HOUR', '0')                                 # an explicit 0 is not the default

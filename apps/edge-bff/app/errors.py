@@ -37,6 +37,10 @@ MESSAGES = {
                        'site\'s authenticator, then try again.',
     'TELEGRAM_UNAVAILABLE': 'Telegram is not connected on this site, so the summary cannot be sent from here. The ticket '
                             'is kept here and in the email.',
+    'ADMIN_ACCOUNT_UNAVAILABLE': 'The admin account cannot be read on this site right now, so the admin page is closed. '
+                                 'Wait a moment and reload; if it stays closed, ask the operator to restart the site.',
+    'ACCOUNT_DISABLED': 'This account is not active, so the admin page is closed to it. Ask the operator to enable the '
+                        'account, then sign in again.',
     'CODE_UNAVAILABLE': 'Codes cannot be sent from this site yet. Ask the operator to connect it to the live site\'s codes, '
                         'then try again.',
     'SUPPORT_STORAGE_FULL': 'Images cannot be stored right now. Send your message without images; we will ask you for '
@@ -244,6 +248,9 @@ def words(code, status, details=None):
             count = (f'{allowed} support message' + ('' if allowed == 1 else 's')
                      if isinstance(allowed, int) and not isinstance(allowed, bool) else 'support messages')
             return f'You can send {count} per {per}. Wait {wait or "a while"}, then send your message again.'
+        if limit == 'support_uploads':
+            # the uploads one account starts in an hour, refused ones too (throttle.SUPPORT_UPLOAD)
+            return f'Too many messages were started from this account in the last hour. Wait {wait or "a while"}, then send yours again.'
         return f'Too many attempts. Wait {wait or "a while"}, then try again.'
     elif code == 'MFA_LOCKED' and d.get('step_up') is True:
         # Phase 4, the admin page's code step on the beta: the code locks on both sites (one authenticator, one count)

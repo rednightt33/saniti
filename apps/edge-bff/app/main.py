@@ -43,8 +43,8 @@ from .admin import Admin
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import SESSION_COOKIE, cookie_name, csrf_token, needs_rehash, password_verifier, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
-from .throttle import (DEVICE_SIGNIN, GUEST_TOTAL_KEY, SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, guest_total,
-                       normal_login)
+from .throttle import (DEVICE_SIGNIN, GUEST_TOTAL_KEY, SIGNIN_IP, SIGNIN_LOGIN, SUPPORT_UPLOAD, Throttle, client_address,
+                       guest_total, normal_login)
 from .worker import Housekeeping, Worker
 
 COOKIE = SESSION_COOKIE                     # its name on an https origin: cookie_name (__Host-, re-check R2-22)
@@ -475,6 +475,19 @@ def create_app(settings=None, store=None, orc=None):
         if not p.can(support_module.CAPABILITY):
             r = p.refusal(support_module.CAPABILITY)
             return refusal(r.status, r.code, r.details, r.headers)
+        if p.user_id is not None:
+            # the Phase 4 checker's support-3: the work one account causes is bounded before its body is read; every
+            # upload counts (refused ones too), and an account past its messages of the hour or day is refused here
+            try:
+                wait = await asyncio.to_thread(throttle.attempt, SUPPORT_UPLOAD, f'user:{p.user_id}')
+                limited = None if wait else await asyncio.to_thread(support.tickets.precheck, p.user_id)
+            except Exception:                               # noqa: BLE001 - fail closed: nothing is read
+                return error('SERVICE_UNAVAILABLE', 503)
+            if wait:
+                return refusal(429, 'LIMIT_REACHED', {'limit': 'support_uploads', 'allowed': SUPPORT_UPLOAD.allowed,
+                                                      'retry_after_s': wait}, {'Retry-After': str(wait)})
+            if limited is not None:
+                return refusal(limited.status, limited.code, limited.details, limited.headers)
         return None
 
     @app.middleware('http')

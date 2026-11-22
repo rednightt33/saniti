@@ -51,8 +51,8 @@
   ],
   [
    "runtime_cannot_update_an_image",
-   "edge_bff_runtime",
-   "UPDATE edge_bff.support_attachments SET filename = filename WHERE false"
+   null,
+   "SELECT has_table_privilege('edge_bff_runtime', 'edge_bff.support_attachments', 'UPDATE') AS can_update"
   ],
   [
    "rows",

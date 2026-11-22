@@ -78,6 +78,9 @@ REGISTER_DAY = Limit('send_email', 'register', 3, 86400)
 # registrations a day N4 allows are per client address and one client keeps one pending registration of an address
 # (auth_flows._register), so one stranger's use 3 of the address's 10 emails at most (SEND_EMAIL_CLIENT: 4); strangers on
 # three or more clients can still spend its day (the residual M517 states)
+# Phase 4, the contact-support panel (the checker's support-3): every upload an account starts, accepted or refused,
+# before its body is read; far above the 5 messages an hour a person sends, it bounds the work one account causes
+SUPPORT_UPLOAD = Limit('code_user', 'support_upload', 30, 3600)
 REGISTRATION_MAIL = Limit('send_email', 'registration_mail', 3, 86400)
 
 # every visitor of the guest plan together (migration 20261119_071): one counter, key GUEST_TOTAL_KEY, built per app with

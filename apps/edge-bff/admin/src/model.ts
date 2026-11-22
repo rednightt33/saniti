@@ -78,6 +78,11 @@ export const plural = (n: number, one: string, many = `${one}s`) => `${count(n)}
 /** an account's name from its first and last name, or '' */
 export const fullName = (a: Pick<Account, 'first_name' | 'last_name'>) => [a.first_name, a.last_name].filter(Boolean).join(' ');
 
+/** the name an account is shown by: its username; one still registering has none yet, so the name it asked for
+    (the checker's actions-3), else its number */
+export const nameOf = (a: Pick<Account, 'user_id' | 'username' | 'requested_username'>) =>
+  a.username || (a.requested_username ? `${a.requested_username} (registering)` : `account #${a.user_id}`);
+
 /** a stored value in one short line: true Yes, false No, {"all": true} All, {"ids": [...]} the ids (or None), a list its
     items, any other object its key: value pairs; every value shown as it is, never interpreted beyond these */
 export function valueText(v: unknown): string {

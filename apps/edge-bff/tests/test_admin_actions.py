@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
+from app import admin as admin_module
 from app.main import create_app
 from conftest import FakeOrc
 from test_admin import KEY, code_of, db, enrol, error_of, login, passed, seed_id
@@ -260,3 +261,122 @@ def test_a_resent_code_needs_the_live_sites_code_key(beta, store, caplog):
         assert 'EDGE_CODE_SECRET' not in error_of(r)['message'] and 'operator' in error_of(r)['message']
         assert any('admin_resend_unavailable' in m and 'EDGE_CODE_SECRET' in m for m in caplog.messages)
     assert audit_rows(store) == []
+
+
+# ---- the Phase 4 checker's actions-1 to actions-5 and page-tests-records-6 (2026-11-22) ------------------------------
+
+@pytest.mark.parametrize('route,body', [('status', {'status': 'disabled'}), ('plan', {'plan_key': 'paid'}),
+                                        ('sessions/revoke', {}), ('resend-code', {})])
+@pytest.mark.parametrize('reason', [None, '', '   '])
+def test_every_action_needs_a_reason(beta, store, route, body, reason):
+    """actions-5: each action route refuses without a reason (missing, empty or blank) and leaves nothing behind."""
+    with TestClient(create_app(beta, store, FakeOrc())) as c:
+        h = passed(c, store, beta)
+        target = make_user(store, 'rhea_reason', 'rhea-password', status='pending' if route == 'resend-code' else 'active')
+        before = (plan_rows(store, target['user_id']), db(store, 'SELECT status FROM edge_bff.users WHERE user_id = %s',
+                                                           target['user_id']))
+        r = c.post(f"/api/v1/admin/users/{target['user_id']}/{route}", headers=h,
+                   json={**body, **({} if reason is None else {'reason': reason})})
+        assert r.status_code == 400 and 'reason' in error_of(r)['details']['fields'], r.text
+        assert (plan_rows(store, target['user_id']), db(store, 'SELECT status FROM edge_bff.users WHERE user_id = %s',
+                                                         target['user_id'])) == before
+    assert audit_rows(store) == [] and db(store, 'SELECT count(*) AS n FROM edge_bff.email_codes')[0]['n'] == 0
+
+
+def test_an_admin_right_that_ends_later_still_counts_for_the_plan_and_for_the_last_admin(beta, store):
+    """actions-1: an admin right with an end is judged at every moment it may apply. Bob holds admin.access until a
+    date: his plan stays the operator's. The owner's own right ends in two days while Dana's lasts: Dana is the last
+    lasting admin, so she is not disabled, and the account answer says so."""
+    with TestClient(create_app(beta, store, FakeOrc())) as c:
+        h = passed(c, store, beta)
+        own = seed_id(store, beta)
+        bob = make_user(store, 'bob_ends', 'bob-password')
+        db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason, expires_at)
+            VALUES (%s, 'admin.access', 'true'::jsonb, 'until a date', now() + interval '2 days')''', bob['user_id'])
+        detail = c.get(f"/api/v1/admin/users/{bob['user_id']}").json()
+        assert detail['actions']['plan'] == {'open': False, 'why': admin_module.ADMINS_OWN}
+        r = c.post(f"/api/v1/admin/users/{bob['user_id']}/plan", headers=h, json={'plan_key': 'paid', 'reason': 'x'})
+        assert r.status_code == 400 and error_of(r)['details']['reasons']['plan_key'] == admin_module.ADMINS_OWN
+        # Carol's right comes back later (an admin plan from tomorrow): she counts as an admin already
+        carol = make_user(store, 'carol_later', 'carol-password')
+        db(store, '''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, starts_at, provider)
+            SELECT %s, plan_key, 'active', now() + interval '1 day', 'test' FROM edge_bff.plan_capabilities
+            WHERE capability_key = '*' AND value = 'true'::jsonb''', carol['user_id'])
+        assert not c.get(f"/api/v1/admin/users/{carol['user_id']}").json()['actions']['plan']['open']
+        r = c.post(f"/api/v1/admin/users/{carol['user_id']}/plan", headers=h, json={'plan_key': 'paid', 'reason': 'x'})
+        assert r.status_code == 400 and error_of(r)['details']['reasons']['plan_key'] == admin_module.ADMINS_OWN
+        dana = make_user(store, 'dana_lasts', 'dana-password')
+        admin_by_override(store, dana)                                       # no end
+        db(store, "UPDATE edge_bff.subscriptions SET expires_at = now() + interval '2 days' WHERE user_id = %s", own)
+        detail = c.get(f"/api/v1/admin/users/{dana['user_id']}").json()
+        assert detail['actions']['status'] == {'open': False, 'why': admin_module.LAST_ADMIN}
+        r = c.post(f"/api/v1/admin/users/{dana['user_id']}/status", headers=h, json={'status': 'disabled', 'reason': 'x'})
+        assert r.status_code == 400 and error_of(r)['details']['reasons']['status'] == admin_module.LAST_ADMIN
+        assert db(store, 'SELECT status FROM edge_bff.users WHERE user_id = %s', dana['user_id'])[0]['status'] == 'active'
+        # Bob, whose right ends, may be disabled: Dana keeps it for good
+        r = c.post(f"/api/v1/admin/users/{bob['user_id']}/status", headers=h, json={'status': 'disabled', 'reason': 'x'})
+        assert r.status_code == 200, r.text
+
+
+def test_with_no_admin_in_the_database_an_ordinary_account_is_still_disabled_and_enabled(beta, store):
+    """actions-2: the last-admin rule refuses only an action that takes the last holder away; when the database holds
+    none (the owner's seed plan ended; the beta's owner keeps the page by its settings) other accounts' actions go on,
+    and the account answer shows them open."""
+    with TestClient(create_app(beta, store, FakeOrc())) as c:
+        h = passed(c, store, beta)
+        own = seed_id(store, beta)
+        db(store, '''UPDATE edge_bff.subscriptions SET starts_at = now() - interval '2 days',
+            expires_at = now() - interval '1 second' WHERE user_id = %s''', own)
+        alice = make_user(store, 'alice_none', 'alice-password')
+        detail = c.get(f"/api/v1/admin/users/{alice['user_id']}").json()
+        assert detail['actions']['status']['open'] and detail['actions']['plan']['open']
+        for status in ('disabled', 'active'):
+            r = c.post(f"/api/v1/admin/users/{alice['user_id']}/status", headers=h, json={'status': status, 'reason': 'x'})
+            assert r.status_code == 200, r.text
+        r = c.post(f"/api/v1/admin/users/{alice['user_id']}/plan", headers=h, json={'plan_key': 'paid', 'reason': 'x'})
+        assert r.status_code == 200, r.text
+
+
+def test_a_registration_is_listed_and_found_by_the_name_it_asked_for(beta, store):
+    """actions-3: an account still registering has no username yet; the list and the detail carry the name it asked
+    for, and a search finds it by that name."""
+    from app.accounts import new_owner_key
+    with TestClient(create_app(beta, store, FakeOrc())) as c:
+        passed(c, store, beta)
+        uid = db(store, '''INSERT INTO edge_bff.users(owner_key, username, requested_username, email, role, status)
+            VALUES (%s, NULL, 'pat_asked', 'pat.asked@example.com', 'user', 'pending') RETURNING user_id''',
+                 new_owner_key())[0]['user_id']
+        found = c.get('/api/v1/admin/users?q=pat_ask').json()['users']
+        assert [(u['user_id'], u['username'], u['requested_username']) for u in found] == [(uid, None, 'pat_asked')]
+        assert c.get(f'/api/v1/admin/users/{uid}').json()['account']['requested_username'] == 'pat_asked'
+
+
+def test_resend_code_is_closed_where_no_code_can_be_sent(beta, store):
+    """actions-4: without EDGE_CODE_SECRET every Resend code answers 503; the account answer says so beforehand."""
+    from app.errors import MESSAGES
+    keyless = dataclasses.replace(beta, code_secret='')
+    with TestClient(create_app(keyless, store, FakeOrc())) as c:
+        h = passed(c, store, keyless)
+        pat = make_user(store, 'pat_keyless', 'pat-password', status='pending')
+        detail = c.get(f"/api/v1/admin/users/{pat['user_id']}").json()
+        assert detail['actions']['resend_code'] == {'open': False, 'why': MESSAGES['CODE_UNAVAILABLE']}
+        r = c.post(f"/api/v1/admin/users/{pat['user_id']}/resend-code", headers=h, json={'reason': 'x'})
+        assert r.status_code == 503 and error_of(r)['code'] == 'CODE_UNAVAILABLE'
+    db(store, 'DELETE FROM edge_bff.mfa_recovery_codes'); db(store, 'DELETE FROM edge_bff.mfa_totp')   # enrolled again below
+    with TestClient(create_app(beta, store, FakeOrc())) as c:
+        passed(c, store, beta)
+        assert c.get(f"/api/v1/admin/users/{pat['user_id']}").json()['actions']['resend_code'] == {'open': True, 'why': None}
+
+
+def test_the_account_list_carries_each_accounts_usage(beta, store):
+    """page-tests-records-6 (CONTRACT 10's list): the usage counters of each listed account, as its detail counts them."""
+    from app.support import SupportStore
+    from test_admin import PNG
+    with TestClient(create_app(beta, store, FakeOrc())) as c:
+        passed(c, store, beta)
+        alice = make_user(store, 'alice_usage', 'alice-password')
+        p = type('P', (), {'user_id': alice['user_id'], 'plan_key': 'free'})()
+        SupportStore(store, beta).create(p, 'bug', 'S', 'B', {}, [('s.png', 'image/png', PNG)])
+        listed = {u['user_id']: u for u in c.get('/api/v1/admin/users').json()['users']}
+        detail = c.get(f"/api/v1/admin/users/{alice['user_id']}").json()
+        assert listed[alice['user_id']]['usage'] == detail['usage'] and detail['usage']['support_tickets'] == 1

@@ -8,7 +8,7 @@
    Every text a person wrote (a subject, a description, a name) is set as text, never as markup. A refusal shows the
    server's words, each field's reason under that field. */
 import { AdminError } from './api.ts';
-import { actionsOf as auditActions, ago, bytes, changeOf, codeOf, count, day, endOf, fileName, fullName, plural, reasonProblem,
+import { actionsOf as auditActions, ago, bytes, changeOf, codeOf, count, day, endOf, fileName, fullName, nameOf, plural, reasonProblem,
          REASON_CHARS, valueText, VIEW_LABEL, VIEWS, when, type View } from './model.ts';
 import type { Account, AccountDetail, AdminApi, AuditRow, Overview, Plans, StepState, Ticket, TicketRow } from './types.ts';
 
@@ -416,7 +416,7 @@ export function start(api: AdminApi, root: HTMLElement, opts: { ticket: number |
         const open = () => { state.account = a.user_id; render() };
         return h('tr', { onclick: open },
           h('td', { class: 'num l' }, a.user_id),
-          h('td', { class: 'l' }, h('button', { type: 'button', class: 'linklike', onclick: (e: Event) => { e.stopPropagation(); open() } }, a.username)),
+          h('td', { class: 'l' }, h('button', { type: 'button', class: 'linklike', onclick: (e: Event) => { e.stopPropagation(); open() } }, nameOf(a))),
           h('td', { class: 'l hide-sm' }, fullName(a) || '—'),
           h('td', { class: 'l hide-sm' }, a.email ?? '—'),
           h('td', { class: 'l' }, a.plan ?? '—'),
@@ -452,7 +452,7 @@ export function start(api: AdminApi, root: HTMLElement, opts: { ticket: number |
       const show = h('button', { class: 'btn ghost sm', type: 'button' }, icon('eye'), 'Show');
       show.addEventListener('click', async () => {
         let full: string | null = null;
-        const done = await askReason({ title: `Show the ${field === 'email' ? 'email address' : 'phone number'} of ${a.username}?`,
+        const done = await askReason({ title: `Show the ${field === 'email' ? 'email address' : 'phone number'} of ${nameOf(a)}?`,
           lead: 'It is shown in full here and the audit records who saw it, when and why.', label: 'Why you need it',
           confirm: 'Show', act: async reason => { full = (await api.reveal(a.user_id, field, reason)).value } });
         if (!done) return;
@@ -468,7 +468,7 @@ export function start(api: AdminApi, root: HTMLElement, opts: { ticket: number |
     const overrides = d.overrides.map(o => h('tr', {}, h('td', { class: 'l' }, o.capability_key), h('td', { class: 'l' }, valueText(o.value)),
       h('td', { class: 'l' }, o.reason ?? '—'), h('td', { class: 'l nowrap' }, o.expires_at ? day(o.expires_at) : 'no end')) as HTMLTableRowElement);
     put(holder, h('article', { class: 'card account', 'aria-labelledby': 'account-name' },
-      h('div', { class: 'card-h' }, h('div', { class: 'ttl' }, h('h2', { id: 'account-name' }, a.username),
+      h('div', { class: 'card-h' }, h('div', { class: 'ttl' }, h('h2', { id: 'account-name' }, nameOf(a)),
         h('span', { class: 'ttl-s' }, `Account #${a.user_id}${fullName(a) ? ` · ${fullName(a)}` : ''} · ${a.role}`)),
         h('span', { class: `pill ${a.status === 'active' ? 'pos' : a.status === 'disabled' ? 'neg' : 'warn'}` }, a.status)),
       h('div', { class: 'card-b' },
@@ -490,7 +490,7 @@ export function start(api: AdminApi, root: HTMLElement, opts: { ticket: number |
   /** slice 5: what may be done to the account, as its answer says (actions: open, or why not); each asks why, then
       shows the account again */
   function actionsOf(d: AccountDetail, again: () => Promise<void>) {
-    const a = d.account, name = a.username;
+    const a = d.account, name = nameOf(a);
     const done = (text: string) => { toast(text); void again() };
     const box = h('div', { class: 'acts' });
     const add = (open: { open: boolean; why: string | null }, button: HTMLElement | null, quietWhenClosed = false) => {

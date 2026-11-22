@@ -918,7 +918,7 @@ function PublicThemeButton() {
 // authenticator: enrol with a QR code drawn here, or verify). The words are EdgeLabels.auth; a refusal shows the
 // server's message (error.message) and the code's words only when it sends none. The email being verified lives in
 // this page's memory (authFlow), never in storage or the address.
-const authFlow = {email:"", purpose:"register", sentAt:0, notice:"", resendAfter:60, mfaEnrolled:null, enrolling:false};
+const authFlow = {email:"", purpose:"register", sentAt:0, notice:"", resendAfter:60, mfaEnrolled:null, enrolling:false, from:""};
 const CODE_SECONDS = 300, RESEND_SECONDS = 60;
 const authText = error => error?.info?.message || EdgeLabels.auth.errors[error?.info?.code || error?.code] || error?.text || EdgeLabels.auth.errors.fallback;
 // re-check R2-14 (decision D1: the assistant is the admin's): a sign-in lands on the Monitor only for an account whose
@@ -926,10 +926,18 @@ const authText = error => error?.info?.message || EdgeLabels.auth.errors[error?.
 // Phase 4 (the user, 2026-11-22; the Telegram summary links /admin?ticket=<id>): a sign-in shown at a workspace page
 // stays on it, its address and query kept, when the account can open that page (opens: the site offers it and the
 // account holds what opens it, the route's `needs` or <title>.view); an account page (login, verify, mfa) or a page the
-// account cannot open still leads to the landing page
+// account cannot open still leads to the landing page. The Phase 4 checker (page-tests-records-2): a sign-in that goes
+// through another account page first (the authenticator code at /mfa) keeps the page it was shown at, its address and
+// query, in authFlow.from (shownAt, this page's memory); the sign-in's own landing(true) reads it and forgets it (the
+// shell's render of an account page also asks landing(), which must not use it up)
 const opens = r => !!r && r.auth === true && Edge.offers(r.title) && Edge.can(r.needs || `${r.title}.view`);
-const landing = () => { const here = routeLocation().pathname, r = routeOf(here);
+const shownAt = () => { const loc = routeLocation(), r = routeOf(loc.pathname);
+    return r && r.path === loc.pathname && r.auth === true ? loc.pathname + loc.search : ""; };
+const landing = (consume = false) => { const here = routeLocation().pathname, r = routeOf(here), from = authFlow.from;
+    if (consume) authFlow.from = "";
     if (r && r.path === here && opens(r)) return r.path;
+    if (from) { const u = new URL(from, "https://edge.local"), f = routeOf(u.pathname);
+        if (f && f.path === u.pathname && opens(f)) return u.pathname + u.search; }
     const caps = Edge.auth?.access?.capabilities;
     return !Array.isArray(caps) || caps.includes("*") || caps.includes("monitor.view") ? "/monitor" : "/terminal"; };
 const passwordProblem = (password, repeat) => { const C = EdgeLabels.auth.check;
@@ -982,8 +990,8 @@ function LoginForm({go, L}) {
  const registration=initialValue(v,"registration",()=>false),guests=initialValue(v,"guests",()=>false);
  onLifecycle(v,"config",()=>{let live=true;Edge.config().then(c=>{if(live){updateValue(v,"open",c.multiuser);updateValue(v,"registration",c.registration===true);updateValue(v,"guests",c.guests===true);}});return()=>{live=false;};},[]);
  const notice=authFlow.notice;
- const submit=async e=>{e.preventDefault();if(busy)return;updateValue(v,"busy",true);updateValue(v,"error","");authFlow.notice="";
-  try{await Edge.signin(login,password);updateValue(v,"password","");go(landing());}
+ const submit=async e=>{e.preventDefault();if(busy)return;updateValue(v,"busy",true);updateValue(v,"error","");authFlow.notice="";authFlow.from=shownAt();
+  try{await Edge.signin(login,password);updateValue(v,"password","");go(landing(true));}
   catch(e){const code=e.info?.code;
    if(code==="MFA_REQUIRED"){authFlow.mfaEnrolled=typeof e.info.details?.mfa_enrolled==="boolean"?e.info.details.mfa_enrolled:null;updateValue(v,"password","");go("/mfa");return;}
    // a pending registration answers the same 401 as a wrong password (no enumeration; the server emails a new code):
@@ -1137,7 +1145,7 @@ function MfaForm({go, L}) {
     updateValue(v, "busy", true); updateValue(v, "error", "");
     try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null;
       if (resumeEnrol && !enrol) { updateValue(v, "code", ""); updateValue(v, "busy", false); await startEnrol(); return; }
-      authFlow.enrolling = false; go(landing()); }
+      authFlow.enrolling = false; go(landing(true)); }
     catch (e) {
       // MFA_LOCKED: details.locked names the locked way ("code" or "recovery_code"); details.use the way still open as the
       // server found it: "recovery_code" (the codes locked) or "code" (the recovery codes locked, the authenticator open,
@@ -3027,10 +3035,12 @@ function App() {
         document.title = !checked ? P.loading : !authenticated && guests && TAB_PATHS[path] ? P[r?.title] || P.terminal
             : !authenticated || r?.auth === false ? P[m === "login" ? "signIn" : m] || P.signIn : P[r?.title] || P.monitor;
     }, [checked, authenticated, path, open, guests, prelaunch]);
+    // a route may carry its query ("/admin?ticket=5", landing() after /mfa): the query follows the route's path
     const go = route => {
-        const target = routeOf(route);
+        const [routePath, query = ""] = String(route).split(/(?=\?)/);
+        const target = routeOf(routePath);
         if (!target) return;
-        const nextPath = target.path;
+        const nextPath = target.path, search = target.path === routePath ? query : "";
         // the 3e checker SHELL-2: a press on the tab already shown adds no history entry; on a locked tab it reads the
         // session again (a plan raised meanwhile opens it now)
         if (nextPath === path && routeLocation().pathname === nextPath) {
@@ -3039,7 +3049,7 @@ function App() {
             return;
         }
         // EXEC-CHAT-URL: signing in at /c/<id> stays on that conversation
-        if (!(nextPath === "/monitor" && routeLocation().pathname.startsWith("/c/"))) routeHistory.pushState({}, "", nextPath);
+        if (!(nextPath === "/monitor" && routeLocation().pathname.startsWith("/c/"))) routeHistory.pushState({}, "", nextPath + search);
         setPath(nextPath);
         window.scrollTo(0, 0);
     };

@@ -53,7 +53,7 @@ from fastapi.responses import JSONResponse, Response
 
 import psycopg
 
-from . import email_texts, mailer, support as support_module, text_rules
+from . import email_texts, errors as errors_module, mailer, support as support_module, text_rules
 from .accounts import ACCOUNT_SESSIONS, GRANTS
 from .errors import Refusal
 from .principal import ADMIN_ACCESS, EVERYTHING, Principal
@@ -105,18 +105,39 @@ NO_SESSION = 'An account still registering has no session to end.'
 NOT_REGISTERING = 'A code is sent from here only to an account still registering.'
 
 
-def admin_right(c, user_id):
-    """Whether the account's grants hold the admin right now, whatever its status: its live plan and its unexpired
-    overrides as accounts.GRANTS resolves them for a session (the one rule, never a second copy)."""
-    r = c.execute('WITH found AS (SELECT user_id FROM edge_bff.users WHERE user_id = %(u)s),' + GRANTS
+# accounts.GRANTS at a given moment instead of now (the same rule, derived from its text, never a second copy)
+GRANTS_AT = GRANTS.replace('now()', '%(at)s::timestamptz')
+LAST_ADMIN = ('EDGE keeps at least one active account that holds the admin right. Give it to another account first (the '
+              'operator), then try again.')
+
+
+def admin_right(c, user_id, at=None):
+    """Whether the account's grants hold the admin right now (or at `at`), whatever its status: its live plan and its
+    unexpired overrides as accounts.GRANTS resolves them for a session (the one rule, never a second copy)."""
+    r = c.execute('WITH found AS (SELECT user_id FROM edge_bff.users WHERE user_id = %(u)s),' + (GRANTS if at is None else GRANTS_AT)
                   + ''' SELECT EXISTS (SELECT 1 FROM merged WHERE capability_key = ANY(%(keys)s)
-                        AND value = 'true'::jsonb) AS admin''', {'u': user_id, 'keys': list(ADMIN_KEYS)}).fetchone()
+                        AND value = 'true'::jsonb) AS admin''', {'u': user_id, 'keys': list(ADMIN_KEYS), 'at': at}).fetchone()
     return bool(r and r['admin'])
 
 
-def admin_holders(c):
-    """The active accounts that hold the admin right: every candidate (an override of an admin key, a subscription to a
-    plan holding one, or every account while the default plan holds one), each resolved by admin_right."""
+def admin_timeline(c, user_id):
+    """The Phase 4 checker's actions-1: the admin right now and just after every later moment its grants change (an
+    admin override's end, a subscription's start or end), as the plan catalog judges every time that may apply
+    (20261119_030). An action is judged by all of them, not only by now."""
+    moments = c.execute('''SELECT o.expires_at AS at FROM edge_bff.user_capability_overrides o
+            WHERE o.user_id = %(u)s AND o.capability_key = ANY(%(keys)s) AND o.expires_at > now()
+        UNION SELECT s.expires_at FROM edge_bff.subscriptions s
+            WHERE s.user_id = %(u)s AND s.status = 'active' AND s.expires_at > now()
+        UNION SELECT s.starts_at FROM edge_bff.subscriptions s
+            WHERE s.user_id = %(u)s AND s.status = 'active' AND s.starts_at > now()
+        ORDER BY 1''', {'u': user_id, 'keys': list(ADMIN_KEYS)}).fetchall()
+    return [admin_right(c, user_id)] + [admin_right(c, user_id, m['at'] + timedelta(microseconds=1)) for m in moments]
+
+
+def admin_holders(c, lasting=False):
+    """The active accounts that hold the admin right now (lasting: now and at every later moment their grants change,
+    admin_timeline): every candidate (an override of an admin key, a subscription to a plan holding one, or every
+    account while the default plan holds one), each resolved by admin_right."""
     keys = list(ADMIN_KEYS)
     everyone = c.execute('''SELECT EXISTS (SELECT 1 FROM edge_bff.plans p JOIN edge_bff.plan_capabilities pc
         ON pc.plan_key = p.plan_key WHERE p.is_default AND pc.capability_key = ANY(%s) AND pc.value = 'true'::jsonb) AS x''',
@@ -127,18 +148,34 @@ def admin_holders(c):
         OR EXISTS (SELECT 1 FROM edge_bff.subscriptions s JOIN edge_bff.plan_capabilities pc ON pc.plan_key = s.plan_key
                    WHERE s.user_id = u.user_id AND s.status = 'active' AND pc.capability_key = ANY(%s)))''',
                      (everyone, keys, keys)).fetchall()
+    if lasting:
+        return [r['user_id'] for r in rows if all(admin_timeline(c, r['user_id']))]
     return [r['user_id'] for r in rows if admin_right(c, r['user_id'])]
 
 
-def guarded(c, user_id, before):
-    """After an action's write, in its transaction: the account's admin right is as it was (the operator's), and at
-    least one active account still holds it. A refusal rolls the whole action back."""
-    if admin_right(c, user_id) != before:
-        raise invalid(account='This would ' + ('take the admin right from' if before else 'give the admin right to')
-                              + ' the account. The operator changes admin rights, not this page.')
-    if not admin_holders(c):
-        raise invalid(account='EDGE keeps at least one active account that holds the admin right. Give it to another '
-                              'account first (the operator), then try again.')
+def holders_of(c):
+    """(now, lasting) admin holders, read before an action's write for kept_admins."""
+    return admin_holders(c), admin_holders(c, lasting=True)
+
+
+def kept_admins(c, before, field='account'):
+    """After an action's write, in its transaction (the checker's actions-2): refused only when the action took the
+    last holder away, now or for good (`before`, holders_of before the write); with none before (the operator's state),
+    an action that removes no holder goes on."""
+    now, lasting = holders_of(c)
+    if (before[0] and not now) or (before[1] and not lasting):
+        raise invalid(**{field: LAST_ADMIN})
+
+
+def guarded(c, user_id, before, holders_before):
+    """After an action's write, in its transaction: the account's admin right is as it was at every moment it may
+    apply (admin_timeline; the operator's), and the admin holders are kept (kept_admins). A refusal rolls the whole
+    action back."""
+    after = admin_timeline(c, user_id)
+    if any(after) != any(before) or all(after) != all(before) or after[0] != before[0]:
+        raise invalid(account='This would ' + ('take the admin right from' if any(before) else 'give the admin right to')
+                              + ' the account, now or later. The operator changes admin rights, not this page.')
+    kept_admins(c, holders_before)
 
 
 def db_refusal(e):
@@ -159,7 +196,9 @@ def masked_phone(phone):
 
 def account_row(r):
     """An account as the admin page lists it: the address and the phone masked (a reveal shows them, audited)."""
-    return {'user_id': r['user_id'], 'username': r['username'], 'first_name': r['first_name'], 'last_name': r['last_name'],
+    # an account still registering has no username yet: the one it asked for is shown (the checker's actions-3)
+    return {'user_id': r['user_id'], 'username': r['username'], 'requested_username': r.get('requested_username'),
+            'first_name': r['first_name'], 'last_name': r['last_name'],
             'email': mailer.masked_address(r['email']) if r['email'] else None, 'phone': masked_phone(r['phone_e164']),
             'role': r['role'], 'status': r['status'], 'test_account': r['test_account'], 'plan': r['plan_key'],
             'plan_ends': r['plan_ends'], 'created_at': r['created_at'], 'last_sign_in_at': r['last_sign_in_at']}
@@ -246,22 +285,36 @@ class AdminStore:
 
     def users(self, q, status, plan, before, limit):
         with self.store.connect() as c:
-            rows = c.execute(f'''SELECT * FROM (SELECT u.user_id, u.username, u.first_name, u.last_name, u.email,
+            rows = c.execute(f'''SELECT * FROM (SELECT u.user_id, u.username, u.requested_username, u.first_name,
+                    u.last_name, u.email, u.owner_key,
                     u.phone_e164, u.role, u.status, u.test_account, u.created_at, u.last_sign_in_at,
                     {PLAN_OF} AS plan_key, {PLAN_ENDS} AS plan_ends FROM edge_bff.users u
                     WHERE (%(before)s::bigint IS NULL OR u.user_id < %(before)s)
                       AND (%(status)s::text IS NULL OR u.status = %(status)s)
-                      AND (%(q)s::text IS NULL OR u.username ILIKE %(q)s OR lower(u.email) = lower(%(address)s)
+                      AND (%(q)s::text IS NULL OR u.username ILIKE %(q)s OR u.requested_username ILIKE %(q)s
+                           OR lower(u.email) = lower(%(address)s)
                            OR (coalesce(u.first_name, '') || ' ' || coalesce(u.last_name, '')) ILIKE %(q)s)) x
                 WHERE (%(plan)s::text IS NULL OR x.plan_key = %(plan)s)
                 ORDER BY x.user_id DESC LIMIT %(limit)s''',
                              {'before': before, 'status': status, 'q': like(q) if q else None, 'address': q,
                               'plan': plan, 'limit': limit + 1}).fetchall()
-        more = len(rows) > limit
-        rows = rows[:limit]
-        return {'users': [account_row(r) for r in rows], 'next': rows[-1]['user_id'] if more else None}
+            more = len(rows) > limit
+            rows = rows[:limit]
+            # the usage counters of each account of the page, one grouped count per kind (CONTRACT 10's list; the
+            # checker's page-tests-records-6), as the detail counts them
+            keys = [r['owner_key'] for r in rows]
+            usage = {r['owner_key']: {name: 0 for name, _, _ in USAGE} for r in rows}
+            for name, table, column in USAGE:
+                for row in c.execute(f'SELECT {column} AS k, count(*) AS n FROM {table} WHERE {column} = ANY(%s) '
+                                     f'GROUP BY {column}', (keys,)).fetchall():
+                    usage[row['k']][name] = row['n']
+            tickets = {row['user_id']: row['n'] for row in c.execute(
+                'SELECT user_id, count(*) AS n FROM edge_bff.support_tickets WHERE user_id = ANY(%s) GROUP BY user_id',
+                ([r['user_id'] for r in rows],)).fetchall()}
+        return {'users': [{**account_row(r), 'usage': {**usage[r['owner_key']], 'support_tickets': tickets.get(r['user_id'], 0)}}
+                          for r in rows], 'next': rows[-1]['user_id'] if more else None}
 
-    def user(self, user_id, actor=None):
+    def user(self, user_id, actor=None, code_ready=True):
         with self.store.connect() as c:
             r = c.execute(f'''SELECT u.*, {PLAN_OF} AS plan_key, {PLAN_ENDS} AS plan_ends FROM edge_bff.users u
                 WHERE u.user_id = %s''', (user_id,)).fetchone()
@@ -283,7 +336,7 @@ class AdminStore:
             trail = c.execute('''SELECT a.audit_id, a.at, a.action, a.actor_user_id, x.username AS actor, a.before, a.after,
                 a.reason FROM edge_bff.admin_audit a LEFT JOIN edge_bff.users x ON x.user_id = a.actor_user_id
                 WHERE a.target_user_id = %s ORDER BY a.audit_id DESC LIMIT 50''', (user_id,)).fetchall()
-            actions, holds = self.actions_of(c, actor, r), admin_right(c, user_id)
+            actions, holds = self.actions_of(c, actor, r, code_ready), admin_right(c, user_id)
         return {'account': account_row(r), 'email_verified_at': r['email_verified_at'],
                 'mfa': 'confirmed' if mfa and mfa['confirmed'] else 'pending' if mfa else 'none',
                 'subscriptions': [dict(x) for x in subs], 'overrides': [dict(x) for x in overrides],
@@ -291,19 +344,23 @@ class AdminStore:
                 'holds_admin': holds, 'actions': actions}
 
     @staticmethod
-    def actions_of(c, actor, r):
+    def actions_of(c, actor, r, code_ready=True):
         """What the admin may do to this account now, each {open, why}: the page offers an open one and says the why of
-        a closed one; the routes refuse alike (slice 5)."""
+        a closed one; the routes refuse alike (slice 5; the checker's actions-1, -2, -4: an admin right that may come
+        back counts, the last holder is not disabled, and no code is offered without the site's code key)."""
         own, pending = r['user_id'] == actor, r['status'] == 'pending'
-        admin = admin_right(c, r['user_id'])
+        admin = any(admin_timeline(c, r['user_id']))
+        now, lasting = holders_of(c) if r['status'] == 'active' else ((), ())
+        last = r['status'] == 'active' and (now == [r['user_id']] or lasting == [r['user_id']])
+        no_code = errors_module.MESSAGES['CODE_UNAVAILABLE']
 
         def one(closed_by):
             why = next((w for cond, w in closed_by if cond), None)
             return {'open': why is None, 'why': why}
-        return {'status': one(((own, OWN), (pending, STILL_REGISTERING))),
+        return {'status': one(((own, OWN), (pending, STILL_REGISTERING), (last, LAST_ADMIN))),
                 'plan': one(((own, OWN), (pending, STILL_REGISTERING), (admin, ADMINS_OWN))),
                 'sessions': one(((own, OWN), (pending, NO_SESSION))),
-                'resend_code': one(((own, OWN), (not pending, NOT_REGISTERING)))}
+                'resend_code': one(((own, OWN), (not pending, NOT_REGISTERING), (not code_ready, no_code)))}
 
     # ---- slice 5: the actions ---------------------------------------------------------------------------------------
     @staticmethod
@@ -325,14 +382,13 @@ class AdminStore:
                 raise invalid(status=STILL_REGISTERING)
             if u['status'] == status:
                 return {'status': status, 'changed': False, 'sessions_revoked': 0}
+            holders = holders_of(c)
             c.execute('UPDATE edge_bff.users SET status = %s WHERE user_id = %s', (status, user_id))
             ended = 0
             if status == 'disabled':
                 ended = c.execute(f'UPDATE edge_bff.sessions SET revoked_at = now() WHERE {ACCOUNT_SESSIONS} '
                                   'AND revoked_at IS NULL', (user_id, user_id)).rowcount
-            if not admin_holders(c):
-                raise invalid(status='EDGE keeps at least one active account that holds the admin right. Give it to '
-                                     'another account first (the operator), then try again.')
+            kept_admins(c, holders, 'status')
             audit(c, actor, 'account.status', user_id, before={'status': u['status']},
                   after={'status': status, 'sessions_revoked': ended}, reason=reason)
         return {'status': status, 'changed': True, 'sessions_revoked': ended}
@@ -354,15 +410,17 @@ class AdminStore:
                 raise invalid(plan_key='The visitors\' plan is not given to an account. Choose another plan.')
             was = c.execute(f'SELECT {PLAN_OF} AS plan_key, {PLAN_ENDS} AS ends FROM edge_bff.users u WHERE u.user_id = %s',
                             (user_id,)).fetchone()
-            before = admin_right(c, user_id)
-            if before:
-                # the rule of actions_of: another admin's plan is the operator's (taking the right away is refused below)
+            before = admin_timeline(c, user_id)
+            if any(before):
+                # the rule of actions_of: another admin's plan is the operator's, also one whose right may come back
+                # (taking the right away is refused below)
                 raise invalid(plan_key=ADMINS_OWN)
+            holders = holders_of(c)
             c.execute('''UPDATE edge_bff.subscriptions SET status = 'cancelled', last_event_at = now()
                 WHERE user_id = %s AND status = 'active' ''', (user_id,))
             c.execute('''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, expires_at, provider, provider_ref)
                 VALUES (%s, %s, 'active', %s, 'manual', 'admin-page')''', (user_id, plan_key, expires_at))
-            guarded(c, user_id, before)
+            guarded(c, user_id, before, holders)
             stamp = lambda v: v.isoformat() if v else None
             audit(c, actor, 'account.plan', user_id, before={'plan': was['plan_key'], 'expires_at': stamp(was['ends'])},
                   after={'plan': plan_key, 'expires_at': stamp(expires_at)}, reason=reason)
@@ -560,12 +618,12 @@ class Admin:
             return b
 
         @app.get('/api/v1/admin/step-up')
-        async def step_up_state(p: Principal = Depends(auth.admin())):
+        async def step_up_state(p: Principal = Depends(auth.admin_known())):
             enrolled = p.user_id is not None and await asyncio.to_thread(self.flows.store.totp, p.user_id) is not None
             return {'needed': not p.step_up, 'enrolled': enrolled, 'available': bool(settings.mfa_key)}
 
         @app.post('/api/v1/admin/step-up')
-        async def step_up(request: Request, p: Principal = Depends(auth.admin(write=True))):
+        async def step_up(request: Request, p: Principal = Depends(auth.admin_known(write=True))):
             if settings.multiuser:
                 raise Refusal(404, 'NOT_FOUND')      # with the switch on the sign-in itself asked for the code
             if not settings.mfa_key:
@@ -616,7 +674,7 @@ class Admin:
 
         @app.get('/api/v1/admin/users/{user_id}')
         async def user(user_id: int, p: Principal = Depends(reader)):
-            found = await asyncio.to_thread(data.user, user_id, p.user_id)
+            found = await asyncio.to_thread(data.user, user_id, p.user_id, bool(settings.code_secret))
             if found is None:
                 raise Refusal(404, 'NOT_FOUND')
             return found

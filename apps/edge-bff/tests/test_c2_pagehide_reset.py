@@ -11,7 +11,11 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-APPS = ('terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist')
+# every page folder the app serves (main.py's <NAME>_APP; the Phase 4 checker's page-tests-records-1: a hand list left
+# the admin page out), so the next page is scanned without an edit here
+from app import main as _main
+APPS = tuple(sorted(name.removesuffix('_APP').lower() for name in vars(_main)
+                    if name.endswith('_APP') and not name.endswith('_LAB_APP')))
 # a pagehide handler in this file that ends in a browser-storage write of a `user` key (found by reading the code)
 WRITES_ON_PAGEHIDE = {
     'screener/src/app.ts': "remember(true) -> saveLast -> scr.last",

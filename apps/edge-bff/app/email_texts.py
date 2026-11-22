@@ -80,7 +80,7 @@ def support_email(info):
     html_parts.append('Technical details:<br>' + '<br>'.join(f'{escape(str(k))}: {escape(str(v))}' for k, v in details.items()))
     html_parts += [escape(x) for x in tail[1:]]
     mail = {'subject': f"EDGE support #{info['ticket_id']}: {kind}: {_one_line(info.get('subject'), 120)}",
-            'text': text, 'html': _html(html_parts), 'mask': [], 'private': True,
+            'text': text, 'html': _html(html_parts), 'mask': [], 'private': True, 'ticket_id': int(info['ticket_id']),
             'attachments': [{'ticket_id': int(info['ticket_id']), 'position': int(a['position']), 'filename': a['filename']}
                             for a in images]}
     if sender.get('email'):

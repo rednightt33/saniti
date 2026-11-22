@@ -387,7 +387,10 @@ def test_an_account_is_shown_in_full_only_with_a_reason_and_the_audit_file_downl
 
 
 def sign_in_page(browser, local, path, login, password, width=1440, height=900):
+    """The page signed in at `path`, with page.watch (Watch) attached before it opens (the checker's
+    page-tests-records-5: every browser test here fails on an error or an answer it does not name)."""
     page = browser.new_page(viewport={'width': width, 'height': height})
+    page.watch = Watch(page)
     page.goto(local.origin + path)
     page.locator('#auth-login').fill(login)
     page.locator('#auth-password').fill(password)
@@ -412,6 +415,41 @@ def test_a_sign_in_stays_at_a_page_the_account_opens_and_lands_as_before_elsewhe
                     page = sign_in_page(browser, local, path, paula['username'], 'paula_sign_in-password')
                     page.wait_for_function('want => location.pathname + location.search === want', arg=lands)
                     assert page.locator('.admin-closed').count() == 0 and page.locator('.side-admin').count() == 0
+                    page.watch.check(expected={('GET', '/api/v1/auth/session', 401)})
+                    page.close()
+            finally:
+                browser.close()
+    finally:
+        stop()
+
+
+def test_a_sign_in_through_the_authenticator_code_keeps_the_page_it_was_shown_at(settings, store):
+    """The Phase 4 checker's page-tests-records-2: the admin needs the authenticator code at sign-in (switch on), which
+    goes through /mfa; the page it was shown at, its address and query, is kept (authFlow.from) and reached after the
+    code, as the user's "A" says for every tab; a sign-in at /login still lands on the landing page."""
+    playwright = pytest.importorskip('playwright.sync_api')
+    from app import mfa
+    from test_screener import serve
+    local, stop = serve(beta_on(settings), store)
+    try:
+        uid = seed_id(store, settings)
+        nonce = enrol(store, uid)
+        with playwright.sync_playwright() as pw:
+            browser = open_browser(pw)
+            try:
+                cases = (('/backtest?run=bt_1', '/backtest?run=bt_1'), ('/admin?ticket=5', '/admin?ticket=5'),
+                         ('/login', '/monitor'))
+                for step, (path, lands) in enumerate(cases):
+                    page = browser.new_page(viewport={'width': 1440, 'height': 900})
+                    watch = Watch(page)
+                    page.goto(local.origin + path)
+                    page.locator('#auth-login').fill('owner')
+                    page.locator('#auth-password').fill('local-test-password')
+                    page.get_by_role('button', name='Sign In', exact=True).click()
+                    page.locator('#auth-code').fill(code_of(uid, nonce, mfa.step_now() - 1 + step))
+                    page.locator('#auth-code').press('Enter')
+                    page.wait_for_function('want => location.pathname + location.search === want', arg=lands)
+                    watch.check(expected={('GET', '/api/v1/auth/session', 401), ('POST', '/api/v1/auth/sign-in', 403)})
                     page.close()
             finally:
                 browser.close()
@@ -437,6 +475,7 @@ def test_the_code_step_says_why_it_cannot_run(settings, store, monkeypatch):
                     f = frame_of(page)
                     f.locator('#step-title', has_text=words).wait_for()
                     assert f.locator('#code').count() == 0
+                    page.watch.check(expected={('GET', '/api/v1/auth/session', 401)})
                 finally:
                     browser.close()
         finally:

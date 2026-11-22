@@ -16,7 +16,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SHARED = ROOT / 'shared' / 'edge-session.ts'
-APPS = ('terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist')
+# every page folder the app serves (main.py's <NAME>_APP; the Phase 4 checker's page-tests-records-1: a hand list left
+# the admin page out), so the next page is scanned without an edit here
+from app import main as _main
+APPS = tuple(sorted(name.removesuffix('_APP').lower() for name in vars(_main)
+                    if name.endswith('_APP') and not name.endswith('_LAB_APP')))
 SHELL = ('static/index.html', 'static/edge-app.js', 'static/edge-boot.js', 'static/edge-client.js', 'static/edge-view.js',
          'static/edge-labels.js', 'static/edge-docx.js')
 

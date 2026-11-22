@@ -306,8 +306,12 @@ class Settings:
                 raise ValueError(f'{name} is a whole number from 1 to {top}; or unset it for the default')
         if self.admin_origin and not re.fullmatch(r'https://[A-Za-z0-9.-]+(:[0-9]{1,5})?', self.admin_origin):
             raise ValueError('EDGE_ADMIN_ORIGIN is the admin page\'s origin: the beta\'s own address, https and no path')
-        if self.telegram_notify_url and not re.fullmatch(r'https?://[A-Za-z0-9.\[\]:-]+(:[0-9]{1,5})?/notify', self.telegram_notify_url):
-            raise ValueError('TELEGRAM_NOTIFY_URL is telegram-monitor\'s /notify address, e.g. http://telegram-monitor.railway.internal:8080/notify')
+        # a real host, and a port after a colon (the Phase 4 checker's deploy-3: ':' inside the host's characters let
+        # 'http://:/notify' and a reference that resolved to an empty port, '...internal:/notify', start the site)
+        if self.telegram_notify_url and not re.fullmatch(r'https?://[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*(:[0-9]{1,5})?/notify',
+                                                         self.telegram_notify_url):
+            raise ValueError('TELEGRAM_NOTIFY_URL is telegram-monitor\'s /notify address with its host and, after a colon, '
+                             'its port, e.g. http://telegram-monitor.railway.internal:8080/notify')
         for name, value in (('EDGE_PRIVACY_URL', self.privacy_url), ('EDGE_TERMS_URL', self.terms_url)):
             if value and not LEGAL_URL.fullmatch(value):
                 raise ValueError(f'{name} is an https address or a path of this site (/...), at most 500 characters')

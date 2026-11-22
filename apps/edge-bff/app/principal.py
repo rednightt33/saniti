@@ -640,6 +640,42 @@ class Auth:
             self._needs[key] = check
         return self._needs[key]
 
+    async def admin_account(self, p):
+        """Phase 4 (checker gates-1, gates-2, 2026-11-22): the admin page acts only as a known, active account. With the
+        switch off the principal's user_id is user #1's from the seed (switch_off_principal), and its status is always
+        'active': a seed not read at the start (account_seed_failed, swallowed with the switch off) left user_id None, so
+        an action ran with no actor, the own-account guard saw no own account and the audit row had no actor; and a
+        disabled user #1 kept the page. So the seed is read again here when it is missing, the account's status is read
+        from edge_bff.users, and without a known account the page answers 503 ADMIN_ACCOUNT_UNAVAILABLE, for a disabled
+        or pending one 403 ACCOUNT_DISABLED. Returns the principal with its user_id."""
+        if p.user_id is None and p.seed and not self.settings.multiuser:
+            try:
+                await asyncio.to_thread(self.seed_user)
+            except Exception as e:                       # noqa: BLE001 - logged by its class only
+                logger.warning(json.dumps({'event': 'admin_seed_retry_failed', 'error': type(e).__name__}))
+            seed = self.seed or {}
+            if seed.get('user_id') is not None:
+                p = dataclasses.replace(p, user_id=seed['user_id'], username=seed.get('username'))
+        if p.user_id is None:
+            logger.warning(json.dumps({'event': 'admin_account_unknown', 'seeded': self.seed is not None}))
+            raise Refusal(503, 'ADMIN_ACCOUNT_UNAVAILABLE')
+        status = await asyncio.to_thread(self.store.account_status, p.user_id)
+        if status != 'active':
+            raise Refusal(403, 'ACCOUNT_DISABLED', {'status': status})
+        return p
+
+    def admin_known(self, write=False):
+        """admin() and admin_account(): the admin page's code step (GET and POST /api/v1/admin/step-up), which needs a
+        known, active account before it checks a code."""
+        key = ('admin_known', write)
+        if key not in self._needs:
+            base = self.admin(write)
+
+            async def check(p: Principal = Depends(base)):
+                return await self.admin_account(p)
+            self._needs[key] = check
+        return self._needs[key]
+
     def admin_page(self, write=False):
         """Phase 4, the admin page (CONTRACT 10: the admin right and the second factor; the user, 2026-11-22: "1A"): admin()
         of admin.access (404 before any session on the live site, a beta-only capability; 403 MFA_REQUIRED for a session
@@ -651,6 +687,7 @@ class Auth:
             base = self.admin(write)
 
             async def check(p: Principal = Depends(base)):
+                p = await self.admin_account(p)
                 if not p.step_up:
                     raise Refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': True, 'step_up': True})
                 return p

@@ -183,26 +183,43 @@ class SupportStore:
     def __init__(self, store, settings):
         self.store, self.settings = store, settings
 
+    def over_limit(self, c, user_id):
+        """The account's LIMIT_REACHED refusal when it has sent its messages of the hour or the day, else None."""
+        s = self.settings
+        counts = c.execute('''SELECT count(*) FILTER (WHERE created_at > now() - interval '1 hour') AS hour,
+                count(*) AS day, min(created_at) FILTER (WHERE created_at > now() - interval '1 hour') AS first_hour,
+                min(created_at) AS first_day
+            FROM edge_bff.support_tickets WHERE user_id = %s AND created_at > now() - interval '1 day' ''',
+                           (user_id,)).fetchone()
+        for window, used, allowed, first, span in (('hour', counts['hour'], s.support_per_hour, counts['first_hour'], 3600),
+                                                   ('day', counts['day'], s.support_per_day, counts['first_day'], 86400)):
+            if used >= allowed:
+                wait = 60
+                if first is not None:
+                    wait = max(1, int(span - (datetime.now(timezone.utc) - first).total_seconds()) + 1)
+                return Refusal(429, 'LIMIT_REACHED', {'limit': f'support_{window}', 'allowed': allowed,
+                                                      'retry_after_s': wait}, {'Retry-After': str(wait)})
+        return None
+
+    def precheck(self, user_id):
+        """Before an upload's body is read (main.py support_precheck; the Phase 4 checker's support-3): the account's
+        limit refusal, or None. The same check runs again under the lock in create."""
+        with self.store.connect() as c:
+            return self.over_limit(c, user_id)
+
     def create(self, p, kind, subject, body, details, images):
         """The ticket's row (and its images and the admins' emails) in one transaction, under a lock per account, or a
         LIMIT_REACHED refusal; returns {ticket_id, created_at, sender, recipients}."""
         s = self.settings
         with self.store.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(%s, %s)', (0x5350, int(p.user_id) & 0x7fffffff))
-            counts = c.execute('''SELECT count(*) FILTER (WHERE created_at > now() - interval '1 hour') AS hour,
-                    count(*) AS day, min(created_at) FILTER (WHERE created_at > now() - interval '1 hour') AS first_hour,
-                    min(created_at) AS first_day
-                FROM edge_bff.support_tickets WHERE user_id = %s AND created_at > now() - interval '1 day' ''',
-                                  (p.user_id,)).fetchone()
-            for window, used, allowed, first, span in (('hour', counts['hour'], s.support_per_hour, counts['first_hour'], 3600),
-                                                       ('day', counts['day'], s.support_per_day, counts['first_day'], 86400)):
-                if used >= allowed:
-                    wait = 60
-                    if first is not None:
-                        wait = max(1, int(span - (datetime.now(timezone.utc) - first).total_seconds()) + 1)
-                    raise Refusal(429, 'LIMIT_REACHED', {'limit': f'support_{window}', 'allowed': allowed,
-                                                         'retry_after_s': wait}, {'Retry-After': str(wait)})
+            refused = self.over_limit(c, p.user_id)
+            if refused is not None:
+                raise refused
             if images:
+                # one lock for every sender's images (the checker's deploy-2): the per-account lock alone let two
+                # accounts sending at once both pass the ceiling; always taken after the account's lock, in that order
+                c.execute('SELECT pg_advisory_xact_lock(%s, %s)', (0x5350, 0))
                 held = c.execute('SELECT coalesce(sum(bytes), 0) AS held FROM edge_bff.support_attachments').fetchone()['held']
                 if held + sum(len(raw) for _, _, raw in images) > s.support_storage_mb * 1024 * 1024:
                     raise Refusal(503, 'SUPPORT_STORAGE_FULL', {'fields': ['images']})
@@ -215,9 +232,15 @@ class SupportStore:
                         sha256, body) VALUES (%s, %s, %s, %s, %s, %s, %s)''',
                           (ticket, position, name, kind_of, len(raw), hashlib.sha256(raw).hexdigest(), raw))
             sender = c.execute('SELECT username, email FROM edge_bff.users WHERE user_id = %s', (p.user_id,)).fetchone()
+            # every active account that holds the admin right ('*' or admin.access, its grants; the Phase 4 checker's
+            # support-1: users.role only names the account's kind and grants nothing), with an address: the owner's
+            # personal address is user #1's (set from EDGE_ADMIN_EMAIL, the address the user gave on 2026-11-20 and again
+            # on 2026-11-22 for these emails; DATABASE_CHANGELOG.md, job db2aa27d)
+            from .admin import admin_holders              # here: app/admin.py imports this module
+            holders = admin_holders(c)
             recipients = [r['email'] for r in c.execute(
-                '''SELECT email FROM edge_bff.users WHERE role = 'admin' AND status = 'active' AND email IS NOT NULL
-                   ORDER BY user_id''').fetchall()]
+                '''SELECT email FROM edge_bff.users WHERE user_id = ANY(%s) AND email IS NOT NULL ORDER BY user_id''',
+                (holders,)).fetchall()] if holders else []
             info = {'ticket_id': ticket, 'created_at': row['created_at'], 'site': s.site, 'kind': kind,
                     'subject': subject, 'body': body, 'details': details,
                     'images': [{'position': i, 'filename': n, 'content_type': t, 'bytes': len(raw)}
@@ -335,19 +358,21 @@ class Support:
         async def send(request: Request, p: Principal = Depends(writer)):
             if p.user_id is None:
                 raise Refusal(403, 'CAPABILITY_REQUIRED', {'capability': CAPABILITY})
-            try:
-                # the body protections read (main.py, at most REQUEST_BYTES), replayed to the route
-                data = json.loads(await request.body() or b'')
-            except (ValueError, UnicodeDecodeError):
-                raise invalid(request=REASONS['request']) from None
-            if not isinstance(data, dict):
-                raise invalid(request=REASONS['request'])
-            kind = data.get('kind')
-            if kind not in KINDS:
-                raise invalid(kind=REASONS['kind'])
-            subject = clean_line(data.get('subject'), SUBJECT_CHARS, 'subject')
-            body = clean_body(data.get('body'))
-            images = clean_images(data.get('images'))
+            raw = await request.body()          # the body protections read (main.py, at most REQUEST_BYTES)
+
+            def parse():
+                # in a thread (the checker's support-3): up to 3 images of 5 MB decoded off the event loop
+                try:
+                    data = json.loads(raw or b'')
+                except (ValueError, UnicodeDecodeError):
+                    raise invalid(request=REASONS['request']) from None
+                if not isinstance(data, dict):
+                    raise invalid(request=REASONS['request'])
+                if data.get('kind') not in KINDS:
+                    raise invalid(kind=REASONS['kind'])
+                return (data, data['kind'], clean_line(data.get('subject'), SUBJECT_CHARS, 'subject'),
+                        clean_body(data.get('body')), clean_images(data.get('images')))
+            data, kind, subject, body, images = await asyncio.to_thread(parse)
             details = clean_details(data.get('details'), request, self.settings, p)
             info = await asyncio.to_thread(self.tickets.create, p, kind, subject, body, details, images)
             task = asyncio.create_task(self.to_telegram(info))

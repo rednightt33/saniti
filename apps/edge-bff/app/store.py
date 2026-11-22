@@ -119,13 +119,23 @@ class Store:
         with self.connect() as c:
             return c.execute('SELECT owner_key, mfa_passed_at FROM edge_bff.sessions WHERE token_hash=%s AND user_id IS NULL AND revoked_at IS NULL AND expires_at>now()', (hashed,)).fetchone()
 
+    def account_status(self, user_id):
+        """The status of an account ('active', 'disabled', 'pending'), or None when no such account (the admin page's
+        gate, Auth.admin_account)."""
+        with self.connect() as c:
+            row = c.execute('SELECT status FROM edge_bff.users WHERE user_id = %s', (user_id,)).fetchone()
+        return row['status'] if row else None
+
     def session_step_up(self, old_hashed, new_hashed, owner):
         """Phase 4, the admin page's code step on the beta (the user, 2026-11-22: "1A"): a new switch-off session that
         passed the authenticator code, with the old one's end, made only while the old one is live and the owner's, which
         is revoked in the same transaction (OWASP: a new session token at the privilege change). True when made."""
         with self.connect() as c:
+            # the owner's account must be active (checker gates-2): a disabled user #1 gets no new admin session
             old = c.execute('''UPDATE edge_bff.sessions SET revoked_at=now() WHERE token_hash=%s AND user_id IS NULL
-                AND revoked_at IS NULL AND expires_at>now() AND owner_key=%s RETURNING expires_at''', (old_hashed, owner)).fetchone()
+                AND revoked_at IS NULL AND expires_at>now() AND owner_key=%s
+                AND EXISTS (SELECT 1 FROM edge_bff.users WHERE owner_key = %s AND status = 'active')
+                RETURNING expires_at''', (old_hashed, owner, owner)).fetchone()
             if old is None:
                 return False
             c.execute('''INSERT INTO edge_bff.sessions(token_hash, owner_key, expires_at, mfa_passed_at)
