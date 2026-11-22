@@ -8926,7 +8926,10 @@ in its staleness check.
 - **Solution:** `tests/conftest.py` `built_pages` (autouse for tests that open a browser): every `main.*_APP` under
   `static/` without an index.html points at its built folder, derived from the Dockerfile's COPY lines; lab builds stay
   as they are on disk. `tests/test_built_pages.py` locks the derivation. The two sign-in tests passed 10 of 10 runs.
-- **Status:** FIXED on the branch, `6b3edc6c`.
+- **Status:** FIXED in `6b3edc6c`, on the live site since 2026-11-22 (`ec739a06`).
+- **Seen after the fix (step 7's full run, 2026-11-22):** the same test once timed out (30 s, Playwright) under the
+  full suite's load; 3 of 3 alone pass, and the 404 does not recur. Not a defect yet; the step-8 ledger carries it for a
+  repeat under load.
 
 ### M545 — The OpenRouter key expired on 2026-11-22: the beta's AI and the web governor refused since 03:55 UTC, and nobody was told (2026-11-22; found by the agent from the open-items report NC29; OPEN, the key is the user's)
 

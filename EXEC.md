@@ -16687,6 +16687,25 @@ Order of the services (CONTRACT 17, rollback floors):
   (backtest-worker `df495720` by CLI, screener-worker `4438dbb0`), the live smoke green (RAILWAY_CHANGELOG.md 2026-11-22).
   Next: step 7, the payment shell's infrastructure only (the user's words above).
 
+- **Step 7, the payment shell (built on the branch 2026-11-22, infrastructure only, the user's words above; code in
+  `d6f5b18a`):** `apps/edge-bff/app/payments/` (the adapter with `manual`, `test` and a `midtrans` skeleton that makes no
+  call: its signature check, status mapping and rupiah parsing only), the order state machine in one transaction
+  (`PaymentStore.apply_event`: a duplicate or older event changes nothing, a settled order never goes back, a wrong
+  amount or currency changes nothing, a payment while another plan is live or after the order ended is held for the
+  admin, a refund is held for review), `reconcile()` (called by nothing yet), `POST /api/v1/hooks/payments/{test,midtrans}`
+  registered with `signed` and off (404) unless `EDGE_PAYMENTS_PROVIDER` names the provider; `config.validate` refuses
+  `midtrans` until its phase and `test` on the live site. Migration `20261123_001_edge_bff_payments.sql`
+  (`payment_orders`, `payment_events`, `subscriptions.provider` widened to `midtrans`; expand-only) written, **not
+  applied**: it is applied with the step-7 deploy, which needs the user's confirmation (AGENTS.md "Deploys");
+  `EDGE_PAYMENTS_PROVIDER` stays unset. Tests `tests/test_payments.py` (12; two mutations red); the full edge-bff suite
+  1226 passed. CONTRACT.md section 11 lists what waits.
+  - Carried open part: **the Midtrans phase** (the Sandbox keys as Railway variables the user enters, Snap
+    `create_checkout` for QRIS and the VAs, Get Status before applying and the loop that calls `reconcile()`, the
+    dashboard's notification URL, the `/pay` and return pages, and the user's plans, prices, periods, grace period,
+    buyers and the admin's handling of held orders). Owner: step 7's builder. Trigger: the user's Midtrans account is
+    ready (the user, 2026-11-22: "akun Mitrans belum siap").
+  - Its check joins step 8 (the user's "Pengecekan perbaikan tersebut dilakukan di langkah 8"; EXEC UD23).
+
 - **The step-8 ledger (UD23's answer):** `verification/records/step8_ledger.json` (workflow `wf_877859a9-d28`, 2026-11-22):
   376 rows: 111 fixed and tested out, 168 fixed and not tested out, 23 open with an owner row, 65 open without one, 4
   accepted by the user, 5 obsolete; its critic names the findings with no row yet (the unverified lows of the live
