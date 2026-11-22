@@ -16601,6 +16601,10 @@ Order of the services (CONTRACT 17, rollback floors):
     3f round 2, the example mode's run 2 and the Watchlist's latest data, Phase 4's 18), derived from the checkers'
     journals, joins this round's fixes. And: "Masukan ke memory: workflow ditambahkan 1 fase lagi which to test out
     perbaikan ya" → AGENTS.md "Findings and fixes" rule 8.
+  - Group A's design questions (asked 2026-11-22 with context), the user's answers the same day: "3A" (SH1: the shared
+    Backtest slot taken in turns when both sites have jobs waiting), "4A" (R1-16: the beta locks an account after 100
+    consecutive wrong passwords as the live site does, a known browser exempt, the unlock script the way back). Q1
+    (R2-37's numbers), Q2 (ops:F2's layer) and Q5 (R1-5) open in the register.
   - Order: the records, group A, the lab gaps and W4, the re-check, the beta; the live site only on the user's request
     (group A reaches the live site only with a promotion, which carries Phase 4's support panel too).
 - **Pending decisions (AGENTS.md "Findings and fixes", rule 6; shown to the user at the end of every phase).** From the
@@ -16609,9 +16613,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | Id | Decision or action of the user | Asked | Holds back | Needed by |
   |---|---|---|---|---|
   | GA-2 | ops:F2 alerts: inside Railway, outside it (a GitHub Actions probe with the Telegram secrets the user adds), or both | 2026-11-22 with context | the alerting work | this round |
-  | GA-3 | SH1: the shared Backtest slot taking turns between the sites, or the live site first | 2026-11-22 with context | SH1 | this round |
-  | GA-4 | R1-16: the per-account lock of consecutive wrong passwords on the beta too, or kept off | 2026-11-22 with context | R1-16 | this round |
-  | GA-5 | R1-5: every reader of a page file counted to its own quota, or the first reader only | 2026-11-22 with context | R1-5 | this round |
+  | GA-5 | R1-5: every reader of a page file counted to its own quota, or the first reader only; the user asked (2026-11-22) whom the quota binds and what happens at it, answered with the options A1 (each distinct file once per reader per hour), A2 (every open), B (as now) | 2026-11-22 with context | R1-5 | this round |
   | UD3 | A fresh Stockbit token for the broker round (broker data stops at 9 Nov) | 2026-11-20 | Radar, Flow, Foreign 5D, broker presets, corporate actions | now |
   | NC29 | The OpenRouter key expired 2026-11-22 03:55 UTC (ERRORS M539): extend or replace it and set `OPENROUTER_API_KEY` on market-ai-orc; then the consumers' redeploy | 2026-11-22 | the beta's AI, the web governor (refused now) | now |
   | UD1 | Railway usage: a soft-limit alert and a hard limit with headroom (three stops on record stop every service, the live site included) | not yet asked with context (a row of the 2026-11-22 report; excluded by the user 2026-11-19, "4 keputusan tambahan kamu jangan dimasukin", before the live site existed) | the live site's uptime | before step 9 |
