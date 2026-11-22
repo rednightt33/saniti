@@ -779,9 +779,12 @@ class AuthFlows:
             if not settings.multiuser:
                 return {'multiuser': False}
             # live checker S1 (2026-11-20): the tabs this site never offers (principal.BETA_ONLY_TABS on the live site:
-            # the Monitor and the admin pages), so the shell shows neither their rail entries nor their buttons
-            # and the tabs at the lab stage (releases.json tabs; LIVE_PROMOTION.md): on the beta until released
-            hidden = sorted(BETA_ONLY_TABS | releases.lab_tabs()) if settings.site == LIVE else []
+            # the Monitor and the admin pages), so the shell shows neither their rail entries nor their buttons.
+            # 3f checker SERVE-3 (the lab gap; the user's go 2026-11-22): this answer is public, so it names no lab tab
+            # (it named them, telling every visitor what is being built); a lab tab has no entry in the public shell to
+            # hide (tests/test_live_switch.py holds its id out of the shell's files) and its capability is masked on
+            # the live site for every principal (principal.live_view)
+            hidden = sorted(BETA_ONLY_TABS) if settings.site == LIVE else []
             return {'multiuser': True, 'registration': not settings.prelaunch, 'prelaunch': settings.prelaunch,
                     'guests': settings.guests, 'upgrade_contact': settings.upgrade_contact or None, 'hidden_tabs': hidden,
                     # the footer's Privacy and Terms links, null until their texts exist (EXEC option A, 2026-11-20)

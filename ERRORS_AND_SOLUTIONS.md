@@ -8879,6 +8879,19 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M540 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; OPEN)
+
+- **Found by:** the agent, running `tests/test_admin_page.py::test_a_sign_in_through_the_authenticator_code_keeps_the_page_it_was_shown_at`
+  for the SERVE-3 change.
+- **Verified:** the test failed 2 of 3 runs on the commit before the change too (the change's own runs: 1 of 2), its
+  Watch naming `('GET', '/backtest-app/', 404)`; the Backtest page was built (`dist/index.html` present).
+- **Suspected (not traced):** a timing race in the test's flow: the shell frames the Backtest page for the visitor
+  before the sign-in lands, and edge-bff answers 404 to a principal without the tab's capability at that instant; the
+  Watch counts it. The check that would confirm it: the request's principal at the 404 (log the route's refusal in the
+  test run).
+- **Solution:** none yet; in the re-check's list (AGENTS.md "Findings and fixes"), never skipped. NC17's class (flaky
+  browser tests M510 does not name).
+
 ### M539 — The OpenRouter key expired on 2026-11-22: the beta's AI and the web governor refused since 03:55 UTC, and nobody was told (2026-11-22; found by the agent from the open-items report NC29; OPEN, the key is the user's)
 
 - **Found by:** the agent, checking NC29 of the open-items report (the key recorded on 2026-10-30 "expires 2026-11-22").

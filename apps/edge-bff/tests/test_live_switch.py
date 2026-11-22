@@ -8,6 +8,7 @@ one of principal.BETA_ONLY_TABS), and shows that a lab tab is held by no one on 
 included, is hidden from the live rail (auth/config hidden_tabs), and stays on the beta. LIVE_PROMOTION.md says how a
 tab or an item is released."""
 import dataclasses
+import json
 import re
 from pathlib import Path
 
@@ -46,8 +47,12 @@ def test_every_capability_tab_and_page_of_the_shell_has_a_live_switch(database):
 # beta only, but its rail entry, route, frame wrapper and words are in the public shell (static/edge-app.js,
 # static/edge-labels.js), the live site's public auth/config names it in hidden_tabs, and a tab that is a page of the
 # shell itself ships its whole code there. A lab tab waits until the shell keeps it from visitors too.
-LAB_TAB_HELD_UNTIL = ("the shell builds its rail and routes from the principal's tabs and keeps a lab tab's words and "
-                      "page out of its public files, and auth/config names no lab tab")
+# 2026-11-22 (the user's go for the lab gaps): auth/config names no lab tab, and a lab tab's id is held out of the public
+# shell's files (test_no_lab_tab_is_named_in_the_public_shell). Still open, so the hold stays: the shell has no way to
+# show a tab it does not name, so a lab tab needs the server to hand its rail entry (label, path, its own <tab>-app) to
+# the principals that hold it, and the shell to draw and route such an entry.
+LAB_TAB_HELD_UNTIL = ("the shell draws and routes a tab entry the server hands to the principals holding it (label, path, "
+                      "its own <tab>-app), so a lab tab needs no rail entry, route or words in the public shell")
 
 
 def test_no_tab_is_at_the_lab_stage_yet():
@@ -59,6 +64,9 @@ def test_no_tab_is_at_the_lab_stage_yet():
     assert released == {'terminal', 'backtest', 'screener', 'watchlist', 'radar', 'overview', 'support'}, (
         f'the released tabs are {sorted(released)}: a new tab enters "released" only with the user\'s go and with this '
         'list (LIVE_PROMOTION.md section 3; 3f round 2, TRC2-8)')
+
+
+ROOT_BFF = Path(__file__).resolve().parents[1]
 
 
 def lab(monkeypatch, tab='newpage'):
@@ -84,7 +92,10 @@ def test_the_live_rail_hides_a_lab_tab_and_the_beta_does_not(settings, store, mo
     lab(monkeypatch)
     live = dataclasses.replace(live_of(settings), environment='local')
     with TestClient(create_app(live, store, FakeOrc())) as c:
-        assert c.get('/api/v1/auth/config').json()['hidden_tabs'] == ['admin', 'monitor', 'newpage']
+        # changed with 3f SERVE-3 (2026-11-22, a stated reason): the public answer names no lab tab; the lab tab has no
+        # entry in the public shell (test_no_lab_tab_is_named_in_the_public_shell) and no one holds it on the live site
+        answer = c.get('/api/v1/auth/config').json()
+        assert answer['hidden_tabs'] == ['admin', 'monitor'] and 'newpage' not in json.dumps(answer)
     with TestClient(create_app(dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40),
                                store, FakeOrc())) as c:
         assert c.get('/api/v1/auth/config').json()['hidden_tabs'] == []
@@ -97,3 +108,25 @@ def test_the_release_file_refuses_a_malformed_tab():
                       ('terminal', 'must be a list')):
         with pytest.raises(releases.ReleaseFileError, match=why):
             releases.Releases({'schema_version': 1, 'items': [], 'tabs': tabs}, 'test')
+
+
+PUBLIC_SHELL = ('static/edge-app.js', 'static/edge-labels.js', 'static/edge-client.js', 'static/edge-view.js',
+                'static/edge-session.js', 'static/index.html')
+
+
+def lab_tabs_named_in_the_shell(current):
+    texts = {f: (ROOT_BFF / f).read_text(encoding='utf-8') for f in PUBLIC_SHELL}
+    return sorted((t, f) for t in current.lab_tabs() for f, text in texts.items()
+                  if re.search(rf'(?<![A-Za-z0-9_-]){re.escape(t)}(?![A-Za-z0-9_-])', text))
+
+
+def test_no_lab_tab_is_named_in_the_public_shell():
+    """3f checker SERVE-3, TR-13 (the lab gap): the shell's files are public (every visitor downloads them), so a lab tab
+    is never named there: not its rail entry, route, words or page. Its page is its own <tab>-app, which 3f serves to
+    the admin on the beta only."""
+    import json as _json
+    data = {'schema_version': 1, 'items': [], 'tabs': [{'id': 'terminal', 'stage': 'lab'}, {'id': 'newpage', 'stage': 'lab'}]}
+    assert ('terminal', 'static/edge-app.js') in lab_tabs_named_in_the_shell(releases.Releases(data, 'test'))   # self-test
+    named = lab_tabs_named_in_the_shell(releases.CURRENT)
+    assert not named, (f'lab tabs named in the public shell: {named}. Keep a lab tab\'s entry, route and words out of '
+                       'the shell (its page is its own <tab>-app) until it is released')
