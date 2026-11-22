@@ -16546,9 +16546,15 @@ Order of the services (CONTRACT 17, rollback floors):
               four actions named to the user); a plan that would give or take the admin right, and another admin's plan,
               are refused; an account still registering is never activated by the admin (as decided on 2026-11-19, R2-41
               item 9); the beta needs `EDGE_CODE_SECRET` equal to the live site's, as `EDGE_MFA_KEY`.
-          - Next: account deletion (slice 6); applying `20261122_001` on dev and the Railway variables with the beta's
-            deploy (with the `EDGE_MFA_KEY` and `EDGE_CODE_SECRET` marks checked against the live site's); then the
-            checker at xhigh, its fixes, the beta.
+          - **The user's decision (2026-11-22): "Siapa yang suruh kamu untuk buat opsi untuk bisa menghapus akun user?
+            Tidak usah ada opsi ini."** No account deletion from the admin page: slice 6 is dropped and nothing of it
+            was built. Its origin, told to the user: CONTRACT 10's R2-27 (the re-check's recommendation on what is kept
+            when an account is deleted, answered "ok rekomendasi" on 2026-11-19), which the main agent carried into the
+            Phase 4 list approved on 2026-11-20; the user had not asked for the action itself. The manual procedure of
+            CONTRACT 10 stays the operator's, only with the user's go for each account.
+          - Next: applying `20261122_001` on dev and the Railway variables with the beta's deploy (with the
+            `EDGE_MFA_KEY` and `EDGE_CODE_SECRET` marks checked against the live site's); the checker at xhigh over
+            Phase 4, its fixes, the beta.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

@@ -1227,8 +1227,8 @@ langsung ke admin dan telegram dan ke email pribadi saya"; "hanya yang login ...
 ## Admin page (EXEC-MU-ACCOUNTS Phase 4, 2026-11-22)
 
 The user, 2026-11-22: "1A 2A 3A", then "1A, 2B, 3A". `app/admin.py` (its docstring lists every route),
-`tests/test_admin.py`, `tests/test_admin_page.py`; CONTRACT.md 10. The admin actions on accounts are slice 5, account
-deletion slice 6.
+`tests/test_admin.py`, `tests/test_admin_page.py`; CONTRACT.md 10. The admin actions on accounts are slice 5; there is no
+account deletion (the user, 2026-11-22: "Tidak usah ada opsi ini").
 
 - **The page** (`admin/`, TypeScript + Vite, built into `static/admin-app` by the image's `admin` stage; the design
   system's spec v1.2 and canonical layer copied into `admin/src/styles/`): the code step first, then six views, the

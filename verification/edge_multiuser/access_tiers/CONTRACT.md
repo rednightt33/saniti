@@ -1335,8 +1335,8 @@ today.
   acts on the admin's own account. Checked after the write, in the transaction: an account's admin right never changes
   through the page (the operator's), and at least one active account keeps it. The restricted-plan rule's 23514 reaches
   the page as the plan's reason in the rule's words. The beta needs `EDGE_CODE_SECRET` equal to the live site's for a
-  code it sends to be one the live site takes. Not built here: overrides (no editor; the operator's), account deletion
-  (slice 6).
+  code it sends to be one the live site takes. Not built here: overrides (no editor; the operator's) and account
+  deletion (the user, 2026-11-22: "Tidak usah ada opsi ini"; below).
 - **Routes** `/api/v1/admin/users`:
   - list with filter and paging: username, name, email masked, phone masked, role, status, plan, expires_at,
     last_sign_in_at, created_at, usage counters;
@@ -1367,8 +1367,9 @@ today.
   `support_images`; `images_purged_at` says when), its text stays until the account is deleted (its cascade); the admin
   page deletes a ticket by hand (audited).
 - **Terminal subscriber** follows a disable (Phase 3).
-- **Account deletion** (R2-27; **to build, Phase 4**, as an admin action with a reason and its `admin_audit` row; until
-  then an operator follows these steps by hand, with the user's go for each account). Owner-keyed rows have no foreign
+- **Account deletion** (R2-27): **not built, and no option for it on the admin page** (the user, 2026-11-22: "Siapa
+  yang suruh kamu untuk buat opsi untuk bisa menghapus akun user? Tidak usah ada opsi ini."). Should an account ever have
+  to go, an operator follows these steps by hand, only with the user's go for that account. Owner-keyed rows have no foreign
   key (section 1), so deleting the `users` row alone leaves them, orphaned. The procedure reaches every store that
   names the account, by owner key, user id or address:
 
