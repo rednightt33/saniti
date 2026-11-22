@@ -30,6 +30,8 @@ keeps its own hindsight indicators (user: "Terminal jangan disentuh"); the Backt
 ## Plans
 
 - `EXEC.md` holds every execution the user approved, one complete section per execution (user decision 2026-10-06).
+  The pending-decisions register of EXEC-MU-ACCOUNTS (Findings and fixes, rule 6; user 2026-11-22) holds the open
+  questions to the user of that execution.
   `PLAN.md` holds approved work that has no execution plan yet. `FUTURE_PLAN.md` holds proposals, future work and open
   user decisions. Do not create dated plan files (`PLAN_YYYY-MM-DD.md`, `ROUND_PLAN_*`); the old ones are discussion
   history (user decision 2026-10-06).
@@ -66,6 +68,37 @@ User decisions 2026-10-19 (verbatim in `EXEC.md`, EXEC-FASTLANE-LEN):
 - Every code change that is executed and every claim about how the system behaves rests on inspecting the code, the
   logs and the live data at that moment, not on memory of the conversation; cite the file:line, log or run ID as
   evidence.
+
+## Findings and fixes
+
+User decisions 2026-11-22 (verbatim in `EXEC.md`, EXEC-MU-ACCOUNTS "The user's decisions of 2026-11-22"): "Perbaikan
+proses di atas: setuju saya terapkan dan catat sebagai aturan kerja mulai sekarang? OK setuju" and "Setelah selesai bisa
+assign 5 sub-agents Opus 5,5 medium untuk actually test out whether perbaikan bug sudah selesai." They answer the root
+causes of ERRORS M538 (verified findings left unsolved between phases, workflow `wf_539660fc-8ff`).
+
+1. **Done means every part.** A finding is closed only when every part of it is fixed, the other places with the same
+   mechanism included. A part left open becomes an item in `PLAN.md` or `EXEC.md` with an owner and a trigger, never
+   only a status word in `ERRORS_AND_SOLUTIONS.md`. A report counts parts, not ids.
+2. **One owner per finding.** A fix round assigns findings, not files; a finding that crosses files stays with its owner.
+3. **A deferral has a trigger.** "After X" names X and goes into the pending-decisions register; when X happens the
+   register is read and the item is done or asked.
+4. **The user's decisions are asked, not narrowed or taken.** When a finding or a design value needs the user, it is
+   asked with context (Questions to the user) and entered in the register; the agent does not build an action the user
+   did not ask for (ERRORS M535).
+5. **Checker results are used as written.** A checker's output is read from its journal with unique ids (run plus
+   finding id), never re-keyed by a bare id, and every verdict is read (the skeptics' notes too).
+6. **Pending-decisions register.** `EXEC.md` EXEC-MU-ACCOUNTS "Pending decisions" lists every open question to the user:
+   what it is, when it was asked, what it holds back, and by when it is needed. It is shown to the user at the end of
+   every phase. A question asked only in chat is not asked.
+7. **A latent gap is asked, not only held.** A gap kept closed by a guard test is also put in the plan or asked.
+8. **Re-check after every fix round.** Before the next phase or deploy, five independent agents (Opus at medium effort,
+   by area) receive the original findings, not the fix summary; each reproduces the original failure, looks for the
+   same mechanism elsewhere, and returns a verdict per item (fixed, partly, not fixed, cannot tell) with its evidence
+   (the test or probe run, file:line). An item found incomplete is fixed and re-checked alone; at most two rounds, then
+   what remains goes into the register. CI is green as well.
+9. **Record statuses follow the deploys.** After a deploy the statuses of the entries it carries are updated in the same
+   task; a test compares the statuses that say "on the beta", "on the live site" or "not deployed" with what each site
+   runs.
 
 ## Questions to the user
 

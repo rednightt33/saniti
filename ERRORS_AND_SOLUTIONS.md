@@ -8879,6 +8879,50 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M539 — The OpenRouter key expired on 2026-11-22: the beta's AI and the web governor refused since 03:55 UTC, and nobody was told (2026-11-22; found by the agent from the open-items report NC29; OPEN, the key is the user's)
+
+- **Found by:** the agent, checking NC29 of the open-items report (the key recorded on 2026-10-30 "expires 2026-11-22").
+- **Verified (logs, 2026-11-22):** market-web-governor `web_provider_key_invalid` state INVALID, status 401, every 15
+  minutes from 03:55:25 UTC (the last `web_provider_credit` before it); market-ai-orc `ai_provider_credit_unknown` from
+  03:55:57 UTC (the last `ai_provider_credit` 02:10 UTC: limit 10, remaining 5.66). Both at INFO; no Telegram message.
+- **Impact:** every model call of market-ai-orc (the admin's Monitor on the beta) and of the web governor (search, event
+  classification) is refused. The live site runs no AI.
+- **Root cause:** the key was created with an expiry (ERRORS M308 entry: "kedaluwarsa 2026-11-22"), and the key monitors
+  (`apps/market-ai-orc/app/openrouter_client.py` check, `apps/market-web-governor/app/provider.py` key status) log the
+  expiry but alert only on credit; an expired key is logged as INFO. The general class: a dated credential or limit
+  that only a log line watches (ops:F2, NC1).
+- **Solution:** (1) the user extends the key or makes a new one and sets `OPENROUTER_API_KEY` on market-ai-orc; then
+  every consumer is redeployed (`python3 scripts/railway_reference_consumers.py market-ai-orc.OPENROUTER_API_KEY
+  --redeploy`, with the user's approval), checked by a `*_provider_credit` line again. (2) In the round's alerting work
+  (group A, ops:F2): a Telegram alert when a provider key is refused or expires within 7 days, and for every alert of
+  that work.
+- **Lesson:** a credential with an end date needs an alert before the date, not a log line after it.
+
+### M538 — Verified checker findings left unsolved when the work moved to the next phase (2026-11-22; found by the user; FIXED as working rules, AGENTS.md "Findings and fixes")
+
+- **Found by:** the user ("Tapi kenapa itu tidak di-solve sebelum kita continue ke fase selanjutnya"), traced by the
+  workflow `wf_539660fc-8ff` over every checker run of EXEC-MU-ACCOUNTS (scratchpad `fate_result.json`).
+- **Verified:** 270 confirmed findings outside Phase 4: 209 fixed, 28 fixed and then reopened by a later checker (26 of
+  them fixed again), 4 accepted by the user, 20 recorded open, 2 decided by the agent, 6 waiting for the user, 1 lost;
+  22 distinct items open at `74a4b2e5`. Fixes re-checked by an independent agent only in some rounds (the 3c check over
+  the re-check's fix round: 10 of R1 reopened; the example mode's run 2: 6 of run 1's fixes incomplete; 3f round 2);
+  never re-checked independently: the A2 fixes (`33a95315`), the Terminal fixes TL-1 to TL-3 (`a5eb7a27`, `fbfd69e2`),
+  3f round 2 (`9723caf7`, `2c5743bb`), the example mode's run 2 (`59b54a06`, `255e1275`), the Watchlist's latest data
+  (`a30815c1`, `1c972f22`) and Phase 4's 18 (`180d8952`): each rests on the fixing agent's own tests and CI.
+- **Root cause (the process, not the code):** (1) findings closed by id while parts stayed open ("84 dari 87" counted
+  ids; R2-37's two parts stayed only in M495/M493); (2) fix tracks split by file, so cross-file parts had no owner; (3)
+  deferrals "after X" without a trigger; (4) user decisions narrowed or taken by the agent (M535, R1-5); (5) checker
+  results re-keyed by bare ids, so ops:F2 was lost and skeptic notes went unread; (6) no register of questions to the
+  user, so questions vanished when the conversation was summarized (W4, M517's residual); (7) latent gaps held behind
+  guard tests and reported, never asked; (8) no re-check of a fix round before the next phase; (9) record statuses edited
+  by hand and left stale after deploys.
+- **Solution:** the nine working rules of AGENTS.md "Findings and fixes" (user 2026-11-22: "OK setuju"), the register
+  "Pending decisions" in EXEC.md EXEC-MU-ACCOUNTS, the re-check by five agents after each fix round (the user's choice:
+  Opus at medium). The open items of the trace are in the round after Phase 4 (group A, the lab gaps, W4) or the register.
+  The status test of rule 9 is built in that round.
+- **Lesson:** a fix proves the case it was written for; only an agent that did not write it, given the finding and not
+  the fix, shows whether the class is closed.
+
 ### M537 — `railway config plan` fails "requires Railway CLI 5.42.1 or newer" when run under `timeout` (2026-11-22; found by the agent; KNOWN, a way to run it)
 
 - **Found by:** the agent, recording Phase 4's variables in `.railway/railway.ts` after the beta deploy.

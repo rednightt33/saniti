@@ -16577,6 +16577,52 @@ Order of the services (CONTRACT 17, rollback floors):
           - Next: the lab gaps (the user's order of 2026-11-22: "Masukkan saja setelah langkah 6, selesai di beta, baru
             habis itu kita lanjut ke langkah 9 sampai selesai"; their items told to the user before starting), then the
             payment shell, the deep checker, the registration test window.
+- **The user's decisions of 2026-11-22 (after Phase 4 on the beta), the round before step 7:**
+  - On the process (ERRORS M538): "Perbaikan proses di atas: setuju saya terapkan dan catat sebagai aturan kerja mulai
+    sekarang? OK setuju" → AGENTS.md "Findings and fixes" (nine rules, the register below).
+  - On group A of the open-items report: "A. Bug yang berdampak ke live sekarang dan tidak tercakup rencana (perlu
+    tindakan proaktif) OK fix it": R2-37 (no sign-in limit per client address; the throttle purge without an index),
+    ops:F2 (no alert when the live site is down, a live deploy fails or email fails), R1-23 (an ended plan told "not in
+    your plan" on some Terminal paths), SH1 (the beta and the live site share one Backtest slot without turns), C3-6
+    (unsaved chart drawings may be lost when a live session ends: prove first), R1-16 and R1-5 (no per-account
+    wrong-password limit on the beta; page files counted to the first reader's quota only). A fix that needs a design
+    choice is asked first, with context.
+  - On the lab gaps: "Celah lab: go untuk butir 1–7, termasuk butir 4 yang menyentuh kode tata letak Terminal? Untuk W4,
+    pisahkan per situs atau biarkan? OK fix it": the seven open rows of FUTURE_PLAN.md "Before the first lab item or
+    tab" (the live site's row closed by the promotion of 2026-11-21), the Terminal layout's code included; W4: a
+    Backtest job is read and cancelled only on the site that queued it.
+  - On checking the fixes: "Setiap bug yang sudah direport oleh Code akan diperbaiki atau sudah diperbaiki ... Setelah
+    selesai bisa assign 5 sub-agents Opus 5,5 medium untuk actually test out whether perbaikan bug sudah selesai":
+    after the round, five agents at medium effort by area (sign-in and security; the admin page and support; the
+    workers' lab gaps; the Terminal and the shell; records, CI and deploy) given the original findings, then CI, then
+    the beta. Asked the same day: whether the older fixes never re-checked independently (ERRORS M538) join them.
+  - Order: the records, group A, the lab gaps and W4, the re-check, the beta; the live site only on the user's request
+    (group A reaches the live site only with a promotion, which carries Phase 4's support panel too).
+- **Pending decisions (AGENTS.md "Findings and fixes", rule 6; shown to the user at the end of every phase).** From the
+  open-items report of 2026-11-22 (workflows `wf_12dda52c-918`, `wf_539660fc-8ff`; UD = waiting for the user):
+
+  | Id | Decision or action of the user | Asked | Holds back | Needed by |
+  |---|---|---|---|---|
+  | RC-1 | The re-check's scope: also the older fixes never re-checked independently (ERRORS M538), A or B | 2026-11-22 | the re-check's list | end of this round |
+  | UD3 | A fresh Stockbit token for the broker round (broker data stops at 9 Nov) | 2026-11-20 | Radar, Flow, Foreign 5D, broker presets, corporate actions | now |
+  | NC29 | The OpenRouter key expired 2026-11-22 03:55 UTC (ERRORS M539): extend or replace it and set `OPENROUTER_API_KEY` on market-ai-orc; then the consumers' redeploy | 2026-11-22 | the beta's AI, the web governor (refused now) | now |
+  | UD1 | Railway usage: a soft-limit alert and a hard limit with headroom (three stops on record stop every service, the live site included) | 2026-11-22 | the live site's uptime | before step 9 |
+  | UD2 | Written permission per data source (TradingView, Stockbit, IDX/KSEI) and for the logos the public site shows | 2026-11-22 | the public examples, launch | before step 9 |
+  | UD4 | A backup schedule of the shared Postgres and one restore test | 2026-11-22 | real accounts, payments | before step 9 |
+  | UD5 | The Resend webhook and its secret on edge-bff-live (bounces and complaints) | 2026-11-20 | email standing | before step 9 |
+  | UD6 | Privacy and terms texts (or an explicit acceptance that the window runs without them); R1-2's condition | 2026-11-20 | registration | before step 9 |
+  | UD7 | Enforce the per-client-address sign-in and send limits (SIGNIN_IP, SEND_IP) or a daily mail ceiling, now that the probe ran | 2026-11-22 (group A, R2-37) | registration | this round |
+  | UD8 | M517's residual: strangers on three networks can spend an address's code emails; accept, or a challenge | 2026-11-21 | registration | before step 9 |
+  | UD9 | The go for the insider-flow fix (IDX and KSEI copies counted twice) | 2026-11-01 | FL31 for paid accounts | before step 7 |
+  | UD10 | Rotate AUDIT_STORE_SANDBOX_KEY; confirm the October OpenRouter key is revoked | October | security | before step 9 |
+  | UD11 | The Postgres restart time (09:45 WIB is in the market session); a memory cap on edge-bff-live | 2026-11-20 | uptime, cost | before step 9 |
+  | UD12 | A GitHub ruleset on branch `live` (no force-push or delete, required checks) | 2026-11-20 | the live site's source | before step 9 |
+  | UD13 | A read-only `RAILWAY_TOKEN` repository secret for the daily state workflow | October | the daily document checks | any time |
+  | UD14 | Settings left for "before the announcement": the upgrade contact, the test accounts' plans, guest ceilings, free indicators, Midtrans production | 2026-11-19 | the announcement | before the announcement |
+  | UD16 | Remove `EDGE_INITIAL_PASSWORD` from the beta | 2026-11-22 | security | any time |
+  | UD17 | The old data defects (sector swap, Feature 04 bloat, five tickers, candle flags, M335, M426, M157) | each its own date | the data's accuracy | before paid launch |
+  | UD18 | The Terminal defects and proposals only the user opens (M454, M447, M333) | each its own date | paying accounts' pages | before paid launch |
+  | UD20 | A valid Railway token for telegram-trigger (the Telegram Run Now buttons fail) | 2026-11-03 | the manual restart button | any time |
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
