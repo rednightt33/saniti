@@ -101,10 +101,7 @@ LAB_ITEM_HELD_UNTIL = (
     "the Terminal keeps a saved chart entry whose definition its build lacks, as it keeps a locked one, so one public "
     "build session of the admin's own account (the live site always serves it; the preferences are shared) no longer "
     "deletes the admin's lab indicators from the synced layout ml.ind.v1 (round 2, CRIT-1)",
-    "an existing item named in page code (every Flow formula is keyed by its id in terminal/src/calc/flow.ts, about 30 "
-    "more ids in page modules) or computed by a built-in without its id (the Backtest's rank items, ATR stops, the ma "
-    "transform) is found by a test, and the release file alone can no longer put it back at the lab stage (round 2, "
-    "CRIT-3)",
+    # round 2, CRIT-3 (an item the shipped code names) closed 2026-11-22: test_an_item_the_shipped_code_names_is_never_lab
     # the example-mode checker (ERRORS M527, records-promotion-3); built 2026-11-22 (app/examples.py released_view, the
     # user's go): it holds for the live site only once the live site runs it (AGENTS.md "Findings and fixes", rule 1)
     "the live site runs the serve-time release cut of the stored examples (app/examples.py released_view; until `live` "
@@ -161,6 +158,58 @@ def test_an_item_no_worker_gates_by_id_is_never_lab():
         'attribute without `row` (its value out of /universe and the result rows until it is released; '
         'screener-worker tests/shown.test.ts), or a new computation as a pattern, cross-section metric or indicator, '
         'not a `ref` of existing transforms (CONTRACT.md 8b O3b-2, R1-35).')
+
+
+# The lab gap "items code names or computes" (3f round 2, CRIT-3; FUTURE_PLAN.md; the user's go 2026-11-22): an item the
+# public page code or a worker names in code (every Flow formula keyed by its id in terminal/src/calc/flow.ts, the page
+# modules' ids, a built-in computing a registry indicator as BY_ID.I07) runs or ships for every principal whatever its
+# stage, so it can never be at the lab stage. Derived from the code: an id with a digit (I07, FL51) counts where it
+# stands as a word, an id without one (a Screener metric such as 'close') only as a quoted literal; comments, tests and
+# the lab folder (terminal/src/lab, built only into the lab builds) are not code that ships to everyone.
+CODE_DIRS = tuple(BFF / d / 'src' for d in ('terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist', 'admin')) + (
+    BFF.parent / 'backtest-worker' / 'src', BFF.parent / 'screener-worker' / 'src')
+
+
+def _code(src):
+    src = re.sub(r'/\*.*?\*/', ' ', src, flags=re.S)
+    return re.sub(r'(?m)(^|[^:\'"])//.*$', r'\1', src)
+
+
+def named_in_code(current):
+    """{(kind, id): [files]} of the release file's items the shipped code names (the comment above)."""
+    files = [p for d in CODE_DIRS if d.exists() for p in d.rglob('*') if p.suffix in ('.ts', '.tsx', '.js', '.mjs')
+             and 'lab' not in p.relative_to(d).parts and 'tests' not in p.relative_to(d).parts]
+    files += sorted((BFF / 'static').glob('edge-*.js'))
+    assert len(files) > 50, f'only {len(files)} code files found: CODE_DIRS reads the wrong folders'
+    texts = {p: _code(p.read_text(encoding='utf-8', errors='ignore')) for p in files}
+    found = {}
+    for kind in KINDS:
+        for e in current.entries(kind):
+            i = e['id']
+            pattern = re.compile(rf'\b{re.escape(i)}\b' if re.search(r'\d', i) else rf'[\'"`]{re.escape(i)}[\'"`]')
+            hits = [p.relative_to(BFF.parent.parent).as_posix() for p, t in texts.items() if pattern.search(t)]
+            if hits:
+                found[(kind, i)] = hits
+    return found
+
+
+def test_an_item_the_shipped_code_names_is_never_lab():
+    current = releases.load(FILE)
+    named = named_in_code(current)
+    assert ('flow_indicator', 'FL51') in named and any(k == 'indicator' for k, _ in named), (
+        'the scan finds neither FL51 (terminal/src/calc/flow.ts) nor a registry indicator (signals.ts BY_ID.I07): it '
+        'reads the wrong files or the wrong shape')
+    data = json.loads(FILE.read_text(encoding='utf-8'))
+    planted = next(iter(sorted(named)))
+    data['items'] = [{**it, 'stage': 'lab'} if (it['kind'], it['id']) == planted else it for it in data['items']]
+    trial = Releases(data)
+    assert [k for k in named if trial.stage_of(*k) != 'released'] == [planted]            # the guard's self-test
+    lab = {k: named[k][:3] for k in named if current.stage_of(*k) != 'released'}
+    assert not lab, (
+        f'{lab} at the lab stage in apps/edge-bff/catalog/releases.json, but the code that ships to every principal '
+        'names them (the files listed): a lab stage would keep them in the public bundles or running for everyone. Set '
+        'them "released", or move the code that names them into the lab folder (terminal/src/lab, registered through '
+        'its one registration point) and out of the shared code first.')
 
 
 def test_the_module_loads_the_repository_file_and_an_unknown_id_is_lab():
