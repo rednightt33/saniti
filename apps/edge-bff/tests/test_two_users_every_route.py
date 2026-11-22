@@ -39,7 +39,7 @@ from test_screener import item_id, screen_item
 # path parameters that name one owner's row: another owner's request names nothing (404, or 409 on a create-or-replace
 # PUT, as for an id of one's own: nothing learned)
 OWNED_IDS = {'request_id', 'conversation_id', 'output_id', 'export_id', 'item_id', 'layout_id', 'preset_id', 'list_id',
-             'step_id'}
+             'step_id', 'user_id', 'ticket_id'}
 # routes that change only the caller's own sign-in state: B would end its own session; they carry no owned id
 OWN_SESSION = {path for _, path in PRINCIPAL_ONLY if path.startswith('/api/v1/auth/')} - {'/api/v1/auth/session'}
 LAYOUT, PRESET, ITEM = 'lay_' + 'a' * 32, 'ipr_' + 'a' * 32, item_id(1)
@@ -63,6 +63,11 @@ BODIES = {
     ('POST', '/api/v1/runs/{request_id}/branch'): {'kind': 'BRANCH', 'title': 'Taken over'},
     ('PATCH', '/api/v1/conversations/{conversation_id}/preferences'): {'title': 'Taken over'},
     ('POST', '/api/v1/conversations/{conversation_id}/outputs/{output_id}/export'): {'columns': [], 'titles': []},
+    # Phase 4: the admin writes with what would act (a reason, a status), so a route opened to accounts by mistake acts on
+    # A's ticket or account and the walk sees it; a DELETE named here sends its body too
+    ('POST', '/api/v1/admin/users/{user_id}/reveal'): {'field': 'email', 'reason': 'Alice asked for it'},
+    ('POST', '/api/v1/admin/support/{ticket_id}/status'): {'status': 'done'},
+    ('DELETE', '/api/v1/admin/support/{ticket_id}'): {'reason': 'Alice asked for it'},
 }
 OUTPUT = 'out_' + 'ab' * 12
 
@@ -104,6 +109,20 @@ def owner_tables(store):
         WHERE table_schema = 'edge_bff' AND column_name = 'owner_key' ORDER BY table_name'''))
 
 
+def user_tables(store):
+    """Phase 4: the tables whose rows an account owns by its user id alone (no owner key: its support tickets, its plan
+    history, its sign-in rows), watched as the owner-key tables are; derived from the schema, so a new kind is watched too."""
+    return sorted(r['table_name'] for r in db(store, '''SELECT c.table_name FROM information_schema.columns c
+        WHERE c.table_schema = 'edge_bff' AND c.column_name = 'user_id' AND NOT EXISTS (
+            SELECT 1 FROM information_schema.columns o WHERE o.table_schema = 'edge_bff' AND o.table_name = c.table_name
+              AND o.column_name = 'owner_key') ORDER BY c.table_name'''))
+
+
+def user_rows_of(store, user_id, tables):
+    return {t: sorted(json.dumps(r['row'], sort_keys=True, default=str) for r in db(
+        store, f'SELECT to_jsonb(x) AS row FROM edge_bff.{t} x WHERE user_id = %s', user_id)) for t in tables}
+
+
 def rows_of(store, owner, tables):
     return {t: sorted(json.dumps(r['row'], sort_keys=True, default=str) for r in db(
         store, f'SELECT to_jsonb(x) AS row FROM edge_bff.{t} x WHERE owner_key = %s', owner)) for t in tables}
@@ -136,6 +155,8 @@ def twin(value):
     """An id of the same form as `value` that nobody made (a callable value gives a callable twin)."""
     if callable(value):
         return lambda path: twin(value(path))
+    if value.isdigit():                                     # Phase 4: an account's or a ticket's number
+        return str(int(value) + 10 ** 9)
     if re.fullmatch(r'[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}', value):
         return str(uuid.uuid4())
     head, _, tail = value.rpartition('_')
@@ -233,7 +254,14 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
         assert bt.status_code == 202, bt.text
         bid = bt.json()['request_id']
         assert run_next(a) == bid                                       # A's run ends with its trials recorded
+        # Phase 4: A's support ticket (kept by its user id; the admin routes name it and A's account by number)
+        sent = a.post('/api/v1/support', headers=ha, json={'kind': 'question', 'subject': 'Alice swing question',
+                                                           'body': 'alice-only question', 'details': {}, 'images': []})
+        assert sent.status_code == 201, sent.text
+        ticket = sent.json()['ticket_id']
         tables = owner_tables(store)
+        utables = user_tables(store)
+        assert 'support_tickets' in utables, utables
         empty = [t for t, rows in rows_of(store, alice['owner_key'], tables).items() if not rows]
         assert empty == [], (f'A owns no row in {empty}: make one through its route in this setup, so the walk covers '
                              'that owned kind')
@@ -245,9 +273,11 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
                'conversation_id': conv, 'output_id': OUTPUT, 'export_id': export, 'item_id': ITEM,
                'layout_id': LAYOUT, 'preset_id': PRESET, 'list_id': list_id, 'step_id': 'step_' + 'a' * 16,
                'ticker': lambda path: 'BBRI' if '/drawings/' in path else 'BBCA', 'set_id': 'chart',
-               'key': 'ml.my', 'kind': 'indicator', 'name': 'radar-days', 'path': 'v1/bundle'}
+               'key': 'ml.my', 'kind': 'indicator', 'name': 'radar-days', 'path': 'v1/bundle',
+               'user_id': str(alice['user_id']), 'ticket_id': str(ticket), 'position': '1'}
         content = [alice['owner_key'], 'alice-only', 'Alice swing', 'Alice preset', 'Alice banks']
         before, orc_before = rows_of(store, alice['owner_key'], tables), orc.state_of(alice['owner_key'])
+        ubefore = user_rows_of(store, alice['user_id'], utables)
         problems, walked = [], 0
         for route in app.routes:
             if not isinstance(route, APIRoute) or not route.path.startswith('/api/') or route.path in PUBLIC \
@@ -261,7 +291,8 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
                     problems.append(f'{method} {route.path}: add A\'s value for {missing} to `ids` (an owned id: A\'s '
                                     'row; else the name A used), and to OWNED_IDS when it names one owner\'s row')
                     continue
-                body = as_bob(BODIES.get((method, route.path), {})) if method not in ('GET', 'DELETE') else None
+                body = as_bob(BODIES[(method, route.path)]) if (method, route.path) in BODIES \
+                    else {} if method not in ('GET', 'DELETE') else None
                 headers, params = (hb if method != 'GET' else None), ({'ticker': 'BBRI'} if method == 'GET' else None)
                 r = b.request(method, path, headers=headers, json=body, params=params)
                 walked += 1
@@ -294,6 +325,11 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
                     changed = [t for t in tables if after[t] != before[t]]
                     problems.append(f'{method} {path}: B changed A\'s rows in {changed}')
                     before = after
+                uafter = user_rows_of(store, alice['user_id'], utables)
+                if uafter != ubefore:
+                    changed = [t for t in utables if uafter[t] != ubefore[t]]
+                    problems.append(f'{method} {path}: B changed A\'s rows in {changed} (kept by its user id)')
+                    ubefore = uafter
                 if orc.state_of(alice['owner_key']) != orc_before:
                     problems.append(f'{method} {path}: B changed what Orc holds for A')
                     orc_before = orc.state_of(alice['owner_key'])
