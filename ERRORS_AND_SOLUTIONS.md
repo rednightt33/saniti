@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M547 — The AI page's Sources: a part the user just opened closed again when the panel was drawn anew (2026-11-22; found by the agent from a flaky test; FIXED on the branch, see Status)
+### M547 — The AI page's Sources: a part the user just opened closed again when the panel was drawn anew (2026-11-22; found by the agent from a flaky test; FIXED on the branch, `4f1e6d3e`)
 
 - **Found by:** the agent, from `tests/test_answer_view.py::test_sources_list_the_answers_tables_with_an_export_request`
   failing in the full local run (`assert '' == 'out.1'`) and in CI 45043526824 (passed on its rerun).
@@ -8903,7 +8903,7 @@ in its staleness check.
   1.5 s after the click.
 - **Evidence:** 6 of 6 runs pass with the fix; with it removed, 1 run of 4 fails (the race is timing-bound, so the
   test catches it only part of the time; step 8 to judge whether a deterministic probe is needed).
-- **Status:** FIXED on the branch (this entry's commit); its test-out joins step 8 (EXEC UD23).
+- **Status:** FIXED on the branch, `4f1e6d3e`; its test-out joins step 8 (EXEC UD23).
 
 ### M546 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; FIXED on the branch, `6b3edc6c`)
 
@@ -9033,7 +9033,7 @@ in its staleness check.
   `buy`/`both`/lainnya.
 - **Status:** open; dilaporkan ke user 2026-11-22.
 
-### M539 — CI edge-bff: "too many clients" di database uji; tes-tes yang sama gagal di `main` dua kali (2026-11-22, cause verified; FIXED on the branch, see its update)
+### M539 — CI edge-bff: "too many clients" di database uji; tes-tes yang sama gagal di `main` dua kali (2026-11-22, cause verified; FIXED on the branch, `4f1e6d3e`)
 
 - **Gejala:** Backend tests (job edge-bff) run 45029226701 (`27e33943`, commit dokumen saja) dan 45039209166 (`6cc859ee`):
   `ERROR at setup of test_a_value_outside_its_capabilitys_domain_is_refused_when_written[terminal.tickers-…]`,
