@@ -281,6 +281,14 @@ class AccountStore:
                                                'cap': PASSWORD_FAILURE_CAP,
                                                'lock': PASSWORD_LOCK_SECONDS}).fetchone() is not None
 
+    def identity_verifier(self, user_id):
+        """The account's password verifier (identities, provider 'password'), or None: what its device token is signed
+        over (auth_flows device_valid)."""
+        with self.store.connect() as c:
+            row = c.execute("SELECT verifier FROM edge_bff.identities WHERE user_id = %s AND provider = 'password'",
+                            (user_id,)).fetchone()
+        return row['verifier'] if row else None
+
     def sign_in_proved(self, user_id):
         """A right password of the account (a password change's current password, auth_flows.py): its run of consecutive
         failures ends, as a sign-in's success ends it (signed_in)."""

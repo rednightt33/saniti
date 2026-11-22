@@ -917,7 +917,7 @@ def create_app(settings=None, store=None, orc=None):
         # ERRORS R2-37: the password work of a sign-in runs on its own pool (passwords.PasswordWork), never on the
         # default executor every database call uses; a request over its limit is answered 503 before any try counts
         async with password_work.admitted_request():
-            account = restart = rehash = device = None
+            account = restart = rehash = device = seed_id = None
             if settings.multiuser:
                 # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email
                 account = await asyncio.to_thread(auth.accounts.find_login, body.login)
@@ -928,6 +928,16 @@ def create_app(settings=None, store=None, orc=None):
                 # network (A2 checker ATK-1), does not lock the owner out of its own browser
                 device = await asyncio.to_thread(flows.store.device_try, account['user_id'],
                                                  request.cookies.get(flows.device_cookie)) if account else None
+            else:
+                # ERRORS R1-16, the user 2026-11-22 ("4A"): the beta locks user #1 after PASSWORD_FAILURE_CAP consecutive
+                # wrong passwords as the live site does (one account on both sites, so one count). Only a try of the
+                # configured login counts (a stranger typing any other login cannot lock it); a browser where the
+                # password was proved on the beta (its device cookie) tries under DEVICE_SIGNIN and the lock does not
+                # hold it, as on the live site (A2). Without user #1's seed nothing is counted (as before).
+                seed_id = (auth.seed or {}).get('user_id')
+                login_match = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode())
+                device = await asyncio.to_thread(flows.store.device_try, seed_id,
+                                                 request.cookies.get(flows.device_cookie)) if seed_id and login_match else None
             if not device:
                 wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
                 if wait:
@@ -955,8 +965,11 @@ def create_app(settings=None, store=None, orc=None):
             else:
                 # the password is checked before the login is compared (against the one verifier, so an unknown login
                 # runs the same scrypt as a known one): a wrong login costs the same time as a wrong password
+                # the same statement runs for a login that is not the configured one (no account: nothing counted)
+                checked = True if device else await asyncio.to_thread(auth.accounts.sign_in_try,
+                                                                      seed_id if login_match else None)
                 password_ok = await password_work.run(verify_password, body.password, settings.password_verifier)
-                known = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) and password_ok
+                known = login_match and password_ok and (checked or seed_id is None)
         if not known:
             await asyncio.to_thread(throttle.count, (SIGNIN_IP, address))     # a known browser's try is counted already
             response = error('INVALID_CREDENTIALS', 401)
@@ -1007,6 +1020,11 @@ def create_app(settings=None, store=None, orc=None):
                 await asyncio.to_thread(throttle.clear, DEVICE_SIGNIN, (str(account['user_id']), device))
         else:
             await asyncio.to_thread(store.session_create, token_hash(token), auth.configured_owner(), settings.session_seconds)
+            if seed_id:                                    # R1-16 on the beta: the run of failures ends, as on the live site
+                if device:
+                    await asyncio.to_thread(throttle.clear, DEVICE_SIGNIN, (str(seed_id), device))
+                else:
+                    await asyncio.to_thread(auth.accounts.sign_in_proved, seed_id)
         await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
         p = await auth.resolve(token)
         if p is None:                              # an account disabled at this very moment
@@ -1026,6 +1044,11 @@ def create_app(settings=None, store=None, orc=None):
         if account is not None:
             # the A2 fix: this browser proved the account's password; its device token follows the verifier it now has
             flows.set_device(response, account['user_id'], rehash or account['verifier'])
+        elif not settings.multiuser and seed_id:
+            # R1-16 on the beta: the same device token, signed over user #1's password identity (device_valid reads it)
+            verifier = await asyncio.to_thread(auth.accounts.identity_verifier, seed_id)
+            if verifier:
+                flows.set_device(response, seed_id, verifier)
         return response
 
     def session_answer(p):

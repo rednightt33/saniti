@@ -10641,7 +10641,13 @@ in its staleness check.
 - **Status:** fixed on branch fix-int2, not deployed. ACCEPTED (user 2026-11-19, "Decisions from the fix round" item
   3, "a"): a "Forgot password" pressed by someone else still replaces the live code, and the address's 10 emails a day
   stay shared (R1-9 item 3, R1-13's remainder). By design (the main agent's design value told to the user): no
-  100-failure cap on the beta, which keeps a long random admin password. M478's record of N4 is corrected in place.
+  100-failure cap on the beta, which keeps a long random admin password. CHANGED 2026-11-22 (the user, "4A"): the beta
+  counts the configured login's consecutive failures on user #1 (the one account of both sites) and locks at the cap as
+  the live site does; a browser where the password was proved on the beta (its device cookie) is not held by the lock;
+  another login typed counts nothing; a success clears the run (`apps/edge-bff/app/main.py` sign-in, switch-off branch;
+  `accounts.identity_verifier`). Tests: `tests/test_fix_auth.py` `test_the_beta_locks_user_one_at_the_100th_failure_and_its_known_browser_still_signs_in`,
+  `test_a_beta_sign_in_clears_the_run_of_failures`; two mutations red. The way back from a lock: the known browser,
+  `scripts/edge_mfa_unlock.py`, or 24 hours. M478's record of N4 is corrected in place.
 - **Lesson:** a limit keyed by a public identifier is keyed with the client too and has a proof-based way out; a cap
   on a value anyone may type counts alike whether or not an account exists; every counter has its own label inside
   the key hash; a send gate counts only the sends it exists for.

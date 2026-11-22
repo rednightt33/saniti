@@ -103,6 +103,45 @@ def test_after_the_lock_ends_ten_more_tries_and_a_success_clears_the_count(app, 
     assert failures(store) == {'sign_in_failures': 0, 'sign_in_locked_until': None}
 
 
+def beta_failures(store, settings):
+    return db(store, "SELECT i.sign_in_failures, i.sign_in_locked_until FROM edge_bff.identities i JOIN edge_bff.users u "
+                     "USING (user_id) WHERE u.owner_key = %s AND i.provider = 'password'", settings.owner)[0]
+
+
+def test_the_beta_locks_user_one_at_the_100th_failure_and_its_known_browser_still_signs_in(settings, store):
+    """R1-16 on the beta (the user 2026-11-22, "4A"): with the switch off user #1 had no per-account cap (only the 10 per
+    login and address). Now the beta counts the configured login's consecutive failures on the one account both sites
+    share, locks at PASSWORD_FAILURE_CAP as the live site does, and a browser where the password was proved on the beta
+    (its device cookie) still signs in; another login typed counts nothing."""
+    with TestClient(create_app(settings, store, FakeOrc())) as known:
+        assert sign_in(known, 'owner', 'local-test-password', '203.0.113.1').status_code == 200
+        assert beta_failures(store, settings) == {'sign_in_failures': 0, 'sign_in_locked_until': None}
+        stranger = TestClient(known.app)
+        for i in range(3):
+            assert sign_in(stranger, 'owner', 'wrong', f'198.51.100.{i + 1}').status_code == 401
+        assert sign_in(stranger, 'not_the_login', 'wrong', '198.51.100.9').status_code == 401
+        assert beta_failures(store, settings)['sign_in_failures'] == 3
+        db(store, 'UPDATE edge_bff.identities SET sign_in_failures = %s WHERE sign_in_failures = 3', PASSWORD_FAILURE_CAP - 1)
+        assert sign_in(stranger, 'owner', 'wrong', '198.51.100.20').status_code == 401        # the 100th starts the lock
+        assert beta_failures(store, settings)['sign_in_locked_until'] is not None
+        # locked: the right password from a new browser is answered as a wrong one, uncounted
+        r = sign_in(TestClient(known.app), 'owner', 'local-test-password', '203.0.113.50')
+        assert (r.status_code, error_code(r)) == (401, 'INVALID_CREDENTIALS')
+        assert beta_failures(store, settings)['sign_in_failures'] == PASSWORD_FAILURE_CAP
+        # the browser that proved the password before is not held by the lock (A2), and leaves the lock as it is
+        assert sign_in(known, 'owner', 'local-test-password', '203.0.113.1').status_code == 200
+        assert beta_failures(store, settings)['sign_in_locked_until'] is not None
+
+
+def test_a_beta_sign_in_clears_the_run_of_failures(settings, store):
+    with TestClient(create_app(settings, store, FakeOrc())) as c:
+        for i in range(4):
+            assert sign_in(c, 'owner', 'wrong', f'198.51.100.{i + 30}').status_code == 401
+        assert beta_failures(store, settings)['sign_in_failures'] == 4
+        assert sign_in(TestClient(c.app), 'owner', 'local-test-password', '203.0.113.70').status_code == 200
+        assert beta_failures(store, settings) == {'sign_in_failures': 0, 'sign_in_locked_until': None}
+
+
 # ---- R1-7: a re-enrolment waits beside the confirmed authenticator ---------------------------------------------------
 
 def test_the_confirmed_authenticator_works_until_the_new_one_is_proved(app, store, on):
