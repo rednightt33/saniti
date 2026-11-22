@@ -1010,10 +1010,13 @@ today.
   rule (R1-37 and R2-41 item 4, the user's "2a", 2026-11-19): they stay gated by `<tab>.view` alone, and nothing
   changes until a plan closes flow; that plan's change then decides their foreign-net columns again (split out as 3d
   does for the Radar, or kept).
-- **Page files and the shared caches** (R1-5): the page files stay in process caches shared by every user (section 15),
-  so terminal-api grants, counts and audits a page file for the principal whose request missed the caches, once per
-  edge-bff process and sha256; a read from the caches counts against no one's quota (lenient, never wider). If Phase 4's
-  usage counters need each reader, edge-bff records page-file reads itself.
+- **Page files and the shared caches** (R1-5): the page files stay in process caches shared by every user (section 15).
+  Until 2026-11-22 terminal-api granted, counted and audited a page file only for the principal whose request missed
+  the caches (lenient). **Since the user's "A1 ok" (2026-11-22):** each reader's first read of a page file in a rolling
+  hour counts against its own Terminal quota, whether the bytes come from terminal-api, the cache or the browser's copy
+  (a 304): the grant terminal-api counts and audits, once per (reader, file) and hour, its URL unused for a cached file
+  (`app/pages.py` `count`). A reload within the hour asks nothing; '*' is not counted; a spent quota answers
+  `LIMIT_REACHED` for a cached file too.
 - **Exactly the last N days (decision D2 = A):** with `history_days` N set:
   - The window is the rows dated after `data_through − N` calendar days, `data_through` being the dataset's newest
     published date.
