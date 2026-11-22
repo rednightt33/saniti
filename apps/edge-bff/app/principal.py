@@ -240,6 +240,9 @@ class Principal:
         refused = capability_required(capability)
         if self.guest:
             refused.details['visitor'] = True                    # errors.words: a visitor's sentence (C3-9)
+        # R1-23: what was asked travels with the refusal, so a caller that builds it again (main.py refuse_capability,
+        # the catalog's display name) judges the same item and amount against the ended plan
+        refused.asked = (item, amount)
         return refused
 
     def ended_allows(self, capability, item=None, amount=None):

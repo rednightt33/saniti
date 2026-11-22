@@ -822,15 +822,18 @@ def create_app(settings=None, store=None, orc=None):
     async def refuse(p, refused):
         """Raise a refusal of the Terminal path; a CAPABILITY_REQUIRED with the catalog's name (refuse_capability)."""
         if refused.code == 'CAPABILITY_REQUIRED':
-            await refuse_capability(p, refused.details['capability'])
+            await refuse_capability(p, refused.details['capability'], *getattr(refused, 'asked', (None, None)))
         raise refused
 
-    async def refuse_capability(p, capability):
+    async def refuse_capability(p, capability, item=None, amount=None):
+        """The refusal built again after the catalog's names are read, with what was asked (R1-23: without the item or
+        the amount an ended plan's own list or limit could not be judged, so it answered CAPABILITY_REQUIRED where
+        renewing the plan is the way)."""
         try:
             await asyncio.to_thread(auth.refresh_names, False)        # the catalog's name, as auth.need does
         except Exception:                                             # noqa: BLE001 - the plain phrase stays
             pass
-        raise p.refusal(capability)
+        raise p.refusal(capability, item, amount)
 
     async def relay_cut(url, request, headers, p, path):
         """Phase 3c (decision D2 = A): terminal-api's cut of the last N days (application/gzip), its bytes exactly as sent

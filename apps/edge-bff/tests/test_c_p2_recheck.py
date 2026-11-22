@@ -51,6 +51,30 @@ def test_an_ended_plan_without_a_ticker_list_or_history_limit_gives_plan_expired
         assert refused.details.get('expired_plan') == plan
 
 
+def test_a_terminal_window_of_0_days_is_judged_against_the_ended_plans_own_window(on, store, monkeypatch):
+    """R1-23 (the user 2026-11-22, group A "OK fix it"): the 0-day refusal of the Terminal's dated routes passed no
+    amount, so an account whose ended plan had its own window (here the windowed plan's days) was told "upgrade"
+    (CAPABILITY_REQUIRED) where renewing the plan is the way (PLAN_EXPIRED). The database refuses a window of 0
+    (capability_value_check: 1 to 36600), so 0 reaches this refusal only as the value of a limit that cannot be read
+    (terminal_access._limit), as here. A dated request asks at least one day; the history route asks the whole history.
+    And a refusal carries what was asked (refused.asked), which main.py refuse_capability uses when it builds it again."""
+    from app import terminal_access
+    alice = make_user(store, 'alice_w0', 'alice-password')
+    windowed = db(store, "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'terminal.history_days' "
+                         "AND value::text ~ '^[1-9][0-9]*$' ORDER BY plan_key LIMIT 1")[0]['plan_key']
+    subscribe(store, alice['user_id'], windowed, starts="now() - interval '2 days'", expires="now() - interval '1 second'")
+    p = Auth(on, store).owner_principal(alice['owner_key'])
+    assert p.expired_plan == windowed
+    real = terminal_access.capabilities
+    monkeypatch.setattr(terminal_access, 'capabilities', lambda q: {**real(q), 'history_days': 0})
+    with pytest.raises(Exception) as dated:
+        terminal_access.check(p, 'POST', 'files', {}, b'{"ticker": "BBCA", "dataset": "prices"}')
+    assert (dated.value.code, dated.value.details.get('expired_plan')) == ('PLAN_EXPIRED', windowed)
+    refused = p.refusal('terminal.history_days', amount=100000)
+    assert refused.code == 'CAPABILITY_REQUIRED' and refused.asked == (None, 100000)
+    assert p.refusal('terminal.history_days', *refused.asked).code == 'CAPABILITY_REQUIRED'
+
+
 # ---- 2. the most restrictive list is never shared between principals ------------------------------------------------
 
 def row_of(user_id, grants):

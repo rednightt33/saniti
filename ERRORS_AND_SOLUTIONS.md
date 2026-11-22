@@ -10972,6 +10972,14 @@ in its staleness check.
   `test_c_p3a_probes.py::test_the_session_access_limits_are_the_numbers_the_routes_apply`; changed with the finding:
   `test_layouts`, `test_presets`, `test_drawings`, `test_watchlist`, `test_phase3a_gates`, `test_screener`,
   `test_c2_probe_phase3a`.
+- **R1-23's remainder (2026-11-22, the user's group A "OK fix it"; the fate trace `wf_539660fc-8ff`):** the Terminal's
+  0-day refusal (`terminal_access.check`) now asks one day of an ended plan's window (`amount=1`; the history route the
+  whole history), and every capability refusal carries what was asked (`Refusal.asked`) into the rebuild of
+  `main.py` `refuse_capability`. Verified on the way: the database refuses a window of 0 (`capability_value_check`, 1 to
+  36600), so the 0-day refusal is reached only by a limit that cannot be read; and a rebuild without the item or the
+  amount could not change an answer (it rebuilds only CAPABILITY_REQUIRED, and fewer inputs only narrow
+  `ended_allows`), so the trace's main.py part was no defect. Test: `tests/test_c_p2_recheck.py`
+  `test_a_terminal_window_of_0_days_is_judged_against_the_ended_plans_own_window`; one mutation red.
 - **Status:** fixed on branch fix-int2, not deployed. Open hand-off: the 3c refusal sites pass the ticker and the
   window as `item` and `amount` so an ended plan with its own narrower list is judged too (`fix_round/plans.md`).
 - **Lesson:** one contract concept has one code, one shape and one number wherever it is answered or shown; a refusal

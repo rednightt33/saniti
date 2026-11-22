@@ -265,8 +265,10 @@ def check(p, method, path, query, body):
     caps = capabilities(p)
     head, _, rest = path.partition('/')
     if caps['history_days'] == 0 and head in ('files', 'bundle', 'cut', 'history'):
-        # R1-22: a window of 0 days holds no dated row (every /files, /bundle and /cut dataset is dated)
-        raise p.refusal(HISTORY_DAYS)
+        # R1-22: a window of 0 days holds no dated row (every /files, /bundle and /cut dataset is dated). R1-23: the
+        # request asks at least one day, judged against an ended plan's own window (renewing it is the way when it held
+        # one); the history route asks the whole history, which only a plan without a window holds (amount None)
+        raise p.refusal(HISTORY_DAYS, amount=None if head == 'history' else 1)
     if method == 'GET':
         if head in ('manifest', 'logo'):
             _ticker(p, caps, rest)
