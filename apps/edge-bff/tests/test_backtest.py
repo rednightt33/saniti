@@ -1623,6 +1623,9 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
                  # EXEC-WATCHLIST L5: the Watchlist page, the sixth
                  'watchlist/node_modules/vite/package.json', 'watchlist/tests/fixture/watchlist-stocks.sample.json',
                  'watchlist/dist/index.html', 'watchlist/dist-fixture/index.html', 'static/watchlist-app/index.html',
+                 # EXEC-MU-ACCOUNTS Phase 4: the admin page, the seventh
+                 'admin/node_modules/vite/package.json', 'admin/tests/fixture/main.ts', 'admin/dist/index.html',
+                 'admin/dist-fixture/index.html', 'static/admin-app/index.html',
                  # 3f: the lab builds (CONTRACT.md 8 "Lab code"), built in their stages, never taken from the context
                  'static/terminal-app-lab/index.html', 'backtest/dist-lab/index.html', 'static/backtest-app-lab/index.html'):
         assert docker_ignored(patterns, path), path
@@ -1646,13 +1649,14 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
                       'radar/package-lock.json', 'shared', 'catalog/releases.json', 'radar/', 'overview/package.json',
                       'overview/package-lock.json', 'shared', 'catalog/releases.json',
                       'overview/', 'watchlist/package.json', 'watchlist/package-lock.json', 'shared', 'catalog/releases.json', 'watchlist/',
+                      'admin/package.json', 'admin/package-lock.json', 'shared', 'catalog/releases.json', 'admin/',
                       'requirements.txt', 'app', 'catalog', 'screener/src/core/screener-metrics.json', 'static']
     # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's
     # modules, the static files) and the three pages' sources
-    top = [f'{folder}/{p.name}' for folder in ('app', 'catalog', 'static', 'terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist')
+    top = [f'{folder}/{p.name}' for folder in ('app', 'catalog', 'static', 'terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist', 'admin')
            for p in (root / folder).iterdir()
            if p.is_file() and not p.name.startswith('.env') and p.suffix != '.pyc']
-    sources = [p.relative_to(root).as_posix() for folder in ('terminal/src', 'backtest/src', 'screener/src', 'radar/src', 'overview/src', 'watchlist/src')
+    sources = [p.relative_to(root).as_posix() for folder in ('terminal/src', 'backtest/src', 'screener/src', 'radar/src', 'overview/src', 'watchlist/src', 'admin/src')
                for p in (root / folder).rglob('*')
                if p.is_file() and '__pycache__' not in p.parts]
     needed = [*copied, *top, *sources]
@@ -1661,6 +1665,7 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
     assert 'radar/src/app.ts' in needed and 'radar/vite.config.ts' in needed and 'app/radar.py' in needed
     assert 'overview/src/app.ts' in needed and 'overview/vite.config.ts' in needed and 'app/overview.py' in needed
     assert 'watchlist/src/app.ts' in needed and 'watchlist/vite.config.ts' in needed and 'app/watchlist.py' in needed
+    assert 'admin/src/app.ts' in needed and 'admin/vite.config.ts' in needed and 'app/admin.py' in needed
     assert 'catalog/releases.json' in needed and 'app/releases.py' in needed
     assert 'screener/src/core/screener-metrics.json' in needed and 'app/catalog.py' in needed
     assert [p for p in needed if docker_ignored(patterns, p.rstrip('/'))] == []

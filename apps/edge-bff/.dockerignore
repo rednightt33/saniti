@@ -30,3 +30,7 @@ watchlist/node_modules
 watchlist/tests
 watchlist/dist*
 static/watchlist-app
+admin/node_modules
+admin/tests
+admin/dist*
+static/admin-app

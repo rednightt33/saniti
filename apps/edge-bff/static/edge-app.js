@@ -312,6 +312,10 @@ const paths = {
         element("path", { d: "M4 13v-1a8 8 0 0 1 16 0v1" }),
         element("path", { d: "M4 13h3v5H5a1 1 0 0 1-1-1Zm16 0h-3v5h2a1 1 0 0 0 1-1Z" }),
         element("path", { d: "M17 18c0 1.5-1.5 2.5-4 2.5" })),
+    // Phase 4: the admin page (the beta's admin only)
+    shield: element(fragment, null,
+        element("path", { d: "M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z" }),
+        element("path", { d: "M9 12l2 2 4-4" })),
 };
 function Icon({ name, size = 16 }) {
     return element("svg", { className: "icon", width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true }, cloneGraphic(paths[name]));
@@ -475,7 +479,7 @@ Edge.offers("monitor") && element(Button, { kind: "ghost", icon: "spark", onClic
                 element(IconButton, { icon: "settings", selected: settingsOpen, onClick: () => setSettingsOpen(true), title: "Settings", buttonRef: settingsRef }),
                 guest ? element(Button, { kind: "primary", onClick: () => go("/login") }, EdgeLabels.auth.login.signInTop) :
                 element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
-                accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } }))),
+                accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openAdmin: adminOpen() ? () => go("admin") : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } }))),
         /* EXEC-NAV-LEFT (user 2026-11-09: "kita akan pindahkan 4 tersebut ke kiri", menu A: icons only, the name in the
            tooltip): the four pages in a 56 px menu on the left, under the top bar */
         element("nav", { className: "side-nav", "aria-label": "Pages", inert: mobilePanelOpen },
@@ -489,13 +493,14 @@ Edge.offers("monitor") && element(Button, { kind: "ghost", icon: "spark", onClic
                 element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 22 })); }),
             slim && element("div", { className: "side-actions" },
                 Edge.offers("monitor") && element("button", { type: "button", "data-tip": "Research", "aria-label": "Research", onClick: () => { sessionStorage.removeItem("edge-research-context"); go("monitor"); } }, element(Icon, { name: "spark", size: 20 })),
+                adminOpen() && element("button", { type: "button", className: `side-admin ${route === "admin" ? "active" : ""}`, "data-tip": EdgeLabels.admin.nav, "aria-label": EdgeLabels.admin.nav, "aria-current": route === "admin" ? "page" : undefined, onClick: () => go("admin") }, element(Icon, { name: "shield", size: 20 })),
                 Edge.offers("support") && element("button", { type: "button", ref: supportRef, className: `side-support ${supportOpen ? "active" : ""}`, "data-tip": EdgeLabels.support.open, "aria-label": EdgeLabels.support.open, "aria-haspopup": "dialog", onClick: openSupport }, element(Icon, { name: "mailbox", size: 20 })),
                 element("button", { type: "button", "data-tip": theme === "dark" ? "Light theme" : "Dark theme", "aria-label": `Switch to ${theme === "dark" ? "light" : "dark"} theme`, onClick: toggle }, element(Icon, { name: "theme", size: 20 })),
                 element("button", { type: "button", ref: settingsRef, "data-tip": "Settings", "aria-label": "Settings", className: settingsOpen ? "active" : "", onClick: () => setSettingsOpen(true) }, element(Icon, { name: "settings", size: 20 })),
                 element("span", { className: "side-account" },
                     guest ? element("button", { type: "button", className: "avatar side-signin", "data-tip": EdgeLabels.auth.login.signInTop, "aria-label": EdgeLabels.auth.login.signInTop, onClick: () => go("/login") }, element(Icon, { name: "user" })) :
                     element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, "data-tip": accountOpen ? undefined : "Account", onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
-                    accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } })))),
+                    accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openAdmin: adminOpen() ? () => go("admin") : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } })))),
         children,
         false && element(AccountDialog, { view: accountView, setView: setAccountView, close: () => setAccountView(null), returnFocusRef: avatarRef }),
         settingsOpen && element(SettingsDialog, { close: () => setSettingsOpen(false), notify: notify, returnFocusRef: settingsRef }),
@@ -533,7 +538,7 @@ function PagesMenu({ route, go, close, trigger }) {
        element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 18 }), element("span", null, label)); }));
 }
 
-function AccountMenu({signOut,close,trigger,openSettings,openSecurity}) {
+function AccountMenu({signOut,close,trigger,openSettings,openSecurity,openAdmin}) {
  const view=currentView,menu=(view.refs.menu ??= {current:null});
  onLifecycle(view,"dismiss",()=>{
    const outside=e=>{if(!menu.current?.contains(e.target)&&!trigger.current?.contains(e.target))close(false);};
@@ -546,6 +551,8 @@ function AccountMenu({signOut,close,trigger,openSettings,openSecurity}) {
    // EXEC-UI-1015C (phone): settings left the phone header and opens here
    openSettings&&element("button",{role:"menuitem",className:"account-settings",onClick:()=>{close();openSettings();}},edgeUi().accountSettings),
    openSecurity&&element("button",{role:"menuitem",className:"account-security",onClick:()=>{close();openSecurity();}},EdgeLabels.auth.account.menu),
+   // Phase 4: the admin page, for the beta's admin (on every width; the rail's shield is the desktop's shortcut)
+   openAdmin&&element("button",{role:"menuitem",className:"account-admin",onClick:()=>{close();openAdmin();}},EdgeLabels.admin.menu),
    element("button",{role:"menuitem",className:"sign-out",onClick:signOut},"Sign out"));
 }
 function DialogShell({ title, description, close, children, className = "", returnFocusRef }) {
@@ -916,7 +923,14 @@ const CODE_SECONDS = 300, RESEND_SECONDS = 60;
 const authText = error => error?.info?.message || EdgeLabels.auth.errors[error?.info?.code || error?.code] || error?.text || EdgeLabels.auth.errors.fallback;
 // re-check R2-14 (decision D1: the assistant is the admin's): a sign-in lands on the Monitor only for an account whose
 // access holds it ('*' or monitor.view; the switch-off owner holds '*'); any other account lands on the Terminal
-const landing = () => { const caps = Edge.auth?.access?.capabilities;
+// Phase 4 (the user, 2026-11-22; the Telegram summary links /admin?ticket=<id>): a sign-in shown at a workspace page
+// stays on it, its address and query kept, when the account can open that page (opens: the site offers it and the
+// account holds what opens it, the route's `needs` or <title>.view); an account page (login, verify, mfa) or a page the
+// account cannot open still leads to the landing page
+const opens = r => !!r && r.auth === true && Edge.offers(r.title) && Edge.can(r.needs || `${r.title}.view`);
+const landing = () => { const here = routeLocation().pathname, r = routeOf(here);
+    if (r && r.path === here && opens(r)) return r.path;
+    const caps = Edge.auth?.access?.capabilities;
     return !Array.isArray(caps) || caps.includes("*") || caps.includes("monitor.view") ? "/monitor" : "/terminal"; };
 const passwordProblem = (password, repeat) => { const C = EdgeLabels.auth.check;
   return password.length < 8 ? C.short : password.length > 256 ? C.long : password !== repeat ? C.mismatch : ""; };
@@ -1235,6 +1249,19 @@ function WatchlistPage({ go }) {
     return element(Shell, { route: "watchlist", go: go, chart: true },
         element("main", { className: "terminal-page" },
             element("iframe", { className: "terminal-frame", src: "/watchlist-app/", title: EdgeLabels.watchlist.frameTitle })));
+}
+// EXEC-MU-ACCOUNTS Phase 4 (the user, 2026-11-22: "1A, 2B, 3A"): the admin page of the beta is its own page
+// (/admin-app/, built from apps/edge-bff/admin, whose files edge-bff serves to the admin only) in the same kind of
+// same-origin frame; the ticket of this address (/admin?ticket=<id>, the Telegram summary's link) opens first. Every
+// word and data path of the page is in its own build, none in this shell.
+const adminTicket = () => (/(?:^\?|&)ticket=(\d{1,15})(?:&|$)/.exec(routeLocation().search) || [])[1] || "";
+const adminOpen = () => Edge.offers("admin") && Edge.can("admin.access");
+function AdminPage({ go }) {
+    const ticket = adminTicket();
+    return element(Shell, { route: "admin", go: go, chart: true },
+        element("main", { className: "terminal-page" },
+            adminOpen() ? element("iframe", { className: "terminal-frame", src: `/admin-app/${ticket ? `?ticket=${ticket}` : ""}`, title: EdgeLabels.admin.frameTitle })
+                : element("div", { className: "admin-closed", role: "status" }, EdgeLabels.admin.closed)));
 }
 function Monitor({ go }) {
     const viewRecord = currentView;
@@ -2951,6 +2978,8 @@ const ROUTES = [
     {path:"/radar", names:["radar"], auth:true, title:"radar"},
     {path:"/overview", names:["overview"], auth:true, title:"overview"},
     {path:"/watchlist", names:["watchlist"], auth:true, title:"watchlist"},
+    // Phase 4: the admin page of the beta (main.py /admin; the live site answers 404); opened by admin.access
+    {path:"/admin", names:["admin"], auth:true, title:"admin", needs:"admin.access"},
     {path:"/login", names:["login","/"], auth:false, mode:"login", title:"signIn"},
     {path:"/register", names:["register"], auth:false, mode:"register", open:true, title:"register"},
     {path:"/verify", names:["verify"], auth:false, mode:"verify", open:true, title:"verify"},
@@ -3035,7 +3064,7 @@ function App() {
     // 3e, the example mode (ERRORS M527): its example where the server serves one (ExampleTabPage), else LockedTabPage
     if (tab && Edge.offers(tab) && Array.isArray(Edge.auth?.access?.capabilities) && !Edge.can(`${tab}.view`))
         return element(ExampleTabPage,{go,route:tab});
-    return shown === "/terminal" ? element(TerminalPage,{go}) : shown === "/backtest" ? element(BacktestPage,{go}) : shown === "/screener" ? element(ScreenerPage,{go}) : shown === "/radar" ? element(RadarPage,{go}) : shown === "/overview" ? element(OverviewPage,{go}) : shown === "/watchlist" ? element(WatchlistPage,{go}) : Edge.offers("monitor") ? element(Monitor,{go}) : element(TerminalPage,{go});
+    return shown === "/terminal" ? element(TerminalPage,{go}) : shown === "/backtest" ? element(BacktestPage,{go}) : shown === "/screener" ? element(ScreenerPage,{go}) : shown === "/radar" ? element(RadarPage,{go}) : shown === "/overview" ? element(OverviewPage,{go}) : shown === "/watchlist" ? element(WatchlistPage,{go}) : shown === "/admin" ? element(AdminPage,{go}) : Edge.offers("monitor") ? element(Monitor,{go}) : element(TerminalPage,{go});
 }
 
 refresh();

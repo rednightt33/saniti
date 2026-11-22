@@ -1,0 +1,4 @@
+# build outputs (the edge-bff Dockerfile builds dist/ into static/admin-app) and the fixture build
+dist/
+dist-fixture/
+node_modules/

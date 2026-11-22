@@ -3,7 +3,7 @@ name: edge-bff image builds
 # ERRORS M461 (2026-11-16): the edge-bff deployment of the EXEC-BACKTEST-REVAMP merge failed in Railway's build: the
 # Backtest page's build stage did not copy the Screener source its page imports, while every CI job built the pages in
 # the whole repository and passed. This builds the image as Railway does (apps/edge-bff as the context, its Dockerfile:
-# the Terminal, Backtest, Screener, Radar and Overview page stages and the Python image), so a module a stage does not
+# the Terminal, Backtest, Screener, Radar, Overview, Watchlist and admin page stages and the Python image), so a module a stage does not
 # copy fails here before a merge deploys it. No push, no secrets.
 # EXEC-MU-ACCOUNTS Phase 0: apps/edge-bff/shared (the session module every page stage copies) is named as its own path
 # too, so a change there alone builds every stage.

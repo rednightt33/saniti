@@ -121,6 +121,10 @@ OVERVIEW_APP = STATIC / 'overview-app'
 # EXEC-WATCHLIST L5 (user go 2026-11-16): the built Watchlist page (apps/edge-bff/watchlist -> static/watchlist-app), the
 # Watchlist tab's frame; its lists come from /api/v1/watchlist/lists and its figures from /api/v1/watchlist (file)
 WATCHLIST_APP = STATIC / 'watchlist-app'
+# EXEC-MU-ACCOUNTS Phase 4 (the user, 2026-11-22: "1A, 2B, 3A"): the built admin page (apps/edge-bff/admin ->
+# static/admin-app), the /admin frame on the beta; its files go to the admin only (page_app admin_only), its data come
+# from /api/v1/admin/* behind the page's own code step (app/admin.py)
+ADMIN_APP = STATIC / 'admin-app'
 SCREENER_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
                 "style-src 'self' 'unsafe-inline'; font-src 'self'; "
                 "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
@@ -533,7 +537,7 @@ def create_app(settings=None, store=None, orc=None):
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard). Re-check R2-19: the shell has no inline
         # script (static/edge-boot.js, static/edge-app.js), so script-src is 'self' alone, and form-action is 'self'
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/', '/admin-app/')) else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
         return response
 
     # ERRORS R2-25: added last, so it is the outermost middleware: an exception no handler expected is answered 503
@@ -614,6 +618,13 @@ def create_app(settings=None, store=None, orc=None):
             return error('NOT_FOUND', 404)
         return FileResponse(STATIC / 'index.html', media_type='text/html')
 
+    # Phase 4: the admin page, a page of the shell on the beta only (the Telegram summary links /admin?ticket=<id>)
+    @app.get('/admin')
+    async def admin_page():
+        if not on_this_site('admin'):
+            return error('NOT_FOUND', 404)
+        return FileResponse(STATIC / 'index.html', media_type='text/html')
+
     # EXEC-CHAT-URL (user 2026-10-24: "B saja ya"): every conversation has its own address, /c/<conversation_id>, like
     # ChatGPT and Claude; the page reads the id from it. Any other id is not a page. A conversation is the Monitor's.
     @app.get('/c/{conversation_id}')
@@ -678,8 +689,13 @@ def create_app(settings=None, store=None, orc=None):
     #   <tab>.view: its page and assets answer 404 to everyone else and on the live site, so a lab tab's code is in no
     #   file a visitor downloads.
     # (the folders are this module's names, read when a request comes, so a test can point one elsewhere)
-    def page_app(prefix, folder_name, tab, lab_name=None):
+    def page_app(prefix, folder_name, tab, lab_name=None, admin_only=False):
         async def shown(request):
+            # Phase 4, the admin page (admin_only): its files go to the admin on the beta only (auth.lab_admin:
+            # admin.access past the second factor, never on the live site), before the page's own code step, whose
+            # screen they draw; its data stay behind auth.admin_page (app/admin.py)
+            if admin_only:
+                return await auth.lab_admin(request) is not None
             # a lab tab's page carries the tab's code: the admin holding the tab (its own <tab>.view)
             if releases.tab_stage(tab) == releases.LAB:
                 p = await auth.lab_admin(request)
@@ -708,8 +724,8 @@ def create_app(settings=None, store=None, orc=None):
             target = globals()[folder_name] / 'assets' / name
             if not await shown(request) or not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
                 return error('NOT_FOUND', 404)
-            # a lab tab's assets are the admin's only, so no shared cache keeps them (3f checker SERVE-1)
-            scope = 'private' if releases.tab_stage(tab) == releases.LAB else 'public'
+            # a lab tab's assets (and the admin page's) are the admin's only, so no shared cache keeps them (3f SERVE-1)
+            scope = 'private' if admin_only or releases.tab_stage(tab) == releases.LAB else 'public'
             return FileResponse(target, headers={'Cache-Control': f'{scope}, max-age=31536000, immutable'})
 
         async def lab_asset(request: Request, name: str):
@@ -730,6 +746,7 @@ def create_app(settings=None, store=None, orc=None):
     page_app('radar-app', 'RADAR_APP', 'radar')
     page_app('overview-app', 'OVERVIEW_APP', 'overview')
     page_app('watchlist-app', 'WATCHLIST_APP', 'watchlist')
+    page_app('admin-app', 'ADMIN_APP', 'admin', admin_only=True)
 
     # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan /api/terminal/... ke terminal-api --> OK"): the owner's
     # EDGE session reaches terminal-api as its one terminal account (quotas and audit there); writes keep EDGE's

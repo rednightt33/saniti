@@ -1,0 +1,19 @@
+{
+  "name": "edge-admin",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "EDGE admin page (EXEC-MU-ACCOUNTS Phase 4; the user, 2026-11-22: \"1A, 2B, 3A\"): the beta's admin page, its files served to the admin only and its data read from /api/v1/admin/* (app/admin.py) after the page's own authenticator step. The support inbox, the accounts, the audit, the plans and the settings.",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "build:fixture": "vite build --mode fixture",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.1.9",
+    "vitest": "3.2.4"
+  }
+}

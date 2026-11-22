@@ -397,17 +397,18 @@ EDGE = Path(__file__).resolve().parents[1]
 GOOGLE = re.compile(r'fonts\.(?:googleapis|gstatic)\.com')
 PAGES = {'/': 'static/index.html', '/terminal-app/': 'terminal/index.html', '/backtest-app/': 'backtest/index.html',
          '/screener-app/': 'screener/index.html', '/radar-app/': 'radar/index.html', '/overview-app/': 'overview/index.html',
-         '/watchlist-app/': 'watchlist/index.html'}
+         '/watchlist-app/': 'watchlist/index.html', '/admin-app/': 'admin/index.html'}
 
 
 def page_sources():
     """Every page's source and every stylesheet, script and page module EDGE serves or builds (no build output)."""
     for folder in ('static', 'terminal/src', 'backtest/src', 'screener/src', 'radar/src', 'overview/src', 'watchlist/src',
-                   'shared', 'app'):
+                   'admin/src', 'shared', 'app'):
         for p in sorted((EDGE / folder).rglob('*')):
             if p.is_file() and p.suffix in ('.html', '.css', '.js', '.ts', '.py', '.mjs') and not (
                     set(p.relative_to(EDGE).parts) & {'node_modules', 'dist', 'dist-fixture', 'terminal-app', 'backtest-app',
-                                                      'screener-app', 'radar-app', 'overview-app', 'watchlist-app'}):
+                                                      'screener-app', 'radar-app', 'overview-app', 'watchlist-app',
+                                                      'admin-app'}):
                 yield p
     for page in PAGES.values():
         yield EDGE / page

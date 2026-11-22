@@ -4786,6 +4786,12 @@ h1 {
   height: calc(100vh - var(--topbar));
   overflow: hidden;
 }
+/* Phase 4: /admin opened by an account that is not the admin (its frame is not drawn) */
+.admin-closed {
+  padding: var(--s-10) var(--s-8);
+  color: var(--text-3, var(--muted-foreground));
+  text-align: center;
+}
 /* 3e (CONTRACT 8b): a tab the principal cannot open (LockedTabPage): the design system's empty state in a card, centred
    in the page area; the words and buttons of the lock box (sign in for a visitor, upgrade for an account) */
 .locked-tab {

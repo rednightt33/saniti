@@ -161,6 +161,8 @@ window.EdgeLabels = {
   overview: { nav:"Overview", frameTitle:"Market overview" },
   // EXEC-WATCHLIST L5 (user go 2026-11-16): the Watchlist tab, after Overview in the rail
   watchlist: { nav:"Watchlist", frameTitle:"Watchlist" },
+  // EXEC-MU-ACCOUNTS Phase 4: the beta's admin page (its own words are in its build, apps/edge-bff/admin)
+  admin: { nav:"Admin", menu:"Admin page", frameTitle:"Admin", closed:"The admin page is for EDGE's admin." },
   // EXEC-OVERVIEW QA (user 2026-11-15: "1B"): on a phone (the left menu is hidden at 720 px or less) a menu button in the
   // EDGE bar lists the same pages
   shell: { pagesMenu:"Pages", openPages:"Open the pages menu", closePages:"Close the pages menu" },
@@ -168,7 +170,7 @@ window.EdgeLabels = {
   // misalkan Edge, - terminal, backtest, screener"): the browser tab's title on each page
   pages: { loading:"EDGE", signIn:"EDGE — Sign In", monitor:"EDGE — Monitor", terminal:"EDGE — Terminal",
     backtest:"EDGE — Backtest", screener:"EDGE — Screener", radar:"EDGE — Radar",
-    overview:"EDGE — Overview", watchlist:"EDGE — Watchlist",
+    overview:"EDGE — Overview", watchlist:"EDGE — Watchlist", admin:"EDGE — Admin",
     register:"EDGE — Create Account", verify:"EDGE — Enter Code", forgot:"EDGE — Forgot Password",
     reset:"EDGE — New Password", mfa:"EDGE — Authenticator" },
   // track guest (decision 1 of 2026-11-19, the user: "ketika dia klik ticker selain bbca maka akan keluar pop up box to

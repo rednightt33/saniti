@@ -549,7 +549,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:723`), mounted like the Backtest module (`apps/edge-bff/app/main.py:858`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:723`), mounted like the Backtest module (`apps/edge-bff/app/main.py:875`
 `screeners.routes`):
 
 Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session and the capability named; with
@@ -591,8 +591,8 @@ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session 
   worker's `SCREENER_DEADLINE_MS` / 1000. The saved-item limits are constants (`SCREEN_LIMIT` 50, `WATCHLIST_LIMIT`
   50, `screener.py:81-82`; since EXEC-WATCHLIST 2A the star fills the first watchlist, so the limit is that list's
   `PER_LIST`, `apps/edge-bff/app/watchlist.py`).
-- **Page and frame**: `/screener` (`main.py:594`) and `/screener-app/` with its assets (`main.py:678-697`) under
-  `SCREENER_CSP` (`main.py:124-127`: `connect-src 'self'`).
+- **Page and frame**: `/screener` (`main.py:598`) and `/screener-app/` with its assets (`main.py:689-713`) under
+  `SCREENER_CSP` (`main.py:128-131`: `connect-src 'self'`).
 - **A new metric needs no edge-bff change:** the catalog is relayed as the worker built it.
 
 Tests: `apps/edge-bff/tests/test_screener.py` (35 tests, on a disposable PostgreSQL through `EDGE_TEST_POSTGRES_URL`;

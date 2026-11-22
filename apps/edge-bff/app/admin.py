@@ -38,12 +38,12 @@ import json
 import logging
 import re
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import Depends, Request
 from fastapi.responses import JSONResponse, Response
 
-from . import mailer, support as support_module, text_rules
+from . import email_texts, mailer, support as support_module, text_rules
 from .errors import Refusal
 from .principal import Principal
 from .security import csrf_token, token_hash
@@ -267,7 +267,8 @@ class AdminStore:
                 WHERE (%(status)s::text IS NULL OR t.status = %(status)s) AND (%(before)s::bigint IS NULL OR t.ticket_id < %(before)s)
                 ORDER BY t.ticket_id DESC LIMIT %(limit)s''', {'status': status, 'before': before, 'limit': limit + 1}).fetchall()
         more = len(rows) > limit
-        rows = [dict(r) for r in rows[:limit]]
+        # the issue type in the words the person chose it by (the dialog's and the email's, email_texts.SUPPORT_KINDS)
+        rows = [{**r, 'kind_label': email_texts.SUPPORT_KINDS.get(r['kind'], r['kind'])} for r in rows[:limit]]
         return {'tickets': rows, 'next': rows[-1]['ticket_id'] if more else None}
 
     def ticket(self, ticket_id):
@@ -280,9 +281,12 @@ class AdminStore:
             files = c.execute('''SELECT position, filename, content_type, bytes FROM edge_bff.support_attachments
                 WHERE ticket_id = %s ORDER BY position''', (ticket_id,)).fetchall()
         return {'ticket_id': t['ticket_id'], 'created_at': t['created_at'], 'site': t['site'], 'kind': t['kind'],
-                'subject': t['subject'], 'body': t['body'], 'details': t['details'], 'status': t['status'],
+                'kind_label': email_texts.SUPPORT_KINDS.get(t['kind'], t['kind']), 'subject': t['subject'], 'body': t['body'], 'details': t['details'], 'status': t['status'],
                 'done_at': t['done_at'], 'done_by': t['done_by'], 'images': t['images'],
                 'images_purged_at': t['images_purged_at'], 'files': [dict(f) for f in files],
+                # the day the hourly purge deletes its images (the user's 2B: support.IMAGE_DAYS after done), or None
+                'images_due': (t['done_at'] + timedelta(days=support_module.IMAGE_DAYS)
+                               if t['done_at'] and t['images'] and t['images_purged_at'] is None else None),
                 'telegram_sent_at': t['telegram_sent_at'], 'telegram_attempts': t['telegram_attempts'],
                 'sender': {'user_id': t['user_id'], 'username': t['username'],
                            'email': mailer.masked_address(t['email']) if t['email'] else None}}
@@ -406,7 +410,8 @@ class Admin:
         @app.get('/api/v1/admin/overview')
         async def overview(p: Principal = Depends(reader)):
             found = await asyncio.to_thread(data.overview)
-            return {**found, 'site': settings.site, 'commit': (settings.commit_sha or '')[:12]}
+            return {**found, 'site': settings.site, 'commit': (settings.commit_sha or '')[:12],
+                    'support_storage_mb': settings.support_storage_mb}
 
         @app.get('/api/v1/admin/users')
         async def users(q: str = '', status: str = '', plan: str = '', before: str = '', limit: str = '',

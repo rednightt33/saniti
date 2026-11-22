@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EDGE — Admin</title>
+<link rel="icon" href="/favicon.svg?v=20261103" type="image/svg+xml">
+<link href="/fonts/inter-400-700.css" rel="stylesheet">
+</head>
+<body>
+<!-- EXEC-MU-ACCOUNTS Phase 4 (the user, 2026-11-22: "1A, 2B, 3A"): the admin page of the beta. Its files reach the
+     admin only (app/main.py page_app admin_only); src/app.ts asks for the authenticator code first, then fills #page from
+     /api/v1/admin/*. Icons: the design system's sprite (.claude/skills/edge-design-system/assets/icons.svg) and, in its
+     style (16 px, stroke 1.6), the page's own: inbox, user, shield, download, trash, send, image, back, refresh, eye.
+     The entry tag below must stay exactly once (vite.config.ts). -->
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="i-overview" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></symbol>
+<symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="i-chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="i-chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+<symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="i-cal" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/></symbol>
+<symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.2V11M8 5v.1"/></symbol>
+<symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+<symbol id="i-inbox" viewBox="0 0 16 16"><path d="M2.5 9.5l1.6-5.2a1 1 0 0 1 1-.8h5.8a1 1 0 0 1 1 .8l1.6 5.2v3a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/><path d="M2.5 9.5h3l1 1.5h3l1-1.5h3"/></symbol>
+<symbol id="i-user" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.8 13.5c.8-2.6 2.8-4 5.2-4s4.4 1.4 5.2 4"/></symbol>
+<symbol id="i-shield" viewBox="0 0 16 16"><path d="M8 1.8l5 1.9v4c0 3.1-2.1 5.5-5 6.5-2.9-1-5-3.4-5-6.5v-4z"/><path d="M5.8 8.1l1.6 1.6 2.9-3"/></symbol>
+<symbol id="i-download" viewBox="0 0 16 16"><path d="M8 2.5v7.5M5 7l3 3 3-3M3 12.5h10"/></symbol>
+<symbol id="i-trash" viewBox="0 0 16 16"><path d="M2.8 4.5h10.4M6.2 4.5V3h3.6v1.5M4.2 4.5l.6 8.6a1 1 0 0 0 1 .9h4.4a1 1 0 0 0 1-.9l.6-8.6"/></symbol>
+<symbol id="i-send" viewBox="0 0 16 16"><path d="M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z"/></symbol>
+<symbol id="i-image" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1.2"/><path d="M2.5 12l3.5-3.5 2.5 2.5 2-2 3 3"/></symbol>
+<symbol id="i-back" viewBox="0 0 16 16"><path d="M12.5 8h-9M7 4.5L3.5 8 7 11.5"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13 3.5v3h-3M3 12.5v-3h3"/><path d="M12.6 6.5A5 5 0 0 0 3.7 5M3.4 9.5a5 5 0 0 0 8.9 1.5"/></symbol>
+<symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+</defs></svg>
+<main class="page" id="page" aria-busy="true"><p class="muted">Loading the admin page…</p></main>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

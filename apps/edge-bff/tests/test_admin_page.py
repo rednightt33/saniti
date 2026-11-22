@@ -1,0 +1,359 @@
+"""Phase 4, the admin page (apps/edge-bff/admin -> static/admin-app; app/main.py /admin and page_app admin_only; the
+shell's /admin; CONTRACT.md 10; the user, 2026-11-22: "1A, 2B, 3A").
+
+- Its files reach the admin on the beta only: a visitor, an account without admin.access and the admin before its second
+  factor (the switch on) get 404 for the page and its assets; the live site answers 404 to everyone, /admin included.
+  The beta's owner gets them before the page's code step (its screen is in them); the data stay behind the step.
+- The shell: /admin opens the page in its frame with the ticket of its address; a sign-in shown at /admin?ticket=<id>
+  stays there (a sign-in stays at a workspace page the account can open); the rail's shield and the account menu's
+  "Admin page" for the admin only.
+- The built page in a browser: the code step, the ticket of the Telegram link with its image, marked done, a write of the
+  shell after the step (its session was renewed), the delete with a reason; every view at 1440, 1152, 390 and 360 px,
+  light and dark, without sideways scroll.
+Needs EDGE_TEST_POSTGRES_URL; the browser tests the page's build (npm run build in admin/; CI builds it first)."""
+import dataclasses
+import os
+import re
+import struct
+import zlib
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app import main, releases
+from app.main import SCREENER_CSP, create_app
+from app.support import SupportStore
+from conftest import FakeOrc
+from test_3f_lab_pages import admin_access_account, beta_on
+from test_admin import KEY, code_of, db, enrol, seed_id
+from test_beta_live_site import live_of, sign_in_admin
+from test_edge import ORIGIN, login
+from test_phase3a_gates import paid_user
+from test_principal import make_user
+
+ROOT = Path(__file__).resolve().parents[1]
+DIST = ROOT / 'admin' / 'dist'
+SHELL = ROOT / 'static'
+CHROMIUM = os.environ.get('EDGE_TEST_CHROMIUM', '/usr/bin/chromium')
+REQUIRE_NODE = os.environ.get('EDGE_TEST_REQUIRE_NODE') == '1'
+
+
+@pytest.fixture
+def built(tmp_path, monkeypatch):
+    """A stand-in build of the admin page (its index and one asset)."""
+    (tmp_path / 'assets').mkdir()
+    (tmp_path / 'index.html').write_text('<!doctype html><title>ADMIN BUILD</title>')
+    (tmp_path / 'assets' / 'index-admin01.js').write_text('void 0')
+    monkeypatch.setattr(main, 'ADMIN_APP', tmp_path)
+    return tmp_path
+
+
+def statuses(c):
+    return c.get('/admin-app/').status_code, c.get('/admin-app/assets/index-admin01.js').status_code
+
+
+def test_the_page_files_reach_the_beta_admin_only_before_its_code_step(settings, store, built):
+    beta = dataclasses.replace(settings, mfa_key=KEY)
+    with TestClient(create_app(beta, store, FakeOrc())) as c:
+        assert statuses(c) == (404, 404)                                    # a visitor
+        assert c.get('/admin').status_code == 200                           # the shell, which asks to sign in
+        login(c)
+        assert statuses(c) == (200, 200)                                    # the owner, before the code step
+        page = c.get('/admin-app/')
+        assert 'ADMIN BUILD' in page.text and page.headers['content-security-policy'] == SCREENER_CSP
+        asset = c.get('/admin-app/assets/index-admin01.js')
+        assert asset.headers['cache-control'] == 'private, max-age=31536000, immutable'
+        r = c.get('/api/v1/admin/overview')                                 # the data wait for the code
+        assert (r.status_code, r.json()['error']['details'].get('step_up')) == (403, True)
+        for bad in ('../index.html', 'index-admin01.js.map', '%2e%2e%2fmain.py'):
+            assert c.get(f'/admin-app/assets/{bad}').status_code == 404, bad
+    # the switch on (the beta's way later): an account without admin.access, then the admin before and after its code
+    with TestClient(create_app(beta_on(settings), store, FakeOrc())) as c:
+        alice = paid_user(store, 'alice_admin_page')
+        r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': alice['username'], 'password': 'alice_admin_page-password'})
+        assert r.status_code == 200, r.text
+        assert statuses(c) == (404, 404)
+    with TestClient(create_app(beta_on(settings), store, FakeOrc())) as c:
+        r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': 'local-test-password'})
+        assert r.status_code == 403 and r.json()['error']['code'] == 'MFA_REQUIRED', r.text
+        assert statuses(c) == (404, 404)
+        sign_in_admin(c, store)
+        assert statuses(c) == (200, 200)
+    with TestClient(create_app(beta_on(settings), store, FakeOrc())) as c:
+        admin_access_account(c, store, 'ops_admin_page')                    # admin.access by an override, no '*'
+        assert statuses(c) == (200, 200)
+
+
+def test_the_gate_does_not_rest_on_the_release_file(settings, store, built, monkeypatch):
+    """admin is in no tab list of catalog/releases.json (a beta-only tab); were it listed as released one day, its page
+    would still reach the admin only and stay out of shared caches (main.py page_app admin_only, not the stage)."""
+    real = releases.tab_stage
+    monkeypatch.setattr(releases, 'tab_stage', lambda tab: 'released' if tab == 'admin' else real(tab))
+    with TestClient(create_app(dataclasses.replace(settings, mfa_key=KEY), store, FakeOrc())) as c:
+        assert statuses(c) == (404, 404)                                    # a visitor
+        login(c)
+        assert statuses(c) == (200, 200)
+        assert c.get('/admin-app/assets/index-admin01.js').headers['cache-control'] == 'private, max-age=31536000, immutable'
+
+
+def test_the_live_site_serves_no_admin_page_to_anyone(settings, store, built):
+    with TestClient(create_app(live_of(settings), store, FakeOrc())) as c:
+        assert c.get('/admin').status_code == 404 and statuses(c) == (404, 404)
+        sign_in_admin(c, store)                                             # the admin past its second factor
+        assert c.get('/admin').status_code == 404 and statuses(c) == (404, 404)
+        assert 'admin' in c.get('/api/v1/auth/config').json()['hidden_tabs']
+
+
+def test_the_shell_names_the_page_its_route_and_its_entries_but_none_of_its_words():
+    app_js, labels = (SHELL / 'edge-app.js').read_text(), (SHELL / 'edge-labels.js').read_text()
+    assert '{path:"/admin", names:["admin"], auth:true, title:"admin", needs:"admin.access"}' in app_js
+    assert 'src: `/admin-app/${ticket ? `?ticket=${ticket}` : ""}`' in app_js
+    assert 'adminOpen() && element("button", { type: "button", className: `side-admin' in app_js
+    assert 'openAdmin: adminOpen() ? () => go("admin") : null' in app_js and app_js.count('openAdmin: adminOpen()') == 2
+    assert re.search(r'admin: \{ nav:"Admin", menu:"Admin page", frameTitle:"Admin", closed:"[^"]+" \}', labels)
+    # the page's own words and data paths are in its build only, never in the public shell (3f's rule for lab code)
+    for word in ('/api/v1/admin', 'Enter your authenticator code', 'Delete ticket', 'Download CSV'):
+        assert word not in app_js and word not in labels, word
+
+
+# ---- the built page in a browser ------------------------------------------------------------------------------------
+
+def need_build():
+    if not (DIST / 'index.html').is_file():
+        if REQUIRE_NODE:
+            pytest.fail('admin/dist is not built (npm run build in apps/edge-bff/admin; CI builds it before the tests)')
+        pytest.skip('the admin page is not built (npm run build)')
+
+
+def open_browser(pw):
+    return pw.chromium.launch(executable_path=CHROMIUM, headless=True, args=['--no-sandbox'])
+
+
+def frame_of(page):
+    page.locator('iframe.terminal-frame').wait_for()
+    return page.frame_locator('iframe.terminal-frame')
+
+
+def no_sideways(page):
+    """(shell, frame): each document's scroll width against its own width"""
+    inner = page.frame_locator('iframe.terminal-frame').locator('html')
+    return (page.evaluate('() => document.documentElement.scrollWidth - innerWidth'),
+            inner.evaluate('e => e.scrollWidth - e.ownerDocument.defaultView.innerWidth'))
+
+
+def png(width=24, height=16):
+    """A real PNG a browser draws (test_admin's PNG has the signature only, enough for the server's check)."""
+    def chunk(kind, data):
+        return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
+    rows = b''.join(b'\x00' + bytes([120, 140, 160]) * width for _ in range(height))
+    return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+            + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
+
+
+PNG = png()
+
+
+@pytest.fixture
+def ticket_of_alice(store, settings):
+    def make(subject='The chart does not load', images=(('screen.png', 'image/png', PNG),)):
+        alice = make_user(store, 'alice_page', 'alice-password', email='alice.page@example.com')
+        p = type('P', (), {'user_id': alice['user_id'], 'plan_key': 'free'})()
+        return SupportStore(store, settings).create(p, 'bug', subject, 'I open BBCA and\nthe chart stays empty.',
+                                                    {'page': '/terminal'}, list(images))['ticket_id']
+    return make
+
+
+def test_the_telegram_link_opens_its_ticket_after_sign_in_and_the_code(settings, store, monkeypatch, ticket_of_alice):
+    """/admin?ticket=<id> signed out: the sign-in page at that address; signed in, the shell stays there and the frame
+    asks for the code; with it, the ticket in full with its image. Marked done, then a write of the shell (Contact
+    support) still works with the renewed session, then the ticket deleted with a reason."""
+    need_build()
+    playwright = pytest.importorskip('playwright.sync_api')
+    from test_screener import serve
+    monkeypatch.setattr(main, 'ADMIN_APP', DIST)
+    beta = dataclasses.replace(settings, mfa_key=KEY)
+    local, stop = serve(beta, store)                    # first: the app seeds user #1 into an empty users table
+    try:
+        ticket = ticket_of_alice()
+        uid = seed_id(store, beta)
+        nonce = enrol(store, uid)
+        with playwright.sync_playwright() as pw:
+            browser = open_browser(pw)
+            try:
+                page = browser.new_page(viewport={'width': 1440, 'height': 900})
+                errors = []
+                page.on('pageerror', lambda e: errors.append(str(e)))
+                page.goto(f'{local.origin}/admin?ticket={ticket}')
+                page.locator('#auth-login').fill('owner')
+                page.locator('#auth-password').fill('local-test-password')
+                page.get_by_role('button', name='Sign In', exact=True).click()
+                f = frame_of(page)
+                assert page.evaluate('() => location.pathname + location.search') == f'/admin?ticket={ticket}'
+                src = page.evaluate('() => { const u = new URL(document.querySelector("iframe.terminal-frame").src); return u.pathname + u.search }')
+                assert src == f'/admin-app/?ticket={ticket}'
+                assert page.locator('.side-nav .side-admin').get_attribute('aria-current') == 'page'
+                # the code step: a wrong code says so under the field, the right one opens the ticket
+                f.locator('#code').fill('000000' if code_of(uid, nonce) != '000000' else '111111')
+                f.get_by_role('button', name='Open the admin page').click()
+                f.locator('#code-error').filter(has_text=re.compile(r'\w')).wait_for()
+                f.locator('#code').fill(code_of(uid, nonce))
+                f.get_by_role('button', name='Open the admin page').click()
+                f.locator('#ticket-subject').filter(has_text='The chart does not load').wait_for()
+                assert 'the chart stays empty.' in f.locator('.message').inner_text()
+                img = f.locator('.images img').first
+                img.wait_for()
+                page.wait_for_function('() => { const d = document.querySelector("iframe.terminal-frame").contentDocument;'
+                                       ' const i = d && d.querySelector(".images img"); return i && i.complete && i.naturalWidth > 0 }')
+                # done: the pill, the images' deletion day, the row
+                f.get_by_role('button', name='Mark done').click()
+                f.locator('.ticket .pill', has_text='Done').wait_for()
+                assert 'deleted on' in f.locator('.images').inner_text()
+                assert db(store, 'SELECT status FROM edge_bff.support_tickets WHERE ticket_id = %s', ticket)[0]['status'] == 'done'
+                # the shell's own write after the step: its CSRF token was the old session's; the send repeats once
+                page.locator('.side-nav .side-support').click()
+                dialog = page.get_by_role('dialog')
+                dialog.get_by_label('Subject').fill('From the admin page')
+                dialog.get_by_label('Description').fill('A message after the code step.')
+                dialog.get_by_role('button', name='Submit issue').click()
+                dialog.get_by_text('Your message was sent').wait_for()
+                dialog.get_by_role('button', name='Close').first.click()
+                # the delete by hand (2B): a reason, then the list without it
+                f.get_by_role('button', name='Delete ticket').click()
+                box = f.get_by_role('dialog')
+                box.get_by_role('button', name='Delete ticket').click()
+                box.locator('#reason-error').filter(has_text='Write why').wait_for()
+                box.get_by_label('Why delete it').fill('Answered by email')
+                box.get_by_role('button', name='Delete ticket').click()
+                f.locator('table.tickets, .empty').first.wait_for()
+                assert db(store, 'SELECT count(*) AS n FROM edge_bff.support_tickets WHERE ticket_id = %s', ticket)[0]['n'] == 0
+                trail = db(store, "SELECT action, reason FROM edge_bff.admin_audit WHERE action LIKE 'support.%%' ORDER BY audit_id")
+                assert [(t['action'], t['reason']) for t in trail] == [('support.status', None), ('support.delete', 'Answered by email')]
+                assert errors == []
+            finally:
+                browser.close()
+    finally:
+        stop()
+
+
+@pytest.mark.parametrize('width,height', [(1440, 900), (1152, 800), (390, 844), (360, 740)])
+def test_every_view_fits_each_width_in_both_themes(settings, store, monkeypatch, ticket_of_alice, width, height):
+    need_build()
+    playwright = pytest.importorskip('playwright.sync_api')
+    from test_screener import serve
+    monkeypatch.setattr(main, 'ADMIN_APP', DIST)
+    beta = dataclasses.replace(settings, mfa_key=KEY)
+    local, stop = serve(beta, store)                    # first: the app seeds user #1 into an empty users table
+    try:
+        ticket_of_alice('A subject long enough to wrap on a phone screen without pushing the page sideways at all')
+        uid = seed_id(store, beta)
+        nonce = enrol(store, uid)
+        with playwright.sync_playwright() as pw:
+            browser = open_browser(pw)
+            try:
+                page = browser.new_page(viewport={'width': width, 'height': height})
+                errors = []
+                page.on('pageerror', lambda e: errors.append(str(e)))
+                page.goto(f'{local.origin}/login')
+                page.locator('#auth-login').fill('owner')
+                page.locator('#auth-password').fill('local-test-password')
+                page.get_by_role('button', name='Sign In', exact=True).click()
+                page.wait_for_function("() => window.Edge && Edge.auth !== null")
+                if width > 640:
+                    page.locator('.side-nav .side-admin').click()                 # the rail's shield
+                else:                                                             # the phone: the account menu
+                    page.get_by_role('button', name='Account menu').filter(visible=True).first.click()
+                    page.get_by_role('menuitem', name='Admin page').click()
+                f = frame_of(page)
+                f.locator('#code').wait_for()
+                assert no_sideways(page) == (0, 0)
+                f.locator('#code').fill(code_of(uid, nonce))
+                f.get_by_role('button', name='Open the admin page').click()
+                f.locator('table.tickets').wait_for()
+                inner = page.frame_locator('iframe.terminal-frame').locator('html')
+                for theme in ('light', 'dark'):
+                    if theme == 'dark':                                           # the shell's own theme button
+                        page.get_by_role('button', name='Switch to dark theme').filter(visible=True).first.click()
+                        page.wait_for_function("() => document.documentElement.classList.contains('dark')")
+                        page.wait_for_function('() => document.querySelector("iframe.terminal-frame").contentDocument'
+                                               '.documentElement.dataset.theme === "dark"')
+                    assert inner.get_attribute('data-theme') == theme
+                    for view in ('support', 'overview', 'accounts', 'audit', 'plans', 'settings'):
+                        f.locator(f'#tab-{view}').click()
+                        f.locator(f'#tab-{view}[aria-selected=true]').wait_for()
+                        f.locator('#view .loading').wait_for(state='detached')
+                        assert no_sideways(page) == (0, 0), (width, theme, view)
+                        assert not re.search(r'\b(null|undefined|NaN)\b', f.locator('#view').inner_text()), (theme, view)
+                    f.locator('#tab-support').click()
+                    f.locator('table.tickets .linklike').first.click()
+                    f.locator('#ticket-subject').wait_for()
+                    assert no_sideways(page) == (0, 0), (width, theme, 'ticket')
+                    box = f.locator('.ticket').bounding_box()
+                    assert box['x'] >= 0 and box['x'] + box['width'] <= width, (width, theme, box)
+                    if theme == 'light':
+                        f.get_by_role('button', name='All tickets').click()
+                    else:                                                         # the shown tab leads back to its list
+                        f.locator('#tab-support').click()
+                    f.locator('table.tickets').wait_for()
+                assert errors == []
+            finally:
+                browser.close()
+    finally:
+        stop()
+
+
+def sign_in_page(browser, local, path, login, password, width=1440, height=900):
+    page = browser.new_page(viewport={'width': width, 'height': height})
+    page.goto(local.origin + path)
+    page.locator('#auth-login').fill(login)
+    page.locator('#auth-password').fill(password)
+    page.get_by_role('button', name='Sign In', exact=True).click()
+    page.wait_for_function("() => window.Edge && Edge.auth !== null")
+    return page
+
+
+def test_a_sign_in_stays_at_a_page_the_account_opens_and_lands_as_before_elsewhere(settings, store):
+    """The rule beyond the admin page (switch on, the beta's way later): a paid account signing in at /backtest stays
+    there (it holds backtest.view), at /admin it lands on its landing page, the Terminal (no admin.access), never on the
+    closed admin page; at /login it lands as before."""
+    playwright = pytest.importorskip('playwright.sync_api')
+    from test_screener import serve
+    local, stop = serve(beta_on(settings), store)
+    try:
+        paula = paid_user(store, 'paula_sign_in')
+        with playwright.sync_playwright() as pw:
+            browser = open_browser(pw)
+            try:
+                for path, lands in (('/backtest?run=bt_1', '/backtest?run=bt_1'), ('/admin?ticket=5', '/terminal'), ('/login', '/terminal')):
+                    page = sign_in_page(browser, local, path, paula['username'], 'paula_sign_in-password')
+                    page.wait_for_function('want => location.pathname + location.search === want', arg=lands)
+                    assert page.locator('.admin-closed').count() == 0 and page.locator('.side-admin').count() == 0
+                    page.close()
+            finally:
+                browser.close()
+    finally:
+        stop()
+
+
+def test_the_code_step_says_why_it_cannot_run(settings, store, monkeypatch):
+    """Without the live site's key the page says to ask the operator; without an authenticator set up, to set it up on
+    the live site first; neither shows the code field."""
+    need_build()
+    playwright = pytest.importorskip('playwright.sync_api')
+    from test_screener import serve
+    monkeypatch.setattr(main, 'ADMIN_APP', DIST)
+    for beta, words in ((settings, 'cannot be checked here yet'), (dataclasses.replace(settings, mfa_key=KEY),
+                                                                   'Set up your authenticator on the live site first')):
+        local, stop = serve(beta, store)
+        try:
+            with playwright.sync_playwright() as pw:
+                browser = open_browser(pw)
+                try:
+                    page = sign_in_page(browser, local, '/admin', 'owner', 'local-test-password')
+                    f = frame_of(page)
+                    f.locator('#step-title', has_text=words).wait_for()
+                    assert f.locator('#code').count() == 0
+                finally:
+                    browser.close()
+        finally:
+            stop()

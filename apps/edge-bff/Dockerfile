@@ -96,6 +96,19 @@ COPY catalog/releases.json /build/catalog/releases.json
 COPY watchlist/ ./
 RUN npm run build
 
+# EXEC-MU-ACCOUNTS Phase 4 (the user, 2026-11-22: "1A, 2B, 3A"): the admin page of the beta (admin/, TypeScript + Vite)
+# is built here into its dist/ and copied into static/admin-app; edge-bff serves its files to the beta's admin only
+# (app/main.py page_app admin_only) and its data from /api/v1/admin/* (app/admin.py). The build output is not kept in git.
+FROM node:22-slim AS admin
+WORKDIR /build/admin
+COPY admin/package.json admin/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY shared /build/shared
+# 3f round 2: every page build applies the release filter (shared/release-filter.mjs), which stops without this file
+COPY catalog/releases.json /build/catalog/releases.json
+COPY admin/ ./
+RUN npm run build
+
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
@@ -117,6 +130,7 @@ COPY --from=screener /build/screener/dist ./static/screener-app
 COPY --from=radar /build/radar/dist ./static/radar-app
 COPY --from=overview /build/overview/dist ./static/overview-app
 COPY --from=watchlist /build/watchlist/dist ./static/watchlist-app
+COPY --from=admin /build/admin/dist ./static/admin-app
 RUN useradd --uid 10001 --create-home edge && chmod -R a+rX /app/app /app/catalog /app/screener /app/static
 USER edge
 CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--no-access-log", "--no-proxy-headers"]
