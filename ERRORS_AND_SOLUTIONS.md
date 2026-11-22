@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M543 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; OPEN)
+### M543 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; FIXED on the branch, `6b3edc6c`)
 
 - **Found by:** the agent, running `tests/test_admin_page.py::test_a_sign_in_through_the_authenticator_code_keeps_the_page_it_was_shown_at`
   for the SERVE-3 change.
@@ -8898,6 +8898,13 @@ in its staleness check.
   test run).
 - **Solution:** none yet; in the re-check's list (AGENTS.md "Findings and fixes"), never skipped. NC17's class (flaky
   browser tests M510 does not name).
+- **Root cause, verified (fix round 1, 2026-11-22):** `main.py` serves a frame from `static/<page>-app`, which only the
+  image fills (the Dockerfile's `COPY --from=… /build/<src> ./static/<folder>`); local and CI builds go to `<page>/dist`.
+  With the fix off, 3 runs in 6 failed.
+- **Solution:** `tests/conftest.py` `built_pages` (autouse for tests that open a browser): every `main.*_APP` under
+  `static/` without an index.html points at its built folder, derived from the Dockerfile's COPY lines; lab builds stay
+  as they are on disk. `tests/test_built_pages.py` locks the derivation. The two sign-in tests passed 10 of 10 runs.
+- **Status:** FIXED on the branch, `6b3edc6c`.
 
 ### M542 — The OpenRouter key expired on 2026-11-22: the beta's AI and the web governor refused since 03:55 UTC, and nobody was told (2026-11-22; found by the agent from the open-items report NC29; OPEN, the key is the user's)
 
@@ -9094,6 +9101,18 @@ in its staleness check.
 - **Lesson:** a guard is written against the fact the guarantee depends on, and its test changes that fact (a missing
   seed, a later moment, a second sender, a role without the grant); a checker's confirmed findings are all fixed or
   put to the user before the next step.
+- **Test-out fix round 1 (2026-11-22; test-out `wf_c72ae04c-a73` found these parts "partly"; on the branch, not deployed; their own test-out joins step 8, EXEC UD23):**
+  - deploy-3: `app/config.py` `notify_url_problem()` (urlsplit) refuses an unresolved reference, a scheme other than
+    http(s), an empty host or label, a label starting or ending with `-`, an IPv6 literal, a user part, an empty port,
+    port 0 or above 65535, a `*.railway.internal` host without a port (Railway's private network has no port mapping),
+    a path other than `/notify` and a query. A public host may still leave the port out (the tests' stand-in
+    `http://telegram-monitor.invalid/notify`). The beta's value has the accepted shape (read from Railway, shape only).
+    `tests/test_support.py` `test_the_settings_hold_their_ranges`. The other services that read the address: EXEC
+    EXEC-MU-ACCOUNTS, Carried open parts.
+  - page-tests-records-6: the admin page's Accounts table draws the usage counters (a Usage column: the total, each kind
+    in its title, hidden on a phone; `admin/src/model.ts` `usageOf`, the kinds the server sends). Red when the column
+    is gone (`tests/test_admin_page.py`); fits 1440, 1152, 390 and 360 in both themes.
+  - page-tests-records-2: its flaky lock, ERRORS M543.
 
 ### M535 — An account deletion action entered the Phase 4 plan although the user never decided that one is offered (2026-11-22; found by the user; FIXED: dropped before any code)
 
@@ -9741,6 +9760,20 @@ in its staleness check.
     as lab.
   - SERVE-3: the public shell files are derived from `index.html` and `static/edge-*.js` (`edge-boot.js` and
     `edge-docx.js` were missing); the rail entry stays open (EXEC-MU-ACCOUNTS, Carried open parts).
+- **Test-out fix round 1 (2026-11-22; test-out `wf_c72ae04c-a73` found these parts "partly"; on the branch, not deployed; their own test-out joins step 8, EXEC UD23):**
+  - SERVE-2: sign-out-all and the end of a password reset also end this browser's session and lacked the header;
+    `app/auth_flows.py` `ended_here` sets `Clear-Site-Data: "cache"` for all three (sign-out included). A password
+    change keeps this browser's session and sends none; admin actions never target the admin's own account.
+    `tests/test_3f_lab_pages.py` (red without it on sign-out-all). A session ended from elsewhere (expiry, another
+    device, an admin action) sends nothing to this browser: its next request gets 401, and the lab files are served
+    private and no-cache, so they are never reused without the server.
+  - CRIT-1: one entry whose build threw ended the restore loop, so the save wrote the list without the entries after
+    it, and a filter of the parked list in `indicators.ts` stayed green. Now `terminal/src/data/inputs.ts`
+    `restoreList` (per entry; a throw or an unknown definition parks the entry as saved), and `indicators.ts` only
+    wires it, bound by an exact-match test. `tests/test_crit1_restore_browser.py`: the public Terminal keeps a saved id
+    its build lacks through load, change and reload (red on the mutation). The lab half of the round trip cannot be
+    built while no item may be lab; `restoreList`'s unit test covers it. A corrupt `ml.ind.v1` is still overwritten at
+    start, as before.
 
 ### M522 — On the live site the admin and an account without screener.preset could share one copy of the Screener catalog (2026-11-21; FIXED in `33c84c1f`, on the live site; predates 3f)
 
@@ -11187,6 +11220,14 @@ in its staleness check.
   window as `item` and `amount` so an ended plan with its own narrower list is judged too (`fix_round/plans.md`).
 - **Lesson:** one contract concept has one code, one shape and one number wherever it is answered or shown; a refusal
   API takes what was asked (item, amount), not only the capability key.
+- **Test-out fix round 1 (2026-11-22; test-out `wf_c72ae04c-a73` found these parts "partly"; on the branch, not deployed; their own test-out joins step 8, EXEC UD23):**
+  - R1-23, the same mechanism at `app/terminal_access.py` `capabilities_header`: a quota of 0 (only the value of a limit
+    that cannot be read; the domain is 1 to 10^9) refused with no amount, so an ended plan's own quota was never judged;
+    it now passes `amount=1`. terminal-api's own capability refusal was relayed without the principal
+    (`refused_answer`); now `p.refusal(capability)` in `relayed()`. `tests/test_c_p2_recheck.py`: two tests, each red on
+    its mutation; the `asked` carry of `main.py` `refuse()` is shown to be unobservable (the rebuild follows a
+    CAPABILITY_REQUIRED, whose `ended_allows` without an item is already false) and locked by
+    `test_a_refusal_rebuilt_without_what_was_asked_never_turns_into_plan_expired`.
 
 ### M484 — Refusals reached the person as codes or fixed sentences: the Monitor showed `CAPABILITY_REQUIRED`, the workers named internal keys, the throttles said "upgrade" (2026-11-18/19, re-check R1-33, R1-34, R2-14, R2-15, R2-30; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
