@@ -27,10 +27,11 @@ Two sources (TABS):
   saja"; "Benar opsi B": the list's stocks with the four default indicators, as the page opens): the live
   watchlist-stocks cut to the example list's stocks, today's LQ45 members as the Market Overview publishes them
   (overview-meta `lists`, read from Stock_List_Member by the publisher), with every column of the page's table, the
-  default indicators' values (another indicator's null: adding one is a click) and no upcoming corporate action (the
-  Terminal's free plan holds no events either); and watchlist-lists, that one list. A missing list or a member the
-  file does not hold answers EXAMPLE_UNAVAILABLE: the example names its list and never shows another (ERRORS M527).
-  No watchlist-radar (radar.view). Cut once per pair of publications and process.
+  default indicators' values (another indicator's null: adding one is a click) and the members' upcoming corporate
+  actions with the date they were loaded (the user, 2026-11-22: "B", as the page shows them); and watchlist-lists, that
+  one list. A missing list or a member the file does not hold answers EXAMPLE_UNAVAILABLE: the example names its list
+  and never shows another (ERRORS M527). No watchlist-radar (radar.view). Cut once per pair of publications and
+  process.
 
 The guarantee is these routes: they hand out only the example's files, and only to a principal holding the tab's
 <tab>.example (auth.need(..., guests=True), before the caches); a page's live routes still need <tab>.view, and the
@@ -125,12 +126,13 @@ WATCHLIST_STOCKS = 'watchlist-stocks'
 WATCHLIST_SHAPE = {'schema': KEEP, 'prices_through': KEEP, 'broker_through': KEEP, 'event_days': KEEP, 'dates': KEEP,
                    'catalog': [{'key': KEEP, 'name': KEEP, 'short': KEEP, 'note': KEEP, 'family': KEEP, 'unit': KEEP,
                                 'date': KEEP, 'signed': KEEP}],
-                   'default': KEEP}
+                   'default': KEEP, 'events_loaded': KEEP}
 WATCHLIST_COLUMNS = ('ticker', 'name', 'sector', 'last', 'r1d', 'r1m', 'trend')   # one value per stock (watchlist.py)
-# what the publisher writes and the opening view does not show (tests/test_examples.py walks every path): the upcoming
-# corporate actions, emptied ({} and null, as the page reads a file without them); and, by rule, every indicator that is
-# not one of the file's own default ones (null per stock: adding an indicator is a click)
-WATCHLIST_LEFT_OUT = ('events', 'events_loaded')
+# what the publisher writes and the opening view does not show (tests/test_examples.py walks every path), by rule: every
+# indicator that is not one of the file's own default ones (null per stock: adding an indicator is a click), and the
+# corporate actions of a stock outside the list (`events` is keyed by ticker: only the members' are kept, each event
+# a flat [kind, date, role] or dropped)
+WATCHLIST_LEFT_OUT = ()
 ISO_DATE = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}')
 
 
@@ -260,7 +262,9 @@ def watchlist_view(stocks, meta):
     default = out['default'] if isinstance(out.get('default'), list) else []
     values = stocks.get('values') if isinstance(stocks.get('values'), dict) else {}
     out['values'] = {k: (pick(v) if k in default else [None] * len(keep)) for k, v in values.items()}
-    out['events'], out['events_loaded'] = {}, None
+    events = stocks.get('events') if isinstance(stocks.get('events'), dict) else {}
+    out['events'] = {t: [e for e in events[t] if isinstance(e, list) and flat(e)]
+                     for t in members if isinstance(events.get(t), list)}
     answer = {'lists': [{'id': WATCHLIST_LIST_ID, 'name': code, 'position': 0, 'indicators': None,
                          'tickers': [{'ticker': t, 'position': i} for i, t in enumerate(members)]}], 'limits': []}
     return [(WATCHLIST_STOCKS, out, len(members)), ('watchlist-lists', answer, 1)]

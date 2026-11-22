@@ -47,8 +47,9 @@ harian Watchlist terbit, edge-bff memotongnya sendiri (`apps/edge-bff/app/exampl
 - **Tanggalnya:** tanggal harga ikut file harian (per 21 November: Jumat 20 November). Foreign 5D memakai tanggal data
   broker sendiri (per 21 November: Senin 9 November), jadi halaman menampilkan dua label tanggal, sama seperti untuk
   pengguna berbayar.
-- **Yang tidak ikut:** aksi korporasi mendatang (pilihan bawaan pembuatnya, bukan keputusan user, dan masih menunggu
-  jawaban user; paket gratis Terminal juga tidak memuat data event) dan badge Radar (butuh hak Radar).
+- **Aksi korporasi mendatang:** ikut, hanya milik saham di daftar, beserta tanggal datanya dimuat (keputusan user
+  2026-11-22: "B"), sama seperti halaman asli. Aksi korporasi saham di luar daftar tidak ikut.
+- **Yang tidak ikut:** badge Radar (butuh hak Radar).
 - **Kalau datanya tidak cocok:** kalau daftar LQ45 tidak ada di Overview, muncul dua kali, kosong, atau berisi saham yang
   tidak ada di file Watchlist, contoh menolak tampil (`EXAMPLE_UNAVAILABLE`) dan tidak pernah menampilkan daftar lain.
   Ini pelajaran dari rencana lama: daftar LQ45 per 30 Oktober tidak bisa diketahui dari riwayat keanggotaan, karena

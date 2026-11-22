@@ -414,6 +414,8 @@ def test_a_visitor_sees_the_watchlist_example_and_a_click_asks_to_sign_in(site, 
     text = body.replace('\xa0', ' ')
     assert all(x in text for x in ('RSI', 'Volume', 'From 60D high', 'Foreign 5D')), text[:600]
     assert 'Prices to Fri 20 Nov' in text and 'Broker data to Mon 9 Nov' in text, text[:600]
+    # the members' upcoming corporate actions, as the page shows them (the user, 2026-11-22: "B")
+    assert 'Dividend' in text and 'Corporate action' in text, text[:600]
     assert 'Watchlist with the data of Fri 20 Nov 2026' in page.locator('.example-bar').inner_text()
     # the page's data came from the example's files only: no account list, no live figures, no logo list
     urls = sorted({u.split('?')[0].replace(site.origin, '') for u in requests if '/api/' in u})

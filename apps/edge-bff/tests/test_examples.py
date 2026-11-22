@@ -666,8 +666,11 @@ def test_a_visitor_reads_the_latest_watchlist_cut_to_the_lists_stocks_with_the_d
         # the dates of the data as published: prices to the latest date, broker data to its own (later than none)
         assert (s['prices_through'], s['broker_through'], s['dates']) == (WATCHLIST_AS_OF, WATCHLIST_BROKER, live['dates'])
         assert (s['catalog'], s['schema'], s['event_days']) == (live['catalog'], live['schema'], live['event_days'])
-        # no upcoming corporate action, though the file holds one of a member; no Radar file (radar.view)
-        assert any(t in live['events'] for t in members) and s['events'] == {} and s['events_loaded'] is None
+        # the members' upcoming corporate actions and when they were loaded (the user, 2026-11-22: "B"), never those of
+        # a stock outside the list; no Radar file (radar.view)
+        assert s['events'] == {t: live['events'][t] for t in members if t in live['events']} and s['events']
+        assert [t for t in live['events'] if t not in members] and not [t for t in s['events'] if t not in members]
+        assert s['events_loaded'] == live['events_loaded'] is not None
         assert files['watchlist-lists'] == {'limits': [], 'lists': [{
             'id': examples_module.WATCHLIST_LIST_ID, 'name': 'LQ45', 'position': 0, 'indicators': None,
             'tickers': [{'ticker': t, 'position': i} for i, t in enumerate(members)]}]}
@@ -695,7 +698,9 @@ def test_a_field_the_watchlist_example_does_not_read_is_left_out_or_null(guests,
     s['values']['rsi'][i] = {'deep': planted}
     s['values']['r5d'] = [planted] * len(s['ticker'])           # an indicator not shown at opening
     s['values']['new_flow'] = [planted] * len(s['ticker'])      # a new indicator of the publisher
-    s['events'][members[0]] = [['DIVIDEND', '2026-11-30', planted]]
+    outside = next(t for t in s['ticker'] if t not in members)
+    s['events'][outside] = [['DIVIDEND', '2026-11-30', planted]]            # a stock outside the list: left out
+    s['events'][members[0]] = [{'kind': planted}, ['RUPS', '2026-12-01', 'MEETING_DATE']]   # an object event: dropped
     s['prices_through'] = WATCHLIST_AS_OF
     PagesApi.watchlist = {n: gz(doc) for n, doc in docs.items()}
     with TestClient(create_app(guests, store, FakeOrc())) as c:
@@ -704,7 +709,8 @@ def test_a_field_the_watchlist_example_does_not_read_is_left_out_or_null(guests,
     assert planted not in json.dumps(files)
     assert 'secret_history' not in shown and 'radar' not in shown and 'formula' not in shown['catalog'][0]
     assert shown['last'][0] is None and shown['trend'][0] is None and shown['values']['rsi'][0] is None
-    assert shown['values']['new_flow'] == [None] * len(members) and shown['events'] == {}
+    assert shown['values']['new_flow'] == [None] * len(members) and outside not in shown['events']
+    assert shown['events'][members[0]] == [['RUPS', '2026-12-01', 'MEETING_DATE']]
 
 
 def test_every_field_the_watchlist_publisher_writes_is_kept_by_name_or_left_out_by_name():
@@ -715,7 +721,8 @@ def test_every_field_the_watchlist_publisher_writes_is_kept_by_name_or_left_out_
     live, meta = watchlist_files()['watchlist-stocks'], overview_files()['overview-meta']
     (_, s, _), (_, lists, _) = examples_module.watchlist_view(live, meta)
     members, at = lq45(meta), {t: i for i, t in enumerate(live['ticker'])}
-    left = (*examples_module.WATCHLIST_LEFT_OUT, *(f'values.{k}' for k in live['values'] if k not in live['default']))
+    left = (*examples_module.WATCHLIST_LEFT_OUT, *(f'values.{k}' for k in live['values'] if k not in live['default']),
+            *(f'events.{t}' for t in live['events'] if t not in members))       # the corporate actions of other stocks
     under = lambda p, names: any(p == n or p.startswith(n + '.') for n in names)
     written, shown = leaf_paths(live), leaf_paths(s)
     assert {p for p in written - shown if not under(p, left)} == set()
@@ -723,6 +730,7 @@ def test_every_field_the_watchlist_publisher_writes_is_kept_by_name_or_left_out_
     for n in examples_module.WATCHLIST_LEFT_OUT:
         assert any(under(p, (n,)) for p in written), f'{n}: not a field the publisher writes'
         assert s[n] in ({}, None), n
+    assert [p for p in written if p.startswith('events.') and p[7:] not in members], 'the walk checks no left-out event'
     per_stock = {*examples_module.WATCHLIST_COLUMNS, *(f'values.{k}' for k in live['default'])}
     wv, sv = leaf_values(live), leaf_values(s)
     for p, v in sv.items():

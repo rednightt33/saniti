@@ -1159,8 +1159,8 @@ today.
   - the Watchlist's example is its latest price date (the user, 2026-11-21: "Untuk table watchlist nggak apa-apa pakai
     data latest saja"; "Benar opsi B"): the live watchlist-stocks, read through the page relay, cut by
     `app/examples.py` to today's LQ45 as overview-meta publishes it (`Stock_List_Member`), with every column of the
-    table and the four default indicators (another indicator null, no Radar file; no upcoming corporate action, the
-    build's default with the user's answer open), and
+    table and the four default indicators (another indicator null, no Radar file), the members' upcoming corporate
+    actions with their load date (the user, 2026-11-22: "B"; a stock outside the list never), and
     watchlist-lists, that one list. A missing list or a member the file does not hold answers `EXAMPLE_UNAVAILABLE`,
     never another list. The page is a view, as the stored ones;
   - the Backtest's example is the stored run of the page's default setup (MAPI, single stock) over the year to the
