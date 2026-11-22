@@ -16681,6 +16681,14 @@ Order of the services (CONTRACT 17, rollback floors):
   | The five failing Screener smoke steps (ERRORS M417) | run `node apps/edge-bff/screener/tests/smoke/smoke.mjs`; diagnose or retire each failing step | the Screener owner | the next Screener change, or step 8 (the deep checker), whichever comes first |
   | The other readers of `TELEGRAM_NOTIFY_URL` (test-out deploy-3) | market-sql-governor, market-audit-store and market-python-sandbox (`app/queue_alarm.py`), idx-price-cron (`price_update.py`, `intraday_update.py`), fixed-income-price-cron, stockbit-updater, terminal-publisher, feature-04-worker and `scripts/restart_postgres.py` read the address with no start check: a wrong value starts the service and only its alerts fail; one shared check like edge-bff's `notify_url_problem` (`app/config.py`) at each start | ops, through this execution | the next change of telegram-monitor's address or port, the next change of each service, or step 8, whichever comes first |
 
+- **The step-8 ledger (UD23's answer):** `verification/records/step8_ledger.json` (workflow `wf_877859a9-d28`, 2026-11-22):
+  376 rows: 111 fixed and tested out, 168 fixed and not tested out, 23 open with an owner row, 65 open without one, 4
+  accepted by the user, 5 obsolete; its critic names the findings with no row yet (the unverified lows of the live
+  checker before the switch-on, A2's ATK-4, CW-3, CW-4, A2C-2 to A2C-4, 3e's TL-3 to TL-4, SHELL-3, SHELL-4, 3E-CW-2,
+  3E-CW-3, about 20 NC items of the open-items sweep), contradictions between rows and register rows without a ledger
+  row. Owner: step 8. Trigger: the start of step 8, which first adds the missing rows and settles the contradictions,
+  then tests out every fixed_not_tested_out row and gives every open row an owner or an answer.
+
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
