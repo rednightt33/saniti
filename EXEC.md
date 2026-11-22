@@ -16137,6 +16137,17 @@ Order of the services (CONTRACT 17, rollback floors):
        research: `verification/edge_multiuser/payments/MIDTRANS_RESEARCH.md` (the webhook carries our order number,
        not a user id; QRIS and VA cannot renew automatically). Proposed to the user the same day with its open
        choices; nothing built.
+     - **The user's answers (2026-11-22): "1A 2A 3A".** 1A: the admin page on the beta only (one database serves both
+       sites, so the beta, the admin's own site, is the one door). 2A: the plans' contents read-only on the admin page
+       for now; a change goes through a migration as today. 3A: the payment page is Midtrans' own (Snap by redirect;
+       the site's Content Security Policy unchanged). The shell is built on Midtrans Sandbox, its webhook on the beta;
+       Production, its documents, the prices and the grace period are asked before it. Not built: it waits for the go.
+     - **A new request the same day:** "saya minta dibuatkan panel sebelah kiri di live iconnya kotak surat. Kira2 kalau
+       di klik fungsinya sama seperti SS terlampir. Ada yang submit maka langsung ke admin dan telegram dan ke email
+       pribadi saya [the owner's personal address; kept out of Git, for a Railway variable]". The screenshot: a "Contact
+       support" dialog with an issue type, a subject, a description, attachments, "Relevant technical details will be
+       included automatically", Cancel and Submit. Asked the open points (who may send, the attachments) before any
+       build; it waits for the answers and the go.
   7. the registration test window (above), last, after A2.
   Each phase as before: built in basic mode, the beta first, its checker in ultracode, the live site only on the user's
   request. Not in this list: the Postgres restart times (the user has not answered), the real payment method.
