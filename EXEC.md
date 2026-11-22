@@ -16608,14 +16608,18 @@ Order of the services (CONTRACT 17, rollback floors):
 
   | Id | Decision or action of the user | Asked | Holds back | Needed by |
   |---|---|---|---|---|
+  | GA-2 | ops:F2 alerts: inside Railway, outside it (a GitHub Actions probe with the Telegram secrets the user adds), or both | 2026-11-22 with context | the alerting work | this round |
+  | GA-3 | SH1: the shared Backtest slot taking turns between the sites, or the live site first | 2026-11-22 with context | SH1 | this round |
+  | GA-4 | R1-16: the per-account lock of consecutive wrong passwords on the beta too, or kept off | 2026-11-22 with context | R1-16 | this round |
+  | GA-5 | R1-5: every reader of a page file counted to its own quota, or the first reader only | 2026-11-22 with context | R1-5 | this round |
   | UD3 | A fresh Stockbit token for the broker round (broker data stops at 9 Nov) | 2026-11-20 | Radar, Flow, Foreign 5D, broker presets, corporate actions | now |
   | NC29 | The OpenRouter key expired 2026-11-22 03:55 UTC (ERRORS M539): extend or replace it and set `OPENROUTER_API_KEY` on market-ai-orc; then the consumers' redeploy | 2026-11-22 | the beta's AI, the web governor (refused now) | now |
-  | UD1 | Railway usage: a soft-limit alert and a hard limit with headroom (three stops on record stop every service, the live site included) | 2026-11-22 | the live site's uptime | before step 9 |
-  | UD2 | Written permission per data source (TradingView, Stockbit, IDX/KSEI) and for the logos the public site shows | 2026-11-22 | the public examples, launch | before step 9 |
-  | UD4 | A backup schedule of the shared Postgres and one restore test | 2026-11-22 | real accounts, payments | before step 9 |
+  | UD1 | Railway usage: a soft-limit alert and a hard limit with headroom (three stops on record stop every service, the live site included) | not yet asked with context (a row of the 2026-11-22 report; excluded by the user 2026-11-19, "4 keputusan tambahan kamu jangan dimasukin", before the live site existed) | the live site's uptime | before step 9 |
+  | UD2 | Written permission per data source (TradingView, Stockbit, IDX/KSEI) and for the logos the public site shows | not yet asked with context (a row of the 2026-11-22 report) | the public examples, launch | before step 9 |
+  | UD4 | A backup schedule of the shared Postgres and one restore test | not yet asked with context (a row of the 2026-11-22 report; excluded by the user 2026-11-19 with UD1) | real accounts, payments | before step 9 |
   | UD5 | The Resend webhook and its secret on edge-bff-live (bounces and complaints) | 2026-11-20 | email standing | before step 9 |
   | UD6 | Privacy and terms texts (or an explicit acceptance that the window runs without them); R1-2's condition | 2026-11-20 | registration | before step 9 |
-  | UD7 | Enforce the per-client-address sign-in and send limits (SIGNIN_IP, SEND_IP) or a daily mail ceiling, now that the probe ran | 2026-11-22 (group A, R2-37) | registration | this round |
+  | UD7 | Enforce the per-client-address sign-in and send limits (SIGNIN_IP, SEND_IP) or a daily mail ceiling, now that the probe ran; the numbers | 2026-11-22 with context (group A's design questions, Q1) | R2-37, registration | this round |
   | UD8 | M517's residual: strangers on three networks can spend an address's code emails; accept, or a challenge | 2026-11-21 | registration | before step 9 |
   | UD9 | The go for the insider-flow fix (IDX and KSEI copies counted twice) | 2026-11-01 | FL31 for paid accounts | before step 7 |
   | UD10 | Rotate AUDIT_STORE_SANDBOX_KEY; confirm the October OpenRouter key is revoked | October | security | before step 9 |
@@ -16623,7 +16627,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD12 | A GitHub ruleset on branch `live` (no force-push or delete, required checks) | 2026-11-20 | the live site's source | before step 9 |
   | UD13 | A read-only `RAILWAY_TOKEN` repository secret for the daily state workflow | October | the daily document checks | any time |
   | UD14 | Settings left for "before the announcement": the upgrade contact, the test accounts' plans, guest ceilings, free indicators, Midtrans production | 2026-11-19 | the announcement | before the announcement |
-  | UD16 | Remove `EDGE_INITIAL_PASSWORD` from the beta | 2026-11-22 | security | any time |
+  | UD16 | Remove `EDGE_INITIAL_PASSWORD` from the beta | not yet asked with context (a row of the 2026-11-22 report) | security | any time |
   | UD17 | The old data defects (sector swap, Feature 04 bloat, five tickers, candle flags, M335, M426, M157) | each its own date | the data's accuracy | before paid launch |
   | UD18 | The Terminal defects and proposals only the user opens (M454, M447, M333) | each its own date | paying accounts' pages | before paid launch |
   | UD20 | A valid Railway token for telegram-trigger (the Telegram Run Now buttons fail) | 2026-11-03 | the manual restart button | any time |
