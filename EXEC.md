@@ -16644,6 +16644,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD16 | Remove `EDGE_INITIAL_PASSWORD` from the beta | not yet asked with context (a row of the 2026-11-22 report) | security | any time |
   | UD17 | The old data defects (sector swap, Feature 04 bloat, five tickers, candle flags, M335, M426, M157) | each its own date | the data's accuracy | before paid launch |
   | UD18 | The Terminal defects and proposals only the user opens (M454, M447, M333) | each its own date | paying accounts' pages | before paid launch |
+  | UD23 | The scope of the test-out of fix round 1 (the user 2026-11-22: "I think we should move forward dan catat tes atau error yang sudah diperbaiki untuk nanti final ultra code check"): skip round 2 and carry its 21 items to step 8; test out only the shared workers' changes that reach the live site when main moves (L2/CAT-3, W2, deploy-compat) and carry the rest; or the full round 2 (rule 8); and whether rule 8 changes | 2026-11-22 with context | the beta deploy, step 7 | now |
   | UD20 | A valid Railway token for telegram-trigger (the Telegram Run Now buttons fail) | 2026-11-03 | the manual restart button | any time |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
