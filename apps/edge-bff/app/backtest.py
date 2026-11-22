@@ -570,9 +570,22 @@ class BacktestStore:
     # advisory lock on a connection taken from the pool: a process that dies releases it with its connection.
     WORKER_SLOT = 'edge_bff.backtest_worker_slot'
 
-    def take_worker_slot(self):
-        """The slot (a held pool connection), or None while another loop holds it. A store without a pool (a test
-        double) has no other loop to share the worker with: it always gets the slot (True)."""
+    # SH1 (the shared live checker; the user 2026-11-22, "3A": the slot taken in turns when both sites have jobs
+    # waiting): the loop that just gave the slot back takes it again before the other site's loop polls, so one site's
+    # queue held the other's jobs (shown RUNNING while they wait). A loop now yields the free slot while its own site
+    # ran the last job and another site's job is claimed and waiting (RUNNING: no other job can hold the worker while
+    # the slot is free), for at most `yield_seconds` after that last job ended, so a site whose loop is down or older
+    # (it never yields) holds nothing back for longer.
+    YIELD_SQL = '''SELECT (SELECT site FROM edge_bff.backtest_jobs WHERE finished_at IS NOT NULL AND started_at IS NOT NULL
+                           ORDER BY finished_at DESC LIMIT 1) = %(site)s
+                   AND EXISTS (SELECT 1 FROM edge_bff.backtest_jobs WHERE state = 'RUNNING' AND site <> %(site)s)
+                   AND (SELECT max(finished_at) FROM edge_bff.backtest_jobs WHERE site = %(site)s AND started_at IS NOT NULL)
+                       > now() - make_interval(secs => %(grace)s) AS yields'''
+
+    def take_worker_slot(self, yield_seconds=0):
+        """The slot (a held pool connection), or None while another loop holds it or this loop yields it (SH1 above). A
+        store without a pool (a test double) has no other loop to share the worker with: it always gets the slot
+        (True)."""
         pool = getattr(self.store, 'pool', None)
         if pool is None:
             return True
@@ -581,7 +594,13 @@ class BacktestStore:
             got = conn.execute('SELECT pg_try_advisory_lock(hashtextextended(%s, 0)) AS got',
                                (self.WORKER_SLOT,)).fetchone()['got']
             conn.commit()                    # the session lock outlives the transaction
+            if got and yield_seconds > 0 and conn.execute(self.YIELD_SQL, {
+                    'site': self.site, 'grace': yield_seconds}).fetchone()['yields']:
+                conn.execute('SELECT pg_advisory_unlock(hashtextextended(%s, 0))', (self.WORKER_SLOT,))
+                conn.commit()
+                got = False
         except Exception:
+            conn.close()                     # a lock this connection may hold goes with it
             pool().putconn(conn)
             raise
         if not got:
@@ -977,12 +996,16 @@ class BacktestLoop:
         code, _ = await self.call(self.worker.call, 'GET', f'/v1/jobs/{job_id}')
         return code == 200
 
+    def yield_seconds(self):
+        """How long this loop leaves the free slot to the other site's waiting job after its own (SH1): three polls."""
+        return max(3 * self.settings.poll_seconds, 1.0)
+
     async def worker_slot(self):
         """Waits for the shared worker's slot (BacktestStore.take_worker_slot, 3c check C3-11), trying again after each
         poll; None when the loop stops first. The job's lease is renewed meanwhile (process: its heartbeat runs)."""
         while not self.stopping.is_set():
             try:
-                slot = await self.call(self.store.take_worker_slot)
+                slot = await self.call(self.store.take_worker_slot, self.yield_seconds())
             except Exception as e:
                 logger.error(json.dumps({'event': 'backtest_worker_slot_failed', **self.failure(e)}))
                 slot = None

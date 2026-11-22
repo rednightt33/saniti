@@ -311,6 +311,53 @@ def test_every_owner_read_of_a_backtest_job_is_bound_to_the_site():
                            '"AND site=%s" with self.site, or name here why the rule stays per owner')
 
 
+def test_the_shared_backtest_slot_is_taken_in_turns_when_both_sites_have_a_job_waiting(configured, store):
+    """SH1 (the user 2026-11-22, "3A"): the loop that gave the slot back took it again before the other site's loop
+    polled. Now a loop yields the free slot while its own site ran the last job and the other site's job waits, for at
+    most its yield window; with nothing waiting on the other site, or once the window passed, it takes the slot."""
+    beta, live = BacktestStore(store, 'beta'), BacktestStore(store, 'live')
+    request = single()
+    done, _ = beta.submit(configured.owner, 'beta-done', request, lineage_of(request), variant_of(request), 3)
+    db(store, "UPDATE edge_bff.backtest_jobs SET state = 'FINISHED', started_at = now(), finished_at = now(), "
+              "data_version = %s, result_bytes = 1 WHERE request_id = %s", '0' * 64, done['request_id'])
+    # nothing waits on the live site: the beta takes the slot again
+    slot = beta.take_worker_slot(30)
+    assert slot not in (None, True)
+    beta.give_worker_slot(slot)
+    # a live job is claimed and waits for the slot: the beta yields it, the live site takes it
+    live.submit('u_0123456789abcdef01234567', 'live-job', request, lineage_of(request), variant_of(request), 3)
+    waiting = live.claim(90)
+    assert beta.take_worker_slot(30) is None
+    slot = live.take_worker_slot(30)
+    assert slot not in (None, True)
+    assert beta.take_worker_slot(30) is None                        # held by the live loop
+    live.give_worker_slot(slot)
+    # the live job ended: the live site ran last, so with a beta job waiting the live loop yields and the beta takes it
+    db(store, "UPDATE edge_bff.backtest_jobs SET state = 'FINISHED', lease_token = NULL, lease_expires_at = NULL, "
+              "finished_at = now() + interval '1 second', data_version = %s, result_bytes = 1 WHERE request_id = %s",
+       '0' * 64, waiting['request_id'])
+    beta.submit(configured.owner, 'beta-2', single('TLKM'), lineage_of(single('TLKM')), variant_of(single('TLKM')), 3)
+    assert beta.claim(90) is not None
+    live.submit('u_0123456789abcdef01234567', 'live-2', single('ASII'), lineage_of(single('ASII')),
+                variant_of(single('ASII')), 3)
+    assert live.claim(90) is not None
+    assert live.take_worker_slot(30) is None
+    slot = beta.take_worker_slot(30)
+    assert slot not in (None, True)
+    beta.give_worker_slot(slot)
+    # the old behaviour without a window (yield_seconds 0): no yield
+    slot = live.take_worker_slot(0)
+    assert slot not in (None, True)
+    live.give_worker_slot(slot)
+    # a site whose loop never takes its turn holds the other back only for the window
+    db(store, "UPDATE edge_bff.backtest_jobs SET finished_at = finished_at - interval '1 hour' WHERE finished_at IS NOT NULL")
+    assert db(store, "SELECT site FROM edge_bff.backtest_jobs WHERE finished_at IS NOT NULL ORDER BY finished_at DESC "
+                     "LIMIT 1") == [{'site': 'live'}]                # the live site still ran last
+    slot = live.take_worker_slot(30)
+    assert slot not in (None, True)
+    live.give_worker_slot(slot)
+
+
 def test_a_failing_prune_or_reap_does_not_stop_the_backtest_claims(settings):
     """ERRORS R2-33 (BacktestLoop.run): the prune and the reap ran before the claim in one try, so one that failed
     stopped every backtest."""

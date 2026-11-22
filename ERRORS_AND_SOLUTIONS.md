@@ -9958,7 +9958,13 @@ in its staleness check.
   - ACC-4/F3/F8: the Resend webhook secret, the user's.
   - ops F6: a GitHub ruleset on `live`, the user's.
 - **Low, kept for 3e and Phase 4:**
-  - SH1: the shared Backtest worker slot taken by whichever site holds it.
+  - SH1: the shared Backtest worker slot taken by whichever site holds it. FIXED on the branch 2026-11-22 (the user,
+    "3A": in turns): `BacktestStore.take_worker_slot(yield_seconds)` yields the free slot while its site ran the last
+    job and another site's job waits, for at most three polls after that job ended (`BacktestLoop.yield_seconds`), so
+    an older or stopped loop on the other site holds nothing back for longer. Test:
+    `tests/test_beta_live_site.py::test_the_shared_backtest_slot_is_taken_in_turns_when_both_sites_have_a_job_waiting`
+    (both directions, nothing waiting, the window); two mutations red. Takes turns fully once both sites run it; until
+    the live site is promoted, the beta yields to the live site and the live site does not yield.
   - SH3: no all-visitor ceiling (`EDGE_GUEST_CALLS_PER_HOUR` unset, the decided default).
 - **Seen on the way:** `scripts/set_postgres_restart_times.py` without `--apply` writes the new cronSchedule into
   `.railway/railway.ts` and leaves it there (by design, so the plan shows the one change). A check run leaves the
