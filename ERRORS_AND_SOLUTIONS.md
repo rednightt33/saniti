@@ -8879,6 +8879,27 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M532 — An account without chart drawings is told "Chart drawings is not part of your EDGE plan" as soon as it opens the Terminal, before it draws anything (2026-11-22; found by the contact-support panel's screenshots; OPEN, older than Phase 4)
+
+- **Seen:** a new free account (`register()` of the browser tests, the beta's switch-on test server) opens `/terminal`:
+  the red toast "Chart drawings is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in."
+  shows at once, with no drawing tool touched (screenshots of 2026-11-22 in the session's scratchpad, every one of them
+  on the Terminal).
+- **Root cause (verified in the code):** the Terminal reads the ticker's drawings when the chart opens
+  (`apps/edge-bff/terminal/src/data/drawingsApi.ts`, `load`). The free plan holds no `terminal.drawings`, so the read is
+  refused (403 `CAPABILITY_REQUIRED`), and `refused()` says the refusal in its own words (`say(e.message, true)`), the
+  rule of re-check R1-19 (a plan's refusal is not an outage). The rule is applied to a read the page makes by itself,
+  not only to an action of the person.
+- **Impact:** every account without chart drawings sees a refusal on every Terminal visit: on the live site the test
+  accounts on the free plan in the pre-launch mode, every free account once registration opens. Nothing is lost or
+  shown wrongly; it reads as an error the person did not cause.
+- **General class:** a page that says a plan's refusal of a read it starts by itself (a preload, a sync, a restore);
+  the same holds for any account-side store a page reads on open (layouts, presets, drawings) for a plan without it.
+- **Proposed fix (not built: the Terminal is outside Phase 4's slice, and the user's rule "Terminal jangan disentuh"
+  asks for the user's go):** a refused read on open is taken as "no drawings" without a word; the refusal is said
+  when the person draws (the write path already says it), and the drawing tools carry 3e's lock mark for a plan
+  without `terminal.drawings`. A browser test: a free account opens the Terminal and sees no refusal until it draws.
+
 ### M531 — The throttle's concurrency test failed in CI when its 24 counts crossed a minute's end (2026-11-21; FIXED on the branch)
 
 - **Seen:** Backend tests run 44926309750 on `c362055b`: `tests/test_auth_throttle.py::test_counts_are_atomic_under_concurrency`

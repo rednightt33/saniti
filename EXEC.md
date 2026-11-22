@@ -16464,8 +16464,17 @@ Order of the services (CONTRACT 17, rollback floors):
               message goes without images and says so); the Telegram summary carries the subject but never the
               description, the images or an address (they are in the email and on the admin page); Reply-To gives the
               admin the sender's address, which the sender's own account holds.
-          - Next: the shell's mailbox and dialog (slice 2, its page side); the admin page's read side (slice 4) and its
-            actions (slice 5); account deletion (slice 6); then the checker at xhigh, its fixes, the beta.
+          - Slice 2, its page side (on the session branch): the mailbox in the left menu and the phone's EDGE bar; a
+            visitor's click opens the sign-in box; the dialog on the support dialog of EDGE's own design (its styles
+            were still in `static/index.html`; a first version with its own styles collided with them, seen in the
+            screenshots and rebuilt on them); the files checked as the server checks them, the server's reasons under
+            their fields, the ticket's number once sent. Tests: `tests/test_support_browser.py` (with a layout check),
+            the limits and the issue types held equal between the shell, the server and the email; 13 mutations of the
+            dialog and 2 of its layout, each red. Seen on the way, older than Phase 4 and not touched: a free account is
+            told about chart drawings as soon as it opens the Terminal (ERRORS M532, for the user).
+          - Next: applying `20261122_001` on dev and the Railway variables with the beta's deploy; the admin page's read
+            side (slice 4) and its actions (slice 5); account deletion (slice 6); then the checker at xhigh, its fixes,
+            the beta.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

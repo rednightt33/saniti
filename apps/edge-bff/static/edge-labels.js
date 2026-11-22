@@ -186,7 +186,12 @@ window.EdgeLabels = {
     upgradeLead:"Your EDGE plan does not include this yet. Upgrading is coming soon.",
     contact:"Contact us to upgrade:", contactSoon:"How to contact us about upgrading will be shown here soon.",
     close:"Close",
-    features:{ "terminal.layouts":"Saved chart layouts", "terminal.presets":"Indicator presets",
+    // Phase 4, the contact-support panel: a visitor's click on the rail's mailbox (an account without support.send gets
+    // the upgrade box under features["support.send"])
+    supportGuestTitle:"Sign in to contact support",
+    supportGuestLead:"Contact support is for EDGE accounts, so the reply can reach you by email. Sign in to send your message, or create an account.",
+    supportGuestLeadClosed:"Contact support is for EDGE accounts, so the reply can reach you by email. Sign in to send your message; registration opens soon.",
+    features:{ "terminal.layouts":"Saved chart layouts", "terminal.presets":"Indicator presets", "support.send":"Contact support",
       // 3e: the Terminal's locked data (its lockedPage)
       "terminal.dataset:broker":"Broker data", "terminal.dataset:events":"Corporate actions",
       "terminal.dataset:intraday":"Intraday charts" },
@@ -198,6 +203,28 @@ window.EdgeLabels = {
     tabEndedTitle:"Your plan has ended", tabEndedLead:"Your {plan} plan has ended, so {name} is closed for now. Renew the plan to open it again; your data is kept.",
     contactRenew:"Contact us to renew:",
     openTerminal:"Open the Terminal"
+  },
+  // Phase 4, the contact-support panel (the user, 2026-11-22: "iconnya kotak surat ... fungsinya sama seperti SS
+  // terlampir"; app/support.py; static/edge-app.js SupportDialog): the rail's mailbox and its dialog. `kinds`: the issue
+  // types, the server's KINDS in the email's words (tests/test_support.py holds the three together); {images}, {mb}:
+  // SUPPORT_LIMITS
+  support: {
+    open:"Contact support",
+    title:"Contact support",
+    lead:"Tell the EDGE team what happened. The reply comes to your account's email.",
+    kind:"Issue type",
+    kinds:{ bug:"Bug / Something not working", question:"Question", account:"Account or sign-in",
+      billing:"Billing or payment", feature:"Feature request", data:"Data looks wrong" },
+    subject:"Subject", subjectHint:"A short title, for example: The chart does not load.",
+    body:"Description", bodyHint:"What did you do, what did you expect, and what happened instead?",
+    attach:"Attach screenshot or file", attached:"Attached images", attachHint:"Up to {images} images: PNG, JPG or WebP, {mb} MB each.",
+    remove:"Remove {name}",
+    note:"Relevant technical details will be included automatically: this page, the screen size, the time zone, the language and the browser.",
+    cancel:"Cancel", send:"Submit issue", sending:"Sending…",
+    sent:"Your message was sent. The reply comes to your account's email.", ticket:"Ticket", close:"Close",
+    errors:{ subject:"Write a short title.", body:"Describe the issue.", tooMany:"Attach at most {images} images.",
+      type:"{name} is not a PNG, JPG or WebP image.", size:"{name} is larger than {mb} MB; make it smaller or crop it.",
+      read:"{name} could not be read; attach it again.", fallback:"The message could not be sent. Try again in a minute." }
   },
   // EXEC-MU-ACCOUNTS 3e, the example mode as the user set it on 2026-11-21 (ERRORS M527; static/edge-app.js
   // ExampleTabPage): a tab the principal cannot open shows its example, a view of one day ({name}: the tab, {date}: the

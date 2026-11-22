@@ -273,6 +273,8 @@
     resetPassword: (email, code, password, password_repeat) => api('/auth/password/reset', {email, code, password, password_repeat}),
     // re-check R2-20: the signed-in account's password change (other sessions end) and sign-out on every device
     changePassword: (current_password, password, password_repeat) => api('/auth/password/change', {current_password, password, password_repeat}),
+    // Phase 4, the contact-support panel (app/support.py): POST /api/v1/support, the refusals in their words
+    sendSupport: body => api('/support', body),
     async signoutEverywhere() { try { await ES()?.prefs.flush(); } catch { /* best effort */ } stopPrefs();
       try { await api('/auth/sign-out-all', {}); } finally { try { await ES()?.clearUserState({signOut:true}); } catch { /* storage off */ } } reset(); },
     mfaEnroll: () => api('/auth/mfa/enroll', {}),

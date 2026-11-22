@@ -1209,6 +1209,17 @@ langsung ke admin dan telegram dan ke email pribadi saya"; "hanya yang login ...
     answer 200 counts; the instance that runs the housekeeping (the live site) sends a summary not yet answered again
     every 10 minutes, at most 5 times, within a day;
   - the admin page's Support inbox (the beta; Phase 4, slice 4).
+- **The shell** (`static/edge-app.js` SupportDialog, `static/edge-labels.js` `support`, `static/edge-client.js`
+  `Edge.sendSupport`): the mailbox (Contact support) in the left menu and in the phone's EDGE bar, shown while the site
+  offers the tab `support`. A visitor's click opens the sign-in box (LockedDialog, kind `support`); an account without
+  `support.send` gets the upgrade box. The dialog uses the support dialog of EDGE's own design, whose styles
+  `static/index.html` had kept (`.support-form`, `.support-body`, `.support-field`, `.support-attach`, `.support-files`,
+  `.support-error`, `.support-success`, `.support-foot`). It checks each file as the server does (its first bytes, its
+  size, at most three: `SUPPORT_LIMITS`, held equal to `app/support.py` by `tests/test_support.py`), shows each reason
+  of the server under its field and a refusal of the whole message (the hourly limit, the storage) above the actions,
+  and, once sent, the ticket's number, issue type and subject; the focus returns to the mailbox.
+  `tests/test_support_browser.py`: the visitor, the account with its images, the reasons, the limit, the layout, the
+  phone at 390 and 360 px.
 
 ## Terminal data gate: headers and refusals (EXEC-MU-ACCOUNTS Phase 3c, 2026-11-18)
 

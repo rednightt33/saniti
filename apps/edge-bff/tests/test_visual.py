@@ -429,9 +429,11 @@ def test_submit_error_keyboard_disabled_controls_and_resizing(dummy_orc, browser
     assert attempts[0]['message'] == orc.calls[0][2]['message']
     assert not page.locator('.mode-anchor').count()  # EXEC-SHARE-UI: the Research Mode menu is removed
     assert page.get_by_role('button', name='Share latest answer', exact=True).is_enabled()  # MONITOR-REVAMP: the sidebar's Share
-    # the EDGE bar's placeholders (support, notifications) are on a phone only since EXEC-NAV-LEFT
-    for label in ('Data scope', 'Attachments are not available yet') + (('Support unavailable', 'Notifications unavailable') if page.viewport_size['width'] <= 720 else ()):
+    # the EDGE bar's placeholder (notifications) is on a phone only since EXEC-NAV-LEFT; Phase 4's mailbox (Contact
+    # support) took the support placeholder's place, in the left menu and in the phone's EDGE bar
+    for label in ('Data scope', 'Attachments are not available yet') + (('Notifications unavailable',) if page.viewport_size['width'] <= 720 else ()):
         assert page.get_by_role('button', name=label, exact=True).is_disabled()
+    assert page.get_by_role('button', name='Contact support', exact=True).is_enabled()
     page.get_by_role('button', name='Account menu', exact=True).click()
     composer.click()
     assert not page.get_by_role('menu').count()

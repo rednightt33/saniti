@@ -576,3 +576,24 @@ def test_telegram_monitor_accepts_every_summary_edge_bff_sends():
             details = support_module.telegram_details(info)
             notice = monitor.parse_edge_support(f'support-{info["ticket_id"]}', details)
             assert (notice.ticket_id, notice.kind, notice.subject, notice.images) == (99, kind, info['subject'], images)
+
+
+def test_the_dialog_holds_the_servers_limits_and_its_kinds_the_emails_words():
+    """The shell's dialog checks what the server checks (static/edge-app.js SUPPORT_LIMITS, one JSON line) and names the
+    issue types as the email does (static/edge-labels.js support.kinds, email_texts.SUPPORT_KINDS): one value each."""
+    import re
+    import subprocess
+    from pathlib import Path
+    from app import email_texts
+    static = Path(__file__).resolve().parents[1] / 'static'
+    line = re.search(r'^const SUPPORT_LIMITS = (\{.*\});$', (static / 'edge-app.js').read_text(), re.M)
+    assert line, 'SUPPORT_LIMITS is one JSON line in static/edge-app.js'
+    limits = json.loads(line.group(1))
+    assert limits == {'images': support_module.IMAGES, 'image_bytes': support_module.IMAGE_BYTES,
+                      'subject': support_module.SUBJECT_CHARS, 'body': support_module.BODY_CHARS,
+                      'types': [kind for kind, _ in support_module.SIGNATURES], 'details': support_module.PAGE_DETAILS}
+    out = subprocess.run(['node', '-e', "global.window={};require(process.argv[1]);"
+                          "console.log(JSON.stringify(window.EdgeLabels.support.kinds))", str(static / 'edge-labels.js')],
+                         capture_output=True, text=True, timeout=30, check=True).stdout
+    kinds = json.loads(out)
+    assert list(kinds) == list(support_module.KINDS) and kinds == email_texts.SUPPORT_KINDS

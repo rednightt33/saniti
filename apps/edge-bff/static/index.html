@@ -7632,7 +7632,7 @@ th button:hover .sort-indicator,th button:focus-visible .sort-indicator {
   cursor: pointer;
 }
 .support-dialog {
-  width: min(500px,calc(100vw - 48px));
+  width: min(500px,calc(100vw - 32px));
 }
 .support-dialog .dialog-head {
   min-height: 54px;
@@ -7661,7 +7661,7 @@ th button:hover .sort-indicator,th button:focus-visible .sort-indicator {
   flex-direction: column;
   gap: 6px;
 }
-.support-field>span {
+.support-field>span,.support-field>label {
   color: var(--muted-foreground);
   font-size: .75rem;
   font-weight: 500;
@@ -7691,7 +7691,7 @@ th button:hover .sort-indicator,th button:focus-visible .sort-indicator {
   border-color: var(--negative,var(--destructive));
 }
 .support-field-error {
-  color: var(--destructive);
+  color: var(--negative,var(--destructive));
   font-size: .7rem;
 }
 .support-attach {
@@ -7832,6 +7832,28 @@ th button:hover .sort-indicator,th button:focus-visible .sort-indicator {
 .support-foot .btn {
   min-height: 32px;
   font-size: .8125rem;
+}
+/* Phase 4, the contact-support panel (the user, 2026-11-22): the form's actions at the right, the technical-details note
+   with its icon, the chosen images' list at the body's width */
+.support-foot.actions {
+  justify-content: flex-end;
+}
+.support-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  line-height: 1.45;
+}
+.support-note>.icon {
+  flex: none;
+  margin-top: 2px;
+}
+.support-field>.support-files {
+  width: 100%;
+}
+.support-field>.support-attach>.support-progress {
+  flex: none;
 }
 .support-success {
   padding: 16px 18px 14px;
@@ -9928,7 +9950,8 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .monitor-layout .jump-latest {bottom:calc(var(--edge-composer-height,128px) + 28px);}
 @media(max-width:1050px) {
  .monitor-layout {height:calc(100dvh - var(--topbar));position:relative;}
- .top-actions>.icon-btn[aria-label="Settings"],.top-actions>.icon-btn[aria-label^="Switch to"] {display:inline-flex;}
+ /* Phase 4: the mailbox (Contact support) stays in the phone's EDGE bar, where the left menu is hidden */
+ .top-actions>.icon-btn[aria-label="Settings"],.top-actions>.icon-btn[aria-label^="Switch to"],.top-actions>.icon-btn[aria-label="Contact support"] {display:inline-flex;}
  .edge-panel-backdrop {display:block;position:absolute;inset:0;border:0;background:#0008;z-index:40;}
  .mobile-history-open .conversation-panel {position:absolute;inset:0 auto 0 0;width:min(320px,calc(100% - 48px));z-index:41;align-items:stretch;padding:14px 12px;}
  .mobile-history-open .conversation-panel .panel-head>div,.mobile-history-open .conversation-panel>.search,.mobile-history-open .mini-tabs,.mobile-history-open .conversation-list {display:flex;}

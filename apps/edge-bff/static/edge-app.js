@@ -305,6 +305,9 @@ const paths = {
     flask: element("path", { d: "M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3" }),
     bulb: element("path", { d: "M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" }),
     reply: element("path", { d: "M9 14 4 9l5-5M4 9h11a5 5 0 0 1 5 5v6" }),
+    mailbox: element(fragment, null,
+        element("path", { d: "M7 6h10a4 4 0 0 1 4 4v7H3v-7a4 4 0 0 1 8 0v7" }),
+        element("path", { d: "M15 6V3h3v2h-3M12 17v4M5.5 11h3" })),
     support: element(fragment, null,
         element("path", { d: "M4 13v-1a8 8 0 0 1 16 0v1" }),
         element("path", { d: "M4 13h3v5H5a1 1 0 0 1-1-1Zm16 0h-3v5h2a1 1 0 0 0 1-1Z" }),
@@ -406,6 +409,11 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false, gu
     const closeAccount = (restoreFocus=true) => { setAccountOpen(false); if(restoreFocus)requestAnimationFrame(() => avatarRef.current?.focus()); };
     const openAccountView = (view) => { closeAccount(); setAccountView(view); };
     const notify = (message) => { setToast(message); window.setTimeout(() => setToast(""), 1800); };
+    // Phase 4, the contact-support panel (the user, 2026-11-22: "apabila user unlogin tries to click it maka akan disuruh
+    // login dulu"): a visitor gets the sign-in box, an account without support.send the upgrade box, else the dialog
+    const openSupport = () => guest ? setLocked({ kind: "support", id: "support", name: EdgeLabels.support.open })
+        : !Edge.can("support.send") ? setLocked({ kind: "feature", id: "support.send", name: EdgeLabels.support.open })
+        : setSupportOpen(true);
     const marketSoon=initialValue(viewRecord,"marketSoon",()=>false),setMarketSoon=next=>updateValue(viewRecord,"marketSoon",next);
     const marketSoonTimer=cachedValue(viewRecord,"marketSoonTimer",()=>({id:null}),[]);
     const showMarketSoon=()=>{window.clearTimeout(marketSoonTimer.id);setMarketSoon(true);marketSoonTimer.id=window.setTimeout(()=>setMarketSoon(false),3000);};
@@ -462,7 +470,7 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false, gu
                         element("span",null,"Coming soon"),element("button",{type:"button",className:"market-search-ribbon-close","aria-label":"Close Coming soon notification",onClick:closeMarketSoon},element(Icon,{name:"close"})))),
                 element(IconButton,{icon:"bell",disabled:true,title:"Notifications unavailable"}),
 Edge.offers("monitor") && element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.removeItem("edge-research-context"); go("monitor"); } }, "Research"),
-                element(IconButton, { icon: "help", title: "Support unavailable", disabled: true, buttonRef: supportRef }),
+                Edge.offers("support") && element(IconButton, { icon: "mailbox", title: EdgeLabels.support.open, selected: supportOpen, onClick: openSupport, buttonRef: supportRef }),
                 element(IconButton, { icon: "theme", onClick: toggle, title: `Switch to ${theme === "dark" ? "light" : "dark"} theme` }),
                 element(IconButton, { icon: "settings", selected: settingsOpen, onClick: () => setSettingsOpen(true), title: "Settings", buttonRef: settingsRef }),
                 guest ? element(Button, { kind: "primary", onClick: () => go("/login") }, EdgeLabels.auth.login.signInTop) :
@@ -481,6 +489,7 @@ Edge.offers("monitor") && element(Button, { kind: "ghost", icon: "spark", onClic
                 element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 22 })); }),
             slim && element("div", { className: "side-actions" },
                 Edge.offers("monitor") && element("button", { type: "button", "data-tip": "Research", "aria-label": "Research", onClick: () => { sessionStorage.removeItem("edge-research-context"); go("monitor"); } }, element(Icon, { name: "spark", size: 20 })),
+                Edge.offers("support") && element("button", { type: "button", ref: supportRef, className: `side-support ${supportOpen ? "active" : ""}`, "data-tip": EdgeLabels.support.open, "aria-label": EdgeLabels.support.open, "aria-haspopup": "dialog", onClick: openSupport }, element(Icon, { name: "mailbox", size: 20 })),
                 element("button", { type: "button", "data-tip": theme === "dark" ? "Light theme" : "Dark theme", "aria-label": `Switch to ${theme === "dark" ? "light" : "dark"} theme`, onClick: toggle }, element(Icon, { name: "theme", size: 20 })),
                 element("button", { type: "button", ref: settingsRef, "data-tip": "Settings", "aria-label": "Settings", className: settingsOpen ? "active" : "", onClick: () => setSettingsOpen(true) }, element(Icon, { name: "settings", size: 20 })),
                 element("span", { className: "side-account" },
@@ -493,7 +502,7 @@ Edge.offers("monitor") && element(Button, { kind: "ghost", icon: "spark", onClic
         securityOpen && element(SecurityDialog, { close: () => setSecurityOpen(false), returnFocusRef: avatarRef, go, signedOut: () => { setSecurityOpen(false); go("/login"); } }),
         locked && element(LockedDialog, { item: locked, guest, go, close: () => setLocked(null) }),
         edgeTableDialog && element(TableDialog, { key: "edge-table-dialog", spec: edgeTableDialog }),
-        false && element(SupportDialog, { route: route, close: () => setSupportOpen(false), returnFocusRef: supportRef }),
+        supportOpen && element(SupportDialog, { close: () => setSupportOpen(false), returnFocusRef: supportRef }),
         false && element(GlobalMarketSearch, { go: go, close: () => setGlobalSearchOpen(false) }),
         toast && element("div", { className: "toast", role: "status" },
             element(Icon, { name: "check" }),
@@ -582,12 +591,15 @@ function LockedDialog({ item, guest, go, close }) {
     // 3e, the example mode: a click on an example page names the page by its name in the rail, not the Terminal
     const example = item.kind === "example", X = EdgeLabels.example;
     const name = (example && TAB_PATHS[`/${item.id}`] && tabName(item.id)) || (item.kind === "feature" && L.features[item.id]) || item.name || item.id;
-    const title = (guest ? L.guestTitle : L.upgradeTitle).replace("{name}", name);
+    // Phase 4: the rail's mailbox asks a visitor to sign in (kind "support")
+    const support = item.kind === "support";
+    const title = support && guest ? L.supportGuestTitle : (guest ? L.guestTitle : L.upgradeTitle).replace("{name}", name);
     const open = config?.registration === true;
     // the dialog's first focus is its main button (DialogShell focuses [data-dialog-initial-focus])
     const primary = (text, onClick) => element("button", { type: "button", className: "btn primary", "data-dialog-initial-focus": true, onClick },
         " ", element("span", { className: "btn-label" }, text));
-    const guestLead = example ? (open ? X.dialogGuestLead : X.dialogGuestLeadClosed).replace(/\{name\}/g, name) : open ? L.guestLead : L.guestLeadClosed;
+    const guestLead = support ? (open ? L.supportGuestLead : L.supportGuestLeadClosed)
+        : example ? (open ? X.dialogGuestLead : X.dialogGuestLeadClosed).replace(/\{name\}/g, name) : open ? L.guestLead : L.guestLeadClosed;
     if (guest) return element(DialogShell, { title, description: guestLead, close, className: "locked-dialog" },
         element("div", { className: "locked-actions" },
             open && element(Button, { onClick: () => { close(); go("/register"); } }, L.register),
@@ -709,6 +721,136 @@ function SettingsDialog({close,returnFocusRef}) {
 }
 // re-check R2-20 (CONTRACT.md section 4): the password change (the other sessions end; this one stays) and sign-out on
 // every device, in the shell's dialog; the words are EdgeLabels.auth.account, a refusal shows its server message
+// Phase 4, the contact-support panel (the user, 2026-11-22: "Kira2 kalau di klik fungsinya sama seperti SS terlampir";
+// "lampiran hanya 2A"; app/support.py): an account's message to the EDGE team, an issue type, a subject, a description and
+// at most SUPPORT_LIMITS.images images, with the page's technical details. The checks here only spare a round trip: the
+// server checks every field again and names the one to fix (details.reasons), shown under it. SUPPORT_LIMITS is the
+// server's (app/support.py IMAGES, IMAGE_BYTES, SUBJECT_CHARS, BODY_CHARS, PAGE_DETAILS; tests/test_support.py holds
+// them equal); keep it on one line, JSON
+const SUPPORT_LIMITS = {"images":3,"image_bytes":5242880,"subject":120,"body":5000,"types":["image/png","image/jpeg","image/webp"],"details":{"page":200,"frame":200,"viewport":20,"timezone":60,"language":35}};
+const supportWords = text => text.replace("{images}", SUPPORT_LIMITS.images).replace("{mb}", SUPPORT_LIMITS.image_bytes / 1048576);
+// the type a file's first bytes say (the server's own rule, app/support.py SIGNATURES), or ""
+const supportType = async file => {
+    const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    const at = (i, text) => [...text].every((ch, k) => b[i + k] === ch.charCodeAt(0));
+    return b[0] === 0x89 && at(1, "PNG\r\n\x1a\n") ? "image/png" : b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff ? "image/jpeg"
+        : at(0, "RIFF") && at(8, "WEBP") ? "image/webp" : "";
+};
+const supportData = file => new Promise((resolve, reject) => { const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] || ""); r.onerror = () => reject(r.error); r.readAsDataURL(file); });
+// what the message says about the page it was sent from (the server adds the browser, the build, the site and the plan)
+const supportDetails = () => {
+    const cut = (key, text) => String(text || "").slice(0, SUPPORT_LIMITS.details[key]);
+    let frame = "", zone = "";
+    try { const f = document.querySelector(".terminal-page iframe.terminal-frame"); frame = f ? new URL(f.getAttribute("src") || "", location.href).pathname : ""; } catch { /* none */ }
+    try { zone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { /* none */ }
+    return { page: cut("page", location.pathname), frame: cut("frame", frame), viewport: cut("viewport", `${innerWidth}x${innerHeight}`),
+        timezone: cut("timezone", zone), language: cut("language", navigator.language) };
+};
+const supportSize = bytes => bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+// the dialog follows the support dialog of EDGE's own design, whose styles index.html kept (.support-form, .support-body,
+// .support-field, .support-attach, .support-files, .support-error, .support-success, .support-foot)
+function SupportField({ id, label, note, error, children }) {
+    return element("div", { className: "support-field" },
+        element("label", { htmlFor: id }, label),
+        children,
+        error ? element("small", { className: "support-field-error", id: `${id}-note`, role: "alert" }, error)
+            : note ? element("small", { className: "support-helper", id: `${id}-note` }, note) : null);
+}
+function SupportDialog({ close, returnFocusRef }) {
+    const v = currentView, S = EdgeLabels.support;
+    const f = initialValue(v, "f", () => ({ kind: "bug", subject: "", body: "" })), set = (name, value) => updateValue(v, "f", old => ({ ...old, [name]: value }));
+    const files = initialValue(v, "files", () => []), bad = initialValue(v, "bad", () => ({}));
+    const busy = initialValue(v, "busy", () => ""), error = initialValue(v, "error", () => ""), sent = initialValue(v, "sent", () => null);
+    const picker = (v.refs.picker ??= { current: null });
+    const fix = name => { if (bad[name]) updateValue(v, "bad", old => ({ ...old, [name]: "" })); };
+    // the chosen files, each checked as the server checks it; the reason of the last one refused stays under the list
+    const attach = async list => {
+        const chosen = [...(list || [])];
+        if (picker.current) picker.current.value = "";
+        if (!chosen.length || busy) return;
+        updateValue(v, "busy", "attach");
+        const next = [...files];
+        let problem = "";
+        for (const file of chosen) {
+            if (next.length >= SUPPORT_LIMITS.images) { problem = supportWords(S.errors.tooMany); break; }
+            const type = await supportType(file).catch(() => "");
+            if (!SUPPORT_LIMITS.types.includes(type)) { problem = S.errors.type.replace("{name}", file.name); continue; }
+            if (file.size > SUPPORT_LIMITS.image_bytes) { problem = supportWords(S.errors.size).replace("{name}", file.name); continue; }
+            try { next.push({ name: file.name, size: file.size, type, data: await supportData(file) }); }
+            catch { problem = S.errors.read.replace("{name}", file.name); }
+        }
+        updateValue(v, "files", next); updateValue(v, "bad", old => ({ ...old, images: problem })); updateValue(v, "busy", "");
+    };
+    const remove = index => { updateValue(v, "files", old => old.filter((_, k) => k !== index)); fix("images"); };
+    const send = async e => {
+        e.preventDefault();
+        if (busy) return;
+        const problems = {};
+        if (!f.subject.trim()) problems.subject = S.errors.subject;
+        if (!f.body.trim()) problems.body = S.errors.body;
+        updateValue(v, "bad", problems); updateValue(v, "error", "");
+        if (Object.keys(problems).length) { document.getElementById(problems.subject ? "support-subject" : "support-body")?.focus(); return; }
+        updateValue(v, "busy", "send");
+        let answer;
+        try {
+            answer = await Edge.sendSupport({ kind: f.kind, subject: f.subject, body: f.body, details: supportDetails(),
+                images: files.map(x => ({ name: x.name, type: x.type, data: x.data })) });
+        } catch (err) {
+            // a field's reason under its field; a reason of what the page itself sent (details, request), or a refusal of
+            // the whole message (the hourly limit, the storage), above the actions
+            const fields = fieldsOf(err), elsewhere = Object.keys(fields).filter(k => !["kind", "subject", "body", "images"].includes(k));
+            updateValue(v, "busy", ""); updateValue(v, "bad", fields);
+            updateValue(v, "error", elsewhere.length ? fields[elsewhere[0]] : Object.keys(fields).length ? ""
+                : (err?.info?.message || err?.text || S.errors.fallback));
+            return;
+        }
+        updateValue(v, "busy", "");
+        updateValue(v, "sent", { ticket: answer?.ticket_id, kind: f.kind, subject: f.subject.trim().replace(/\s+/g, " ") });
+        requestAnimationFrame(() => document.querySelector(".support-success .btn.primary")?.focus());
+    };
+    if (sent) return element(DialogShell, { title: S.title, description: S.lead, close, returnFocusRef, className: "support-dialog" },
+        element("div", { className: "support-success", role: "status" },
+            element("p", null, S.sent),
+            element("dl", null,
+                element("dt", null, S.ticket), element("dd", null, `#${sent.ticket}`),
+                element("dt", null, S.kind), element("dd", null, S.kinds[sent.kind] || sent.kind),
+                element("dt", null, S.subject), element("dd", null, sent.subject)),
+            element("div", { className: "support-foot end" },
+                element(Button, { kind: "primary", onClick: close }, S.close))));
+    const described = id => bad[id.replace("support-", "")] || { "support-subject": S.subjectHint, "support-body": S.bodyHint }[id] ? `${id}-note` : undefined;
+    return element(DialogShell, { title: S.title, description: S.lead, close, returnFocusRef, className: "support-dialog" },
+        element("form", { className: "support-form", onSubmit: send, noValidate: true },
+            element("div", { className: "support-body" },
+                element(SupportField, { id: "support-kind", label: S.kind, error: bad.kind },
+                    element("span", { className: "settings-select" },
+                        element("select", { id: "support-kind", value: f.kind, disabled: !!busy, "data-dialog-initial-focus": true, onChange: e => set("kind", e.target.value) },
+                            Object.entries(S.kinds).map(([key, words]) => element("option", { key, value: key }, words))),
+                        element(Icon, { name: "chevron" }))),
+                element(SupportField, { id: "support-subject", label: S.subject, note: S.subjectHint, error: bad.subject },
+                    element("input", { id: "support-subject", className: "settings-input", value: f.subject, maxLength: SUPPORT_LIMITS.subject, autoComplete: "off", disabled: !!busy,
+                        "aria-invalid": !!bad.subject, "aria-describedby": described("support-subject"), onChange: e => { set("subject", e.target.value); fix("subject"); } })),
+                element(SupportField, { id: "support-body", label: S.body, note: S.bodyHint, error: bad.body },
+                    element("textarea", { id: "support-body", className: "settings-input", value: f.body, maxLength: SUPPORT_LIMITS.body, rows: 5, disabled: !!busy,
+                        "aria-invalid": !!bad.body, "aria-describedby": described("support-body"), onChange: e => { set("body", e.target.value); fix("body"); } })),
+                element("div", { className: "support-field" },
+                    element("input", { ref: picker, id: "support-images", type: "file", accept: SUPPORT_LIMITS.types.join(","), multiple: true, hidden: true, onChange: e => attach(e.target.files) }),
+                    element("button", { type: "button", className: "support-attach", disabled: !!busy || files.length >= SUPPORT_LIMITS.images, onClick: () => picker.current?.click() },
+                        busy === "attach" ? element("span", { className: "support-progress", "aria-hidden": true }) : element(Icon, { name: "attach", size: 14 }), S.attach),
+                    files.length > 0 && element("ul", { className: "support-files", "aria-label": S.attached },
+                        files.map((x, index) => element("li", { key: `${index}-${x.name}` },
+                            element(Icon, { name: "attach", size: 12 }),
+                            element("span", { title: x.name }, x.name),
+                            element("small", null, supportSize(x.size)),
+                            element("button", { type: "button", disabled: !!busy, "aria-label": S.remove.replace("{name}", x.name), title: S.remove.replace("{name}", x.name), onClick: () => remove(index) },
+                                element(Icon, { name: "close", size: 12 }))))),
+                    bad.images ? element("small", { className: "support-field-error", role: "alert" }, bad.images) : element("small", { className: "support-helper" }, supportWords(S.attachHint))),
+                element("p", { className: "support-helper support-note" }, element(Icon, { name: "info", size: 13 }), element("span", null, S.note)),
+                error && element("div", { className: "support-error", role: "alert" }, element("span", null, error))),
+            element("div", { className: "support-foot actions" },
+                element(Button, { onClick: close, disabled: busy === "send" }, S.cancel),
+                element(Button, { kind: "primary", type: "submit", disabled: !!busy }, busy === "send" ? S.sending : S.send))));
+}
 function SecurityDialog({close, returnFocusRef, signedOut, go}) {
   const v = currentView, A = EdgeLabels.auth.account, L = EdgeLabels.auth;
   const f = initialValue(v, "f", () => ({current:"", password:"", repeat:""})), set = (name, value) => updateValue(v, "f", old => ({...old, [name]:value}));
