@@ -327,3 +327,57 @@ def test_the_domain_migration_refuses_a_second_run_and_a_wrong_domain(database):
         with pytest.raises(psycopg.errors.RaiseException, match='the domain of terminal.history_days is not'):
             conn.execute('DO $verify$' + body + 'END $verify$;')
         conn.rollback()
+
+
+# ---- R1-5 (the user 2026-11-22, "A1 ok"): each reader's page file counts once per rolling hour -----------------------
+
+def grants():
+    return [c for c in terminal_calls() if c['method'] == 'POST' and c['url'].endswith('/api/terminal/v1/radar')]
+
+
+def test_each_reader_of_a_cached_page_file_counts_once_an_hour(switched_on, store, monkeypatch):
+    """Before, only the reader whose request missed edge-bff's cache was counted (once per process and sha256): a second
+    account read the cached bytes uncounted. Now each reader's first read of the file in the rolling hour is the grant
+    terminal-api counts (its URL unused for a cached file), a 304 of the browser's copy included; a reload within the
+    hour is free; a quota spent answers LIMIT_REACHED for the cached file too."""
+    from app import pages
+    now = {'t': 1_000.0}
+    monkeypatch.setattr(pages.time, 'monotonic', lambda: now['t'])
+    with TestClient(create_app(switched_on, store, FakeOrc())) as first:
+        for login_ in ('ria', 'sam'):
+            subscribe(store, make_user(store, login_, f'{login_}-password'), paid_plan(store))
+        sign_in(first, 'ria', 'ria-password')
+        path = f'/api/v1/radar/file/radar-days?sha={PAGE_SHA}'
+        assert first.get(path).status_code == 200 and len(grants()) == 1            # missed the cache: counted
+        assert first.get(path).status_code == 200 and len(grants()) == 1            # a reload within the hour: free
+        second = TestClient(first.app)
+        sign_in(second, 'sam', 'sam-password')
+        assert second.get(path).status_code == 200 and len(grants()) == 2           # cached bytes, another reader: counted
+        tag = {'if-none-match': f'"{PAGE_SHA[:32]}"'}
+        assert second.get(path, headers=tag).status_code == 304 and len(grants()) == 2
+        now['t'] += pages.COUNT_SECONDS + 1                                          # the hour has passed
+        assert second.get(path, headers=tag).status_code == 304 and len(grants()) == 3   # the browser's copy counts
+        # the quota spent: the cached file is refused with the plan's limit and its wait
+        real = FakeApi.answer
+
+        def spent(self, method, url, content):
+            if url.endswith('/api/terminal/v1/radar') and method == 'POST':
+                return httpx.Response(429, json={'error': 'quota_exceeded', 'message': 'files', 'quota': 'files_per_hour',
+                                                 'limit': 300, 'retry_after_s': 120}, headers={'Retry-After': '120'})
+            return real(self, method, url, content)
+        monkeypatch.setattr(FakeApi, 'answer', spent)
+        now['t'] += pages.COUNT_SECONDS + 1
+        r = first.get(path)
+        assert r.status_code == 429 and r.json()['error']['code'] == 'LIMIT_REACHED', r.text
+        assert r.headers.get('retry-after') == '120'
+
+
+def test_an_admin_holding_everything_is_not_counted(switched_off, store):
+    with TestClient(create_app(switched_off, store, FakeOrc())) as c:
+        login(c)
+        path = f'/api/v1/radar/file/radar-days?sha={PAGE_SHA}'
+        assert c.get(path).status_code == 200
+        before = len(grants())
+        second = TestClient(c.app)
+        login(second)
+        assert second.get(path).status_code == 200 and len(grants()) == before     # '*' has no quota: no count call

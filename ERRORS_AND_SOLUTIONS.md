@@ -10882,7 +10882,10 @@ in its staleness check.
   (released preset ids).
 - **Status:** fixed on branch fix-int2, not deployed; migration `20261119_030` not applied. R1-37 and R2-41 item 4:
   ACCEPTED (user 2026-11-19, "2a"). R1-5: BY DESIGN (lenient page-file counting; per-reader counting is a Phase 4
-  option). Noted for 3e: the four transform metrics (`hi52`, `lo52`, `rs`, `vol_ratio`) are not gated by the worker
+  option). CHANGED 2026-11-22 (the user, "A1 ok"): each reader's first read of a page file in a rolling hour counts
+  against its own Terminal quota, cached or not, a 304 included (`app/pages.py` `count`, `COUNT_SECONDS`); `tests/
+  test_terminal_fix_round.py` `test_each_reader_of_a_cached_page_file_counts_once_an_hour`, `test_an_admin_holding_
+  everything_is_not_counted`; one mutation red. The count's cost is measured from the logs after the beta deploy. Noted for 3e: the four transform metrics (`hi52`, `lo52`, `rs`, `vol_ratio`) are not gated by the worker
   but still listed by grant in edge-bff's catalog.
 - **Lesson:** before writing a gate, list every path by which the value reaches the person (rows, files, other tabs'
   workers, page-built conditions) and gate where it is shown; a catalog capability with no reader is a promise the
