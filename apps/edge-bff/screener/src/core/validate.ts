@@ -137,12 +137,20 @@ const REF_KEYS: Record<string, readonly string[]> = {
   pattern: ['kind', 'type', 'params'], flow: ['kind', 'metric', 'output', 'params'], xsection: ['kind', 'metric', 'params'], universe: ['kind', 'attr'],
   rank: ['kind', 'of'],
 };
+/** How deep tests and references may nest (a window's test, a transform's or rank's operand, a reference argument):
+    far above anything the page or the AI builds (a few levels), and low enough that the checks, which call themselves
+    once per level, answer a request nested thousands of levels deep 422 naming its field, never 500 for a full stack
+    (3f W2, test-out wf_c72ae04c-a73: a 6,000-level window or transform overflowed in both workers). */
+export const MAX_NESTING = 32;
+const nestedTooDeep = (field: string) => new ScreenerError('INVALID_CONDITION',
+  `${field}: tests and metric references nest at most ${MAX_NESTING} levels (a window's test, a transform's or rank's operand); this one nests deeper. Write it with fewer levels (right: a window of a value test; wrong: a window of a window of ... ${MAX_NESTING + 1} times).`, field);
 /** Every metric reference of a test with its field (transform operands and reference arguments included), outer first.
     An operand that must be a series (a transform's `of` and second series, the series a rank orders) and is not (a
     pattern, a value per stock: metrics.ts NOT_SERIES_KINDS) is refused before anything else of it or of the test is
     checked, with the words of metrics.ts notSeriesRefusal for the test form at `place`: so a moving average of a pattern
     is never answered with the test forms a moving average is offered in (QA unit C), which no test form would pass. */
-function walkRefs(ref: unknown, field: string, visit: (r: MetricRef, field: string) => void, place: TestPlace, catalog: MetricsCatalog): void {
+function walkRefs(ref: unknown, field: string, visit: (r: MetricRef, field: string) => void, place: TestPlace, catalog: MetricsCatalog, depth = 0): void {
+  if (depth > MAX_NESTING) throw nestedTooDeep(field);
   if (!isObj(ref)) throw new ScreenerError('INVALID_CONDITION', `${field} must be a metric reference {"kind": ...}.`, field);
   const keys = REF_KEYS[ref.kind as string];
   if (!keys) throw new ScreenerError('INVALID_CONDITION', `${field}.kind must be one of ${Object.keys(REF_KEYS).join(', ')}.`, `${field}.kind`, { allowed: Object.keys(REF_KEYS) });
@@ -150,7 +158,7 @@ function walkRefs(ref: unknown, field: string, visit: (r: MetricRef, field: stri
   visit(ref as unknown as MetricRef, field);
   const operand = (x: unknown, f: string, use: SeriesUse) => {
     if (isObj(x) && NOT_SERIES_KINDS.includes(x.kind as MetricKind)) throw notSeriesRefusal(x as unknown as MetricRef, f, use, place, catalog);
-    walkRefs(x, f, visit, place, catalog);
+    walkRefs(x, f, visit, place, catalog, depth + 1);
   };
   if (ref.kind === 'rank') operand(ref.of, `${field}.of`, { as: 'rank' });
   if (ref.kind === 'transform') {
@@ -312,7 +320,8 @@ const TWO_BOUNDS = ['between', 'outside'];
     the parameters only (a switched-off condition may name a metric that is not available yet). `place`: where the test
     sits (a condition, a window's inner test, a universe filter), so a refusal of a reference that is not a series says
     how to pass there (metrics.ts notSeriesRefusal). */
-export function validateTest(input: unknown, field: string, ctx: ValidateContext, enabled = true, place: TestPlace = 'condition'): Test {
+export function validateTest(input: unknown, field: string, ctx: ValidateContext, enabled = true, place: TestPlace = 'condition', depth = 0): Test {
+  if (depth > MAX_NESTING) throw nestedTooDeep(field);
   if (!isObj(input)) throw new ScreenerError('INVALID_INPUT', `${field} must be a test object.`, field);
   const kind = input.kind;
   const refs = (ref: unknown, f: string) => walkRefs(ref, f, (r, rf) => checkRef(r, rf, ctx, enabled), place, ctx.metrics);
@@ -363,7 +372,7 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
     if (typeof L !== 'number' || !Number.isInteger(L) || L < 1) throw new ScreenerError('INVALID_CONDITION', `${field}.length must be a whole number of sessions of at least 1 (at most ${ctx.limits.within_max}).`, `${field}.length`);
     if (L > ctx.limits.within_max) throw new ScreenerError('LIMIT_EXCEEDED', `${field}.length is at most ${ctx.limits.within_max} sessions (the sessions the Screener keeps per series).`, `${field}.length`, { limit: 'within_max', allowed: ctx.limits.within_max, needed: L });
     if (!isObj(t.test)) throw new ScreenerError('INVALID_CONDITION', `${field}.test must be the value test or state comparison counted over the window.`, `${field}.test`);
-    validateTest(t.test, `${field}.test`, ctx, enabled, 'window');
+    validateTest(t.test, `${field}.test`, ctx, enabled, 'window', depth + 1);
   } else throw new ScreenerError('INVALID_CONDITION', `${field}.kind must be value, state, event or window.`, `${field}.kind`, { allowed: ['value', 'state', 'event', 'window'] });
   // normalize through the binding: every reference resolved (parameters, arguments), and a bar field compared with a
   // transform only where the transform is a level of that field. A switched-off condition is bound too, so a shape the

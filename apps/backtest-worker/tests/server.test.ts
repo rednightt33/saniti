@@ -848,6 +848,30 @@ test('P5: rights from the context only, fail closed; unknown rights and fields r
 });
 
 /* ---- EDGE multi-user Phase 3b (CONTRACT 8b): context.allow and context.limits on every route ------------------------ */
+/* Test-out wf_c72ae04c-a73 (L2-CAT-3): every refusal leaves the worker through forAllow (access.ts). A Screener metric the
+   plan holds ('pe'), named as a pattern type it is not, passes the plan check (the id is held) and the Screener's
+   validation lists every pattern metric (catalog.ts metricSpec); the answer to a principal without them names none. */
+test('a refusal that lists the registry is cut to the items held, on validate and jobs', async () => {
+  const { default: METRICS } = await import('../../edge-bff/screener/src/core/screener-metrics.json', { with: { type: 'json' } });
+  const patterns = (METRICS as { metrics: { id: string; kind: string; ref?: unknown }[] }).metrics.filter(m => m.kind === 'pattern' && !m.ref).map(m => m.id);
+  assert.ok(patterns.length > 5, patterns.join(' '));
+  const allow = { indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: ['pe'] };
+  const q = pageDefault('UNVR');
+  const extra = { id: 'pz', enabled: true, kind: 'test', test: { kind: 'state', pattern: { kind: 'pattern', type: 'pe', params: {} } } };
+  const r = { ...q, entry: { ...q.entry, conditions: [...q.entry.conditions.filter((c: { kind: string; type?: string }) => !(c.kind === 'price_action' || c.kind === 'flow')), extra] } };
+  const word = (id: string) => new RegExp(`(^|[^A-Za-z0-9_])${id}([^A-Za-z0-9_]|$)`);
+  const id = newId();
+  for (const [path, body] of [['/v1/validate', { request: r, context: { allow, limits: {} } }], ['/v1/jobs', { job_id: id, request: r, context: { job_id: id, prior_trials: [], allow, limits: {} } }]] as const) {
+    const a = await call('POST', path, body);
+    const text = a.body.toString();
+    assert.equal(a.status, 422, `${path}: ${text}`);
+    assert.deepEqual(patterns.filter(p => word(p).test(text)), [], `${path}: ${text}`);
+  }
+  // the principal holding every item reads the validation's own list
+  const own = await call('POST', '/v1/validate', { request: r, context: { allow: { ...allow, screener_metric: '*' }, limits: {} } });
+  assert.ok(patterns.some(p => word(p).test(own.body.toString())), own.body.toString());
+});
+
 test('3b: an item outside context.allow is 403 CAPABILITY_REQUIRED on validate, jobs and signals; limits lowered', async () => {
   const none = { indicator: [], flow_indicator: [], candle_pattern: [], screener_metric: [] };
   const all = { indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*' };

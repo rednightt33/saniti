@@ -1241,24 +1241,34 @@ today.
 - **Its checker's round 2 (2026-11-21, ERRORS M523, M524, M525, M526):** the round-1 proof planted through the filter
   it tested; the proof, the entries, the filter's shape, the catalog ids, the route tests and M521's test were redone,
   each proven by a mutation; the lab build narrowed to the admin who holds every item (CS-1); the standing rule above.
-- **Proven and not built.**
+- **Proven, and what was built after (state of 2026-11-22; the lab gaps' round, the user's go 2026-11-22 "OK fix it").**
   - Proven in every bundle of every page (each page's and each Web Worker's file): a released, a lab and an unlisted
     fixture item of every registry the filter knows, the comparison lag included, and the lab formula. The public
     files carry only the released ones.
-  - Not built: the generators and the workers do not load lab formulas (a lab indicator could not run in a backtest or a
-    screen), and a lab Flow indicator's formula has no registration point (`calc/flow.ts` does not export its map).
-- **Held (no item or tab may be lab yet; `tests/test_releases.py` LAB_ITEM_HELD_UNTIL, `tests/test_live_switch.py`
-  LAB_TAB_HELD_UNTIL; FUTURE_PLAN.md "Before the first lab item or tab"):**
-  - the Screener worker's refusals list and name items outside the principal's allow before its plan check (checker L2);
-  - the lab formulas for the generators and the workers (above);
-  - the live site runs edge-bff from before 3f until `live` moves past it (checker L5);
-  - a lab tab's rail entry, route and words are in the public shell and `auth/config` names it (checker SERVE-3);
-  - round 2: the Terminal deletes a saved chart entry its build lacks, so one public-build session of the admin's own
-    account deletes its lab indicators from the synced layout (CRIT-1); an id named in page code or computed by a
-    built-in without its id cannot be put back at the lab stage by the release file alone (CRIT-3).
-- **Hashed sources:** the formula modules and registries that both workers hash were not changed. The Backtest engine
-  version stays `f984058aaaf38748`. The Screener engine's version changes with the worker's own `src/catalog.ts`
-  (M520), `src/server.ts` (M521) and `src/run.ts` (M524), which it hashes: once per deploy that carries them.
+  - Built since (TR-2): the registry generators and both workers load the lab formulas through the same registration
+    point (`terminal/src/lab/index.ts`, alias `@edge-lab` in `apps/backtest-worker/loader/resolve.mjs`; both images copy
+    the lab folder). Not built: a lab Flow indicator's formula has no registration point (`calc/flow.ts` does not export
+    its map; LIVE_PROMOTION.md section 3).
+- **The held gaps (no item or tab may be lab yet; `tests/test_releases.py` LAB_ITEM_HELD_UNTIL, `tests/test_live_switch.py`
+  LAB_TAB_HELD_UNTIL; FUTURE_PLAN.md "Before the first lab item or tab"), each with where it stands:**
+  - the workers' refusals listed and named items outside the principal's allow before the plan check (checker L2):
+    closed. Both workers check allow on the request as sent; a reference whose id is not a string or is missing is
+    refused by its field only; every refusal to a principal whose allow is not everything leaves with its registry
+    list cut to the items held (screener-worker `src/run.ts` `forAllow`, backtest-worker `src/access.ts` `forAllow`;
+    test-out wf_c72ae04c-a73);
+  - the lab formulas for the generators and the workers: built (above), the Flow registration point not;
+  - the live site's edge-bff from before 3f (checker L5): closed by the promotion of 2026-11-21;
+  - a lab tab's rail entry, route and words in the public shell, and `auth/config` naming it (checker SERVE-3): the
+    names are out (`hidden_tabs` lists the beta-only tabs; `test_no_lab_tab_is_named_in_the_public_shell` over the
+    shell's files, derived from `index.html` and `static/edge-*.js`); still to build: a rail entry the server hands
+    the admin on the beta, which the shell draws and routes;
+  - round 2: the Terminal no longer deletes a saved chart entry its build lacks (it parks it, CRIT-1); an item the
+    shipped code names by its id, or computes by its registry key (`calc.out('donchian')` is I10), is refused at the
+    lab stage by `tests/test_releases.py` (CRIT-3).
+- **Hashed sources:** each worker's engine version is the hash of the sources its `src/version.ts` ENGINE_SOURCES list,
+  read when the worker starts; it changes with every deploy that changes one of them (TR-2 added the lab folder to
+  both, the L2 and W2 fixes change both workers' sources and the Screener core's `validate.ts`). The value in use is
+  the one `/health` and the catalog answer; no hash is written here, so this text cannot go stale.
 - On the live site every lab item is refused, `*` included (section 17; built, `fix-site`).
 
 **Tests per stage** (with the code; checkers C1-C3 per stage as in Phases 1 and 2):

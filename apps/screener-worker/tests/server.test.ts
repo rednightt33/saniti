@@ -164,6 +164,12 @@ test('ERRORS M524: a request nested thousands of levels deep gets, on every rout
   const shapes: Record<string, [unknown, string]> = {
     'universe.tickers 20000 lists deep': [{ ...RSI(), universe: { ...U, tickers: '@deep@' } }, '['.repeat(20_000) + '0' + ']'.repeat(20_000)],
     'a test 10000 objects deep': [{ ...RSI(), conditions: [{ id: 'a', enabled: true, test: '@deep@' }] }, '{"of":'.repeat(10_000) + '1' + '}'.repeat(10_000)],
+    // 3f W2 (test-out wf_c72ae04c-a73): the core's own checks call themselves once per window and per transform; past
+    // validate.ts MAX_NESTING they answer 422 naming the field (2,000 levels: the most the body limit holds)
+    'a window 2000 windows deep': [{ ...RSI(), conditions: [{ id: 'a', enabled: true, test: '@deep@' }] },
+      '{"kind":"window","mode":"ever","length":2,"test":'.repeat(2_000) + '{"kind":"value","metric":{"kind":"price","field":"close"},"op":"gt","value":0}' + '}'.repeat(2_000)],
+    'a transform 2000 transforms deep': [{ ...RSI(), conditions: [{ id: 'a', enabled: true, test: { kind: 'value', metric: '@deep@', op: 'gt', value: 0 } }] },
+      '{"kind":"transform","fn":"change","of":'.repeat(2_000) + '{"kind":"price","field":"close"}' + ',"args":{"bars":1}}'.repeat(2_000)],
   };
   let seq = 100;
   for (const [name, [definition, deep]] of Object.entries(shapes)) {

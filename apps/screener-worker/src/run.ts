@@ -43,6 +43,7 @@ import { TickerView, barCount, brokerCounts, brokerRowCount, flowContextOf } fro
 import { BROKER_DAY_SESSIONS } from './broker.ts';
 import type { SnapshotDesc, ThreadSnapshot } from './snapshot.ts';
 import { CapabilityError, refuse, toApiError } from './errors.ts';
+import type { ErrorBody } from './errors.ts';
 
 /* ================================================================================================================ */
 /* the request envelope (report 8.5, 8.6; the definition itself is validate.ts's)                                  */
@@ -156,12 +157,27 @@ export function effectiveLimits<T extends Record<ContextLimitName, number>>(own:
     whatever the plan, so the page's extra-column anchor (bars gt 0) needs no grant either. */
 export function definitionItems(definition: unknown, field = 'definition'): { kind: AllowKind; id: string; field: string }[] {
   const out: { kind: AllowKind; id: string; field: string }[] = [];
+  for (const r of itemRefs(definition, field)) if (typeof r.id === 'string' && r.kind) out.push({ kind: r.kind, id: r.id, field: r.field });
+  return out;
+}
+/** Where each item reference keeps its id, and the allow kind an id there is (null: not gated by id). One table for
+    the gate's walk: a reference kind added here is gated in every place a definition can hold it. */
+const ITEM_REFS: Readonly<Record<string, { key: string; kind: (id: string) => AllowKind | null }>> = {
+  indicator: { key: 'indicator', kind: () => 'indicator' },
+  flow: { key: 'metric', kind: () => 'flow_indicator' },
+  pattern: { key: 'type', kind: id => CANDLE_IDS.includes(id) ? 'candle_pattern' : 'screener_metric' },
+  xsection: { key: 'metric', kind: () => 'screener_metric' },
+  universe: { key: 'attr', kind: id => SHOWN_ATTRIBUTES.has(id) ? null : 'screener_metric' },
+};
+/** Every item reference of a definition with its id as sent (any JSON value, or undefined when it has none), its allow
+    kind (null for a string id that is not gated, undefined for an id that is not a string) and the JSON path of the id. */
+function itemRefs(definition: unknown, field: string): { ref: string; key: string; id: unknown; kind: AllowKind | null | undefined; field: string }[] {
+  const out: { ref: string; key: string; id: unknown; kind: AllowKind | null | undefined; field: string }[] = [];
   eachObject(definition, field, (x, at) => {
-    if (x.kind === 'indicator' && typeof x.indicator === 'string') out.push({ kind: 'indicator', id: x.indicator, field: `${at()}.indicator` });
-    else if (x.kind === 'flow' && typeof x.metric === 'string') out.push({ kind: 'flow_indicator', id: x.metric, field: `${at()}.metric` });
-    else if (x.kind === 'pattern' && typeof x.type === 'string') out.push({ kind: CANDLE_IDS.includes(x.type) ? 'candle_pattern' : 'screener_metric', id: x.type, field: `${at()}.type` });
-    else if (x.kind === 'xsection' && typeof x.metric === 'string') out.push({ kind: 'screener_metric', id: x.metric, field: `${at()}.metric` });
-    else if (x.kind === 'universe' && typeof x.attr === 'string' && !SHOWN_ATTRIBUTES.has(x.attr)) out.push({ kind: 'screener_metric', id: x.attr, field: `${at()}.attr` });
+    const spec = typeof x.kind === 'string' && Object.prototype.hasOwnProperty.call(ITEM_REFS, x.kind) ? ITEM_REFS[x.kind] : undefined;
+    if (!spec) return;
+    const id = x[spec.key];
+    out.push({ ref: x.kind as string, key: spec.key, id, kind: typeof id === 'string' ? spec.kind(id) : undefined, field: `${at()}.${spec.key}` });
   });
   return out;
 }
@@ -198,11 +214,17 @@ export function presetItems(definition: unknown): { kind: AllowKind; id: string 
 const KIND_WORDS: Readonly<Record<AllowKind, string>> = { indicator: 'indicator', flow_indicator: 'flow indicator', candle_pattern: 'candlestick pattern', screener_metric: 'Screener metric' };
 /** The first item of the definition outside `allow`, refused 403 CAPABILITY_REQUIRED (CONTRACT 8b "Worker refusal"):
     field its JSON path, details {kind, id, capability}, the message naming the item and how to pass. server.ts calls it
-    (through gate) right after normalize and before any cache read, so a result cached for another principal is never
-    served to one without the item. */
+    (through gateSent) on the definition as sent and again (through gate) right after normalize and before any cache
+    read, so a result cached for another principal is never served to one without the item. A reference whose id is
+    not a string, or has none, is refused 422 INVALID_CONDITION by its field only when allow is not everything: it holds
+    no id allow could hold, and the normalizer would answer it with the registry's lists (test-out wf_c72ae04c-a73,
+    L2-CAT-3). */
 export function checkAllow(definition: unknown, allow: Allow, field = 'definition'): void {
-  if (ALLOW_KINDS.every(k => allow[k] === '*')) return;
-  for (const it of definitionItems(definition, field)) {
+  if (everything(allow)) return;
+  for (const it of itemRefs(definition, field)) {
+    if (typeof it.id !== 'string')
+      throw refuse('INVALID_CONDITION', `${it.field}: a ${it.ref} reference names its item by its id, a string (right: "${it.key}": an id the catalog lists; wrong: a number, a list, an object, null or no "${it.key}"). Choose the item from the catalog.`, it.field);
+    if (!it.kind) continue;
     const a = allow[it.kind];
     if (a === '*' || a.has(it.id)) continue;
     const capability = `${CAPABILITY_FAMILY[it.kind]}:${it.id}`;
@@ -211,6 +233,37 @@ export function checkAllow(definition: unknown, allow: Allow, field = 'definitio
     throw new CapabilityError(`${it.field}: the ${KIND_WORDS[it.kind]} ${it.id} is not included in your plan. To run the screen, remove it (a condition, a switched-off condition, a filter or an extra column), or upgrade the plan.`,
       it.field, { kind: it.kind, id: it.id, capability });
   }
+}
+const everything = (allow: Allow): boolean => ALLOW_KINDS.every(k => allow[k] === '*');
+/** Every catalog item id with its allow kind, derived from the registries the normalizer looks items up in (the
+    indicator, Flow and candlestick registries and the Screener's metrics catalog; a universe attribute every answer
+    shows is no item). */
+const ITEM_KIND: ReadonlyMap<string, AllowKind> = (() => {
+  const m = new Map<string, AllowKind>();
+  for (const x of METRICS_CATALOG.metrics) if (!SHOWN_ATTRIBUTES.has(x.id)) m.set(x.id, 'screener_metric');
+  for (const id of Object.keys(SBY_ID)) m.set(id, 'indicator');
+  for (const id of Object.keys(FLOW_BY_ID)) m.set(id, 'flow_indicator');
+  for (const id of CANDLE_IDS) m.set(id, 'candle_pattern');
+  return m;
+})();
+const heldBy = (allow: Allow, v: unknown): boolean => {
+  const kind = typeof v === 'string' ? ITEM_KIND.get(v) : undefined;
+  if (!kind) return true;                                              // not an item: an output, an option, an operator
+  const a = allow[kind];
+  return a === '*' || a.has(v as string);
+};
+/** A refusal as it may leave the worker for a principal (test-out wf_c72ae04c-a73, L2-CAT-3: no refusal to a principal
+    whose allow is not everything names an item outside it). The core's refusals that list the registry carry the list
+    in details.allowed (registry.ts, flowmetrics.ts, validate.ts); one that lists an item outside allow keeps its code
+    and field, its list is cut to the items held and its message, which was made from that list, names the field only.
+    Every other refusal, and every refusal to a principal holding everything (or before allow is read), is as it was. */
+export function forAllow(error: ErrorBody, allow: Allow | null): ErrorBody {
+  const list = (error.details as { allowed?: unknown } | undefined)?.allowed;
+  if (!allow || everything(allow) || !Array.isArray(list) || list.every(v => heldBy(allow, v))) return error;
+  const kept = list.filter(v => heldBy(allow, v)), f = error.field ?? 'definition';
+  return { code: error.code, ...(error.field ? { field: error.field } : {}),
+    message: `${f}: not a value your plan offers here; use one of the items the catalog lists for you${kept.length ? ` (${kept.join(', ')})` : ''}.`,
+    details: { ...error.details, allowed: kept } };
 }
 /** The definition's references to an admin-only flow entry, refused without the right (CONDITION_RESTRICTED). */
 export function restrict(definition: unknown, rights: readonly string[], field = 'definition'): void {

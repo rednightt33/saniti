@@ -249,3 +249,79 @@ test('legacy cards: a type that is a catalog id is gated by that id (derived fro
     assert.equal(refusal(() => checkRequest(q, REFS, CFG, undefined, with_('flow_indicator', [t]))), null, t);
   }
 });
+
+/* Test-out wf_c72ae04c-a73 (L2-CAT-3, the Backtest worker's part): a reference whose id is not a string, or is missing,
+   and a legacy card whose type the core does not know, were left to the validation, which answered every registry id
+   (UNKNOWN_INDICATOR details.allowed of the Screener's validation, "use one of FL01, ..." for a Flow metric, every
+   pattern and universe metric, the legacy types). The rule: no refusal to a principal whose allow is not everything
+   names an item outside it. Planted at every place a request names an item, with a number, null, a list, an object and
+   no id; the whole refusal is searched for every catalog id outside allow. */
+test('every place an item is named: a non-string, missing or unknown id names no item outside allow', async () => {
+  const { BY_ID } = await import('../../edge-bff/backtest/src/core/registry.ts');
+  const { FLOW_BY_ID } = await import('../../edge-bff/screener/src/core/flowmetrics.ts');
+  const { default: METRICS } = await import('../../edge-bff/screener/src/core/screener-metrics.json', { with: { type: 'json' } });
+  const { SHOWN_ATTRIBUTES } = await import('../../edge-bff/screener/src/core/catalog.ts');
+  const { forAllow } = await import('../src/access.ts');
+  const held = { indicator: ['I13', 'I09', 'I01'], flow_indicator: ['FL17'], candle_pattern: ['hammer'], screener_metric: ['breakout'] };
+  const allow = allowOf(held);
+  const catalogIds = [...new Set([...Object.keys(BY_ID), ...Object.keys(FLOW_BY_ID), ...CANDLE_IDS, ...(METRICS as { metrics: { id: string }[] }).metrics.map(m => m.id)])].filter(id => !SHOWN_ATTRIBUTES.has(id));
+  const outside = catalogIds.filter(id => !Object.values(held).some(l => l.includes(id)));
+  assert.ok(outside.length > 100, String(outside.length));
+  const word = (id: string) => new RegExp(`(^|[^A-Za-z0-9_])${id}([^A-Za-z0-9_]|$)`);
+  // the refusal as it leaves the worker (server.ts answers every refusal of a principal through forAllow)
+  const leaving = (f: () => unknown) => { const r = refusal(f); return r && { ...r, ...forAllow({ code: r.code, field: r.field, message: r.message, details: r.details } as never, allow) } };
+  const bad: [string, unknown][] = [['a number', 7], ['null', null], ['a list', ['X_PLANTED']], ['an object', { id: 'X_PLANTED' }], ['no id', undefined]];   // the sender's own value may be echoed; a registry id may not
+  const set = (o: Record<string, unknown>, key: string, v: unknown) => { const x = { ...o }; if (v === undefined) delete x[key]; else x[key] = v; return x };
+  const places: [string, (v: unknown) => Condition, string][] = [
+    ['grammar indicator', v => T('p1', { kind: 'value', metric: set({ kind: 'indicator', output: 'sma', params: {} }, 'indicator', v), op: 'gt', value: 0 }), 'indicator'],
+    ['grammar flow', v => T('p1', { kind: 'value', metric: set({ kind: 'flow', params: {} }, 'metric', v), op: 'gt', value: 0 }), 'metric'],
+    ['grammar pattern', v => T('p1', { kind: 'state', pattern: set({ kind: 'pattern', params: {} }, 'type', v) }), 'type'],
+    ['grammar xsection', v => T('p1', { kind: 'value', metric: set({ kind: 'xsection', params: {} }, 'metric', v), op: 'gt', value: 0 }), 'metric'],
+    ['grammar universe', v => T('p1', { kind: 'value', metric: set({ kind: 'universe' }, 'attr', v), op: 'gt', value: 0 }), 'attr'],
+    ['registry card', v => set(IND('p1') as unknown as Record<string, unknown>, 'indicator', v) as unknown as Condition, 'indicator'],
+    ['price action card', v => set({ id: 'p1', enabled: true, kind: 'price_action', op: 'close_above_high', params: { length: 20 } }, 'type', v) as unknown as Condition, 'type'],
+    ['flow card', v => set({ id: 'p1', enabled: true, kind: 'flow', op: 'gt', value: 0, params: { length: 20 } }, 'type', v) as unknown as Condition, 'type'],
+  ];
+  for (const [place, make, key] of places) for (const [what, v] of [...bad, ['an unknown id', 'NOT_AN_ITEM_7']] as [string, unknown][]) {
+    for (const [route, check] of [['job', (c: Condition) => checkRequest(request([c]), REFS, CFG, undefined, allow)],
+      ['signals', (c: Condition) => checkSignalsRequest({ schema_version: 1, tickers: ['BBCA'], period: { from: '2024-01-02', to: '2026-10-23' }, entry: { logic: 'any', at_least: 1, window_bars: 5, conditions: [c] }, detail: { ticker: 'BBCA', exit_signals: { logic: 'any', conditions: [] } } }, REFS, CFG, undefined, allow)]] as const) {
+      const r = leaving(() => check(make(v)));
+      assert.ok(r, `${route} ${place} ${what}: refused`);
+      const text = JSON.stringify(r);
+      assert.deepEqual(outside.filter(id => word(id).test(text)), [], `${route} ${place} ${what}: ${text}`);
+      assert.ok(String(r.field).endsWith(key) && r.status !== 500, `${route} ${place} ${what}: ${text}`);
+    }
+  }
+  // a price line with a non-string indicator
+  for (const [what, v] of bad.filter(([w]) => w !== 'no id')) {
+    const q = request([IND('a1')]);
+    (q.exit.stop.line as Record<string, unknown>).indicator = v;
+    const r = leaving(() => checkRequest(q, REFS, CFG, undefined, allow));
+    assert.ok(r && String(r.field).startsWith('exit.stop.line'), `line ${what}: ${JSON.stringify(r)}`);
+    assert.deepEqual(outside.filter(id => word(id).test(JSON.stringify(r))), [], `line ${what}: ${JSON.stringify(r)}`);
+  }
+  // with everything allowed the validation's own lists are answered as before (they are the admin's to see)
+  const own = refusal(() => checkRequest(request([places[1][1](7)]), REFS, CFG));
+  assert.ok(own && word('FL02').test(JSON.stringify(own)), JSON.stringify(own));
+});
+
+/* 3f W2 (test-out wf_c72ae04c-a73): the request walks of the Backtest worker called themselves (grammar.ts refKinds,
+   pit/evaluate.ts hasD) and overflowed the stack at about 6,000 levels: 500 INTERNAL_ERROR where the validation answers
+   422. Every depth, every shape that nests, with and without a plan's allow: a ValidationError or a WorkerError, never a
+   RangeError. (server.test.ts sends the same over every route.) */
+test('a request nested thousands of levels deep is refused 422 at every depth, with or without allow', () => {
+  const shapes: Record<string, (n: number) => unknown> = {
+    'metric of': n => { let x: unknown = { kind: 'price', field: 'close' }; for (let i = 0; i < n; i++) x = { of: x }; return T('d1', { kind: 'value', metric: x, op: 'gt', value: 0 }) },
+    'lists': n => { let x: unknown = 0; for (let i = 0; i < n; i++) x = [x]; return T('d1', { kind: 'value', metric: x, op: 'gt', value: 0 }) },
+    'windows': n => { let x: unknown = { kind: 'value', metric: rsi, op: 'gt', value: 0 }; for (let i = 0; i < n; i++) x = { kind: 'window', mode: 'ever', length: 2, test: x }; return T('d1', x) },
+    'ranks': n => { let x: unknown = rsi; for (let i = 0; i < n; i++) x = { kind: 'rank', of: x }; return T('d1', { kind: 'value', metric: x, op: 'gt', value: 0 }) },
+    'transforms': n => { let x: unknown = rsi; for (let i = 0; i < n; i++) x = { kind: 'transform', fn: 'change', of: x, args: { bars: 1 } }; return T('d1', { kind: 'value', metric: x, op: 'gt', value: 0 }) },
+    // a point-in-time Flow indicator at the bottom: the worker's own checks (pit/evaluate.ts) read the windows
+    'windows over a point-in-time Flow indicator': n => { let x: unknown = { kind: 'value', metric: { kind: 'flow', metric: 'FL45', params: { anchor: '2026-01-02' } }, op: 'gt', value: 5 }; for (let i = 0; i < n; i++) x = { kind: 'window', mode: 'ever', length: 2, test: x }; return T('d1', x) },
+  };
+  const restricted = allowOf({ indicator: ['I13', 'I09', 'I01'], flow_indicator: ['FL45'], candle_pattern: [], screener_metric: [] });
+  for (const depth of [1_500, 6_000, 20_000]) for (const [name, make] of Object.entries(shapes)) for (const allow of [undefined, restricted]) {
+    const r = refusal(() => checkRequest(request([make(depth) as Condition]), REFS, CFG, new Set(['flow_point_in_time']), allow));
+    assert.ok(r && r.status === 422, `${name} ${depth} ${allow ? 'restricted' : 'all'}: ${JSON.stringify(r)?.slice(0, 300)}`);
+  }
+});

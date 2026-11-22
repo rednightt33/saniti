@@ -9580,6 +9580,14 @@ in its staleness check.
 - **Lesson:** a check that runs before validation must not rely on a shape the validation would bound (depth, size):
   walk unvalidated input with a list of its own. V8's own `JSON.stringify` calls itself too, so such test bodies are
   written as text.
+- **Test-out fix round 1 (2026-11-22; test-out `wf_c72ae04c-a73` found these parts "partly"; on the branch, not deployed):**
+  - W2, the same mechanism elsewhere: the Backtest worker's `grammar.ts` `refKinds` and `pit/evaluate.ts` `hasD`
+    recursed (6,000 levels, about 36 KB, answered 500), and so did the Screener core's checks of windows and
+    transforms (`apps/edge-bff/screener/src/core/validate.ts`, shared by both workers) and `pit` `checkDTest`. Now
+    iterative walks, `MAX_NESTING` 32 in the core (INVALID_CONDITION naming the field, with a right and a wrong
+    example), and the window-in-window refusal before the recursion. `apps/backtest-worker/tests/access.test.ts`:
+    1,500 / 6,000 / 20,000 levels in six shapes, with and without allow, answer 422 (each mutation red). Both engine
+    versions change (the core is hashed).
 
 ### M523 — 3f's ultracode checker: the Web Worker files unfiltered, the comparison lag outside the filter, CI blind to most pages, and what still holds back the first lab item (2026-11-21; the fixes on the live site since 2026-11-21, the rest held)
 
@@ -9713,6 +9721,26 @@ in its staleness check.
   - A guard that blocks a risk is removed only when every path of the risk is closed, and its message says which.
   - A test is proven by turning it red on the defect it names; a test that also passes on the defect is a record, not a
     guard.
+- **Test-out fix round 1 (2026-11-22; test-out `wf_c72ae04c-a73` found these parts "partly"; on the branch, not deployed):**
+  - L2/CAT-3: a non-string or missing id, a held id under another reference kind (`{kind:'xsection', metric:'breakout'}`),
+    and in the Backtest an unknown legacy type still reached the registry lists (`details.allowed`, "use one of …").
+    Closed in both workers at two layers: the gate refuses an unreadable reference by its field (422 INVALID_CONDITION,
+    no list; `run.ts` `ITEM_REFS`/`itemRefs`/`checkAllow`, `validate.ts` `unreadableItems`/`lineItems`), and every
+    refusal to a principal whose allow is not everything leaves through `forAllow` (Screener `run.ts`, Backtest
+    `access.ts`), which cuts a registry list to the held items, derived from the registries the validator reads. Tests
+    plant five kinds × five values on every route and search the whole answer (`allow.test.ts`, `access.test.ts`,
+    `server.test.ts`); each mutation red. The live site's old edge-bff relays the code and shape (mixed-tree check).
+  - W3: the CONTRACT.md 3f block rewritten to the current state (TR-2 built, the lab Flow registration point not yet),
+    with no hash literal: `/health` names each engine version. The `checkAllow` wording says before and after the
+    normalizer.
+  - CRIT-3: the guard also reads an item's registry key (`calc.out('donchian')` is I10, `'bollinger_width'` I29, `F.key`);
+    self-test plants both at the lab stage.
+  - CAT-5: the registry files are derived from `shared/release-filter.mjs` REGISTRIES (`screener-registry.json` was
+    missing), with a self-test per file.
+  - TRC2-8: two descriptive texts (`app/releases.py`, `tests/test_live_switch.py`) no longer suggest a new item starts
+    as lab.
+  - SERVE-3: the public shell files are derived from `index.html` and `static/edge-*.js` (`edge-boot.js` and
+    `edge-docx.js` were missing); the rail entry stays open (EXEC-MU-ACCOUNTS, Carried open parts).
 
 ### M522 — On the live site the admin and an account without screener.preset could share one copy of the Screener catalog (2026-11-21; FIXED in `33c84c1f`, on the live site; predates 3f)
 
@@ -10125,6 +10153,10 @@ in its staleness check.
     flows that cross a session change on the real routes.
   - A dataset closed to a principal is never drawn as an empty one.
   - A check that writes a file says so in its output.
+- **Test-out fix round 1 (2026-11-22; test-out `wf_c72ae04c-a73` found these parts "partly"; on the branch, not deployed):**
+  - SH1: no test saw the loop pass its window. `tests/test_beta_live_site.py`
+    `test_the_backtest_loop_asks_for_the_slot_with_its_yield_window` (a fake store records the argument; red when the
+    loop passes 0).
 
 ### M514 — The live site's GitHub source cannot be connected from an agent session: its Railway credential is a project token (2026-11-20; FIXED by the user in the dashboard the same day)
 
@@ -11040,6 +11072,10 @@ in its staleness check.
 - **Lesson:** before writing a gate, list every path by which the value reaches the person (rows, files, other tabs'
   workers, page-built conditions) and gate where it is shown; a catalog capability with no reader is a promise the
   code does not keep, so every seeded capability needs a route that reads it.
+- **Test-out fix round 1 (2026-11-22; test-out `wf_c72ae04c-a73` found these parts "partly"; on the branch, not deployed):**
+  - R1-5, the third path: the If-None-Match 304 without `?sha=` counts once an hour
+    (`tests/test_terminal_fix_round.py` `test_a_browser_copy_named_only_by_its_etag_counts_once_an_hour`, red when
+    that count is removed).
 
 ### M487 — Under Phase 3c the free plan's Terminal drew nothing, not even BBCA (2026-11-19, re-check R2-32; fixed on fix-int2, on the live site since 2026-11-20; the fix replaced by the user's decision of 2026-11-19)
 

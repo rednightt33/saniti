@@ -358,6 +358,26 @@ def test_the_shared_backtest_slot_is_taken_in_turns_when_both_sites_have_a_job_w
     live.give_worker_slot(slot)
 
 
+def test_the_backtest_loop_asks_for_the_slot_with_its_yield_window(settings):
+    """SH1, the loop's side (test-out wf_c72ae04c-a73): the store yields only when the loop passes a window; a loop that
+    passed 0 took the slot straight back again and no store test saw it. The loop asks with yield_seconds(), three
+    polls (at least one second), on every try."""
+    class Slots:
+        def __init__(self):
+            self.asked = []
+
+        def take_worker_slot(self, yield_seconds=0):
+            self.asked.append(yield_seconds)
+            return None if len(self.asked) < 2 else 'slot'
+
+    slots = Slots()
+    loop = BacktestLoop(settings, slots, worker=None)
+    assert asyncio.run(loop.worker_slot()) == 'slot'
+    window = max(3 * settings.poll_seconds, 1.0)
+    assert loop.yield_seconds() == window and window > 0
+    assert slots.asked == [window, window]                          # the first try and the one after a poll
+
+
 def test_a_failing_prune_or_reap_does_not_stop_the_backtest_claims(settings):
     """ERRORS R2-33 (BacktestLoop.run): the prune and the reap ran before the claim in one try, so one that failed
     stopped every backtest."""

@@ -23,11 +23,18 @@ const bad = (code: string, field: string, message: string): never => { throw new
 const isDRef = (x: unknown): x is Obj => isObj(x) && x.kind === 'flow' && isD(x.metric);
 const isConst = (x: unknown): x is { value: number } => isObj(x) && !('kind' in x) && typeof x.value === 'number' && Number.isFinite(x.value) && Object.keys(x).length === 1;
 
-/** Whether a test reads a point-in-time Flow indicator anywhere. */
+/** Whether a test reads a point-in-time Flow indicator anywhere (a walk with its own list, never calling itself: a request
+    nested thousands of levels deep is read like a flat one; 3f W2, test-out wf_c72ae04c-a73). */
 export function hasD(x: unknown): boolean {
-  if (Array.isArray(x)) return x.some(hasD);
-  if (!isObj(x)) return false;
-  return isDRef(x) || Object.values(x).some(hasD);
+  const todo: unknown[] = [x];
+  while (todo.length) {
+    const v = todo.pop();
+    if (Array.isArray(v)) { for (const w of v) todo.push(w); continue }      // a loop: spreading a long list overflows too
+    if (!isObj(v)) continue;
+    if (isDRef(v)) return true;
+    for (const w of Object.values(v)) todo.push(w);
+  }
+  return false;
 }
 
 /** What the checks need to know of a side that is not a point-in-time reference (the Screener resolves it). */
@@ -79,8 +86,9 @@ export function checkDTest(t: unknown, field: string, other: (ref: unknown, fiel
     if (!Number.isInteger(t.length) || (t.length as number) < 1 || (t.length as number) > withinMax) bad('INVALID_CONDITION', `${field}.length`, `${field}.length must be a whole number of sessions from 1 to ${withinMax}.`);
     if (t.mode === 'at_least' && !(Number.isInteger(t.count) && (t.count as number) >= 1 && (t.count as number) <= (t.length as number)))
       bad('INVALID_CONDITION', `${field}.count`, `${field}.count must be a whole number from 1 to the window's length (${t.length}).`);
+    // refused before the inner test is checked, so a window of a window of ... thousands deep is not walked (3f W2)
+    if (isObj(t.test) && t.test.kind === 'window') bad('INVALID_CONDITION', `${field}.test`, `${field}.test: a window holds a value, state or event test, not another window.`);
     const inner = checkDTest(t.test, `${field}.test`, other, withinMax);
-    if (inner.kind === 'window') bad('INVALID_CONDITION', `${field}.test`, `${field}.test: a window holds a value, state or event test, not another window.`);
     return { kind: 'window', mode: t.mode, length: t.length, ...(t.mode === 'at_least' ? { count: t.count } : {}), test: inner };
   }
   return bad('INVALID_CONDITION', `${field}.kind`, `${field}.kind must be value, state, event or window.`);

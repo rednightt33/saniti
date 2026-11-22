@@ -12,7 +12,10 @@ message naming the problem rather than refusing items at run time.
   test's, the stages the file's.
 - `KIND_OF_FAMILY`: the capability family of an item (`<tab>.<item kind>`, the part before ':' of
   `terminal.indicator:I01`) mapped to its kind; the id space of a kind is shared by every tab.
-- `stage_of(kind, item_id)`: 'released' or 'lab'; an id the file does not list is 'lab' (a new item starts in the lab).
+- `stage_of(kind, item_id)`: 'released' or 'lab'; an id the file does not list reads 'lab' at run time (fail closed). That
+  is no way in: no item may be at the lab stage yet (tests/test_releases.py refuses an unlisted one and names what must
+  be closed first, FUTURE_PLAN.md "Before the first lab item or tab"), so a new item enters the file as "released" with
+  the user's go, or stays off main.
 - `entries(kind)`: the file's entries of a kind, in file order, as [{"id", "stage"}].
 - `tab_stage(tab)`: the live switch of a tab (the first part of a capability key, `terminal` of `terminal.view`; the
   user, 2026-11-20, EXEC option A: development happens on the beta and reaches the live site only on request). The file's

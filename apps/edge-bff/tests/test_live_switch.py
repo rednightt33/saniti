@@ -3,10 +3,11 @@ moving `live` takes whole commits of the beta, so what is not ready must be swit
 Every tab (the first part of a capability key, a page of the shell) has a live switch in catalog/releases.json `tabs`,
 and a catalog item its stage in `items` (tests/test_releases.py); an unlisted tab or item is 'lab', on the beta only.
 
-This test fails when a capability tab or a page of the shell has no entry (it must be listed, lab or released, or be
-one of principal.BETA_ONLY_TABS), and shows that a lab tab is held by no one on the live site, the admin's '*'
-included, is hidden from the live rail (auth/config hidden_tabs), and stays on the beta. LIVE_PROMOTION.md says how a
-tab or an item is released."""
+This test fails when a capability tab or a page of the shell has no entry (it must be listed, as "released" with the
+user's go, or be one of principal.BETA_ONLY_TABS: no tab may be "lab" yet, test_no_tab_is_at_the_lab_stage_yet and
+LAB_TAB_HELD_UNTIL below), and shows what the lab stage will do once it may be used: a lab tab is held by no one on the
+live site, the admin's '*' included, is hidden from the live rail (auth/config hidden_tabs), and stays on the beta.
+LIVE_PROMOTION.md says how a tab or an item is released."""
 import dataclasses
 import json
 import re
@@ -110,8 +111,19 @@ def test_the_release_file_refuses_a_malformed_tab():
             releases.Releases({'schema_version': 1, 'items': [], 'tabs': tabs}, 'test')
 
 
-PUBLIC_SHELL = ('static/edge-app.js', 'static/edge-labels.js', 'static/edge-client.js', 'static/edge-view.js',
-                'static/edge-session.js', 'static/index.html')
+def public_shell():
+    """The shell's public files, derived (test-out wf_c72ae04c-a73: a list kept by hand had left out edge-boot.js):
+    static/index.html, every script or stylesheet it names, and every module of the shell's own (static/edge-*.js, the
+    ones loaded later included)."""
+    static = ROOT_BFF / 'static'
+    html = (static / 'index.html').read_text(encoding='utf-8')
+    named = {f'static/{ref}' for ref in re.findall(r'(?:src|href)="/([^"?#]+)', html)
+             if ref.endswith(('.js', '.css', '.html')) and (static / ref).is_file()}
+    own = {f'static/{p.name}' for p in static.glob('edge-*.js')}
+    return tuple(sorted({'static/index.html'} | named | own))
+
+
+PUBLIC_SHELL = public_shell()
 
 
 def lab_tabs_named_in_the_shell(current):
@@ -127,6 +139,9 @@ def test_no_lab_tab_is_named_in_the_public_shell():
     import json as _json
     data = {'schema_version': 1, 'items': [], 'tabs': [{'id': 'terminal', 'stage': 'lab'}, {'id': 'newpage', 'stage': 'lab'}]}
     assert ('terminal', 'static/edge-app.js') in lab_tabs_named_in_the_shell(releases.Releases(data, 'test'))   # self-test
+    # the derived list holds every file index.html loads and the shell's later modules (edge-boot.js was missing)
+    assert {'static/edge-boot.js', 'static/edge-app.js', 'static/edge-labels.js', 'static/edge-client.js',
+            'static/edge-view.js', 'static/edge-session.js', 'static/index.html'} <= set(PUBLIC_SHELL), PUBLIC_SHELL
     named = lab_tabs_named_in_the_shell(releases.CURRENT)
     assert not named, (f'lab tabs named in the public shell: {named}. Keep a lab tab\'s entry, route and words out of '
                        'the shell (its page is its own <tab>-app) until it is released')

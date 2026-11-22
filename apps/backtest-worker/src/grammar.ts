@@ -76,12 +76,21 @@ function flowRefusal(metric: unknown): string | null {
 }
 
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
-/** Every metric reference inside a test: its kind, the field it sits at, the reference. */
-function refKinds(x: unknown, field: string, out: [string, string, Record<string, unknown>][] = []): [string, string, Record<string, unknown>][] {
-  if (Array.isArray(x)) x.forEach((v, k) => refKinds(v, `${field}[${k}]`, out));
-  else if (isObj(x)) {
-    if (typeof x.kind === 'string' && !['value', 'state', 'event', 'window'].includes(x.kind)) out.push([x.kind, field, x]);
-    for (const [k, v] of Object.entries(x)) if (k !== 'kind') refKinds(v, `${field}.${k}`, out);
+/** Every metric reference inside a test: its kind, the field it sits at, the reference, in document order (an object
+    before what it holds, list items and keys in their order). The walk keeps its own list instead of calling itself,
+    so a request nested thousands of levels deep is read like a flat one and the validation answers it 422 naming the
+    field (3f W2, test-out wf_c72ae04c-a73: the walk that called itself overflowed the stack at about 6,000 levels and
+    answered 500 INTERNAL_ERROR; the Screener worker's eachObject, ERRORS M524, is the same walk). */
+function refKinds(x: unknown, field: string): [string, string, Record<string, unknown>][] {
+  const out: [string, string, Record<string, unknown>][] = [];
+  const todo: [unknown, string][] = [[x, field]];
+  while (todo.length) {
+    const [v, f] = todo.pop()!;
+    if (Array.isArray(v)) { for (let k = v.length - 1; k >= 0; k--) todo.push([v[k], `${f}[${k}]`]); continue }
+    if (!isObj(v)) continue;
+    if (typeof v.kind === 'string' && !['value', 'state', 'event', 'window'].includes(v.kind)) out.push([v.kind, f, v]);
+    const entries = Object.entries(v);
+    for (let k = entries.length - 1; k >= 0; k--) if (entries[k][0] !== 'kind') todo.push([entries[k][1], `${f}.${entries[k][0]}`]);
   }
   return out;
 }
@@ -142,7 +151,8 @@ export function flowRefs(test: unknown, field: string): { field: string; ref: Re
    Screener pattern metric: screener_metric), a cross-section metric and a universe attribute (screener_metric; a
    backtest refuses both anyway, checkTest). A transform, a price field and a rank have no id of their own (their inner
    references are walked); the Screener's four transform metrics (hi52, lo52, rs, vol_ratio) are transforms on the wire,
-   so they carry no id and are not checked by id. A non-string id is left to the validation. */
+   so they carry no id and are not checked by id. A reference whose id is not a string, or has none, is in testRefs
+   (validate.ts refuses it when allow is not everything: test-out wf_c72ae04c-a73, L2-CAT-3). */
 const ITEM_KEY: Record<string, [string, (id: string) => AllowKind]> = {
   indicator: ['indicator', () => 'indicator'],
   flow: ['metric', () => 'flow_indicator'],
@@ -152,9 +162,15 @@ const ITEM_KEY: Record<string, [string, (id: string) => AllowKind]> = {
 };
 export function testItems(test: unknown, field: string): { kind: AllowKind; id: string; field: string }[] {
   const out: { kind: AllowKind; id: string; field: string }[] = [];
+  for (const r of testRefs(test, field)) if (typeof r.id === 'string') out.push({ kind: ITEM_KEY[r.ref][1](r.id), id: r.id, field: r.field });
+  return out;
+}
+/** Every item reference of a test (ITEM_KEY's kinds) with its id as sent: any JSON value, undefined when it has none. */
+export function testRefs(test: unknown, field: string): { ref: string; key: string; id: unknown; field: string }[] {
+  const out: { ref: string; key: string; id: unknown; field: string }[] = [];
   for (const [kind, at, ref] of refKinds(test, field)) {
-    const k = ITEM_KEY[kind], id = k ? ref[k[0]] : undefined;
-    if (k && typeof id === 'string') out.push({ kind: k[1](id), id, field: `${at}.${k[0]}` });
+    const k = Object.prototype.hasOwnProperty.call(ITEM_KEY, kind) ? ITEM_KEY[kind] : undefined;
+    if (k) out.push({ ref: kind, key: k[0], id: ref[k[0]], field: `${at}.${k[0]}` });
   }
   return out;
 }

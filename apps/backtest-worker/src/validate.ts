@@ -24,7 +24,7 @@
    (run.ts checkPublished, at /v1/validate, and the run again); the other data-dependent errors are the run's: they need
    the published files. */
 import type { BacktestRequest, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
-import { Calc, PRICE_ACTION, conditionSeries, flowConditionShape } from '../../edge-bff/backtest/src/core/conditions.ts';
+import { Calc, FLOW as LEGACY_FLOW_TYPES, PRICE_ACTION, conditionSeries, flowConditionShape } from '../../edge-bff/backtest/src/core/conditions.ts';
 import type { Condition as CoreCondition, FlowCondition } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { lineOf, portfolioTickers, validateRun } from '../../edge-bff/backtest/src/core/engine.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
@@ -33,8 +33,8 @@ import { LEGACY } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { ActiveCondition } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
 import { invalid } from './errors.ts';
-import { checkTest, flowRefs, installBacktestGrammar, testItems } from './grammar.ts';
-import { ALLOW_ALL, requireItem } from './access.ts';
+import { checkTest, flowRefs, installBacktestGrammar, testItems, testRefs } from './grammar.ts';
+import { ALLOW_ALL, holdsEverything, requireItem } from './access.ts';
 import type { Allow } from './access.ts';
 import { D_RIGHT, isD } from './pit/spec.ts';
 import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
@@ -181,6 +181,7 @@ export function legacyItemKind(type: string): AllowKind | null {
     flow card whose type is a catalog id (legacyItemKind), so the legacy cards are no second path around the plan. */
 function conditionItems(list: readonly Listed[], allow: Allow): void {
   if (allow === ALLOW_ALL) return;
+  if (!holdsEverything(allow)) for (const { path, cond: c } of list) unreadableItems(c, path);
   for (const { path, cond: c } of list) {
     if (c.kind === 'indicator' && typeof (c as { indicator?: unknown }).indicator === 'string') requireItem(allow, 'indicator', (c as { indicator: string }).indicator, `${path}.indicator`);
     if (c.kind === 'test') for (const it of testItems((c as { test?: unknown }).test, `${path}.test`)) requireItem(allow, it.kind, it.id, it.field);
@@ -190,13 +191,31 @@ function conditionItems(list: readonly Listed[], allow: Allow): void {
     }
   }
 }
+/* Test-out wf_c72ae04c-a73 (L2-CAT-3): for a principal whose allow is not everything, a reference the plan check cannot
+   read is refused here by its field only, before the validation answers it with the registry's lists (every indicator
+   id, "use one of FL01, ...", every pattern and universe metric, the legacy types): an id that is not a string or is
+   missing (a grammar reference of testRefs' kinds, a registry card's indicator, a legacy card's type), and a legacy
+   type the core does not know (PRICE_ACTION and FLOW of the core). The answer of the principal holding everything is
+   the validation's, as before. server.ts sends every refusal through forAllow as well (access.ts). */
+const LEGACY_TYPES: Readonly<Record<string, readonly string[]>> = { price_action: Object.keys(PRICE_ACTION), flow: Object.keys(LEGACY_FLOW_TYPES) };
+function unreadable(field: string, what: string, key: string): never {
+  throw invalid('INVALID_CONDITION', field, `${field}: ${what} names its item by its id, a string the catalog lists (right: "${key}": an id of the catalog; wrong: a number, a list, an object, null, no "${key}" or an id the catalog does not list). Choose the item from the catalog.`);
+}
+function unreadableItems(c: Listed['cond'], path: string): void {
+  const x = c as unknown as Record<string, unknown>;
+  if (c.kind === 'indicator' && typeof x.indicator !== 'string') unreadable(`${path}.indicator`, 'a registry condition', 'indicator');
+  if (c.kind === 'test') for (const r of testRefs(x.test, `${path}.test`)) if (typeof r.id !== 'string') unreadable(r.field, `a ${r.ref} reference`, r.key);
+  if ((c.kind === 'price_action' || c.kind === 'flow') && (typeof x.type !== 'string' || (!legacyItemKind(x.type) && !LEGACY_TYPES[c.kind].includes(x.type))))
+    unreadable(`${path}.type`, `a ${c.kind === 'flow' ? 'flow' : 'price-action'} card`, 'type');
+}
 /** The price lines of the exits (stop and trailing), held to the plan whatever their mode: both are stored with the
     job and hashed, as the numbers the chosen modes do not read (unreadTypes). The ATR stop, target and chandelier
     compute I30 as part of the Backtest and name no item (CONTRACT 8b "3b follow-up", user decision 2026-11-18). */
 function lineItems(q: BacktestRequest, allow: Allow): void {
   if (allow === ALLOW_ALL) return;
   for (const part of ['stop', 'trailing'] as const) {
-    const id = (q.exit[part]?.line as { indicator?: unknown } | undefined)?.indicator;
+    const line = q.exit[part]?.line as unknown, id = (line as { indicator?: unknown } | undefined)?.indicator;
+    if (!holdsEverything(allow) && isObject(line) && typeof id !== 'string') unreadable(`exit.${part}.line.indicator`, 'a price line', 'indicator');
     if (typeof id === 'string') requireItem(allow, 'indicator', id, `exit.${part}.line.indicator`);
   }
 }

@@ -181,19 +181,37 @@ def _code(src):
     return re.sub(r'(?m)(^|[^:\'"])//.*$', r'\1', src)
 
 
+def key_aliases():
+    """{(kind, id): key} of the registry entries that the code may look up by a key of their own (an indicator's `key`,
+    'donchian' for I10): a built-in computing calc.out('donchian') computes I10 without naming its id (test-out
+    wf_c72ae04c-a73, CRIT-3). Derived from every registry list REGISTRIES names."""
+    out = {}
+    for kind, e in registry_entries():
+        k = e.get('key')
+        if isinstance(k, str) and k and k != e['id']:
+            out[(kind, e['id'])] = k
+    return out
+
+
 def named_in_code(current):
-    """{(kind, id): [files]} of the release file's items the shipped code names (the comment above)."""
+    """{(kind, id): [files]} of the release file's items the shipped code names (the comment above): by the id, or by
+    the item's own registry key (key_aliases) as a quoted literal or a property (terminal/src/lab/index.ts registers a
+    lab formula as F.my_key)."""
     files = [p for d in CODE_DIRS if d.exists() for p in d.rglob('*') if p.suffix in ('.ts', '.tsx', '.js', '.mjs')
              and 'lab' not in p.relative_to(d).parts and 'tests' not in p.relative_to(d).parts]
     files += sorted((BFF / 'static').glob('edge-*.js'))
     assert len(files) > 50, f'only {len(files)} code files found: CODE_DIRS reads the wrong folders'
     texts = {p: _code(p.read_text(encoding='utf-8', errors='ignore')) for p in files}
+    aliases = key_aliases()
     found = {}
     for kind in KINDS:
         for e in current.entries(kind):
             i = e['id']
-            pattern = re.compile(rf'\b{re.escape(i)}\b' if re.search(r'\d', i) else rf'[\'"`]{re.escape(i)}[\'"`]')
-            hits = [p.relative_to(BFF.parent.parent).as_posix() for p, t in texts.items() if pattern.search(t)]
+            patterns = [re.compile(rf'\b{re.escape(i)}\b' if re.search(r'\d', i) else rf'[\'"`]{re.escape(i)}[\'"`]')]
+            if (kind, i) in aliases:            # by its key: a quoted literal, or a property of a formula map (F.donchian)
+                key = re.escape(aliases[(kind, i)])
+                patterns += [re.compile(rf'[\'"`]{key}[\'"`]'), re.compile(rf'\.{key}\b')]
+            hits = [p.relative_to(BFF.parent.parent).as_posix() for p, t in texts.items() if any(x.search(t) for x in patterns)]
             if hits:
                 found[(kind, i)] = hits
     return found
@@ -205,6 +223,16 @@ def test_an_item_the_shipped_code_names_is_never_lab():
     assert ('flow_indicator', 'FL51') in named and any(k == 'indicator' for k, _ in named), (
         'the scan finds neither FL51 (terminal/src/calc/flow.ts) nor a registry indicator (signals.ts BY_ID.I07): it '
         'reads the wrong files or the wrong shape')
+    # by key (test-out wf_c72ae04c-a73, CRIT-3): the Screener's breakdown and squeeze patterns compute I10 and I29 as
+    # t.calc.out('donchian') and t.calc.out('bollinger_width') (screener/src/core/transforms.ts) without naming the ids
+    assert key_aliases()[('indicator', 'I10')] == 'donchian' and key_aliases()[('indicator', 'I29')] == 'bollinger_width'
+    for i in ('I10', 'I29'):
+        assert any(f.endswith('screener/src/core/transforms.ts') for f in named.get(('indicator', i), [])), (i, named.get(('indicator', i)))
+    data0 = json.loads(FILE.read_text(encoding='utf-8'))
+    data0['items'] = [{**it, 'stage': 'lab'} if (it['kind'], it['id']) in {('indicator', 'I10'), ('indicator', 'I29')} else it
+                      for it in data0['items']]
+    trial0 = Releases(data0)
+    assert sorted(k for k in named if trial0.stage_of(*k) != 'released') == [('indicator', 'I10'), ('indicator', 'I29')]
     data = json.loads(FILE.read_text(encoding='utf-8'))
     planted = next(iter(sorted(named)))
     data['items'] = [{**it, 'stage': 'lab'} if (it['kind'], it['id']) == planted else it for it in data['items']]
@@ -219,23 +247,53 @@ def test_an_item_the_shipped_code_names_is_never_lab():
 
 
 # 3f checker CAT-5 (the lab gaps' optional row; the user's go 2026-11-22): a released entry's own text (its name, tip,
-# description, synonyms) ships to every principal, so it must not name a lab item, by id or by name. Derived from the
-# registry files the release filter knows (shared/release-filter.mjs REGISTRIES: a list per kind, or several).
-REGISTRY_FILES = (('terminal/src/data/indRegistry.json', None, 'indicator'),
-                  ('terminal/src/data/flowRegistry.json', 'indicators', 'flow_indicator'),
-                  ('backtest/src/core/backtest-registry.json', 'indicators', 'indicator'),
-                  ('backtest/src/core/candle-registry.json', 'patterns', 'candle_pattern'),
-                  ('screener/src/core/screener-metrics.json', 'metrics', 'screener_metric'),
-                  ('screener/src/core/presets.json', 'presets', 'screener_preset'))
+# description, synonyms) ships to every principal, so it must not name a lab item, by id or by name. The registry files
+# and their lists are read from the release filter's own list (shared/release-filter.mjs REGISTRIES: a file with one list
+# and its kind, several lists with their kinds, or an object keyed by item id), so a file added there is scanned here
+# too (test-out wf_c72ae04c-a73: a list kept by hand here had left out screener/src/core/screener-registry.json).
+RELEASE_FILTER = BFF / 'shared' / 'release-filter.mjs'
 
 
-def registry_entries():
+def registry_specs():
+    """[(file, [(key or None, kind)], keyed)] of REGISTRIES, read from release-filter.mjs's source (one spec per line)."""
+    src = RELEASE_FILTER.read_text(encoding='utf-8')
+    block = src[src.index('export const REGISTRIES = ['):]
+    block = block[:block.index('\n];') + 3]
+    lines = [ln for ln in block.splitlines() if re.match(r'\s*\{ file: ', ln)]
+    specs = []
+    for ln in lines:
+        file = re.search(r"file: '([^']+)'", ln).group(1)
+        kind = re.search(r"kind: '([^']+)'", ln)
+        keyed = re.search(r"keyed: '([^']+)'", ln)
+        if 'lists: [' in ln:
+            lists = re.findall(r"\['(\w+)', '(\w+)'\]", ln)
+        elif 'asList(' in ln:
+            lists = [(re.search(r"asList\('(\w+)'\)", ln).group(1), kind.group(1))]
+        elif keyed:
+            lists = [(None, kind.group(1))]
+        elif re.search(r'list: d => d\b', ln):
+            lists = [(None, kind.group(1))]
+        else:
+            raise AssertionError(f'release-filter.mjs REGISTRIES line not understood (list, lists, keyed or asList): {ln}')
+        assert lists, ln
+        specs.append((file, lists, keyed.group(1) if keyed else None))
+    assert len(specs) == block.count('{ file: ') >= 8, f'REGISTRIES read {len(specs)} specs from {block.count("{ file: ")}'
+    return specs
+
+
+def registry_entries(only=None):
+    """[(kind, entry)] of every registry list REGISTRIES names (an object keyed by id gives {id, value})."""
     out = []
-    for file, key, kind in REGISTRY_FILES:
+    for file, lists, keyed in registry_specs():
+        if only is not None and file != only:
+            continue
         doc = json.loads((BFF / file).read_text(encoding='utf-8'))
-        for e in (doc if key is None else doc.get(key, [])):
-            if isinstance(e, dict) and isinstance(e.get('id'), str):
-                out.append((kind, e))
+        for key, kind in lists:
+            if keyed:
+                part = [{'id': i, 'value': v} for i, v in doc[keyed].items()]
+            else:
+                part = doc if key is None else doc.get(key, [])
+            out += [(kind, e) for e in part if isinstance(e, dict) and isinstance(e.get('id'), str)]
     return out
 
 
@@ -266,6 +324,18 @@ def test_a_released_entrys_text_names_no_lab_item():
         planted = named[0]
         data['items'] = [{**it, 'stage': 'lab'} if (it['kind'], it['id']) == ('indicator', planted) else it for it in data['items']]
         assert any(h[2] == planted for h in released_text_naming_lab(Releases(data), entries))
+    # every file REGISTRIES names is read: a sentence planted in the first entry of each, naming an indicator set to the
+    # lab stage, is caught (test-out wf_c72ae04c-a73: "Compare with I02." in I01's description of screener-registry.json)
+    for file, lists, keyed in registry_specs():
+        own = registry_entries(only=file)
+        assert own, f'{file}: no entry read'
+        first = own[0]
+        target = next(i for k, e in entries if k == 'indicator' for i in [e['id']] if i != first[1]['id'])
+        planted = [x for f2, _, _ in registry_specs() for x in (
+            [(first[0], {**first[1], 'description': f'Compare with {target}.'})] + own[1:] if f2 == file else registry_entries(only=f2))]
+        data = json.loads(FILE.read_text(encoding='utf-8'))
+        data['items'] = [{**it, 'stage': 'lab'} if (it['kind'], it['id']) == ('indicator', target) else it for it in data['items']]
+        assert (first[0], first[1]['id'], target) in released_text_naming_lab(Releases(data), planted), file
     hits = released_text_naming_lab(releases.load(FILE), entries)
     assert not hits, (f'released entries whose own text names a lab item ({hits[:5]}): that text ships to every '
                       'principal. Reword it, or release the item first.')

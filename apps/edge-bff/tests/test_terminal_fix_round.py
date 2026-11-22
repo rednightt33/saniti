@@ -372,6 +372,24 @@ def test_each_reader_of_a_cached_page_file_counts_once_an_hour(switched_on, stor
         assert r.headers.get('retry-after') == '120'
 
 
+def test_a_browser_copy_named_only_by_its_etag_counts_once_an_hour(switched_on, store, monkeypatch):
+    """R1-5, the third path (test-out wf_c72ae04c-a73): a request without ?sha= whose If-None-Match names the current
+    file answers 304 from the index. It counts the reader's first read in the hour as the other two paths do; before
+    this test a regression there passed CI."""
+    from app import pages
+    now = {'t': 5_000.0}
+    monkeypatch.setattr(pages.time, 'monotonic', lambda: now['t'])
+    with TestClient(create_app(switched_on, store, FakeOrc())) as c:
+        subscribe(store, make_user(store, 'tia', 'tia-password'), paid_plan(store))
+        sign_in(c, 'tia', 'tia-password')
+        path, tag = '/api/v1/radar/file/radar-days', {'if-none-match': f'"{PAGE_SHA[:32]}"'}
+        before = len(grants())
+        assert c.get(path, headers=tag).status_code == 304 and len(grants()) == before + 1     # the first read counts
+        assert c.get(path, headers=tag).status_code == 304 and len(grants()) == before + 1     # within the hour: free
+        now['t'] += pages.COUNT_SECONDS + 1
+        assert c.get(path, headers=tag).status_code == 304 and len(grants()) == before + 2     # the next hour counts
+
+
 def test_an_admin_holding_everything_is_not_counted(switched_off, store):
     with TestClient(create_app(switched_off, store, FakeOrc())) as c:
         login(c)

@@ -57,7 +57,8 @@ import { errorFields, log } from './log.ts';
 import { checkPublished } from './run.ts';
 import { TerminalClient } from './terminal.ts';
 import { checkRequest } from './validate.ts';
-import { ALLOW_HOW, applyLimits, limitsOf, requiredAllowOf } from './access.ts';
+import { ALLOW_HOW, applyLimits, forAllow, limitsOf, requiredAllowOf } from './access.ts';
+import type { Allow } from './access.ts';
 import type { Allow, PlanLimits } from './access.ts';
 import { D_RIGHT } from './pit/spec.ts';
 import type { CheckedRequest, References } from './validate.ts';
@@ -100,6 +101,7 @@ interface Job {
   id: string; status: JobStatus; gzip: Uint8Array | null; seq: number; t0: number;
   cancel: boolean; timer: NodeJS.Timeout | null; json_bytes: number | null;
   clock: PhaseClock; kind: JobKind;
+  allow: Allow | null;          // the principal's: the job's error leaves through forAllow (access.ts)
 }
 /** What a job is, for its log lines (EXEC-MU-RUNTIME Phase 0, c_job per class): its mode, how many stocks and whether it
     reads the broker files; never the request itself. */
@@ -202,7 +204,7 @@ export function createApp(cfg: Config): WorkerApp {
   function end(j: Job, state: JobState, error: ErrorBody | null): void {
     if (!running(j)) return;
     if (j.timer) clearTimeout(j.timer);
-    Object.assign(j.status, { state, error, finished_at: new Date().toISOString(), duration_ms: Math.round(performance.now() - j.t0) });
+    Object.assign(j.status, { state, error: error && forAllow(error, j.allow), finished_at: new Date().toISOString(), duration_ms: Math.round(performance.now() - j.t0) });
     log(state === 'FAILED' ? 'warn' : 'info', 'job_end', { job_id: j.id, state, code: error?.code ?? null, ms: j.status.duration_ms, result_bytes: j.status.result_bytes, json_bytes: j.json_bytes,
       ...j.kind, phases_ms: j.clock.stop(), ...memory() });
   }
@@ -222,7 +224,7 @@ export function createApp(cfg: Config): WorkerApp {
   function startJob(id: string, task: Extract<Task, { kind: 'job' }>, kind: JobKind): Job {
     const at = new Date().toISOString(), t0 = performance.now();
     const j: Job = {
-      id, gzip: null, seq: 0, t0, cancel: false, timer: null, json_bytes: null, clock: new PhaseClock(t0), kind,
+      id, gzip: null, seq: 0, t0, cancel: false, timer: null, json_bytes: null, clock: new PhaseClock(t0), kind, allow: task.context.allow ?? null,
       status: { request_id: id, state: 'RUNNING', progress: { phase: 'queued', done: 0, total: 0 }, error: null, created_at: at, started_at: at, finished_at: null, duration_ms: null, result_bytes: null },
     };
     const { seq, done } = threads.jobs.run(task, p => { if (running(j)) { j.status.progress = p; j.clock.report(p.phase) } });
@@ -334,7 +336,7 @@ export function createApp(cfg: Config): WorkerApp {
   }
 
   /* ---- routes ---- */
-  async function route(req: http.IncomingMessage, res: http.ServerResponse, path: string, raw: Buffer | null): Promise<void> {
+  async function route(req: http.IncomingMessage, res: http.ServerResponse, path: string, raw: Buffer | null, granted: { allow: Allow | null }): Promise<void> {
     const method = req.method ?? 'GET';
     const allow = (m: string) => { if (method !== m) throw new WorkerError(405, 'METHOD_NOT_ALLOWED', `Use ${m}.`) };
     if (path === '/health') { allow('GET'); return send(res, 200, { ok: true, ...versions }) }
@@ -346,6 +348,7 @@ export function createApp(cfg: Config): WorkerApp {
       const body = parseJson(raw) as { request?: unknown; context?: unknown } | null;
       if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k => k !== 'request' && k !== 'context')) throw invalid('INVALID_REQUEST', 'body', 'The body must be {request, context}.');
       const g = contextGrants(body.context), planned = within_plan(g.limits);
+      granted.allow = g.allow;                                             // every refusal from here on leaves through forAllow
       const out = await within('The validation', (async () => {
         const list = await refs(), checked = checkRequest(body.request, list, planned, new Set(g.rights), g.allow);
         const q = canonicalRequest(body.request as BacktestRequest);        // the picked stocks in ticker order (PF3)
@@ -366,6 +369,7 @@ export function createApp(cfg: Config): WorkerApp {
         throw invalid('INVALID_CONTEXT', 'context.allow', `The body is a bare signals request with no context: send {request: <the preview request>, context: {rights, allow, limits}}; ${ALLOW_HOW}.`);
       if (!wrapped || Object.keys(raw0 as object).some(k => k !== 'request' && k !== 'context')) throw invalid('INVALID_REQUEST', 'body', 'The body must be {request, context}.');
       const body = (raw0 as { request: unknown }).request, g = contextGrants((raw0 as { context?: unknown }).context);
+      granted.allow = g.allow;
       const left = callerWatch(res), asked = performance.now();
       const list = await within('The reference list', refs());
       if (left()) return;                                                // nobody waits for it: never queued
@@ -377,6 +381,7 @@ export function createApp(cfg: Config): WorkerApp {
     if (path === '/v1/jobs') {
       allow('POST');
       const b = checkJobBody(parseJson(raw));
+      granted.allow = b.allow;
       if (job && job.id === b.job_id) return send(res, 202, { job_id: b.job_id });
       if (starting || (job && running(job))) return fail(res, 409, { code: 'BUSY', message: 'Another backtest is running.' });
       starting = true;
@@ -424,18 +429,19 @@ export function createApp(cfg: Config): WorkerApp {
   const server = http.createServer((req, res) => {
     const t0 = performance.now(), path = (req.url ?? '/').split('?')[0];
     if (path !== '/health') res.once('close', () => log('info', 'http', { method: req.method, path, status: res.statusCode, ms: Math.round(performance.now() - t0) }));
+    const granted: { allow: Allow | null } = { allow: null };     // the principal's allow once its body is read
     const failed = (e: unknown) => {
       const a = answerError(e);
       if (!a.known) log('error', 'request_failed', { path, ...errorFields(e, true) });
       if (res.destroyed) return;                                         // the caller is gone (a cancelled preview)
-      if (!res.headersSent) fail(res, a.status, a.error); else res.destroy();
+      if (!res.headersSent) fail(res, a.status, forAllow(a.error, granted.allow)); else res.destroy();
     };
     // the answer goes out once the request has been read to its end, so its connection stays usable for the caller's
     // pool (Node closes a connection whose request body was left unread); the body of a caller without the key, and
     // of /health, is read and dropped.
     const keep = path !== '/health' && sameKey(req.headers[KEY_HEADER], key), parts: Buffer[] = [];
     if (keep) req.on('data', (c: Buffer) => parts.push(c)); else req.resume();
-    req.on('end', () => route(req, res, path, keep && parts.length ? Buffer.concat(parts) : null).catch(failed));
+    req.on('end', () => route(req, res, path, keep && parts.length ? Buffer.concat(parts) : null, granted).catch(failed));
     req.on('error', () => res.destroy());
   });
   server.keepAliveTimeout = 5000;

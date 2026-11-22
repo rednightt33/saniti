@@ -1,9 +1,10 @@
 /* EXEC-MU-ACCOUNTS Phase 3b (verification/edge_multiuser/access_tiers/CONTRACT.md section 8b "3b in detail", and the
    "3b follow-up": the families from the Terminal, step 3 of the deploy order): the body's `context.allow` and
-   `context.limits` (run.ts parseContext, checkAllow, effectiveLimits; server.ts gate after normalize). Locked here: every
-   place a definition can name an item refused 403 CAPABILITY_REQUIRED with its JSON path and the capability edge-bff
-   checks (the Terminal's family for the indicator and Flow kinds) when `allow` lacks it, and accepted when it holds it;
-   "*" allows all; an absent allow, or no context, refused INVALID_CONTEXT naming context.allow on every route (step 3);
+   `context.limits` (run.ts parseContext, checkAllow, effectiveLimits; server.ts gateSent before normalize and gate
+   after it). Locked here: every place a definition can name an item refused 403 CAPABILITY_REQUIRED with its JSON path
+   and the capability edge-bff checks (the Terminal's family for the indicator and Flow kinds) when `allow` lacks it,
+   and accepted when it holds it; "*" allows all; an absent allow, or no context, refused INVALID_CONTEXT naming
+   context.allow on every route (step 3);
    a malformed context INVALID_CONTEXT naming the field; the
    limits as min(the worker's own ceiling, the plan's); a result cached for a principal with the item still refused for
    one without it; /counts refusing per entry; the internal calls (presets, normalize) never gated. */
@@ -11,7 +12,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, test } from 'node:test';
 import { SHOWN_ATTRIBUTES } from '../../edge-bff/screener/src/core/catalog.ts';
-import { ALLOW_ALL, checkAllow, definitionItems, effectiveLimits, parseContext } from '../src/run.ts';
+import { ALLOW_ALL, checkAllow, definitionItems, effectiveLimits, forAllow, parseContext } from '../src/run.ts';
+import { INDICATORS } from '../../edge-bff/screener/src/core/registry.ts';
+import { FLOW_BY_ID } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import { CANDLE_IDS } from '../../edge-bff/backtest/src/core/candles.ts';
 import { createApp } from '../src/server.ts';
 import type { WorkerApp } from '../src/server.ts';
 import { brokerRowsOf as fakeRows, startFakeTerminal, universe } from './fake-terminal.mjs';
@@ -72,6 +76,7 @@ test('the walk names every item of a definition with its kind and JSON path; the
    reaches the wire as the template, hi52 as pct_distance(rolling_max(high, 252))) and a universe attribute that names its
    `row` (shown in every answer) are never named; every other entry is. edge-bff's tests/test_releases.py reads the same
    two fields to refuse the lab stage for an item no worker gates by id. */
+const SBY_IDS = INDICATORS.map(x => x.id), FLOW_IDS = Object.keys(FLOW_BY_ID), CANDLES = [...CANDLE_IDS];
 const METRICS = (JSON.parse(readFileSync(new URL('../../edge-bff/screener/src/core/screener-metrics.json', import.meta.url), 'utf8')) as { metrics: Record<string, unknown>[] }).metrics;
 test('the walk names a Screener metric by its id exactly when its catalog entry has no ref and no row', () => {
   const key: Record<string, string> = { pattern: 'type', xsection: 'metric', universe: 'attr', flow: 'metric' };
@@ -324,4 +329,74 @@ test('/v1/validate, /v1/run, /v1/preview, /v1/counts: an item outside allow is r
   // a principal holding every item still meets the normalizer's own answers (the list is the admin's to see)
   const admin = await call(port, 'POST', '/v1/validate', { schema_version: 1, definition: def(plantedUnknown), context: { allow: ALL, limits: {} } }, auth(OWNER_A));
   assert.equal(admin.status, 422, JSON.stringify(admin.body));
+});
+
+/* Test-out wf_c72ae04c-a73 (L2-CAT-3, the part left): an item reference whose id is not a string, or is missing, was
+   left to the normalizer, which answered every registry id (UNKNOWN_INDICATOR details.allowed, "use one of FL01, ..."
+   for a Flow metric, every pattern and universe metric). The rule now: no refusal to a principal whose allow is not
+   everything names an item outside it. The gate refuses such a reference by its field only (422 INVALID_CONDITION, a
+   code edge-bff relays), and every refusal that leaves the worker for such a principal has its registry list cut to the
+   items held (run.ts forAllow). Planted: each reference kind with a number, null, a list, an object and no id, on every
+   route; the whole answer is searched for every catalog id outside allow. */
+test('every route: a reference with a non-string or missing id names no item outside allow', async () => {
+  const allowed = { indicator: ['I01'], flow_indicator: ['FL01'], candle_pattern: ['hammer'], screener_metric: ['breakout'] };
+  const catalogIds = [...new Set([...SBY_IDS, ...FLOW_IDS, ...CANDLES, ...METRICS.map(m => m.id as string)])].filter(id => !SHOWN_ATTRIBUTES.has(id));
+  const outside = catalogIds.filter(id => !Object.values(allowed).some(l => l.includes(id)));
+  assert.ok(outside.length > 100, `the search covers the catalog: ${outside.length}`);
+  const word = (id: string) => new RegExp(`(^|[^A-Za-z0-9_])${id}([^A-Za-z0-9_]|$)`);
+  const leaks = (text: string) => outside.filter(id => word(id).test(text));
+  const refs: [string, string, string][] = [['indicator', 'indicator', 'value'], ['flow', 'metric', 'value'], ['pattern', 'type', 'state'],
+    ['xsection', 'metric', 'value'], ['universe', 'attr', 'value']];
+  const bad: [string, unknown][] = [['a number', 7], ['null', null], ['a list', ['X_PLANTED']], ['an object', { id: 'X_PLANTED' }], ['no id', undefined]];   // the sender's own value may be echoed; a registry id may not
+  const def = (kind: string, key: string, test: string, v: unknown) => {
+    const ref: Record<string, unknown> = { kind, ...(kind === 'universe' ? {} : { params: {} }), ...(v === undefined ? {} : { [key]: v }) };
+    const t = test === 'state' ? { kind: 'state', pattern: ref } : { kind: 'value', metric: ref, op: 'gt', value: 0 };
+    return { universe: U, conditions: [{ id: 'a', enabled: true, test: t }], logic: 'all' };
+  };
+  const context = { allow: allowed, limits: {} };
+  const bodies: [string, (d: unknown) => unknown][] = [
+    ['/v1/validate', d => ({ schema_version: 1, definition: d, context })],
+    ['/v1/run', d => ({ schema_version: 1, client_order: { page: 'p', seq: 3 }, data_version: dataVersion(), definition: d, context })],
+    ['/v1/preview', d => ({ schema_version: 1, client_order: { page: 'p', seq: 4 }, data_version: dataVersion(), definition: d, ticker: ticker(), context })],
+    ['/v1/counts', d => ({ schema_version: 1, data_version: dataVersion(), definitions: [{ item_id: 'x', definition: d }], context })],
+  ];
+  const seen: string[] = [];
+  for (const [kind, key, t] of refs) for (const [what, v] of bad) for (const [path, body] of bodies) {
+    const r = await call(port, 'POST', path, body(def(kind, key, t, v)), auth(OWNER_A));
+    const text = JSON.stringify(r.body);
+    const error = path === '/v1/counts' ? r.body.counts?.[0]?.error : r.body.error;
+    assert.ok(error, `${path} ${kind} ${what}: refused (${r.status} ${text.slice(0, 300)})`);
+    assert.deepEqual(leaks(text), [], `${path} ${kind}.${key} ${what}: ${text.slice(0, 600)}`);
+    // the gate's own answer: the field of the id, no list
+    assert.deepEqual([r.status === 200 ? 422 : r.status, error.code, String(error.field).endsWith(`.${key}`), 'allowed' in (error.details ?? {})], [422, 'INVALID_CONDITION', true, false], `${path} ${kind} ${what}: ${text.slice(0, 400)}`);
+    seen.push(`${error.code}`);
+  }
+  // an id the plan holds, under a reference kind it is not: the gate passes it (the id is held) and the core lists its
+  // kind's ids (catalog.ts metricSpec); the answer leaves the worker with that list cut to the items held (forAllow)
+  for (const [kind, key] of [['xsection', 'metric'], ['universe', 'attr']] as const) for (const [path, body] of bodies) {
+    const r = await call(port, 'POST', path, body(def(kind, key, 'value', 'breakout')), auth(OWNER_A));
+    const text = JSON.stringify(r.body);
+    const error = path === '/v1/counts' ? r.body.counts?.[0]?.error : r.body.error;
+    assert.equal(error?.code, 'INVALID_CONDITION', `${path} ${kind}: ${text.slice(0, 400)}`);
+    assert.deepEqual(leaks(text), [], `${path} ${kind}.${key} held id of another kind: ${text.slice(0, 600)}`);
+  }
+  assert.ok(seen.every(c => c !== 'INTERNAL_ERROR'), seen.join(' '));
+  // the principal holding every item still reads the normalizer's own lists (they are the admin's to see)
+  const admin = await call(port, 'POST', '/v1/validate', { schema_version: 1, definition: def('flow', 'metric', 'value', 7), context: { allow: ALL, limits: {} } }, auth(OWNER_A));
+  assert.equal(admin.status, 422, JSON.stringify(admin.body));
+  assert.ok(word('FL02').test(JSON.stringify(admin.body)), JSON.stringify(admin.body));
+});
+
+test('forAllow cuts a registry list to the items held and leaves every other refusal as it is', () => {
+  const allow = parseContext({ allow: { indicator: ['I01'], flow_indicator: [], candle_pattern: [], screener_metric: [] }, limits: {} }).allow;
+  const listed = forAllow({ code: 'UNKNOWN_INDICATOR', field: 'definition.conditions[0].test.metric.indicator', message: 'use one of I01, I02', details: { allowed: ['I01', 'I02', 'I03'] } }, allow);
+  assert.deepEqual(listed.details?.allowed, ['I01']);
+  assert.ok(!/I02|I03/.test(JSON.stringify(listed)), JSON.stringify(listed));
+  assert.equal(listed.code, 'UNKNOWN_INDICATOR');
+  assert.equal(listed.field, 'definition.conditions[0].test.metric.indicator');
+  const ops = { code: 'INVALID_CONDITION', field: 'f.op', message: 'f.op must be one of gt, lt.', details: { allowed: ['gt', 'lt'] } };
+  assert.deepEqual(forAllow(ops, allow), ops);                                   // no item in the list: unchanged
+  const own = { code: 'UNKNOWN_INDICATOR', message: 'x', details: { allowed: ['I01', 'I02'] } };
+  assert.deepEqual(forAllow(own, ALLOW_ALL), own);                               // everything held: unchanged
+  assert.deepEqual(forAllow(own, null), own);                                    // no allow read yet (a malformed body)
 });

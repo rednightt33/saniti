@@ -19,6 +19,12 @@
    allow out and get ALLOW_ALL; only the HTTP layer (server.ts) reads it. */
 import type { Limits } from '../../edge-bff/backtest/src/core/contract.ts';
 import { WorkerError, invalid } from './errors.ts';
+import type { ErrorBody } from './errors.ts';
+import { BY_ID } from '../../edge-bff/backtest/src/core/registry.ts';
+import { CANDLE_IDS } from '../../edge-bff/backtest/src/core/candles.ts';
+import { FLOW_BY_ID } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import { SHOWN_ATTRIBUTES } from '../../edge-bff/screener/src/core/catalog.ts';
+import SCREENER_METRICS from '../../edge-bff/screener/src/core/screener-metrics.json' with { type: 'json' };
 
 export const ALLOW_KINDS = ['indicator', 'flow_indicator', 'candle_pattern', 'screener_metric'] as const;
 export type AllowKind = (typeof ALLOW_KINDS)[number];
@@ -106,4 +112,38 @@ export function requireItem(allow: Allow, kind: AllowKind, id: string, field: st
     // re-check R1-34: the person reads the item, never the internal key (it stays in details.capability)
     `${field}: the ${WORDS[kind]} ${id} is not included in your plan; remove it or change the plan to run this strategy.`,
     field, { kind, id, capability });
+}
+
+/** Whether `allow` holds every item (the internal calls' ALLOW_ALL, or "*" for every kind). */
+export const holdsEverything = (allow: Allow): boolean => allow === ALLOW_ALL || ALLOW_KINDS.every(k => allow[k] === '*');
+/** Every catalog item id with its allow kind, derived from the registries the validation looks items up in (the
+    indicator, Flow and candlestick registries and the Screener's metrics; a universe attribute every answer shows is no
+    item). */
+const ITEM_KIND: ReadonlyMap<string, AllowKind> = (() => {
+  const m = new Map<string, AllowKind>();
+  for (const x of (SCREENER_METRICS as { metrics: { id: string }[] }).metrics) if (!SHOWN_ATTRIBUTES.has(x.id)) m.set(x.id, 'screener_metric');
+  for (const id of Object.keys(BY_ID)) m.set(id, 'indicator');
+  for (const id of Object.keys(FLOW_BY_ID)) m.set(id, 'flow_indicator');
+  for (const id of CANDLE_IDS) m.set(id, 'candle_pattern');
+  return m;
+})();
+const heldBy = (allow: Allow, v: unknown): boolean => {
+  const kind = typeof v === 'string' ? ITEM_KIND.get(v) : undefined;
+  if (!kind) return true;                                              // not an item: an output, an option, an operator
+  const a = allow[kind];
+  return a === '*' || a.includes(v as string);
+};
+/** A refusal as it may leave the worker for a principal (test-out wf_c72ae04c-a73, L2-CAT-3: no refusal to a principal
+    whose allow is not everything names an item outside it). The Screener validation's refusals that list the registry
+    carry the list in details.allowed; one that lists an item outside allow keeps its code and field, its list is cut
+    to the items held and its message, made from that list, names the field only. validate.ts refuses the references the
+    lists would answer (an id that is not a string or is missing, a legacy type the core does not know) before the
+    validation runs; this is the rule where the answer leaves (server.ts: every request refusal and a job's error). */
+export function forAllow(error: ErrorBody, allow: Allow | null): ErrorBody {
+  const list = (error.details as { allowed?: unknown } | undefined)?.allowed;
+  if (!allow || holdsEverything(allow) || !Array.isArray(list) || list.every(v => heldBy(allow, v))) return error;
+  const kept = list.filter(v => heldBy(allow, v)), f = error.field ?? 'request';
+  return { code: error.code, ...(error.field ? { field: error.field } : {}),
+    message: `${f}: not a value your plan offers here; use one of the items the catalog lists for you${kept.length ? ` (${kept.join(', ')})` : ''}.`,
+    details: { ...error.details, allowed: kept } };
 }

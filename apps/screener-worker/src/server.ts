@@ -54,7 +54,8 @@ import type { ComputeThread } from './pool.ts';
 import type { PreviewOutcome, PreviewTask } from './preview.ts';
 import { Refresher, TerminalApi } from './refresh.ts';
 import type { Held, RefreshHost } from './refresh.ts';
-import { countsAnswer, countsEnvelope, effectiveLimits, estimateCost, gate, gateSent, newCostTracker, normalize, presetItems, previewEnvelope, resultKey, runEnvelope, validateEnvelope } from './run.ts';
+import { countsAnswer, countsEnvelope, effectiveLimits, estimateCost, forAllow, gate, gateSent, newCostTracker, normalize, presetItems, previewEnvelope, resultKey, runEnvelope, validateEnvelope } from './run.ts';
+import type { Allow } from './run.ts';
 import type { CountsEntryOut, CountsTask, Envelope, Estimate, RunOptionsN, RunOutcome, RunTask } from './run.ts';
 import { flowContextOf, groupingsOf, materialize, referenceHash } from './snapshot.ts';
 import type { BuildStats, SnapshotDesc, SnapshotReference, TickerEntry } from './snapshot.ts';
@@ -443,7 +444,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     if (typeof tag !== 'string' || !WORKER_OWNER_TAG.test(tag)) throw refuse('INVALID_INPUT', `${WORKER_OWNER_HEADER} must be 16 lowercase hex characters (the first 16 hex of HMAC-SHA256(SCREENER_WORKER_KEY, owner_key)).`, WORKER_OWNER_HEADER);
     return tag;
   }
-  async function route(req: http.IncomingMessage, res: http.ServerResponse, path: string, raw: Buffer | null, arrived: number): Promise<void> {
+  async function route(req: http.IncomingMessage, res: http.ServerResponse, path: string, raw: Buffer | null, arrived: number, asked: { allow: Allow | null }): Promise<void> {
     const method = req.method ?? 'GET';
     const allow = (m: string) => { if (method !== m) throw new HttpError(405, 'METHOD_NOT_ALLOWED', `Use ${m}.`) };
     if (path === '/health') { allow('GET'); return sendJson(res, 200, health()) }
@@ -457,11 +458,12 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     const owner = ownerOf(req), deadlineAt = arrived + L.deadline_ms;
     /* EXEC-MU-ACCOUNTS Phase 3b (CONTRACT 8b "3b in detail"): the request's ceilings, min(SCREENER_*, context.limits),
        and the snapshot as normalize sees it with the plan's max_conditions and max_metric_filters (validate.ts reads
-       them from vctx.limits). The order on validate, run, preview and counts: restrict (the rights) on the definition
-       as sent, before normalize can name a parameter of an admin-only version (ERRORS M521); normalize; then gate
-       (restrict again, then context.allow, checkAllow), before any cache read: the result and counts caches are keyed
-       by the publication and the definition only (6d.2), so a result an admin filled is never served to a principal
-       without one of its items. */
+       them from vctx.limits). The order on validate, run, preview and counts: gateSent (restrict, the rights, then
+       context.allow, checkAllow) on the definition as sent, before normalize can name a parameter of an admin-only
+       version (ERRORS M521) or list the registry (3f L2); normalize; then gate (restrict and checkAllow again on the
+       normalized definition), before any cache read: the result and counts caches are keyed by the publication and the
+       definition only (6d.2), so a result an admin filled is never served to a principal without one of its items.
+       Every refusal leaves through forAllow with the principal's allow (`asked`, set once the envelope is read). */
     const limitsOf = (e: Envelope): Limits => effectiveLimits(L, e.limits);
     const forPlan = (s: Snap, lim: Limits): Snap => lim.max_conditions === L.max_conditions && lim.max_metric_filters === L.max_metric_filters ? s
       : { ...s, vctx: { ...s.vctx, limits: { ...s.vctx.limits, max_conditions: lim.max_conditions, max_metric_filters: lim.max_metric_filters } } };
@@ -470,6 +472,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     if (path === '/v1/validate') {
       allow('POST');
       const e = validateEnvelope(parseJson(raw));
+      asked.allow = e.allow;                                     // every refusal from here on goes out through forAllow
       const s = current;
       if (!s) throw notReady();
       gateSent(e.definition, e);                                 // M521, 3f L2: rights and allow before normalize
@@ -481,6 +484,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     if (path === '/v1/run') {
       allow('POST');
       const e = runEnvelope(parseJson(raw));
+      asked.allow = e.allow;
       const s = await pinned(e.data_version), lim = limitsOf(e);
       gateSent(e.definition, e);                                 // M521, 3f L2: rights and allow before normalize
       const n = await engine.normalize(e.definition, forPlan(s, lim));
@@ -497,6 +501,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     if (path === '/v1/preview') {
       allow('POST');
       const e = previewEnvelope(parseJson(raw));
+      asked.allow = e.allow;
       const s = await pinned(e.data_version), lim = limitsOf(e);
       gateSent(e.definition, e);                                 // M521, 3f L2: rights and allow before normalize
       const n = await engine.normalize(e.definition, forPlan(s, lim));
@@ -525,6 +530,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     if (path === '/v1/counts') {
       allow('POST');
       const e = countsEnvelope(parseJson(raw), L.max_counts);          // max_counts: min(own, context.limits) there
+      asked.allow = e.allow;
       const s = await pinned(e.data_version), lim = limitsOf(e), sp = forPlan(s, lim);
       const defs = e.definitions ?? [];
       const entries: (CountsEntryOut | null)[] = [], items: CountsTask['items'] = [];
@@ -567,6 +573,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       }
       // every entry is counts or an error (contract.ts CountsEntry), in request order; an item without an answer is its error
       const answer = countsAnswer(defs, entries, computed);
+      for (const c of answer.counts) if ('error' in c && c.error) c.error = forAllow(c.error, e.allow);     // every entry's refusal
       if (answer.missing.length) log('error', 'counts_entry_missing', { data_version: s.price_data, owner_tag: owner, item_ids: answer.missing.slice(0, 5), missing: answer.missing.length });
       const body = { versions: { ...s.desc.versions }, data: { ...s.desc.data }, counts: answer.counts };
       const json = Buffer.from(JSON.stringify(body));
@@ -592,13 +599,14 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
   const server = http.createServer((req, res) => {
     const t0 = performance.now(), path = (req.url ?? '/').split('?')[0];
     if (path !== '/health' && path !== '/ready') res.once('close', () => log('info', 'http', { method: req.method, path, status: res.statusCode, ms: Math.round(performance.now() - t0) }));
+    const asked: { allow: Allow | null } = { allow: null };       // the principal's allow once its envelope is read
     const failed = (e: unknown) => {
       if ((e as Error)?.name === 'CallerLeft') return;
       const x = e instanceof ThreadStopped ? new HttpError(500, e.code === 'ERR_WORKER_OUT_OF_MEMORY' ? 'OUT_OF_MEMORY' : 'INTERNAL_ERROR', 'The compute thread stopped; the error is in the worker log.') : e;
       const a = toApiError(x);
       if (!a.known) log('error', 'request_failed', { path, ...errorFields(e, true) });
       if (res.destroyed) return;
-      if (!res.headersSent) sendJson(res, a.status, { error: a.error }, a.headers); else res.destroy();
+      if (!res.headersSent) sendJson(res, a.status, { error: forAllow(a.error, asked.allow) }, a.headers); else res.destroy();
     };
     // the body is read to its end before the answer (the connection stays usable), at most SCREENER_MAX_REQUEST_BYTES
     // of it kept; the body of a caller without the key is read and dropped
@@ -607,7 +615,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     req.on('data', (c: Buffer) => { if (!keep || over) return; size += c.length; if (size > L.max_request_bytes) { over = true; parts.length = 0 } else parts.push(c) });
     req.on('end', () => {
       if (over) return failed(refuse('REQUEST_TOO_LARGE', `The request has more than ${L.max_request_bytes} bytes: remove conditions or filters.`, 'body', { limit: 'request_bytes', allowed: L.max_request_bytes }));
-      route(req, res, path, keep && parts.length ? Buffer.concat(parts) : null, performance.now()).catch(failed);
+      route(req, res, path, keep && parts.length ? Buffer.concat(parts) : null, performance.now(), asked).catch(failed);
     });
     req.on('error', () => res.destroy());
   });

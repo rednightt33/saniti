@@ -16258,7 +16258,8 @@ Order of the services (CONTRACT 17, rollback floors):
         the same way.
       - The public Terminal and Backtest builds are byte-identical to before 3f (built from `ec1bd29c` in a separate
         worktree and compared). The lab builds equal them but for the base path. The workers' hashed sources are
-        untouched: the Backtest engine stays `f984058aaaf38748`.
+        untouched: the Backtest engine stays `f984058aaaf38748` (at 3f; TR-2 and the test-out fix round of 2026-11-22
+        changed it since, and the worker's `/health` names the current one).
       - The tab catalogs list a lab item only to its holders (`catalog.tab_list`). ERRORS M520: the Screener worker
         dropped the core's admin mark, so six admin-only Flow versions reached every principal with the Screener; it
         copies the mark now. The Screener engine version changes once, through `src/catalog.ts`.
