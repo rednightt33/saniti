@@ -96,8 +96,7 @@ LAB_ITEM_HELD_UNTIL = (
     'and counts check the allow before they look items up; checker L2, CAT-3)',
     'one registration point for lab formulas is loaded by both registry generators and both workers, with '
     'terminal/src/lab in both engine versions (checker TR-2, B3)',
-    "the live site runs 3f's server part: until `live` moves past ec1bd29c, its edge-bff lists a lab item of the shared "
-    "workers' catalogs to every principal (checker L5)",
+    # checker L5 (the live site runs 3f's server part) closed 2026-11-21: `live` 4b35b5ed holds ec1bd29c
     # 3f round 2 of the checker (ERRORS M523)
     "the Terminal keeps a saved chart entry whose definition its build lacks, as it keeps a locked one, so one public "
     "build session of the admin's own account (the live site always serves it; the preferences are shared) no longer "
