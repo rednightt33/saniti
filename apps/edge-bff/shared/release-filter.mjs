@@ -21,7 +21,11 @@ export const RELEASES = path.join(EDGE_BFF, 'catalog', 'releases.json');
 const asList = (key) => ({ list: d => d[key], put: (d, l) => ({ ...d, [key]: l }) });
 /** Every file a page may import that names items, by its path under apps/edge-bff: a list of entries with their ids
     (`list`, or several lists with their kinds), or an object keyed by item id (`keyed`). terminal/tests/lab/coverage.test.mjs
-    derives the files a public entry reaches that name a release-file id, and fails on one this list does not cover. */
+    derives the files a public entry reaches that name a release-file id, and fails on one this list does not cover.
+    Defence in depth (ERRORS M523, BUN2-7): candle-registry, screener-metrics, presets and screener-registry are reached by
+    no public page entry today (the workers and the generators read them); they stay listed so that a page that starts
+    importing one is filtered from its first build, and terminal/tests/lab/plant.mjs plants and imports every file listed
+    here, so the proof builds hold these four too. */
 export const REGISTRIES = [
   { file: 'terminal/src/data/indRegistry.json', kind: 'indicator', list: d => d, put: (d, l) => l },
   { file: 'terminal/src/data/flowRegistry.json', kind: 'flow_indicator', ...asList('indicators') },

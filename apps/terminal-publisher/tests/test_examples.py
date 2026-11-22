@@ -111,6 +111,68 @@ def test_the_radar_files_keep_only_the_boards_opening_view():
     assert opening_view(m, d, b) == opening_view(meta, days, board)          # the page draws the same opening view
 
 
+def radar_fixture():
+    """The opening-view fixture of the test above (meta, days, board, as_of), built again so a test may plant in it."""
+    filters = [{'id': 'S1', 'position': 1, 'column': 'S1', 'column_label': 'S1', 'variant': None, 'default_variant': True,
+                'name': 'n1', 'question': 'q', 'warning': 'w', 'sort_label': 's', 'own_levels': False}]
+    dates = [f'2026-10-{d:02d}' for d in range(1, 31)]
+    board = {'schema': 1, 'date': dates[-1],
+             'stocks': {'ticker': ['HIT1'], 'close': [100.0], 'chg_1d': [1.0], 'spark': [[1.0, 2.0]]},
+             'rows': {'filter': ['S1'], 'stock': [0], 'level': ['standard'], 'gate': ['broad'], 'status': ['hit'],
+                      'met': [3], 'cond_n': [2], 'run_day': [1], 'left_reason': [None], 'strong': [None],
+                      'sort_value': [1.0], 'flag': [None]},
+             'measures': {'columns': list(radar.MEASURES), 'values': [[1.0] * len(radar.MEASURES)]}}
+    days = {'schema': 1, 'dates': dates, 'gate': {k: [1] * 30 for k in examples.RADAR_GATE_KEYS},
+            'counts': {'S1': {'standard/broad': list(range(30))}}, 'ihsg': [7000.0] * 30, 'broker_through': dates[-1],
+            'prices_through': dates[-1], 'boards': dates[-3:]}
+    meta = {'schema': 1, 'levels': list(radar.LEVELS), 'gates': list(radar.GATES), 'filters': filters, 'rules': [],
+            'names': {'HIT1': 'Company HIT1'}, 'lists': []}
+    return meta, days, board, dates[-1]
+
+
+def test_a_field_the_radar_cut_does_not_name_never_reaches_the_files():
+    """The test-out of 2026-11-22 (guest-exposure-2): the cut copied every field it did not know whole (`{**board, ...}`),
+    so a later publisher field, near misses or measures in a new key, would reach visitors. It keeps by name at every
+    depth: a field planted at the board, its stocks and rows, the days, their gate cuts, the meta and a filter is left
+    out, and the files are the same as without it. Red on the spread."""
+    meta, days, board, as_of = radar_fixture()
+    clean = examples.radar_opening(meta, days, board, as_of)
+    meta, days, board, as_of = radar_fixture()
+    secret = 'PLANTED_7f3a'
+    board['near_misses'] = [secret]
+    board['stocks']['measure_x'] = [secret]
+    board['rows']['why'] = [secret]
+    days['near_counts'] = {secret: [1] * 30}
+    days['gate']['hidden_cut'] = [secret] * 30
+    meta['thresholds'] = [secret]
+    meta['filters'][0]['rule_text'] = secret
+    planted = examples.radar_opening(meta, days, board, as_of)
+    assert secret not in json.dumps(planted) and 'near_misses' not in json.dumps(planted)
+    assert json.dumps(planted) == json.dumps(clean)                                 # the same bytes as without the plants
+
+
+def test_the_radar_cut_names_every_field_the_publisher_writes():
+    """Keep by name fails closed, so a field the publisher adds is left out of the example without a word; this test
+    makes it a decision: every field radar.py writes now in radar-meta (and its filters), radar-days (and its gate) and a
+    board (its stocks and rows) is one the cut names (examples.RADAR_*_KEYS) or leaves out on purpose
+    (examples.RADAR_LEFT_OUT)."""
+    docs = {n: d for n, (d, *_) in built(conn()).items()}
+    board = next(d for n, d in docs.items() if n.startswith('radar-board-'))
+    meta, days = docs['radar-meta'], docs['radar-days']
+    E = examples
+    named = {'meta': E.RADAR_META_KEYS, 'filters': E.RADAR_FILTER_KEYS, 'days': E.RADAR_DAYS_KEYS,
+             'gate': E.RADAR_GATE_KEYS, 'board': E.RADAR_BOARD_KEYS, 'stocks': ('ticker',) + E.RADAR_STOCK_KEYS,
+             'rows': E.RADAR_ROW_KEYS + E.RADAR_ROW_NULLED}
+    written = {'meta': set(meta), 'filters': {k for f in meta['filters'] for k in f}, 'days': set(days),
+               'gate': set(days['gate']), 'board': set(board), 'stocks': set(board['stocks']), 'rows': set(board['rows'])}
+    assert meta['filters'] and board['rows']['filter'], 'the fake build has no filter or no board row: nothing is compared'
+    for part, keys in written.items():
+        new = keys - set(named[part]) - set(E.RADAR_LEFT_OUT[part])
+        assert not new, (f'radar.py writes {sorted(new)} in {part}, which the example cut (examples.radar_opening) neither '
+                         f'keeps nor leaves out: name each in examples.py, kept if the opening view shows it, else in '
+                         f'RADAR_LEFT_OUT["{part}"]')
+
+
 def test_the_radar_examples_reference_data_holds_no_stock_listed_or_member_added_after_its_date():
     """The example-mode checker (ERRORS M527): the names and the stock lists are today's tables (the lists' history
     starts at their first capture), so a stock listed later and a list's later member would show in a file of a past

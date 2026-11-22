@@ -3292,7 +3292,7 @@ change yet.
 - **Solution built (the user's go 2026-11-19, EXEC.md EXEC-MU-ACCOUNTS "Decisions from the fix round" item 6, "a"):**
   `terminal_access.relayed`, the one rule of every terminal-api answer edge-bff relays, passes an acknowledged 2xx JSON
   answer through `client.public_data`; `tests/test_decisions_small.py` walks every route that calls terminal-api (M483).
-- **Status:** fixed on branch fix-int2, not deployed (M483).
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta (M483).
 - **Lesson:** what may reach the browser is filtered in one relay helper that every route uses, and a test that walks
   the routes proves it.
 
@@ -5553,7 +5553,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Lesson:** a hold on a size is taken when the content is at rest, and the check of a fix includes the path the user
   takes into it (here: from the chart onto the row), not only the path out.
 
-### M387 — Terminal: Broker summary panel's "Avg" in Net mode was not a price (2026-11-07, fixed on branch)
+### M387 — Terminal: Broker summary panel's "Avg" in Net mode was not a price (2026-11-07; FIXED in `7819dc99`, deployed with `81146306`, on the live site)
 
 - **Found by:** QA agent 2 of the five-agent round (user 2026-11-07: "jalankan 5 agents sonnet 5.5 high"), finding S-01.
 - **Verified cause** (`apps/edge-bff/terminal/src/app/broker.ts`, Broker summary rows; read back in the code): in Net mode
@@ -5566,7 +5566,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   the header with how it is computed, and "–" without lots. The fixture keeps the reference (1:1 check).
 - **Lesson:** an average price is always a gross value over its own gross volume; a net figure has no price.
 
-### M388 — Terminal: Broker inventory's "position" read as the shares a broker holds (2026-11-07, fixed on branch)
+### M388 — Terminal: Broker inventory's "position" read as the shares a broker holds (2026-11-07; FIXED in `7819dc99`, deployed with `81146306`, on the live site)
 
 - **Found by:** QA agent 2, finding S-02.
 - **Verified cause** (`data/brokerAgg.ts inventory`, `app/popout.ts renderInv`, `app/broker.ts renderInvLive`): the
@@ -5577,7 +5577,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   shares held", the start date in the table's tooltips, and "broker data starts here" when the view starts earlier.
 - **Lesson:** a cumulative figure names its start date wherever it is shown.
 
-### M389 — Terminal: figures rounded after their category, sum or colour was decided (2026-11-07, fixed on branch)
+### M389 — Terminal: figures rounded after their category, sum or colour was decided (2026-11-07; FIXED in `7819dc99`, deployed with `81146306`, on the live site)
 
 - **Found by:** QA agents 1, 3 and 5 (F1-F4, F10; Q4; F1, F6, F7).
 - **Verified causes:**
@@ -5598,7 +5598,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   and gives no Δ across a gap. Empty days are whitespace in every line and histogram series (`app/indicators.ts`).
 - **Lesson:** round once, then derive everything shown from the rounded figure; never delete an empty period from a series.
 
-### M390 — Terminal: labels and messages that hid what a number is (2026-11-07, fixed on branch)
+### M390 — Terminal: labels and messages that hid what a number is (2026-11-07; FIXED in `7819dc99`, deployed with `81146306`, on the live site)
 
 - **Found by:** QA agents 1-5 (titles Q3/F3/F2-01/F2-09, denominators Q6/F2-04/F2-05, empty states Q2/F2-03/F2-07/F4/F5/F9,
   index S-03, cohort lean Q1/F2-08, and the small items of all five reports).
@@ -5688,7 +5688,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** FIXED, live on dev 2026-11-08 (PR #62, merge `31572848`).
 - **Lesson for new data:** a new metric kind states its output type, so the operators it takes follow from the catalog.
 
-### M400 — Screener: refusals of a pattern or another value that is not a series had no reason, way to pass or example (2026-11-08, fixed on branch)
+### M400 — Screener: refusals of a pattern or another value that is not a series had no reason, way to pass or example (2026-11-08; FIXED with PR #62 `31572848`, on the live site)
 
 - **Found by:** QA unit C (QA3 items 1 and 2).
 - **Symptom:** `of: a "pattern" reference is not a series on the ticker's bars; use it where its test form allows it.`
@@ -5708,7 +5708,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** FIXED, live on dev 2026-11-08 (PR #62). Not covered: other test-form refusals (for example `ma` of a series in a
   value test) still give no example (a separate class).
 
-### M401 — Screener worker: a pattern's cost length was its largest parameter (2026-11-08, fixed on branch)
+### M401 — Screener worker: a pattern's cost length was its largest parameter (2026-11-08; FIXED with PR #62 `31572848`, on the live site)
 
 - **Found by:** QA unit C (QA4 item 1).
 - **Symptom:** the default Hammer predicted 36 ms for 116-125 ms busy (150 stocks x 1,330 bars); Hammer with
@@ -5980,7 +5980,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 
 ### M412 — Terminal in EDGE: two Statistics buttons while the Terminal loads (2026-11-09, fixed, on dev `840aecde`)
 
-### M417 — Screener smoke run did not start since 2026-11-08 (a quote in a step name); five steps fail once it runs (2026-11-09; numbered M413 in its branch commit, renumbered at the merge as main had taken M413-M416;, syntax fixed on branch, five steps open)
+### M417 — Screener smoke run did not start since 2026-11-08 (a quote in a step name); five steps fail once it runs (2026-11-09; numbered M413 in its branch commit, renumbered at the merge as main had taken M413-M416; the syntax FIXED in `e50d5669`, on the live site; the five steps OPEN)
 
 - **Found by:** EXEC-SCREENER-STOCK-LISTS steps 3-5, running `node tests/smoke/smoke.mjs` on commit 1a28d2ca.
 - **Symptom:** `SyntaxError: missing ) after argument list` at `tests/smoke/smoke.mjs:315`; no step ran.
@@ -5995,7 +5995,9 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   with its hint). They fail the same with the stock-list branch; the stock-list steps pass.
 - **Class:** a test file that cannot be parsed passes silently in every check that does not run it.
 - **Lesson:** a smoke or check script edited in a commit is run (or at least `node --check`ed) in the same commit.
-- **Status:** syntax fixed on branch; the five failing steps OPEN (not diagnosed here: outside the stock-list scope).
+- **Status:** the syntax FIXED in `e50d5669` (on `main` 2026-11-09; `node --check` passes on
+  `apps/edge-bff/screener/tests/smoke/smoke.mjs` today; on the live site, rule 9 correction 2026-11-22); the five failing
+  steps OPEN (not diagnosed here: outside the stock-list scope).
 
 ### M412 — Terminal in EDGE: two Statistics buttons while the Terminal loads (2026-11-09, fixed)
 
@@ -6029,7 +6031,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   code`). The only monospace left is Consolas for code in an exported Word file (`static/edge-docx.js`), not the page.
   Search used: `monospace|Consolas|Menlo|SFMono|Courier` over terminal/src, screener/src and static.
 
-### M409 — Screener: a catalog default in rupiah shown raw in an Rp B field (ADV "> 10000000000 Rp B", 0 matches) (2026-11-08, fixed on branch)
+### M409 — Screener: a catalog default in rupiah shown raw in an Rp B field (ADV "> 10000000000 Rp B", 0 matches) (2026-11-08; FIXED in `63036b07`, on the live site)
 
 - **Symptom:** Add a condition -> Average daily value (20 sessions) opened at "Greater than 10000000000 Rp B". Added as
   is, the wire value was 1e19 rupiah and no stock passed (fixture run: 0 matches).
@@ -6050,7 +6052,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   the field. A new scaled unit is added to `displayScale` only.
 - **Status:** fixed on branch, released with EXEC-SCREENER-ADD-FIT.
 
-### M410 — Screener Add a condition: 37 names and 55 descriptions cut with "…" at 1440 and 1920 px (2026-11-08, fixed on branch)
+### M410 — Screener Add a condition: 37 names and 55 descriptions cut with "…" at 1440 and 1920 px (2026-11-08; FIXED in `63036b07`, on the live site)
 
 - **Symptom:** names such as long flow indicators and most one-sentence descriptions ended in an ellipsis.
 - **Verified cause:** the timeframe column (five spans 5m-Daily) took 236 px of a window capped at 1320 px, the name
@@ -6072,7 +6074,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   refused with the card's message. Open; not caused by this change.
 - **Status:** fixed on branch, released with EXEC-SCREENER-ADD-FIT.
 
-### M408 — UI audit 2026-11-08: 27 frontend defects found by five auditors (2026-11-08, fixed on branch)
+### M408 — UI audit 2026-11-08: 27 frontend defects found by five auditors (2026-11-08; FIXED in `3b0f9106`, on the live site)
 
 - **Found by:** the five-agent visual audit (`verification/ui_audit_20261108/REPORT.md`, sections B and F).
 - **Most severe (P1), verified causes:**
@@ -6095,7 +6097,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - make a resizable container's rows respond to the container (container queries);
   - keep a pressed control in place until its click.
 
-### M406 — Screener Screen builder: an empty band under "Search indicators to add" (2026-11-08, fixed on branch)
+### M406 — Screener Screen builder: an empty band under "Search indicators to add" (2026-11-08; FIXED in `0132bdab`, on the live site)
 
 - **Found by:** the user (screenshot, the band marked red).
 - **Symptom:** 46 px of empty space between the search box and the first condition card.
@@ -6107,7 +6109,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Verified:** fixture page, two conditions: the first card starts 10 px under the search box.
 - **Lesson:** reserve room for an element with a selector that requires the element.
 
-### M407 — Terminal: Ctrl+Z after picking a broker in the right panel removed the whole Broker Inventory indicator (2026-11-08, fixed on branch)
+### M407 — Terminal: Ctrl+Z after picking a broker in the right panel removed the whole Broker Inventory indicator (2026-11-08; FIXED in `0132bdab`, on the live site)
 
 - **Found by:** the user ("kalau kita klik Ctrl Z setelah kita menambahkan, maka client broker inventory langsung hilang").
 - **Verified cause:** `broker.ts` `pick` and `indicators.ts` `Ind.brokerPicked` changed the panel's list and the
@@ -7616,7 +7618,7 @@ restart stopped an external database job.
 - **Not the cause of the 2026-11-12 BBTN screenshot:** the older broker years failed then while every service ran
   (terminal-api read of the bucket cancelled at 07:41:09 UTC, 30 seconds after an edge-bff release).
 
-### M425 — Screener: "Open in Terminal" never opens the Terminal (2026-11-14, fixed on the branch; not deployed)
+### M425 — Screener: "Open in Terminal" never opens the Terminal (2026-11-14; FIXED in `60d610cc`, on the live site)
 
 - **Symptom:** in EDGE, a Screener row's Open in Terminal sets the ticker but the shell stays on the Screener.
 - **Verified cause (code, 2026-11-14):** the Screener posts an `edge-nav` message to its parent
@@ -7630,6 +7632,11 @@ restart stopped an external database job.
   (from the Radar frame to the Terminal; from the top page or to `login`: nothing). First placed as a component
   lifecycle of the app view, it broke the Sources list of an answer (`test_answer_view.py`, `.edge-source-ref` empty;
   cause not traced); as one listener for the page's life the whole suite passes.
+- **Status (rule 9 correction, 2026-11-22):** FIXED in `60d610cc` (EXEC-RADAR R7, merged to `main`), on the live site:
+  the listener now lives in the shell's `static/edge-app.js` (`frameTab`/`shellGo`, since `b36e621a`), and the Screener
+  still posts `{type: 'edge-nav', route: 'terminal'}` (`screener/src/preview.ts:323`). Tests: `tests/test_radar.py` and
+  `tests/test_overview.py` (a frame's message switches the shell; a message from the top page does not); no test sends it
+  from the Screener's own frame.
 - **Lesson:** a message one frame sends needs a test that the receiving frame acts on it.
 
 ### M426 — Feature 06 held rows of codes outside the universe until 2026-11-05 (2026-11-14, mitigated for the Radar)
@@ -9160,7 +9167,7 @@ in its staleness check.
 - **Lesson:** M528's again: before any push that touches `apps/edge-bff/app/main.py`, run
   `apps/screener-worker/tests/onboarding_pointers.test.ts` (and every suite of the two workflows), not only the app's own.
 
-### M532 — An account without chart drawings is told "Chart drawings is not part of your EDGE plan" as soon as it opens the Terminal, before it draws anything (2026-11-22; found by the contact-support panel's screenshots; older than Phase 4; FIXED on the branch with the user's go "3A")
+### M532 — An account without chart drawings is told "Chart drawings is not part of your EDGE plan" as soon as it opens the Terminal, before it draws anything (2026-11-22; found by the contact-support panel's screenshots; older than Phase 4; FIXED with the user's go "3A" in `135f8051`, on the beta)
 
 - **Seen:** a new free account (`register()` of the browser tests, the beta's switch-on test server) opens `/terminal`:
   the red toast "Chart drawings is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in."
@@ -9262,7 +9269,7 @@ in its staleness check.
   suite before pushing. A pointer whose symbol is dotted is checked by its last part only, so a common last part
   (`routes`) can hide a wrong line: cite such a line by a name that occurs on it alone.
 
-### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT on the branch for the five data pages and written on dev; the example-mode checker's findings FIXED on the branch; the Watchlist's list SETTLED by the user, its example on the latest data; ON THE LIVE SITE since 2026-11-21, `4b35b5ed`)
+### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT for the five data pages and written on dev, the example-mode checker's findings FIXED, the Watchlist's list SETTLED by the user and its example on the latest data `a30815c1`, on the live site since 2026-11-21, `4b35b5ed`; the Watchlist members' upcoming corporate actions, the user's "B" of 2026-11-22, in `1c972f22`, on the beta; the stored examples held to their release file, 2026-11-22, in `4d7d1a22`, on the branch, not deployed)
 
 - **Symptom:** since 20261117_003 the free plan holds `overview.example`, `radar.example`, `watchlist.example`,
   `screener.example` and `backtest.example`, yet no code read them: a free account and a visitor who is not signed in got
@@ -9459,13 +9466,50 @@ in its staleness check.
   field kept, the guard removed, a cache across publications, the broker date as the example's, no price date, the
   wrong relay, an empty list accepted, the catalog whole). Built after both checker runs: the deep checker (step 8)
   covers it.
+- **The stored examples follow the release file they are served under (2026-11-22, commit `4d7d1a22`; moved here from
+  M525, where it was first written; the lab gap of FUTURE_PLAN.md, the
+  user's go "Celah lab: go untuk butir 1-7 ... OK fix it"):** `app/examples.py` `released_view` (in `Stored.read`) cuts a
+  stored catalog's item lists to what the narrowest principal sees under the running release file, leaves out a preset
+  that is lab or reads an item left out, and withholds a tab's example (`EXAMPLE_UNAVAILABLE`, logged
+  `example_withheld` with the ids) when a file still names a lab item at a reference position (the grammars' keys, a
+  screen's preset, an entry's id; free text such as a synonym is not one). Unchanged bytes are served as stored.
+  Tests: `tests/test_examples_release_cut.py` (4: a Flow indicator cut from the Backtest catalog with the index's sha256
+  following; an indicator of the Backtest's exit line, not its entry, withholding the example while the Radar's stays;
+  a Screener metric taking its preset out while a synonym spelling it is left; the shown preset withholding the
+  example); two mutations red (no cut; references only beside a kind). Holds for the live site once `live` runs it
+  (tests/test_releases.py `LAB_ITEM_HELD_UNTIL` names it until then).
+- **The Radar cut keeps by name (2026-11-22, the test-out `wf_c72ae04c-a73`, guest-exposure-2, found partly fixed):**
+  `radar_opening` copied every field it did not know whole (`{**board, ...}`, `{**days, ...}`, `{**meta, ...}`), so a
+  later publisher field on the board, the days or the meta (near misses, measures in a new key) would reach visitors
+  unread: the fail-open mechanism the Overview had closed. Fix (`apps/terminal-publisher/examples.py`, `kept` and the
+  `RADAR_*_KEYS` names): every field kept is named at every depth (meta and each filter, days and its gate cuts, the
+  board, its stocks and rows; `met`, `cond_n`, `left_reason` stay null by position); an unnamed one is left out. The
+  output on today's shape is byte for byte the old one (the tests' fake build, the three files and `build`'s rows
+  hashed before and after), so the stored rows on dev need no new capture. Tests (`tests/test_examples.py`):
+  `test_a_field_the_radar_cut_does_not_name_never_reaches_the_files` (seven planted fields, one per depth, left out and
+  the bytes unchanged; red on the spread) and `test_the_radar_cut_names_every_field_the_publisher_writes` (the fields
+  `radar.meta_doc`, `days_doc` and `board_doc` write now, compared with the names; red on a `near_misses` field added
+  to `board_doc`). Not changed, with the reason: the Backtest and Screener capture builders (`backtest_catalog`,
+  `backtest_shown`, the result's `kept`) also spread, but they store the worker's answer to the page's own request:
+  every field of the result is that one run, drawn on opening, with no part behind a click that the example leaves
+  out; and the catalog carries the fields every signed-in session gets from the live catalog route
+  (`apps/edge-bff/app/rights.py` `catalog_for` spreads the worker's catalog too), its item lists cut at serving time
+  by `released_view` (above). A new field there is a worker change for every account, reviewed as one. On the branch,
+  not deployed: the publisher is uploaded by CLI; until its next upload the stored rows are the same bytes.
+- **The storage-order check reads the code, not the lines (2026-11-22, the test-out, view-layer storage-order):** its
+  module-request pattern was anchored at a line's start, so `/* x */ import './app.ts';` (or a second statement on
+  one line) before the storage import passed. `apps/edge-bff/tests/test_example_storage.py` now reads the requests with
+  the comments blanked (string and template literals kept) and at a line's start or after a `;`; self-tests for a
+  comment-prefixed import, a block comment over lines, a second statement, a doc comment before a re-export (each
+  refused) and a commented-out import or a `//` inside a string (passed); red on each of the two old readings. No
+  page entry holds such a line today.
 - **Lesson for new data:** an example of a page is the files of its opening view, built by the publisher's own builder
   cut at one date and checked for later dates before it is stored; the server is the guarantee (it serves only those
   files, only to `<tab>.example`), the page only displays. A table whose history starts after the example's date says
   nothing about that date: the capture stops rather than infer it from later rows, and a trim or a check names its
   fields at every depth (a block copied whole, or a check of a field the data does not carry, checks nothing).
 
-### M526 — Saved screens kept a validation made under a wider context when only the rights differed; the live site lists and can cancel the admin's own beta Backtest jobs (2026-11-21; the review FIXED on the branch; the job history FIXED on the branch 2026-11-22, the user's "pisahkan per situs ... OK fix it", it holds for the live site once the live site runs it; predates 3f)
+### M526 — Saved screens kept a validation made under a wider context when only the rights differed; the live site lists and can cancel the admin's own beta Backtest jobs (2026-11-21; the review FIXED in `9723caf7`, on the live site; the job history, the user's "pisahkan per situs ... OK fix it" of 2026-11-22, FIXED in `97740c79` on the branch, not deployed: until then the live site lists the beta's jobs; predates 3f)
 
 - **Found by:** 3f's checker, round 2 (W4, unverified), then verified by its skeptic (`wf_d4d13dbc-fff`, xhigh) with
   local probes. No live row was read.
@@ -9484,8 +9528,16 @@ in its staleness check.
   every admin right of `rights.ADMIN_RIGHTS`, no plan limit); any other is validated again under its own context
   (`app/screener.py` Screeners.reviewed). Test: `tests/test_screener.py`
   test_a_saved_screen_is_taken_as_reviewed_only_under_the_widest_context (red on the allow-only trigger). The job
-  history is unchanged: whether a job is read and cancelled only on the site that queued it is the user's decision
-  (FUTURE_PLAN.md, "Before the first lab item or tab", open decisions).
+  history was left to the user (FUTURE_PLAN.md, "Before the first lab item or tab"); decided 2026-11-22, below.
+- **The job history, W4 (2026-11-22, commit `97740c79`; moved here from M525, where it was first written; the user: "Untuk W4, pisahkan per situs atau biarkan? OK fix it"):**
+  `BacktestStore` (`apps/edge-bff/app/backtest.py`) `find`, `job`, `jobs`, `cancel`, `part` and `has` take the site
+  (`AND site=%s`); `submit` refuses a submission key the other site used (`SUBMISSION_CONFLICT`, the key is unique per
+  owner over both sites). The queue limit, the one running job per owner and the variant records stay per owner.
+  Tests: `tests/test_beta_live_site.py` `test_a_site_lists_serves_and_cancels_only_the_backtests_queued_on_it` (another
+  case than the one observed: a finished job's parts and a reused key, not only the list) and
+  `test_every_owner_read_of_a_backtest_job_is_bound_to_the_site` (every owner query of the store, with the per-owner
+  rules named); three mutations red (the list, the parts, the key). The live site runs `4b35b5ed` until it is promoted:
+  until then it still lists the beta's jobs.
 - **Lesson:** a check cached under one context stands for another only when that one is the widest; derive the widest
   from the lists of kinds and rights, never from one part of the context.
 
@@ -9504,32 +9556,12 @@ in its staleness check.
   test_each_page_stage_builds_with_the_configuration_ci_builds_with, read from the Dockerfile: every page stage that
   copies another folder's `src/` copies its `tsconfig.json`, and every page stage takes `shared/` and the release file.
   Red on the old stage.
-- **W4, the job history (2026-11-22, the user: "Untuk W4, pisahkan per situs atau biarkan? OK fix it"):**
-  `BacktestStore` (`apps/edge-bff/app/backtest.py`) `find`, `job`, `jobs`, `cancel`, `part` and `has` take the site
-  (`AND site=%s`); `submit` refuses a submission key the other site used (`SUBMISSION_CONFLICT`, the key is unique per
-  owner over both sites). The queue limit, the one running job per owner and the variant records stay per owner.
-  Tests: `tests/test_beta_live_site.py` `test_a_site_lists_serves_and_cancels_only_the_backtests_queued_on_it` (another
-  case than the one observed: a finished job's parts and a reused key, not only the list) and
-  `test_every_owner_read_of_a_backtest_job_is_bound_to_the_site` (every owner query of the store, with the per-owner
-  rules named); three mutations red (the list, the parts, the key). The live site runs `4b35b5ed` until it is promoted:
-  until then it still lists the beta's jobs.
-- **The stored examples follow the release file they are served under (2026-11-22; the lab gap of FUTURE_PLAN.md, the
-  user's go "Celah lab: go untuk butir 1-7 ... OK fix it"):** `app/examples.py` `released_view` (in `Stored.read`) cuts a
-  stored catalog's item lists to what the narrowest principal sees under the running release file, leaves out a preset
-  that is lab or reads an item left out, and withholds a tab's example (`EXAMPLE_UNAVAILABLE`, logged
-  `example_withheld` with the ids) when a file still names a lab item at a reference position (the grammars' keys, a
-  screen's preset, an entry's id; free text such as a synonym is not one). Unchanged bytes are served as stored.
-  Tests: `tests/test_examples_release_cut.py` (4: a Flow indicator cut from the Backtest catalog with the index's sha256
-  following; an indicator of the Backtest's exit line, not its entry, withholding the example while the Radar's stays;
-  a Screener metric taking its preset out while a synonym spelling it is left; the shown preset withholding the
-  example); two mutations red (no cut; references only beside a kind). Holds for the live site once `live` runs it
-  (tests/test_releases.py `LAB_ITEM_HELD_UNTIL` names it until then).
-- **Status:** FIXED on the branch. At the next deploy the Backtest page bundle changes, on the beta and with the
-  promotion on the live site, to the one CI tests (the same source, its class fields compiled as ES2022).
+- **Status:** FIXED in `9723caf7`, on the live site since `4b35b5ed` (its image builds the Backtest page CI tests; the
+  `tsconfig.json` copies are in that commit's `apps/edge-bff/Dockerfile`).
 - **Lesson:** an image stage copies each source folder with the configuration that compiles it; the image and CI must
   build the same page.
 
-### M524 — The Screener worker's rights check overflowed the stack on a deeply nested request: 500 instead of 422 (2026-11-21; FIXED on the branch; caused by the fix of M521)
+### M524 — The Screener worker's rights check overflowed the stack on a deeply nested request: 500 instead of 422 (2026-11-21; FIXED in `9723caf7`, on the live site; caused by the fix of M521)
 
 - **Found by:** 3f's checker, round 2 (W2).
 - **Symptom:** a definition nested about 2,000 levels deep or more (a 5 KB body) answered 500 `INTERNAL_ERROR` (log
@@ -9643,6 +9675,16 @@ in its staleness check.
     Screener engine version moves with `src/catalog.ts`, `src/server.ts` and `src/run.ts`; the routes' order is written
     in server.ts); TRC2-9 (B5 below; the Dockerfile's pointer; `catalog.grant_key` removed: it had no caller, and M522
     disproved its docstring); BUN2-6; BUN2-7.
+  - BUN2-7, the part not written down until the test-out of 2026-11-22 (`wf_c72ae04c-a73`, records-ci): four of
+    `REGISTRIES` (`apps/edge-bff/shared/release-filter.mjs`) are reached by no public page entry today:
+    `backtest/src/core/candle-registry.json`, `screener/src/core/screener-metrics.json`, `screener/src/core/presets.json`
+    and `screener/src/core/screener-registry.json` (the import walk of `shared/import-walk.mjs` over every page entry,
+    public alias, reaches only indRegistry, flowRegistry, backtest-registry and compare-lag; the four are read by the
+    workers and the generators, which take the catalogs from the server). They stay in `REGISTRIES` as defence in depth:
+    the day a page imports one, its build filters it already. The proof holds them: `terminal/tests/lab/plant.mjs`
+    plants a released, a lab and an unlisted id in every `REGISTRIES` file and imports each into every page entry, so
+    the public builds are proven to drop the lab and unlisted ids of these four too. Not a defect; written here and
+    beside the list.
   - Corrections to round 1 above: B4 was fixed only in part (its `lists` branch is fixed now); TR-11 left the
     Dockerfile's pointer (fixed now); "the fixtures are in the lab builds and in no public file" held for the Terminal
     only (it holds for every bundle now).
@@ -9672,7 +9714,7 @@ in its staleness check.
   - A test is proven by turning it red on the defect it names; a test that also passes on the defect is a record, not a
     guard.
 
-### M522 — On the live site the admin and an account without screener.preset could share one copy of the Screener catalog (2026-11-21; FIXED on the branch; predates 3f)
+### M522 — On the live site the admin and an account without screener.preset could share one copy of the Screener catalog (2026-11-21; FIXED in `33c84c1f`, on the live site; predates 3f)
 
 - **Found by:** 3f's ultracode checker (CAT-4), confirmed by its skeptic with a probe.
 - **Verified root cause:**
@@ -9688,7 +9730,7 @@ in its staleness check.
   uses a plan without the preset row, in both orders. It fails with the old key.
 - **Lesson:** a cache key is made of what decides the answer, not of a summary that two different principals can share.
 
-### M521 — The Screener worker named the admin-only Flow versions' parameters to sessions without the right (2026-11-21; FIXED on the branch; predates 3f)
+### M521 — The Screener worker named the admin-only Flow versions' parameters to sessions without the right (2026-11-21; FIXED in `33c84c1f`, on the live site; predates 3f)
 
 - **Found by:** 3f's ultracode checker (L6), confirmed by its skeptic over HTTP on the real worker.
 - **Verified root cause:**
@@ -9791,7 +9833,7 @@ in its staleness check.
 - **Lesson:** a refusal about one of several ways states every way the client may offer next, derived where the
   state lives. A browser test checks the state after the answer is in, not while the request runs.
 
-### M518 — 3e's ultracode checker: a locked asset still asked for, a raised plan's preferences lost, a dead broker button and five smaller gaps (2026-11-20; FIXED on the branch)
+### M518 — 3e's ultracode checker: a locked asset still asked for, a raised plan's preferences lost, a dead broker button and five smaller gaps (2026-11-20; FIXED in `a5eb7a27`, on the live site)
 
 - **Found by:** the ultracode checker of 3e without the example mode (workflow `wf_0f14e7f0-edd`, three lenses and a
   skeptic per serious finding, every agent at xhigh). 5 findings confirmed (1 high, 3 medium, 1 low), none refuted,
@@ -9967,7 +10009,7 @@ in its staleness check.
   it. A flow that mails a code binds the code to the
   browser that asked.
 
-### M516 — The live smoke signed in with the admin's first password after the owner had replaced it (2026-11-20; FIXED in the smoke; the IHSG observation fixed on the branch with 3e)
+### M516 — The live smoke signed in with the admin's first password after the owner had replaced it (2026-11-20; FIXED in the smoke; the IHSG observation FIXED with 3e in `6ab9d1a9`, on the live site)
 
 - **Symptom:** step 2 of the go moved the live smoke into the repository
   (`verification/edge_multiuser/live_smoke/http_smoke.py`). Run with orc-test-runner's variables, it got 401
@@ -10459,7 +10501,7 @@ in its staleness check.
 - **Lesson:** a rule meant for data is applied to the answers that carry data; every byte path that relays a refusal
   reads its shape.
 
-### M503 — Records that contradicted the code, the decisions or themselves (2026-11-18/19, re-check R1-6, R1-45, R2-6, R2-41; fixed on branch fix-int2, not deployed)
+### M503 — Records that contradicted the code, the decisions or themselves (2026-11-18/19, re-check R1-6, R1-45, R2-6, R2-41; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Found by:** the ultracode re-check of Phases 0-3b, like M483-M502 (the sources are named in M483).
 - **Symptom:** CONTRACT 7's Phase 3 Orc capabilities header (`X-Saniti-Capabilities`) was neither built nor recorded
@@ -10482,8 +10524,7 @@ in its staleness check.
   bound are corrected; M260 and M481 "C3 gaps" carry their new state.
 - **Tests:** `tests/test_contract_records.py` (the deletion procedure against the migrations, the recipients against
   the code and pages); the 040 `$verify$` block.
-- **Status:** fixed on branch fix-int2, not deployed (the contract and this file are records; the migration not
-  applied).
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta (the contract and this file are records; the migration applied on dev 2026-11-20, DATABASE_CHANGELOG).
 - **Lesson:** a contract clause changes in the commit that changes the behaviour; a status is updated in place, never
   appended; a live comment frozen in an applied migration is reset by a forward migration.
 
@@ -10533,14 +10574,14 @@ in its staleness check.
   above; terminal-api 170 passed on a bare PostgreSQL 16 with the new conftest. Changed (refuters' corrections):
   `test_cdb_ci_coverage.py` holds the property, not one workflow form; `test_cdb_grants_and_records.py` runs 040's
   block.
-- **Status:** fixed on branch fix-int2, not deployed (the workflows run once the branch is pushed). M481's "C3 gaps"
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta (the workflows run on every push). M481's "C3 gaps"
   are closed by R1-27 and R1-28.
 - **Lesson:** a suite wired into no workflow is not a test, and CI fails on a missing toolchain instead of skipping; a
   walk derives its scope from the whole route table and the schema; a registry membership never stands in for the
   behaviour it names; a long-lived answer is tested on a live server; a requirement is tested by itself; a test that
   needs a schema builds it from the migrations.
 
-### M501 — Database guards and history: column privileges passed every grant guard, a user deletion rewrote audit rows, catalog changes left no trace (2026-11-18, re-check R1-41, R1-42, R1-43; fixed on branch fix-int2, not deployed)
+### M501 — Database guards and history: column privileges passed every grant guard, a user deletion rewrote audit rows, catalog changes left no trace (2026-11-18, re-check R1-41, R1-42, R1-43; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Symptom:** a privilege held on columns only passed every `$verify$` block, `scripts/provision_edge_bff_login.py`
   and the apply-job probes (R1-41); the hourly pending-account purge nulled the target of `admin_audit` rows (R1-42); a
@@ -10559,7 +10600,7 @@ in its staleness check.
   `column_grants_readback.params.json`.
 - **Tests:** `tests/test_cdb_grants_and_records.py`, `test_db_backstops.py`. Changed: the audit-column test now runs
   040's `$verify$` block (20261116_003 is applied and can never change).
-- **Status:** fixed on branch fix-int2, not deployed; migration `20261119_040` not applied. With `20261119_023` before
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta; migration `20261119_040` applied on dev 2026-11-20 (DATABASE_CHANGELOG, the Phase 3c migrations). With `20261119_023` before
   it, its two `admin_audit` indexes stay (harmless).
 - **Lesson:** grant guards read column privileges too; an audit or provenance id never carries a referential action;
   a value that feeds a version is kept by a trigger, not a default.
@@ -10603,7 +10644,7 @@ in its staleness check.
   third party that the records do not name as a recipient; every owned store has its line in one deletion procedure
   when it is created.
 
-### M499 — Browser security headers and account pages: inline scripts in the shell's policy, no form-action, no HSTS, cookies without `__Host-`, no page for the password change (2026-11-19, re-check R2-19, R2-20, R2-21, R2-22; fixed on branch fix-int2, not deployed)
+### M499 — Browser security headers and account pages: inline scripts in the shell's policy, no form-action, no HSTS, cookies without `__Host-`, no page for the password change (2026-11-19, re-check R2-19, R2-20, R2-21, R2-22; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Symptom:** the shell's CSP kept `script-src 'unsafe-inline'` for its two inline scripts (about 2,600 lines) and had
   no `form-action`, on the page that will host the Phase 4 admin views of other users' data (R2-19); no page offered the
@@ -10620,12 +10661,12 @@ in its staleness check.
   old name with the switch off.
 - **Tests:** `tests/test_fix_plans.py` (no inline script and no `unsafe-inline`; the dialog, in Chromium; HSTS and the
   host-only cookie; the cookie move); the dialog was also checked by eye at 1280 and 390 px (track plans).
-- **Status:** fixed on branch fix-int2, not deployed. At deploy: the admin's cookie moves to `__Host-edge_session` on
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta. At deploy: the admin's cookie moves to `__Host-edge_session` on
   its next request, without a sign-out.
 - **Lesson:** a page that will show other accounts' data gets the strict policy before the data arrives; transport
   and cookie headers are set by the service, tested on an https origin; every route a person needs has its page.
 
-### M498 — Service identities and credentials: a reserved owner key accepted for `EDGE_OWNER`, the main Orc key kept on orc-test-runner, the gateway's terminal-api account expiring unwatched (2026-11-18, re-check R1-2, R1-3, R1-4; R1-3 fixed on branch fix-int2, not deployed; R1-2 ACCEPTED; R1-4 partly)
+### M498 — Service identities and credentials: a reserved owner key accepted for `EDGE_OWNER`, the main Orc key kept on orc-test-runner, the gateway's terminal-api account expiring unwatched (2026-11-18, re-check R1-2, R1-3, R1-4; R1-3 fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-2 ACCEPTED; R1-4 partly)
 
 - **Symptom:** `EDGE_OWNER` (and an `EDGE_ADMIN_OWNERS` entry) could be set to an owner key Orc reserves for its test
   key, so with the switch off EDGE would run user #1 under it (R1-3); orc-test-runner still holds
@@ -10655,13 +10696,13 @@ in its staleness check.
   validate); terminal-api `test_ready_reports_the_gateway_account_and_stays_ready`,
   `test_the_gateway_state_reads_the_row_on_a_real_server`. Changed: the admin-owner placeholders `'someone-else'` and
   `'golden-a'` in four test files (Orc reserves them).
-- **Status:** R1-3 fixed on branch fix-int2, not deployed. R1-2 ACCEPTED (user 2026-11-19). R1-4: the warning fixed
+- **Status:** R1-3 fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta. R1-2 ACCEPTED (user 2026-11-19). R1-4: the warning fixed
   on fix-int2, not deployed; the live row's new end OPEN until before the switch goes on.
 - **Lesson:** an identity boundary that rests on a key namespace covers the configured keys too; a credential retired
   in code is removed from every environment, or its keeping is a recorded decision; a time-limited row that holds up a
   service credential is watched (a health field and a log line) long before its date.
 
-### M497 — Registration and sign-in input rules: a fresh cookie orphaned the browser's registration, two bounds for one email, names with markup and invisible characters (2026-11-18/19, re-check R1-11, R1-14, R2-18; fixed on branch fix-int2, not deployed)
+### M497 — Registration and sign-in input rules: a fresh cookie orphaned the browser's registration, two bounds for one email, names with markup and invisible characters (2026-11-18/19, re-check R1-11, R1-14, R2-18; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Symptom:** registering again in the same browser within the hour replaced the registration cookie, so the code
   already mailed could no longer finish the first registration (R1-11); the sign-in body capped the login at 200
@@ -10677,11 +10718,11 @@ in its staleness check.
   an apostrophe; names are shown through text nodes.
 - **Tests:** `tests/test_cp1a_phase1_auth_check.py` (f4, f7), `test_fix_plans.py` (the name rule and the registration
   route).
-- **Status:** fixed on branch fix-int2, not deployed.
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta.
 - **Lesson:** one value has one validator shared by every form that takes it; free text that another account will see
   has a shape rule at write time and is shown as text, never markup.
 
-### M496 — Credential state replaced or confirmed against a value read earlier: re-enrolment dropped the confirmed factor, writes proved before a reset applied after it, a code confirmed another session's enrolment, MFA bursts passed the cap (2026-11-18/19, re-check R1-7, R2-9, R2-11, R2-12; fixed on branch fix-int2, not deployed)
+### M496 — Credential state replaced or confirmed against a value read earlier: re-enrolment dropped the confirmed factor, writes proved before a reset applied after it, a code confirmed another session's enrolment, MFA bursts passed the cap (2026-11-18/19, re-check R1-7, R2-9, R2-11, R2-12; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Symptom:**
   - an MFA-passed re-enrolment dropped `confirmed_at`, so a password-only session could enrol its own authenticator
@@ -10708,11 +10749,11 @@ in its staleness check.
 - **Tests:** `tests/test_cp1a_phase1_auth_check.py` (f3), `test_fix_auth.py::test_the_confirmed_authenticator_works_until_the_new_one_is_proved`,
   `test_r2_race.py` (change and sign-in in flight, the confirmation, the bursts), `test_decisions_small.py` (within,
   past and after a fresh code; the first enrolment; the `/mfa` page in Chromium).
-- **Status:** fixed on branch fix-int2, not deployed; migration `20261119_011` not applied.
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta; migration `20261119_011` applied on dev 2026-11-20 (DATABASE_CHANGELOG).
 - **Lesson:** a security setting is replaced only once its replacement is proved; a write authorised by an earlier
   proof checks that proof under a lock in its own transaction; a cap is decided and counted under one lock.
 
-### M495 — Password work: verifiers below OWASP's cost, and every password check on the thread pool all database calls share (2026-11-19, re-check R2-29, R2-37; fixed on branch fix-int2, not deployed; the per-client bound OPEN)
+### M495 — Password work: verifiers below OWASP's cost, and every password check on the thread pool all database calls share (2026-11-19, re-check R2-29, R2-37; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; the per-client bound OPEN)
 
 - **Symptom:** verifiers used scrypt N=2^14, r=8, p=1, below OWASP's minimum equivalent (p=5 at this N), with no
   recorded decision (R2-29); a burst of sign-ins with made-up logins stalled every signed-in user's requests, since
@@ -10729,14 +10770,14 @@ in its staleness check.
   (2026-11-19).
 - **Tests:** `tests/test_fix_auth.py` (new verifiers, equal cost, rehash at sign-in, either form configured, the pool's
   503), `test_c2_ops_recheck.py::test_a_burst_of_sign_ins_with_made_up_logins_does_not_hold_the_signed_in_users_requests`.
-- **Status:** fixed on branch fix-int2, not deployed; migration `20261119_010` not applied. Rollback floor: once a
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta; migration `20261119_010` applied on dev 2026-11-20 (DATABASE_CHANGELOG). Rollback floor: once a
   switch-on sign-in rehashed a verifier, an edge-bff before this branch cannot read it. OPEN: the per-client bound
   (`SIGNIN_IP`, 30 failures per address per 15 min) waits for the Railway client-address probe of CONTRACT 4 (an
   enforced per-address limit on a shared address would lock everyone out).
 - **Lesson:** a verifier names its cost so the cost can change; CPU-heavy work reachable without a session gets its
   own bounded pool; a security parameter "as today" is decided again when real accounts arrive.
 
-### M494 — Authentication limits keyed or counted wrongly: answers that told whether an account exists, limits anyone could hold at their cap, shared counter scopes, sends that held back the reset code (2026-11-18/19, re-check R1-8, R1-9, R1-10, R1-12, R1-13, R1-16, R2-10; fixed on branch fix-int2, not deployed)
+### M494 — Authentication limits keyed or counted wrongly: answers that told whether an account exists, limits anyone could hold at their cap, shared counter scopes, sends that held back the reset code (2026-11-18/19, re-check R1-8, R1-9, R1-10, R1-12, R1-13, R1-16, R2-10; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-16 changed by the user ("4A", 2026-11-22), the beta's 100-failure lock, fixed in `24d35f1b` on the branch, not deployed)
 
 - **Symptom:**
   - the reset answered 429 `LIMIT_REACHED` after 20 wrong codes only for an address with an account (R1-8);
@@ -10767,7 +10808,7 @@ in its staleness check.
   `test_r2_race.py::*hold_back*`. Changed: `test_auth_flows.py::test_resend_waits_60_seconds_and_sends_at_most_10_a_day`
   (one registration stops at 3; the address's 10 a day shown through reset codes), `test_auth_throttle.py` (the new
   key).
-- **Status:** fixed on branch fix-int2, not deployed. ACCEPTED (user 2026-11-19, "Decisions from the fix round" item
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta. ACCEPTED (user 2026-11-19, "Decisions from the fix round" item
   3, "a"): a "Forgot password" pressed by someone else still replaces the live code, and the address's 10 emails a day
   stay shared (R1-9 item 3, R1-13's remainder). By design (the main agent's design value told to the user): no
   100-failure cap on the beta, which keeps a long random admin password. CHANGED 2026-11-22 (the user, "4A"): the beta
@@ -10781,7 +10822,7 @@ in its staleness check.
   on a value anyone may type counts alike whether or not an account exists; every counter has its own label inside
   the key hash; a send gate counts only the sends it exists for.
 
-### M493 — Operational tables without purge or index: outbox rows naming an address kept for ever, its hot reads scanning every email sent, foreign keys to users without an index (2026-11-19, re-check R2-24, R2-34, R2-35; fixed on branch fix-int2, not deployed)
+### M493 — Operational tables without purge or index: outbox rows naming an address kept for ever, its hot reads scanning every email sent, foreign keys to users without an index (2026-11-19, re-check R2-24, R2-34, R2-35; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Symptom:** the hourly purge deleted a never-verified registration, but every `email_outbox` row naming its address
   stayed, and edge-bff could not delete outbox rows at all (R2-24); the unauthenticated register, resend and forgot
@@ -10809,14 +10850,14 @@ in its staleness check.
   `::test_every_reference_to_an_account_has_an_index`, `test_decisions_small.py` (29 and 31 days on each side of each
   rule, as a login with the runtime's grants only). Changed with the decision: `test_beta_live_site.py` (six purges,
   not four).
-- **Status:** fixed on branch fix-int2, not deployed; migrations `20261119_012` and `_023` not applied. OPEN (R2-37):
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta; migrations `20261119_012` and `_023` applied on dev 2026-11-20 (DATABASE_CHANGELOG). OPEN (R2-37):
   `auth_throttle` grows one row per made-up login; its purge is batched now, an index on `window_start` waits for a
   measurement.
 - **Lesson:** every operational table gets, with its first row, a retention rule, the index of each hot read and a
   purge the runtime can run; a row that names a person by value needs its own purge; every foreign key gets an index
   on its referencing column.
 
-### M492 — Background loops: readiness read once at start, maintenance sharing a try and a transaction with the queue, loop switches that turn off on a typo (2026-11-19, re-check R2-3, R2-33, R2-36; fixed on branch fix-int2, not deployed)
+### M492 — Background loops: readiness read once at start, maintenance sharing a try and a transaction with the queue, loop switches that turn off on a typo (2026-11-19, re-check R2-3, R2-33, R2-36; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Symptom:** a start during a database outage or before its migration served traffic with no AI worker, clean-up or
   email sender while `/ready` answered 200, and a never-ready build still ran the backtest loop (R2-3, R2-36); a
@@ -10838,13 +10879,13 @@ in its staleness check.
   worker after a start-up error, the typo switches), `test_beta_live_site.py` (a failing purge, a failing prune).
   Changed: `test_edge.py` (the "clean at the start, then hourly" rule now held on `Housekeeping`, since the purges left
   the AI loop).
-- **Status:** fixed on branch fix-int2, not deployed. OPEN: `scripts/restart_postgres.py` reads only `edge-bff`'s
-  `/ready` after a restart (`edge_ready`, `:323`); it gains `edge-bff-live` with the live service (a Railway step).
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta. Then OPEN, since closed: `scripts/restart_postgres.py` read only `edge-bff`'s
+  `/ready` after a restart; it reads every site's since M513 S7 (`site_ready_urls`, `scripts/restart_postgres.py:313`).
 - **Lesson:** a background loop starts only after the readiness the healthcheck reports, and the healthcheck sees a
   missing loop; maintenance never shares a try or a transaction with the primary work; a switch that turns a loop off
   refuses a value it does not know.
 
-### M491 — Two websites on one database: each site's loops and start-up judged the other's rows by their own switch, code and secrets (2026-11-19, re-check R2-1, R2-2, R2-7, R2-8, R2-13, R2-23, R2-26, R2-38; fixed on branch fix-int2, not deployed)
+### M491 — Two websites on one database: each site's loops and start-up judged the other's rows by their own switch, code and secrets (2026-11-19, re-check R2-1, R2-2, R2-7, R2-8, R2-13, R2-23, R2-26, R2-38; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Symptom (the beta/live plan decided 2026-11-19: `edge-bff` the admin's beta with the switch off, `edge-bff-live` the
   users' site with it on, one database):**
@@ -10880,9 +10921,9 @@ in its staleness check.
 - **Tests:** `tests/test_r2_skew.py`, `test_beta_live_site.py` (17), `test_r2_trace_beta_live.py` (moved from
   `pending/` and written for the decided pairing: the checker wrote it for a switch-on beta, which `config.validate`
   now refuses; the rule and its outcome assertions are unchanged).
-- **Status:** fixed on branch fix-int2, not deployed; migrations `20261119_020`-`_022` not applied (a build of this
-  branch answers `/ready` 503 until they are). To do with the live service: set `EDGE_HOUSEKEEPING_ENABLED=false` on
-  `edge-bff` once `edge-bff-live` runs; the Phase 6 rollback revokes sessions `WHERE user_id IS NOT NULL` before any
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta; migrations `20261119_020`-`_022` applied on dev 2026-11-20 (DATABASE_CHANGELOG; a build
+  of this branch answered `/ready` 503 until they were). Done with the live service: `EDGE_HOUSEKEEPING_ENABLED=false` on `edge-bff`
+  after the live smoke (RAILWAY_CHANGELOG 2026-11-20, "After the smoke"); the Phase 6 rollback revokes sessions `WHERE user_id IS NOT NULL` before any
   pre-Phase-1 build starts.
 - **Lesson:** when two service versions share one database, every row a loop claims carries its owner (the site) or
   the loop has one owner by configuration; a weaker resolver never accepts rows a stronger one wrote; a start-up step
@@ -10924,13 +10965,13 @@ in its staleness check.
   `test_c2web_browser.py::test_c2web_w3_*`). Fix (`f8e7a855`): the ticker list's promise gets its handler when it is
   started, as the broker list's, the first `/bundle`'s and the early download's already had;
   `terminal/tests/data/live_refusal_during_locks.test.ts` fails without it.
-- **Status:** fixed on branch fix-int2, not deployed. M471's and M473's own fixes stand; these were sites they did not
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta. M471's and M473's own fixes stand; these were sites they did not
   reach.
 - **Lesson:** every browser copy of an entitlement-bearing answer is keyed by the entitlements version as well as the
   identity, and there is one copy of the session per page that follows it; a client fallback tells a plan refusal
   (403 or 429 with a named code) from status 0 or 5xx.
 
-### M489 — The account preference store served and stored a tab's saved items without that tab's capability (2026-11-18, re-check R1-18, R1-30; fixed on branch fix-int2, not deployed)
+### M489 — The account preference store served and stored a tab's saved items without that tab's capability (2026-11-18, re-check R1-18, R1-30; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Symptom:** after a plan was lowered, `/api/v1/preferences` still served and stored the Backtest's "My conditions"
   (`ml.my`, up to 50 cards, kept nowhere else), the Screener's last screen (`scr.last`) and its extra columns: D5's
@@ -10945,11 +10986,11 @@ in its staleness check.
   kept; D5).
 - **Tests:** `tests/test_c_p1s_preferences_plan.py`, `test_fix_plans.py` (served while held, refused and kept
   otherwise), `test_storage_registry.py::test_the_server_reads_each_sync_key_with_the_capability_the_registry_names`.
-- **Status:** fixed on branch fix-int2, not deployed.
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta.
 - **Lesson:** a store that is not a tab's own route but carries a tab's data needs that tab's capability, declared
   per key where the key is registered (the M481 lesson for routes, applied to stores).
 
-### M488 — Gates placed on one path while the same values reach the person by another: a seeded capability no route reads, gated conditions on values every row shows, Terminal limits that bind the Terminal path only, page files behind shared caches (2026-11-18, re-check R1-5, R1-31, R1-32, R1-35, R1-36, R1-37, with R2-41 item 4; fixed on branch fix-int2, not deployed; R1-37 accepted)
+### M488 — Gates placed on one path while the same values reach the person by another: a seeded capability no route reads, gated conditions on values every row shows, Terminal limits that bind the Terminal path only, page files behind shared caches (2026-11-18, re-check R1-5, R1-31, R1-32, R1-35, R1-36, R1-37, with R2-41 item 4; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-37 accepted; R1-5 changed by the user ("A1 ok", 2026-11-22), each reader counted once an hour, fixed in `5d2b8ba4` on the branch, not deployed)
 
 - **Symptom:**
   - no route read `screener.preset`, so the Screener catalog listed presets, with their match counts, that the plan
@@ -10989,7 +11030,7 @@ in its staleness check.
   with the decisions: screener-worker `allow.test.ts`, edge-bff `test_backtest.py` (a queued job's allow at dispatch),
   `test_terminal_access.py` (the paid narrowing closes the every-stock capabilities first), `test_screener.py`
   (released preset ids).
-- **Status:** fixed on branch fix-int2, not deployed; migration `20261119_030` not applied. R1-37 and R2-41 item 4:
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta; migration `20261119_030` applied on dev 2026-11-20 (DATABASE_CHANGELOG). R1-37 and R2-41 item 4:
   ACCEPTED (user 2026-11-19, "2a"). R1-5: BY DESIGN (lenient page-file counting; per-reader counting is a Phase 4
   option). CHANGED 2026-11-22 (the user, "A1 ok"): each reader's first read of a page file in a rolling hour counts
   against its own Terminal quota, cached or not, a 304 included (`app/pages.py` `count`, `COUNT_SECONDS`); `tests/
@@ -11030,7 +11071,7 @@ in its staleness check.
   dependency beside the session one (the catalog route is a visitor route), `test_phase3a_monitor_pages.py` expects
   `auth.need(..., guests=True)` on the `GUEST_OPEN` routes, and `test_r2_trace_beta_live.py`'s live site is the one
   after the launch (`prelaunch_enabled` false: the pre-launch default refused its paid account with `SIGN_IN_CLOSED`).
-- **Status:** fixed on branch fix-int2, not deployed; migrations `20261119_070` and `20261119_170` not applied. Open
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta; migrations `20261119_070` and `20261119_170` applied on dev 2026-11-20 (DATABASE_CHANGELOG). Open
   before guests go live: the client-address probe of CONTRACT 4 (the user's "1a", 2026-11-20). Worst case without it,
   corrected by the 3c check (C3-5): if Railway's edge kept a client-written hop right-most, a script could take a new
   visitor key per request (wider); edge-bff reads the right-most hop over every header line and keys IPv6 by its /64.
@@ -11038,7 +11079,7 @@ in its staleness check.
   plan sees is catalog data read by the one entitlement path, and the routes that admit visitors are named in one
   table the route walk holds.
 
-### M486 — Entitlement values broke their wire or their readers: catalog values out of terminal-api's range, no proof the header was applied, an unknown dataset failing every call, a shared mutable default, the seed plan found by row existence (2026-11-18/19, re-check R1-22, R1-24, R1-25, R2-4, R2-5; fixed on branch fix-int2, not deployed)
+### M486 — Entitlement values broke their wire or their readers: catalog values out of terminal-api's range, no proof the header was applied, an unknown dataset failing every call, a shared mutable default, the seed plan found by row existence (2026-11-18/19, re-check R1-22, R1-24, R1-25, R2-4, R2-5; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Symptom:**
   - a value the catalog accepts (`terminal.history_days` 0 or above 36600, a ticker outside `^[A-Z0-9]{1,12}$`, a
@@ -11072,14 +11113,14 @@ in its staleness check.
   terminal-api `test_every_answer_to_an_owner_call_carries_the_applied_version`,
   `test_an_unknown_dataset_id_is_left_out_and_logged`. Changed: `test_phase2_fix_round.py` (`history_days` `'0'` is
   `'1'`), `test_terminal_access.py` (quota 0 is 403), terminal-api `test_phase3c.py` `BAD` rows.
-- **Status:** fixed on branch fix-int2, not deployed; migration `20261119_050` not applied. Deploy floor: while
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta; migration `20261119_050` applied on dev 2026-11-20 (DATABASE_CHANGELOG). Deploy floor: while
   `EDGE_MULTIUSER` is on, terminal-api is never rolled back below 3c; add a dataset on terminal-api first and remove it
   on edge-bff first (CONTRACT 8b, 17).
 - **Lesson:** each capability has one declared value domain in the catalog that every consumer's wire can carry; an
   entitlement sent to a separately deployed service needs proof it was applied; an unknown entry on an allow-list is
   "not granted", never a failure of the whole request; a default handed to many principals is immutable.
 
-### M485 — One plan-limit concept answered with different codes and numbers: caps 422, the queue 429, `PLAN_EXPIRED` never for a list or limit, `access.limits` the raw value (2026-11-18/19, re-check R1-23, R1-29, R2-39; fixed on branch fix-int2, not deployed)
+### M485 — One plan-limit concept answered with different codes and numbers: caps 422, the queue 429, `PLAN_EXPIRED` never for a list or limit, `access.limits` the raw value (2026-11-18/19, re-check R1-23, R1-29, R2-39; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-23's remainder, the 0-day window judged against the ended plan, fixed in `39e301f2` on the branch, not deployed)
 
 - **Symptom:** the saved-item caps answered 422 `LIMIT_EXCEEDED` while the backtest queue cap answered 429
   `LIMIT_REACHED`, so the shared module treated only one as a plan refusal; an ended plan that set no ticker list or
@@ -11106,12 +11147,12 @@ in its staleness check.
   amount could not change an answer (it rebuilds only CAPABILITY_REQUIRED, and fewer inputs only narrow
   `ended_allows`), so the trace's main.py part was no defect. Test: `tests/test_c_p2_recheck.py`
   `test_a_terminal_window_of_0_days_is_judged_against_the_ended_plans_own_window`; one mutation red.
-- **Status:** fixed on branch fix-int2, not deployed. Open hand-off: the 3c refusal sites pass the ticker and the
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta. Open hand-off: the 3c refusal sites pass the ticker and the
   window as `item` and `amount` so an ended plan with its own narrower list is judged too (`fix_round/plans.md`).
 - **Lesson:** one contract concept has one code, one shape and one number wherever it is answered or shown; a refusal
   API takes what was asked (item, amount), not only the capability key.
 
-### M484 — Refusals reached the person as codes or fixed sentences: the Monitor showed `CAPABILITY_REQUIRED`, the workers named internal keys, the throttles said "upgrade" (2026-11-18/19, re-check R1-33, R1-34, R2-14, R2-15, R2-30; fixed on branch fix-int2, not deployed)
+### M484 — Refusals reached the person as codes or fixed sentences: the Monitor showed `CAPABILITY_REQUIRED`, the workers named internal keys, the throttles said "upgrade" (2026-11-18/19, re-check R1-33, R1-34, R2-14, R2-15, R2-30; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Symptom:** every `CAPABILITY_REQUIRED` and `LIMIT_REACHED` carried one fixed sentence per code, so the item, the
   limit and the wait stayed in `details` that no page shows; the email-code and MFA throttles told the person to
@@ -11138,12 +11179,12 @@ in its staleness check.
   `test_allow.py`; `apps/backtest-worker/tests/c-p3b-recheck.test.ts`, `apps/screener-worker/tests/c-p3b-recheck.test.ts`.
   Changed: the workers' exact-message tests (they locked the key in the sentence) and the sign-in landing tests (the
   Terminal landing).
-- **Status:** fixed on branch fix-int2, not deployed.
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta.
 - **Lesson:** the words a person reads are built where the contract lives (edge-bff), from the code and its details;
   a service that refuses on another service's behalf names the item, not the grant key, and a page shows words, never
   a code.
 
-### M483 — EDGE relayed terminal-api's own answers as they were: its 401 read as a sign-out, its 429 had no wait, its JSON passed unfiltered (2026-11-18, re-check R1-1, R1-26, with M260; fixed on branch fix-int2, not deployed)
+### M483 — EDGE relayed terminal-api's own answers as they were: its 401 read as a sign-out, its 429 had no wait, its JSON passed unfiltered (2026-11-18, re-check R1-1, R1-26, with M260; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20)
 
 - **Found by:** the ultracode re-check of the deployed Phases 0-3b (EXEC.md EXEC-MU-ACCOUNTS, round 1 and round 2;
   findings and the three refuters' verdicts per finding: `verification/edge_multiuser/access_tiers/recheck/r1_findings.json`,
@@ -11178,7 +11219,7 @@ in its staleness check.
   internal address; a self-test finds the plants without the filter); terminal-api `tests/test_terminal_fix_round.py`.
   Changed because they locked the pass-through the contract forbids (named by the refuters): `test_terminal.py:84`,
   `test_radar.py:123-125`.
-- **Status:** fixed on branch fix-int2, not deployed (M260 with it).
+- **Status:** fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta (M260 with it).
 - **Lesson:** a relay of another service has one rule for every answer it passes on, in one helper every route uses:
   refusals are rebuilt in the contract's shape (an upstream service's own account or key problem is never the user's
   session; a 429 carries its wait), and successful bodies pass the house filter.
@@ -11238,7 +11279,7 @@ CONTRACT.md only. C1 (security): nothing blocking the deploy, no route open with
 | C2 2 | non-blocking | `WatchlistStore.first(create=True)` made the first list without the `watchlist.lists` cap. | The star makes the first list only when the cap is at least 1 (422 `LIMIT_EXCEEDED` otherwise); an existing first list is always used. |
 | C2 3, C3 R1 | deploy precondition | Since 3a, a switch-off owner that `EDGE_ADMIN_OWNERS` does not list holds no capability, so a list that leaves out `EDGE_OWNER` would lock the one account out of every tab. | Checked on dev: the variable is unset, so the configured owner holds `*`. With the switch off, `Settings.from_env` refuses to start with a list that leaves out `EDGE_OWNER`. |
 | C2 4 | accepted | With the plan lowered, `stop_run` needs `monitor.chat`, so a run already dispatched cannot be stopped by its owner. | Recorded. Queued runs and jobs are refused at dispatch, and the Monitor is admin only for now (D1). |
-| C3 gaps | fixed on branch fix-int2, not deployed (re-check R1-27, R1-28, M502) | The SSE `monitor.view` re-check (`main.py` `still_signed_in`) has no test. The 3a route walk is scoped by module. | A full `/api` walk run by C3 found no ungated route. Since the fix round: `tests/test_route_table.py` walks every `/api` route of the app, and `tests/test_run_stream_live.py` ends the run stream on a live local server once the plan loses `monitor.view`. |
+| C3 gaps | fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta (re-check R1-27, R1-28, M502) | The SSE `monitor.view` re-check (`main.py` `still_signed_in`) has no test. The 3a route walk is scoped by module. | A full `/api` walk run by C3 found no ungated route. Since the fix round: `tests/test_route_table.py` walks every `/api` route of the app, and `tests/test_run_stream_live.py` ends the run stream on a live local server once the plan loses `monitor.view`. |
 | C3 records | fixed | Missing: the migration job params, the 3a runbook, the Auth column of `SCREENER_ONBOARDING.md` §1.8, and the endings in `BACKTEST_END_TO_END.md`. | Job params `98762487`; the rest in this round. |
 
 - **Lesson:** an action that writes into another tab's data (the star into the Watchlist) needs every capability of the
@@ -11588,7 +11629,7 @@ view; a client-supplied id is checked against the caller's ownership on every pa
     Terminal vitest 908 passed; `node shared/build-shell.mjs --check` passes.
 - **Status:** FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed). History: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`). The re-check found one more account family kept
   under a `browser` name (`ml.assets.flow.<ticker>`, R1-20) and a Screener cache keyed without the plan (R1-17,
-  R1-38): M490, fixed on branch fix-int2, not deployed. (One current status since 2026-11-19, re-check R1-45, M503.)
+  R1-38): M490, fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta. (One current status since 2026-11-19, re-check R1-45, M503.)
 
 ### M472 — The Terminal look check hard-codes another session's paths (2026-11-16; OPEN: `look_check11.mjs` FIXED, deployed with `main` `637b0b96`; look_check8/9/10/12/13 still hard-code paths)
 
@@ -11652,7 +11693,7 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   - edge-bff 278 passed / 139 skipped; Terminal vitest 914.
 - **Status:** FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed). History: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), then its fix round (merge `34cfcc13`). The re-check of 2026-11-18/19 found two
   front-end sites the contract did not reach yet: the drawings fallback (R1-19, M490) and the Monitor showing the code
-  (R2-14, R2-30, M484); both fixed on branch fix-int2, not deployed. (One current status since 2026-11-19, re-check R1-45, M503.)
+  (R2-14, R2-30, M484); both fixed on fix-int2 (`613c3925`), on the live site since 2026-11-20 and on the beta. (One current status since 2026-11-19, re-check R1-45, M503.)
 
 ### M470 — terminal-api accepts the EDGE gateway key on its public domain (2026-11-16; FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 

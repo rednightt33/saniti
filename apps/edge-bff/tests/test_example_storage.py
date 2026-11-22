@@ -11,14 +11,47 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]                          # apps/edge-bff
 STORAGE = '../../shared/example-storage.ts'
 # every module request of an entry, in source order: an import (side effect or bindings) and an export ... from (the
-# example-mode re-check: a re-export is evaluated in that order too)
-IMPORT = re.compile(r"""^\s*(?:import|export)\s+(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]""", re.M)
+# example-mode re-check: a re-export is evaluated in that order too), at the start of a line or after a ';', read with
+# the comments taken out (the test-out of 2026-11-22: "/* x */ import './app.ts';" before the storage import passed)
+IMPORT = re.compile(r"""(?:^|;)\s*(?:import|export)\s+(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]""", re.M)
 LAB = '@edge-lab'                                                   # 3f: the lab module, first where a page has a lab build
+
+
+def without_comments(text):
+    """text with its // and /* */ comments blanked (newlines kept), string and template literals left as they are."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c, two = text[i], text[i:i + 2]
+        if c in '\'"`':
+            j = i + 1
+            while j < n and text[j] != c:
+                j += 2 if text[j] == '\\' else 1
+            out.append(text[i:j + 1])
+            i = j + 1
+        elif two == '//':
+            j = text.find('\n', i)
+            j = n if j < 0 else j
+            out.append(' ' * (j - i))
+            i = j
+        elif two == '/*':
+            j = text.find('*/', i + 2)
+            j = n if j < 0 else j + 2
+            out.append(re.sub(r'[^\n]', ' ', text[i:j]))
+            i = j
+        else:
+            out.append(c)
+            i += 1
+    return ''.join(out)
+
+
+def module_requests(text):
+    """Every module request of a source, in source order (IMPORT over the text without its comments)."""
+    return IMPORT.findall(without_comments(text))
 
 
 def storage_order_refusal(text):
     """Why an entry's module requests do not run the storage module first (after the lab module), or None."""
-    requests = IMPORT.findall(text)
+    requests = module_requests(text)
     if not (requests[:1] == [LAB] or requests[:1] == [STORAGE]):
         return f'its first module request is {requests[:1]}'
     first = [i for i in requests if i != LAB]
@@ -50,8 +83,8 @@ def test_every_view_only_page_holds_its_storage_in_memory_before_any_other_modul
 def test_the_storage_module_runs_nothing_before_itself():
     """It imports only the view layer, which imports nothing: no other module of the page can run before it."""
     storage = (ROOT / 'shared' / 'example-storage.ts').read_text()
-    assert IMPORT.findall(storage) == ['./example-view.ts']
-    assert IMPORT.findall((ROOT / 'shared' / 'example-view.ts').read_text()) == []
+    assert module_requests(storage) == ['./example-view.ts']
+    assert module_requests((ROOT / 'shared' / 'example-view.ts').read_text()) == []
     assert re.search(r'^if \(exampleMode\(\)\) isolateStorage\(\);$', storage, re.M)
 
 
@@ -62,5 +95,12 @@ def test_the_check_sees_an_entry_that_runs_a_page_module_first():
     for first in ("import './app.ts';\n", "import { start } from './app.ts';\n", "export { start as boot0 } from './app.ts';\n",
                   "export * from './api.ts';\n", "import '@edge-lab';\nexport * from './api.ts';\n"):
         assert storage_order_refusal(first + storage + "viewOnly({ source: 'x', name: 'X' });\n"), first
+    # a module request hidden after a comment or another statement on the same line (the test-out of 2026-11-22), and a
+    # commented-out one that does not run
+    for first in ("/* x */ import './app.ts';\n", "// note\n/* a\n b */ import { s } from './app.ts';\n",
+                  "const a = 1; import './app.ts';\n", "/** doc */export * from './api.ts';\n"):
+        assert storage_order_refusal(first + storage + "viewOnly({ source: 'x', name: 'X' });\n"), first
+    assert storage_order_refusal("// import './app.ts';\n/* import './app.ts'; */\n" + storage) is None
+    assert storage_order_refusal("/* '//' */ " + storage + "const u = 'http://x/*y';\nimport './app.ts';\n") is None
     assert storage_order_refusal(storage + "import './app.ts';\n") is None
     assert storage_order_refusal("import '@edge-lab';\n" + storage + "export * from './app.ts';\n") is None

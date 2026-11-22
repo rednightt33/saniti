@@ -16644,6 +16644,16 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD17 | The old data defects (sector swap, Feature 04 bloat, five tickers, candle flags, M335, M426, M157) | each its own date | the data's accuracy | before paid launch |
   | UD18 | The Terminal defects and proposals only the user opens (M454, M447, M333) | each its own date | paying accounts' pages | before paid launch |
   | UD20 | A valid Railway token for telegram-trigger (the Telegram Run Now buttons fail) | 2026-11-03 | the manual restart button | any time |
+- **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
+  the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
+
+  | Part | What remains | Owner | Trigger |
+  |---|---|---|---|
+  | Lab tab rail entry (checker SERVE-3, TR-13; FUTURE_PLAN "The shell") | edge-bff hands each lab tab's rail entry (label, path, its own `<tab>-app`) only to principals holding it, and the shell draws and routes it | the lab-gap owner of this execution | before the first tab is set to `lab` in `catalog/releases.json`, held by `LAB_TAB_HELD_UNTIL` in `apps/edge-bff/tests/test_live_switch.py` |
+  | Live smoke lab probe (checker L11; FUTURE_PLAN "Optional") | a fixed-name probe file in the lab build, so the live smoke proves the lab file is absent by name rather than by the builds differing | the live-promotion owner (LIVE_PROMOTION.md) | before the first lab item or tab, the gate of `LAB_ITEM_HELD_UNTIL` and `LAB_TAB_HELD_UNTIL` |
+  | The five failing Screener smoke steps (ERRORS M417) | run `node apps/edge-bff/screener/tests/smoke/smoke.mjs`; diagnose or retire each failing step | the Screener owner | the next Screener change, or step 8 (the deep checker), whichever comes first |
+  | The other readers of `TELEGRAM_NOTIFY_URL` (test-out deploy-3) | idx-price-cron, stockbit-updater, terminal-publisher, the queue_alarm modules, feature-04-worker and `scripts/restart_postgres.py` read the address with no start check; edge-bff's check (`app/config.py`) is the model | the owner of each service, through this execution | the next change or deploy of each of those services, or step 8 |
+
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

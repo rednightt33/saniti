@@ -100,6 +100,26 @@ RADAR_LEVEL, RADAR_GATE, RADAR_STATUS = 'standard', 'broad', 'hit'     # model.t
 RADAR_SESSIONS = 20                                                       # app.ts drawKanban: counts(..., di, 20)
 RADAR_STOCK_KEYS = ('close', 'chg_1d', 'spark')                           # stockFacts: what a board card shows
 RADAR_ROW_KEYS = ('filter', 'stock', 'level', 'gate', 'status', 'run_day', 'strong', 'sort_value', 'flag')  # a card's
+# Keep by name (the example-mode test-out of 2026-11-22, guest-exposure-2; ERRORS M527): the cut names every field it
+# keeps at every depth, so a field radar.py writes later never reaches a visitor unread. tests/test_examples.py compares
+# these names with the fields radar.meta_doc, days_doc and board_doc write now; a new one fails there until it is named
+# here (kept, or in a _LEFT_OUT set when the opening view does not show it).
+RADAR_META_KEYS = ('schema', 'levels', 'gates', 'filters', 'rules', 'names', 'lists')     # rules and lists kept empty
+RADAR_FILTER_KEYS = ('id', 'position', 'column', 'column_label', 'variant', 'default_variant', 'name', 'question',
+                     'warning', 'sort_label', 'own_levels')                               # model.ts columns, the headers
+RADAR_DAYS_KEYS = ('schema', 'dates', 'gate', 'counts', 'ihsg', 'broker_through', 'prices_through', 'boards')
+RADAR_GATE_KEYS = ('universe_n', 'broad_cut', 'liquid_cut', 'broad_n', 'liquid_n')        # the gate cuts the page states
+RADAR_BOARD_KEYS = ('schema', 'date', 'stocks', 'rows', 'measures')                       # measures kept empty
+RADAR_ROW_NULLED = ('met', 'cond_n', 'left_reason')            # read by position elsewhere: null, the same length
+RADAR_LEFT_OUT = {'stocks': (), 'meta': (), 'days': (), 'board': (), 'filters': (), 'gate': (), 'rows': ()}
+
+
+def kept(doc, names, **values):
+    """doc with only the fields `names` lists, in doc's order (a value of `values` in place of doc's); a named field doc
+    lacks is added only when `values` gives it."""
+    out = {k: values.get(k, v) for k, v in doc.items() if k in names}
+    out.update({k: v for k, v in values.items() if k not in out})
+    return out
 
 
 def radar_shown_filters(meta):
@@ -121,18 +141,22 @@ def radar_opening(meta, days, board, as_of):
     was = board['stocks']['ticker']
     tickers = sorted({was[r['stock'][i]] for i in keep})
     at_was, at = {t: k for k, t in enumerate(was)}, {t: k for k, t in enumerate(tickers)}
-    rows = {k: ([v[i] for i in keep] if k in RADAR_ROW_KEYS else [None] * len(keep)) for k, v in r.items()}
+    rows = {k: ([v[i] for i in keep] if k in RADAR_ROW_KEYS else [None] * len(keep)) for k, v in r.items()
+            if k in RADAR_ROW_KEYS + RADAR_ROW_NULLED}
     rows['stock'] = [at[was[r['stock'][i]]] for i in keep]
     stocks = {'ticker': tickers, **{k: [board['stocks'][k][at_was[t]] for t in tickers] for k in RADAR_STOCK_KEYS}}
-    cut_board = {**board, 'stocks': stocks, 'rows': rows, 'measures': {'columns': [], 'values': [None] * len(tickers)}}
+    cut_board = kept(board, RADAR_BOARD_KEYS, stocks=stocks, rows=rows,
+                     measures={'columns': [], 'values': [None] * len(tickers)})
     end = days['dates'].index(as_of)
     lo = max(0, end + 1 - RADAR_SESSIONS)
     cut = lambda a: list(a[lo:end + 1])
     setting = f'{RADAR_LEVEL}/{RADAR_GATE}'
-    cut_days = {**days, 'dates': cut(days['dates']), 'gate': {k: cut(v) for k, v in days['gate'].items()},
-                'counts': {f: {setting: cut(c[setting])} for f, c in days['counts'].items() if f in shown and setting in c},
-                'ihsg': [None] * (end + 1 - lo), 'boards': [as_of]}
-    return reference_cut({**meta, 'rules': []}, cut_board), cut_days, cut_board
+    cut_days = kept(days, RADAR_DAYS_KEYS, dates=cut(days['dates']),
+                    gate={k: cut(v) for k, v in days['gate'].items() if k in RADAR_GATE_KEYS},
+                    counts={f: {setting: cut(c[setting])} for f, c in days['counts'].items() if f in shown and setting in c},
+                    ihsg=[None] * (end + 1 - lo), boards=[as_of])
+    cut_meta = kept(meta, RADAR_META_KEYS, rules=[], filters=[kept(f, RADAR_FILTER_KEYS) for f in meta['filters']])
+    return reference_cut(cut_meta, cut_board), cut_days, cut_board
 
 
 def radar_files(conn, names, lists, as_of, stream=None):
