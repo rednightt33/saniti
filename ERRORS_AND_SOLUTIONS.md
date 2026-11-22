@@ -8879,6 +8879,36 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M535 — An account deletion action entered the Phase 4 plan although the user never decided that one is offered (2026-11-22; found by the user; FIXED: dropped before any code)
+
+- **Seen:** when the slice 6 design was about to be drafted, the user asked "Maksudnya menghapus akun apa? Akunnya apa
+  yang dihapus? Kenapa perlu akunnya dihapus?" and then "Siapa yang suruh kamu untuk buat opsi untuk bisa menghapus akun
+  user? Tidak usah ada opsi ini."
+- **Root cause (verified):** the re-check's R2-27 (`verification/edge_multiuser/access_tiers/recheck/r2_result.json`,
+  its `approval_needed`) said "The user decides whether an account deletion is offered, and the retention of job inputs,
+  outbox rows and audit identifiers. Ask with context before Phase 4 and 6." The question put to the user on 2026-11-19
+  (`verification/edge_multiuser/fix_round/records.md`, item 3) asked only what a deletion keeps (the address's
+  `email_suppression` row, how long Phase 5 payment records are kept). Its answer, "ok rekomendasi", was read as a go
+  for the action: the fix round wrote "It is to be built as a Phase 4 admin action" (`recheck/fix_round_result.json`,
+  R2-27), and the order approved with "Go" on 2026-11-20 named account deletion inside Phase 4 (`EXEC.md`, item 5). The
+  decision whether to offer it was never asked.
+- **General class:** a decision the user owns ("whether X is offered") narrowed into a question about X's details, or
+  folded into a list approved as a whole; the answer on the details, or the go for the list, then reads as a go for X.
+  The same path brought the account menu's "Password and sign-in" dialog (R2-20: "whether the shell gets an account page
+  for password change and sign-out everywhere now"; built in the fix round, `081c378f`, on the live site since the
+  switch-on), named to the user on 2026-11-22 as kept unless the user asks otherwise. The re-checks' other
+  whether-decisions were answered in the user's words (R1-18 and R1-30 "3a", R1-35 "1a", R1-37 "2a", R1-2 "leave as
+  is", R2-28 "5a") or are rules of how a limit or the site split works, not a capability offered to a person (R1-31,
+  R1-36, R2-2, R2-32; R2-29, the password cost, a design value told to the user).
+- **Solution:** slice 6 dropped before any code. CONTRACT 10 "Account deletion" says not built, with the user's words;
+  its list of every store that names an account stays as the manual procedure an operator follows only with the user's
+  go for an account (`tests/test_contract_records.py` keeps that list complete). EXEC, the README and CONTRACT 10's
+  action list say there is none.
+- **Lesson:** when a finding leaves to the user whether something is offered, ask that question itself, with its
+  context, before its details; an answer on the details, or a go for a plan list that names it, is not that decision. A
+  capability the user did not ask for, above all one that deletes, is named to the user as the agent's own proposal
+  before it enters a plan.
+
 ### M534 — The two-user route walk watched only the rows kept by an owner key: an account's rows kept by its user id (its support tickets) were outside it, and the admin routes had no ids (2026-11-22; FIXED on the branch)
 
 - **Seen:** the full local edge-bff run of slice 4a: `tests/test_two_users_every_route.py::test_b_reaches_nothing_of_a_on_any_route`

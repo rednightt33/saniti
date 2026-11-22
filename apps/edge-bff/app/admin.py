@@ -361,7 +361,7 @@ class AdminStore:
             c.execute('''UPDATE edge_bff.subscriptions SET status = 'cancelled', last_event_at = now()
                 WHERE user_id = %s AND status = 'active' ''', (user_id,))
             c.execute('''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, expires_at, provider, provider_ref)
-                VALUES (%s, %s, 'active', %s, 'manual', 'admin')''', (user_id, plan_key, expires_at))
+                VALUES (%s, %s, 'active', %s, 'manual', 'admin-page')''', (user_id, plan_key, expires_at))
             guarded(c, user_id, before)
             stamp = lambda v: v.isoformat() if v else None
             audit(c, actor, 'account.plan', user_id, before={'plan': was['plan_key'], 'expires_at': stamp(was['ends'])},

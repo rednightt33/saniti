@@ -1342,7 +1342,7 @@ today.
     last_sign_in_at, created_at, usage counters;
   - user detail (full email and phone shown on request and audited);
   - actions with a required reason, each in `admin_audit`: disable or enable, change plan or extend `expires_at` (manual
-    subscription), revoke sessions, resend a code, delete an account (below).
+    subscription), revoke sessions, resend a code. No account deletion (the user, 2026-11-22; below).
   - "Resend a code" cannot finish a registration by itself: a registration code is accepted only from the browser that
     holds that registration's cookie (section 4). For a person on another browser the person registers again (a new
     pending row, from the browser they use); the admin does not verify the address or activate the account directly

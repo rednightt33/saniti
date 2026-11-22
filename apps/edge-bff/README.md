@@ -1254,7 +1254,8 @@ account deletion (the user, 2026-11-22: "Tidak usah ada opsi ini").
   - `POST users/{id}/status` `{status: active|disabled, reason}` (`account.status`): disabled, every session of the
     account ends (every site, `accounts.ACCOUNT_SESSIONS`); an account still registering is not activated here;
   - `POST users/{id}/plan` `{plan_key, expires_at|null, reason}` (`account.plan`, the plan and end before and after): a
-    manual subscription from now (`provider` manual, `provider_ref` admin), the active one cancelled; extending is the
+    manual subscription from now (`provider` manual, `provider_ref` admin-page, a word no plan key is), the active one
+    cancelled; extending is the
     same plan with a later end; the end is a moment after now with its zone (the page sends the chosen day's last moment);
   - `POST users/{id}/sessions/revoke` `{reason}` (`account.sessions_revoke`, the number ended);
   - `POST users/{id}/resend-code` `{reason}` (`account.resend_code`): a new registration code to an account still
