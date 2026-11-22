@@ -8975,8 +8975,12 @@ in its staleness check.
   Statistics dan Broker activity terbuka (sebelumnya 20,9 s, 70 task). Hanya cache tanggal: 11,0 s, 69 task, p95 117 ms.
   Sesudah drag berhenti, rentang judul indikator sama dengan candle tepi yang terlihat (selisih ≤ 1 sesi, ketelitian alat
   ukur). tsc dan 1.003 vitest lulus.
+- **Persetujuan (EXEC-TERMINAL-LAG-2, selesai dan dipindah ke sini 2026-11-22):** usulan A (hitung ulang sesudah layar
+  berhenti + cache tanggal) atau B (cache tanggal saja); user: "Go" (dibaca sebagai A); sesudah pengukuran pembanding: "saya
+  setuju dengan solusi kamu untuk di execute"; atas usulan U1–U5: "U1 + U2 + U4 go, U3 setelah diukur" (U3 diukur lalu
+  masuk; U5, hitungan ke worker, tidak dikerjakan). Rilis hanya ke beta; situs live hanya atas permintaan user.
 - **Status:** fixed. Perbaikan pertama (A) di beta sejak deployment `431916ed` (commit `6cc859ee`, 2026-11-22); ronde 2
-  (U1–U4, di bawah) di beta sesudah CI hijau (RAILWAY_CHANGELOG.md). Situs live (app.edgefinance.id) menerima perbaikan ini
+  (U1–U4, di bawah) di beta sejak deployment `61a8928b` (commit `db481c2b`, 2026-11-22; RAILWAY_CHANGELOG.md). Situs live (app.edgefinance.id) menerima perbaikan ini
   hanya bila user meminta pemindahan `live`.
 - **Ronde 2 (user 2026-11-22: "U1 + U2 + U4 go, U3 setelah diukur"; EXEC-TERMINAL-LAG-2):**
   - Bukti tambahan (beta, kode lama, BBCA): tanpa keempat indikator yang mengikuti layar pan 80 langkah 2,0 s dan 0 long
