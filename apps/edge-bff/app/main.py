@@ -39,6 +39,7 @@ from .watchlist import Watchlist
 from .radar import Radar
 from .examples import Examples
 from . import support as support_module
+from .admin import Admin
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import SESSION_COOKIE, cookie_name, csrf_token, needs_rehash, password_verifier, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
@@ -283,6 +284,8 @@ def create_app(settings=None, store=None, orc=None):
     # ERRORS R2-37: every password derivation and Pwned Passwords call runs on this pool, apart from the database's
     password_work = PasswordWork()
     flows = AuthFlows(settings, store, auth, throttle, sender, password_work=password_work)
+    # Phase 4, the admin page (CONTRACT 10; the user, 2026-11-22: "1A 2A 3A", "1A, 2B, 3A"): the beta only, the code step
+    admin = Admin(settings, store, flows, support, session_cookie)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
     # (a client per request opened a new connection every time)
     terminal_http = {'client': None}
@@ -521,8 +524,11 @@ def create_app(settings=None, store=None, orc=None):
         response.headers.setdefault('Cache-Control', 'no-store')
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'same-origin'
-        # a terminal logo keeps terminal-api's stricter, script-free policy (EXEC-TERMINAL-LOGO); every other answer gets EDGE's
-        if request.url.path.startswith('/api/terminal/v1/logo/') and 'sandbox' in response.headers.get('Content-Security-Policy', ''):
+        # a file answered with its own policy that loads nothing and runs nothing (default-src 'none' and sandbox: a
+        # terminal logo, EXEC-TERMINAL-LOGO; a support image of the admin page, Phase 4) keeps it; every other answer
+        # gets EDGE's
+        own = response.headers.get('Content-Security-Policy', '')
+        if own.startswith("default-src 'none'") and re.search(r"(^|;)\s*sandbox\s*(;|$)", own):
             return response
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard). Re-check R2-19: the shell has no inline
@@ -863,6 +869,7 @@ def create_app(settings=None, store=None, orc=None):
     # 3e, the example mode (user 2026-11-21; ERRORS M527): /api/v1/examples/<tab>, for <tab>.example, visitors too
     examples.routes(app, auth)
     support.routes(app, auth)                # Phase 4: POST /api/v1/support (support.send)
+    admin.routes(app, auth)                  # Phase 4: /api/v1/admin/* (auth.admin_page; 404 on the live site)
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4b): the account's preferences, /api/v1/preferences
     preferences.routes(app, auth)
     catalog.routes(app, auth)                # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): /api/v1/catalog/{kind}

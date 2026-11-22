@@ -207,6 +207,10 @@ class Principal:
     # track guest: a visitor without an account (guest_principal) and its visitor key, an HMAC of its client address
     guest: bool = False
     client: str = field(default='', repr=False)
+    # Phase 4, the admin page on the beta (the user, 2026-11-22: "1A"): the session passed the authenticator code. With
+    # the switch on it is mfa_ok's; with the switch off (the beta) it is the session's own mfa_passed_at, which the admin
+    # page's code step sets (auth.admin_page asks for it; no other route of the beta does)
+    step_up: bool = True
 
     def can(self, capability):
         """'*' holds everything; a flag key is held when granted; '<family>:<id>' by the family's items value (its ids,
@@ -281,7 +285,7 @@ def version_of(plan_key, status, grants, versions, expired_plan=None, expires_at
     return 'db-' + hashlib.sha256(raw).hexdigest()[:12]
 
 
-def switch_off_principal(settings, owner, token='', seed=None):
+def switch_off_principal(settings, owner, token='', seed=None, step_up=False):
     """The switch-off mapping: the configured owner is user #1 (role admin, every capability) while EDGE_ADMIN_OWNERS
     lists it (its default); any other owner (a queued job's owner read at dispatch) has the admin rights only when
     EDGE_ADMIN_OWNERS lists it, as rights.py decided before Phase 1."""
@@ -293,7 +297,7 @@ def switch_off_principal(settings, owner, token='', seed=None):
                      username=seed.get('username') if first else None, role='admin' if admin else 'user', plan_key=None,
                      status='active', expires_at=None, mfa_ok=True,
                      capabilities=frozenset({EVERYTHING}) if admin else frozenset(), limits={},
-                     version=SWITCH_OFF_VERSION, token=token, seed=first)
+                     version=SWITCH_OFF_VERSION, token=token, seed=first, step_up=bool(step_up and first))
 
 
 def live_view(p, flags=()):
@@ -538,7 +542,8 @@ class Auth:
             found = await asyncio.to_thread(self.store.session, hashed)
             if not found or found['owner_key'] != self.settings.owner:
                 return None
-            return switch_off_principal(self.settings, self.settings.owner, token, self.seed)
+            return switch_off_principal(self.settings, self.settings.owner, token, self.seed,
+                                        step_up=found.get('mfa_passed_at') is not None)
         row = await asyncio.to_thread(self.accounts.resolve, hashed, self.settings.session_idle_seconds)
         if not row:
             return None
@@ -631,6 +636,23 @@ class Auth:
                     raise p.refusal(ADMIN_ACCESS)
                 if not p.mfa_ok:
                     raise Refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': p.mfa_enrolled})
+                return p
+            self._needs[key] = check
+        return self._needs[key]
+
+    def admin_page(self, write=False):
+        """Phase 4, the admin page (CONTRACT 10: the admin right and the second factor; the user, 2026-11-22: "1A"): admin()
+        of admin.access (404 before any session on the live site, a beta-only capability; 403 MFA_REQUIRED for a session
+        of the switch on that has not passed it), and a session that passed the authenticator code: on the beta, whose
+        sessions count as past the second factor, the admin page's own code step (POST /api/v1/admin/step-up), else 403
+        MFA_REQUIRED with details.step_up. Every /api/v1/admin/* route depends on it (tests/test_admin.py)."""
+        key = ('admin_page', write)
+        if key not in self._needs:
+            base = self.admin(write)
+
+            async def check(p: Principal = Depends(base)):
+                if not p.step_up:
+                    raise Refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': True, 'step_up': True})
                 return p
             self._needs[key] = check
         return self._needs[key]

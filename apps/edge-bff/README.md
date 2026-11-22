@@ -1224,6 +1224,45 @@ langsung ke admin dan telegram dan ke email pribadi saya"; "hanya yang login ...
   `tests/test_support_browser.py`: the visitor, the account with its images, the reasons, the limit, the layout, the
   phone at 390 and 360 px.
 
+## Admin page (EXEC-MU-ACCOUNTS Phase 4, 2026-11-22)
+
+The user, 2026-11-22: "1A 2A 3A", then "1A, 2B, 3A". `app/admin.py` (its docstring lists every route),
+`tests/test_admin.py`; CONTRACT.md 10. The page itself (the `admin` sub-app and the shell's `/admin`) is slice 4b; the
+admin actions on accounts are slice 5, account deletion slice 6.
+
+- **Where:** the beta only. Every `/api/v1/admin/*` route depends on `auth.admin_page`: `admin.access` is a beta-only
+  capability (`BETA_ONLY_TABS`), so the live site answers 404 before any session is read.
+- **The code step (1A):** the beta's sessions (switch off) count as past the second factor, so the admin page asks for
+  the authenticator code of user #1 itself, the one used on the live site. `GET /api/v1/admin/step-up` answers
+  `{needed, enrolled, available}`; `POST /api/v1/admin/step-up` (CSRF) `{code}` is checked by
+  `AuthFlows.check_second_factor` (the same throttle, failure caps, lock and used steps as `POST /api/v1/auth/mfa/verify`,
+  on the same rows) and answers a new session cookie and CSRF token (`Store.session_step_up`: the old session revoked,
+  the new one with `mfa_passed_at`, the same end), so the code is asked once per beta session. A `recovery_code` is
+  refused unchecked (400 `INVALID_INPUT`, field `recovery_code`): single-use and shared with the live site, one spent here
+  would be gone there. Codes locked (the live site's count): 403 `MFA_LOCKED` with `details.step_up` and no `use`
+  ("...locked on both sites for now. Wait 24 hours..."). Before the step every admin data route answers 403
+  `MFA_REQUIRED` with `details.step_up` ("The admin page needs your authenticator code..."). It needs `EDGE_MFA_KEY`
+  equal to the live site's (`config.shared_key_marks` logs both marks at start); unset: 503 `MFA_UNAVAILABLE`. With the
+  switch on: 404.
+- **Reads:** `overview` (accounts by status and plan, live sessions, tickets, image bytes, emails waiting or failed),
+  `users` (`q`: any part of a username or name, with `%` and `_` taken as typed, or an address in full, any case, never a
+  part of one, so a masked address cannot be narrowed without a reveal; `status`, `plan`, paging by `before` and `limit`
+  1 to 200, the address and phone masked), `users/{id}`, `audit` and `audit.csv` (filters `action`, `actor`, `target`,
+  `since`, `until`; the file at most `CSV_ROWS` 10,000 rows, more refused with 400 naming `since`, never cut short; every
+  cell through `text_rules.export_cell`), `plans`
+  (read-only), `settings` (only the names in `SHOWN_SETTINGS`; a new setting is shown once it is named there, and the
+  test refuses a `repr=False` one), `support` (`status` new, done or all), `support/{id}` (the sender's address masked)
+  and `support/{id}/images/{n}`: the image as its own type, `Content-Security-Policy: default-src 'none'; img-src 'self';
+  style-src 'unsafe-inline'; sandbox`, `Cache-Control: private, no-store`, `Cross-Origin-Resource-Policy: same-origin`
+  (`main.py` keeps a response's own sandboxed `default-src 'none'` policy instead of the page policy).
+- **Actions** (CSRF; each audited in the same transaction, `edge_bff.admin_audit`): `users/{id}/reveal`
+  `{field: email|phone, reason}` (`account.reveal`; an account without the value answers `value: null`, unaudited); `support/{id}/status` `{status: done|new, reason?}`
+  (`support.status`; done sets `done_at` and `done_by_user_id`, which starts the images' 90 days, new clears them);
+  `support/{id}/telegram` (the summary sent again while it was never answered; 503 `TELEGRAM_UNAVAILABLE` when the site
+  has no Telegram settings); `DELETE support/{id}` `{reason}` (`support.delete`; the ticket and its images). A reason is
+  1 to 1000 characters with no hidden character but line breaks. A refusal is 400 `INVALID_INPUT` naming the field and
+  the fix, or 404 `NOT_FOUND`.
+
 ## Terminal data gate: headers and refusals (EXEC-MU-ACCOUNTS Phase 3c, 2026-11-18)
 
 CONTRACT.md 8b "3c in detail", decisions D2, D3 and D6. One module, `app/terminal_access.py`, builds what terminal-api

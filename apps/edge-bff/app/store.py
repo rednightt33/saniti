@@ -117,7 +117,20 @@ class Store:
         those, so it must not accept the rows the stricter one wrote (the switch's way back, the beta site beside the
         live one on the same database)."""
         with self.connect() as c:
-            return c.execute('SELECT owner_key FROM edge_bff.sessions WHERE token_hash=%s AND user_id IS NULL AND revoked_at IS NULL AND expires_at>now()', (hashed,)).fetchone()
+            return c.execute('SELECT owner_key, mfa_passed_at FROM edge_bff.sessions WHERE token_hash=%s AND user_id IS NULL AND revoked_at IS NULL AND expires_at>now()', (hashed,)).fetchone()
+
+    def session_step_up(self, old_hashed, new_hashed, owner):
+        """Phase 4, the admin page's code step on the beta (the user, 2026-11-22: "1A"): a new switch-off session that
+        passed the authenticator code, with the old one's end, made only while the old one is live and the owner's, which
+        is revoked in the same transaction (OWASP: a new session token at the privilege change). True when made."""
+        with self.connect() as c:
+            old = c.execute('''UPDATE edge_bff.sessions SET revoked_at=now() WHERE token_hash=%s AND user_id IS NULL
+                AND revoked_at IS NULL AND expires_at>now() AND owner_key=%s RETURNING expires_at''', (old_hashed, owner)).fetchone()
+            if old is None:
+                return False
+            c.execute('''INSERT INTO edge_bff.sessions(token_hash, owner_key, expires_at, mfa_passed_at)
+                VALUES (%s, %s, %s, now())''', (new_hashed, owner, old['expires_at']))
+            return True
 
     def revoke(self, hashed):
         with self.connect() as c:

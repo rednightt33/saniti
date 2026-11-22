@@ -16492,9 +16492,27 @@ Order of the services (CONTRACT 17, rollback floors):
           - Built after the answers: **3A** (`135f8051`, ERRORS M532 fixed on the branch); **2B**'s purge (the images
             of a ticket done more than 90 days ago, `store.PURGES` `support_images`, `images_purged_at` and its index in
             `20261122_001`, still unapplied); the manual delete comes with the admin page's support inbox.
-          - Next: applying `20261122_001` on dev and the Railway variables with the beta's deploy; the admin page's read
-            side (slice 4) and its actions (slice 5); account deletion (slice 6); then the checker at xhigh, its fixes,
-            the beta.
+          - Slice 4a, the admin page's server side (on the session branch; not deployed): `app/admin.py` behind
+            `auth.admin_page` (the admin right of the beta-only `admin.access`, and, by **1A**, the authenticator code:
+            `POST /api/v1/admin/step-up` checks user #1's code or recovery code with the live sign-in's own check,
+            `AuthFlows.check_second_factor`, extracted from `mfa/verify` unchanged, and renews the beta's session with
+            `mfa_passed_at`, a new token, the old one revoked; the 6-digit code only, as the user's words name it: a
+            recovery code is refused unchecked, since it is single-use and shared with the live site); the overview, the
+            accounts (masked; an address found only in full) and one account,
+            the audited reveal, the audit and its spreadsheet file, the plans (read-only), the settings that are no
+            secret (`SHOWN_SETTINGS`), and the Support inbox with its images (sandboxed, never cached), done/new, the
+            Telegram summary again and, by **2B**, the delete by hand with a reason, each audited in its own
+            transaction. Tests: `tests/test_admin.py` (8); 28 mutations of the gate, the code step, the masks, the
+            audit and the image headers, each red but one equivalent (the recovery code passed on to a check it can no
+            longer reach).
+            - Design values taken by the main agent (to tell the user): the beta needs `EDGE_MFA_KEY` equal to the live
+              site's (else 503 `MFA_UNAVAILABLE`, naming it); a failed code on the beta counts toward the same caps as
+              on the live site (one authenticator, one count); the code is asked once per beta session (until it ends,
+              as the live sign-in); no recovery code on the beta step; pages of 50 rows (at most 200); the audit file at
+              most 10,000 rows, more refused naming the dates; a reason at most 1,000 characters.
+          - Next: slice 4b, the page (`admin` sub-app, the shell's `/admin` with `?ticket=`, the code step's screen);
+            applying `20261122_001` on dev and the Railway variables with the beta's deploy; the admin actions (slice
+            5); account deletion (slice 6); then the checker at xhigh, its fixes, the beta.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

@@ -660,6 +660,60 @@ class AuthFlows:
             raise Refusal(400, 'PASSWORD_BREACHED', {'fields': ['password']})
         return await self.password_work.run(password_verifier, password)
 
+    async def check_second_factor(self, user_id, code, recovery):
+        """The account's second factor (POST /api/v1/auth/mfa/verify; and, Phase 4, the admin page's code step on the
+        beta, app/admin.py, the user's "1A" of 2026-11-22): one of code (6 digits) or recovery_code. Returns once it
+        passed; else raises its refusal (INVALID_INPUT, LIMIT_REACHED, MFA_NOT_ENROLLED, MFA_LOCKED, MFA_CODE_INVALID)."""
+        settings, store = self.settings, self.store
+        code, recovery = (code or '').strip() if isinstance(code, str) else '', \
+            (recovery or '').strip() if isinstance(recovery, str) else ''
+        if bool(code) == bool(recovery):
+            raise invalid({'code': 'Send code (6 digits from the authenticator app) or recovery_code, not both.'})
+        key = str(user_id)
+        wait = await asyncio.to_thread(self.throttle.attempt, MFA_USER, key)
+        if wait:
+            raise Refusal(429, 'LIMIT_REACHED', {'limit': 'mfa_tries', 'retry_after_s': wait}, {'Retry-After': str(wait)})
+        if user_id is None or await asyncio.to_thread(store.totp, user_id) is None:
+            raise Refusal(400, 'MFA_NOT_ENROLLED')
+        # NIST SP 800-63B-4: at most 100 consecutive failed codes per account (10 for recovery codes), counted
+        # across every window and cleared only by a success (ERRORS M478, C1 P1-M2), decided, checked and counted
+        # under the enrolment's row lock (FlowStore.mfa_try, ERRORS R2-12). A lock lasts LOCK_SECONDS from the
+        # failure that reached the cap; then the count restarts just below it (N2). A password reset by email code
+        # or the operator (scripts/edge_mfa_unlock.py) clears it earlier.
+        kind, cap = ('totp', TOTP_FAILURE_CAP) if code else ('recovery', RECOVERY_FAILURE_CAP)
+        now = self.clock()
+        if code:
+            def check(row, _c):
+                # the confirmed (or first) enrolment first, then a re-enrolment waiting beside it (R1-7)
+                for nonce in (row['nonce'], row['pending_nonce']):
+                    if nonce is not None:
+                        step = mfa.matching_step(mfa.secret_of(settings.mfa_key, user_id, bytes(nonce)), code,
+                                                 mfa.step_now(self.clock))
+                        if step is not None:
+                            return CheckedStep(bytes(nonce), step)
+                return None
+        else:
+            check = FlowStore.recovery_check(user_id, mfa.recovery_hash(settings.mfa_key, user_id, recovery))
+        outcome, found = await asyncio.to_thread(store.mfa_try, user_id, kind, now, check)
+        if outcome == 'not_enrolled':
+            raise Refusal(400, 'MFA_NOT_ENROLLED')
+        if outcome == 'locked':
+            # details.use names the other way while it is open, by mfa_try's own lock test on the same row (none:
+            # both are locked, so the page waits for the unlock or a password reset; ERRORS M519)
+            other, open_way = ('recovery', 'recovery_code') if code else ('totp', 'code')
+            raise Refusal(403, 'MFA_LOCKED', {
+                'locked': 'code' if code else 'recovery_code',
+                'unlock_at': datetime.fromtimestamp(found[f'{kind}_locked_until'], timezone.utc).isoformat(),
+                **({} if mfa_way_locked(found, other, now) else {'use': open_way})})
+        # a matched code confirms the enrolment it was checked against, if that is still the account's (R2-11);
+        # a replayed step or an enrolment replaced since the check counts as a failure
+        ok = outcome == 'ok' or (outcome == 'matched' and await asyncio.to_thread(store.use_step, user_id, found))
+        if not ok:
+            if outcome == 'matched':
+                await asyncio.to_thread(store.mfa_failed, user_id, kind, cap, int(now) + LOCK_SECONDS)
+            raise Refusal(400, 'MFA_CODE_INVALID', {'fields': ['code' if code else 'recovery_code']})
+        await asyncio.to_thread(self.throttle.clear, MFA_USER, key)
+
     def routes(self, app, session_answer):
         settings, auth, store = self.settings, self.auth, self.store
         session_cookie = cookie_name(COOKIE, settings.secure_cookie)
@@ -904,53 +958,7 @@ class AuthFlows:
         @app.post('/api/v1/auth/mfa/verify')
         async def mfa_verify(request: Request, _on=Depends(switched_on), p: Principal = Depends(auth.writer)):
             b = fields_of(await request.body(), ('code', 'recovery_code'), ())
-            code, recovery = (b.get('code') or '').strip(), (b.get('recovery_code') or '').strip()
-            if bool(code) == bool(recovery):
-                raise invalid({'code': 'Send code (6 digits from the authenticator app) or recovery_code, not both.'})
-            key = str(p.user_id)
-            wait = await asyncio.to_thread(self.throttle.attempt, MFA_USER, key)
-            if wait:
-                raise Refusal(429, 'LIMIT_REACHED', {'limit': 'mfa_tries', 'retry_after_s': wait}, {'Retry-After': str(wait)})
-            if p.user_id is None or await asyncio.to_thread(store.totp, p.user_id) is None:
-                raise Refusal(400, 'MFA_NOT_ENROLLED')
-            # NIST SP 800-63B-4: at most 100 consecutive failed codes per account (10 for recovery codes), counted
-            # across every window and cleared only by a success (ERRORS M478, C1 P1-M2), decided, checked and counted
-            # under the enrolment's row lock (FlowStore.mfa_try, ERRORS R2-12). A lock lasts LOCK_SECONDS from the
-            # failure that reached the cap; then the count restarts just below it (N2). A password reset by email code
-            # or the operator (scripts/edge_mfa_unlock.py) clears it earlier.
-            kind, cap = ('totp', TOTP_FAILURE_CAP) if code else ('recovery', RECOVERY_FAILURE_CAP)
-            now = self.clock()
-            if code:
-                def check(row, _c):
-                    # the confirmed (or first) enrolment first, then a re-enrolment waiting beside it (R1-7)
-                    for nonce in (row['nonce'], row['pending_nonce']):
-                        if nonce is not None:
-                            step = mfa.matching_step(mfa.secret_of(settings.mfa_key, p.user_id, bytes(nonce)), code,
-                                                     mfa.step_now(self.clock))
-                            if step is not None:
-                                return CheckedStep(bytes(nonce), step)
-                    return None
-            else:
-                check = FlowStore.recovery_check(p.user_id, mfa.recovery_hash(settings.mfa_key, p.user_id, recovery))
-            outcome, found = await asyncio.to_thread(store.mfa_try, p.user_id, kind, now, check)
-            if outcome == 'not_enrolled':
-                raise Refusal(400, 'MFA_NOT_ENROLLED')
-            if outcome == 'locked':
-                # details.use names the other way while it is open, by mfa_try's own lock test on the same row (none:
-                # both are locked, so the page waits for the unlock or a password reset; ERRORS M519)
-                other, open_way = ('recovery', 'recovery_code') if code else ('totp', 'code')
-                raise Refusal(403, 'MFA_LOCKED', {
-                    'locked': 'code' if code else 'recovery_code',
-                    'unlock_at': datetime.fromtimestamp(found[f'{kind}_locked_until'], timezone.utc).isoformat(),
-                    **({} if mfa_way_locked(found, other, now) else {'use': open_way})})
-            # a matched code confirms the enrolment it was checked against, if that is still the account's (R2-11);
-            # a replayed step or an enrolment replaced since the check counts as a failure
-            ok = outcome == 'ok' or (outcome == 'matched' and await asyncio.to_thread(store.use_step, p.user_id, found))
-            if not ok:
-                if outcome == 'matched':
-                    await asyncio.to_thread(store.mfa_failed, p.user_id, kind, cap, int(now) + LOCK_SECONDS)
-                raise Refusal(400, 'MFA_CODE_INVALID', {'fields': ['code' if code else 'recovery_code']})
-            await asyncio.to_thread(self.throttle.clear, MFA_USER, key)
+            await self.check_second_factor(p.user_id, b.get('code'), b.get('recovery_code'))
             # OWASP Session Management: a new session token at the privilege change. ERRORS R2-9: made only while the
             # pending session is still live, and that session is revoked in the same transaction, so a reset or a
             # sign-out everywhere since this request began leaves no session behind

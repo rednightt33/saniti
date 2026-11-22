@@ -32,6 +32,10 @@ MESSAGES = {
     'ORIGIN_REJECTED': 'This request did not come from the EDGE page. Open EDGE again and retry from there.',
     'REQUEST_TOO_LARGE': 'This request is too large. Send less at once and try again.',
     # Phase 4, the contact-support panel (app/support.py)
+    'MFA_UNAVAILABLE': 'The authenticator cannot be checked on this site: EDGE_MFA_KEY is not set. Set it to the live '
+                       'site\'s value, then try again.',
+    'TELEGRAM_UNAVAILABLE': 'Telegram is not connected on this site. Set TELEGRAM_NOTIFY_URL and TELEGRAM_SUPPORT_SECRET, '
+                            'then send the summary again.',
     'SUPPORT_STORAGE_FULL': 'Images cannot be stored right now. Send your message without images; we will ask you for '
                             'them by email if we need them.',
     'SERVICE_UNAVAILABLE': 'EDGE cannot answer right now. Wait a moment, then try again.',
@@ -233,6 +237,10 @@ def words(code, status, details=None):
                      if isinstance(allowed, int) and not isinstance(allowed, bool) else 'support messages')
             return f'You can send {count} per {per}. Wait {wait or "a while"}, then send your message again.'
         return f'Too many attempts. Wait {wait or "a while"}, then try again.'
+    elif code == 'MFA_LOCKED' and d.get('step_up') is True:
+        # Phase 4, the admin page's code step on the beta: the code locks on both sites (one authenticator, one count)
+        return ('Too many wrong authenticator codes, so codes are locked on both sites for now. Wait 24 hours, reset your '
+                'password by email on the live site, or ask an operator to unlock them.')
     elif code == 'MFA_LOCKED' and d.get('locked') == 'recovery_code' and d.get('use') == 'code':
         # the recovery codes are locked, the authenticator is not (live checker ACC-2; the server says so, M519): say
         # the way that is still open
@@ -241,6 +249,10 @@ def words(code, status, details=None):
     elif code == 'MFA_LOCKED' and d.get('use') == 'recovery_code':
         return ('Too many wrong authenticator codes, so codes are locked for now. Enter one of your recovery codes '
                 'instead.')
+    elif code == 'MFA_REQUIRED' and d.get('step_up') is True:
+        # Phase 4 (the user, 2026-11-22: "1A"): the admin page on the beta asks for the authenticator's code
+        return ('The admin page needs your authenticator code. Enter the 6-digit code from the authenticator app you use on '
+                'the live site.')
     elif code == 'MFA_REQUIRED' and d.get('mfa_enrolled') is False:
         return ('This needs two-step sign-in, which is not set up for this account yet. Set up an authenticator app '
                 'when EDGE asks for it, then try again.')

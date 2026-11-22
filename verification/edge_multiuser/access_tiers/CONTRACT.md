@@ -1298,6 +1298,30 @@ today.
 ## 10. Admin (Phase 4)
 
 - **Page `/admin`.** Shell route, admin capability + MFA.
+- **The code step on the beta** (the user, 2026-11-22: "1A"). The beta runs with the switch off: one password, and its
+  sessions count as past the second factor. The admin page alone asks for the 6-digit code of the authenticator the
+  admin uses on the live site (user #1's enrolment, the same rows, its failure caps and its used steps shared with the
+  live site): `POST /api/v1/admin/step-up` `{code}` checks it as the live sign-in does
+  (`AuthFlows.check_second_factor`) and renews the session as one that passed it (`edge_bff.sessions.mfa_passed_at`; a
+  new token, the old one revoked in the same transaction, OWASP), for the rest of that session. A recovery code is
+  refused there unchecked: it is single-use and shared with the live site, so one spent on the beta would be gone on
+  the live sign-in. A lock of the codes (100 wrong ones, the live site's count) answers 403 `MFA_LOCKED` with
+  `details.step_up` and no other way to use. Until then every admin data route answers 403 `MFA_REQUIRED` with
+  `details.step_up`. The beta needs `EDGE_MFA_KEY` equal to the live site's (`config.shared_key_marks`
+  logs both marks at start); without it the step answers 503 `MFA_UNAVAILABLE`. Every other page of the beta is
+  unchanged. With the switch on the sign-in itself asked for the code, and the step answers 404.
+- **Built, slice 4a** (`app/admin.py`, `tests/test_admin.py`; every route behind `auth.admin_page`, the admin right of
+  `admin.access`, beta-only, so the live site answers 404 before any session is read): the overview (counts), the
+  accounts list (address and phone masked; searched by any part of a username or name, an address only in full, so a
+  masked address is never narrowed without a reveal) and one account (plan history, overrides, sessions, usage, its
+  audit), the reveal of an address or phone with a reason (an account without one: nothing shown, nothing audited), the
+  audit list and its spreadsheet file (`text_rules.export_cell` on every cell; more than 10,000 rows refused, naming the
+  dates to narrow), the plans (read-only; a change is a migration), the settings that are no secret (`SHOWN_SETTINGS`, a named
+  list), and the Support inbox: the tickets, one ticket, its images (served as their own type with `default-src 'none';
+  ...; sandbox`, `no-store`, same-origin), marked done or new, its Telegram summary sent again, and deleted by hand with
+  a reason (the user's "2B"). Audit actions: `account.reveal` (after `{field}`), `support.status` (before and after
+  `{ticket_id, status}`), `support.delete` (before `{ticket_id, kind, status, images, images_purged}`), each in the same
+  transaction as its change, with ids, kinds and the admin's reason only, never a person's words or address.
 - **Routes** `/api/v1/admin/users`:
   - list with filter and paging: username, name, email masked, phone masked, role, status, plan, expires_at,
     last_sign_in_at, created_at, usage counters;
