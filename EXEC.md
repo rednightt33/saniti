@@ -16613,6 +16613,16 @@ Order of the services (CONTRACT 17, rollback floors):
     that hour is free); the count's cost measured from the logs after the beta deploy, B the way back.
   - Order: the records, group A, the lab gaps and W4, the re-check, the beta; the live site only on the user's request
     (group A reaches the live site only with a promotion, which carries Phase 4's support panel too).
+  - On the test-out of fix round 1 (UD23, asked 2026-11-22 with context), the user the same day: "Boleh saya konfirmasi
+    bahwa temuan Ultracode sebelumnya sudah diperbaiki, tapi perbaikan tersebut belum dilakukan pengecekan lagi ...
+    Jika this is the case, maka nanti pengecekan bisa dibarengin dengan step nomor langkah 8. Kita harus move forward
+    ... Tapi juga perlu di-take into account, jangan sampai ada missing item yang terlewat, dalam artian ada temuan yang
+    belum ditindaklanjuti atau ada perbaikan yang belum dites perbaikannya. Ini nanti kita cater atau kita jalankan
+    semua di langkah 8 untuk final check." → no round 2 now; fix round 1 is finished, recorded and deployed to the beta
+    as planned, and its test-out joins step 8. Step 8 works from the step-8 ledger (workflow `wf_877859a9-d28`, written
+    to `verification/records/step8_ledger.json`): every confirmed checker finding of this execution with its fate; step
+    8 tests out every row whose fix no other agent tested and settles every open row. Rule 8 is unchanged for later
+    rounds unless the user says otherwise; until step 8 a fix of round 1 is reported as "fixed, not tested out".
 - **The user's go for the rest of the round (2026-11-22): "Lanjutkan sisa pekerjaan, kemudian penutup putaran ya.. then
   proceed ke langkah 7. Aman?"** The rest (R1-5 A1, lab gap 3 and L11, the status test of rule 9), then the close (the
   re-check by five agents with the older fixes, the beta deploy with the shared workers' check against the live site's
@@ -16644,7 +16654,6 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD16 | Remove `EDGE_INITIAL_PASSWORD` from the beta | not yet asked with context (a row of the 2026-11-22 report) | security | any time |
   | UD17 | The old data defects (sector swap, Feature 04 bloat, five tickers, candle flags, M335, M426, M157) | each its own date | the data's accuracy | before paid launch |
   | UD18 | The Terminal defects and proposals only the user opens (M454, M447, M333) | each its own date | paying accounts' pages | before paid launch |
-  | UD23 | The scope of the test-out of fix round 1 (the user 2026-11-22: "I think we should move forward dan catat tes atau error yang sudah diperbaiki untuk nanti final ultra code check"): skip round 2 and carry its 21 items to step 8; test out only the shared workers' changes that reach the live site when main moves (L2/CAT-3, W2, deploy-compat) and carry the rest; or the full round 2 (rule 8); and whether rule 8 changes | 2026-11-22 with context | the beta deploy, step 7 | now |
   | UD20 | A valid Railway token for telegram-trigger (the Telegram Run Now buttons fail) | 2026-11-03 | the manual restart button | any time |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
