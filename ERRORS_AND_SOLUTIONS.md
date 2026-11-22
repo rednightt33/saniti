@@ -8879,7 +8879,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M540 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; OPEN)
+### M543 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; OPEN)
 
 - **Found by:** the agent, running `tests/test_admin_page.py::test_a_sign_in_through_the_authenticator_code_keeps_the_page_it_was_shown_at`
   for the SERVE-3 change.
@@ -8892,7 +8892,7 @@ in its staleness check.
 - **Solution:** none yet; in the re-check's list (AGENTS.md "Findings and fixes"), never skipped. NC17's class (flaky
   browser tests M510 does not name).
 
-### M539 — The OpenRouter key expired on 2026-11-22: the beta's AI and the web governor refused since 03:55 UTC, and nobody was told (2026-11-22; found by the agent from the open-items report NC29; OPEN, the key is the user's)
+### M542 — The OpenRouter key expired on 2026-11-22: the beta's AI and the web governor refused since 03:55 UTC, and nobody was told (2026-11-22; found by the agent from the open-items report NC29; OPEN, the key is the user's)
 
 - **Found by:** the agent, checking NC29 of the open-items report (the key recorded on 2026-10-30 "expires 2026-11-22").
 - **Verified (logs, 2026-11-22):** market-web-governor `web_provider_key_invalid` state INVALID, status 401, every 15
@@ -8911,8 +8911,12 @@ in its staleness check.
   that work.
 - **Lesson:** a credential with an end date needs an alert before the date, not a log line after it.
 
-### M538 — Verified checker findings left unsolved when the work moved to the next phase (2026-11-22; found by the user; FIXED as working rules, AGENTS.md "Findings and fixes")
+### M541 — Verified checker findings left unsolved when the work moved to the next phase (2026-11-22; found by the user; FIXED as working rules, AGENTS.md "Findings and fixes")
 
+- **Renumbered:** written as M538 (and the two entries above as M539, M540) on branch `claude/pensive-feynman-4ahfe3`
+  while another session put its own M538-M540 on `main` (Terminal drag, CI connections, the Loaders title); the commit
+  messages of that branch up to `d33aeb35` still say M538-M540 for these three. Two sessions writing ERRORS at once
+  take the next free number when they merge, not when they write.
 - **Found by:** the user ("Tapi kenapa itu tidak di-solve sebelum kita continue ke fase selanjutnya"), traced by the
   workflow `wf_539660fc-8ff` over every checker run of EXEC-MU-ACCOUNTS (scratchpad `fate_result.json`).
 - **Verified:** 270 confirmed findings outside Phase 4: 209 fixed, 28 fixed and then reopened by a later checker (26 of

@@ -16578,7 +16578,7 @@ Order of the services (CONTRACT 17, rollback floors):
             habis itu kita lanjut ke langkah 9 sampai selesai"; their items told to the user before starting), then the
             payment shell, the deep checker, the registration test window.
 - **The user's decisions of 2026-11-22 (after Phase 4 on the beta), the round before step 7:**
-  - On the process (ERRORS M538): "Perbaikan proses di atas: setuju saya terapkan dan catat sebagai aturan kerja mulai
+  - On the process (ERRORS M541): "Perbaikan proses di atas: setuju saya terapkan dan catat sebagai aturan kerja mulai
     sekarang? OK setuju" → AGENTS.md "Findings and fixes" (nine rules, the register below).
   - On group A of the open-items report: "A. Bug yang berdampak ke live sekarang dan tidak tercakup rencana (perlu
     tindakan proaktif) OK fix it": R2-37 (no sign-in limit per client address; the throttle purge without an index),
@@ -16597,7 +16597,7 @@ Order of the services (CONTRACT 17, rollback floors):
     workers' lab gaps; the Terminal and the shell; records, CI and deploy) given the original findings, then CI, then
     the beta. The scope, the user the same day: "A - also possible to assign those subagents to check bug yg detected from
     ultracode findings, yang sudah di fix, tapi belum di testout?": yes, every fixed finding of an ultracode checker
-    whose last fix no agent other than its author tested out (ERRORS M538: the A2 fixes, the Terminal's TL-1 to TL-3,
+    whose last fix no agent other than its author tested out (ERRORS M541: the A2 fixes, the Terminal's TL-1 to TL-3,
     3f round 2, the example mode's run 2 and the Watchlist's latest data, Phase 4's 18), derived from the checkers'
     journals, joins this round's fixes. And: "Masukan ke memory: workflow ditambahkan 1 fase lagi which to test out
     perbaikan ya" → AGENTS.md "Findings and fixes" rule 8.
@@ -16624,7 +16624,7 @@ Order of the services (CONTRACT 17, rollback floors):
   |---|---|---|---|---|
   | GA-2 | ops:F2 alerts: inside Railway, outside it (a GitHub Actions probe with the Telegram secrets the user adds), or both | 2026-11-22 with context | the alerting work | this round |
   | UD3 | A fresh Stockbit token for the broker round (broker data stops at 9 Nov) | 2026-11-20 | Radar, Flow, Foreign 5D, broker presets, corporate actions | now |
-  | NC29 | The OpenRouter key expired 2026-11-22 03:55 UTC (ERRORS M539): extend or replace it and set `OPENROUTER_API_KEY` on market-ai-orc; then the consumers' redeploy | 2026-11-22 | the beta's AI, the web governor (refused now) | now |
+  | NC29 | The OpenRouter key expired 2026-11-22 03:55 UTC (ERRORS M542): extend or replace it and set `OPENROUTER_API_KEY` on market-ai-orc; then the consumers' redeploy | 2026-11-22 | the beta's AI, the web governor (refused now) | now |
   | UD1 | Railway usage: a soft-limit alert and a hard limit with headroom (three stops on record stop every service, the live site included) | not yet asked with context (a row of the 2026-11-22 report; excluded by the user 2026-11-19, "4 keputusan tambahan kamu jangan dimasukin", before the live site existed) | the live site's uptime | before step 9 |
   | UD2 | Written permission per data source (TradingView, Stockbit, IDX/KSEI) and for the logos the public site shows | not yet asked with context (a row of the 2026-11-22 report) | the public examples, launch | before step 9 |
   | UD4 | A backup schedule of the shared Postgres and one restore test | not yet asked with context (a row of the 2026-11-22 report; excluded by the user 2026-11-19 with UD1) | real accounts, payments | before step 9 |
