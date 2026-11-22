@@ -16157,6 +16157,12 @@ Order of the services (CONTRACT 17, rollback floors):
        example's corporate actions (the user's "B", proposed to be done together). Built in basic mode, checked by an
        ultracode workflow at xhigh, the beta first; the live site only on the user's request.
   7. the registration test window (above), last, after A2.
+  - **Added by the user (2026-11-22):** "Masukkan saja setelah langkah 6, selesai di beta, baru habis itu kita lanjut ke
+    langkah 9 sampai selesai." Asked with its context the same day (steps 6-9 do not close the lab gaps; until they are
+    closed every new indicator or page enters as `released` and reaches the live site at the next promotion): closing
+    the lab gaps of FUTURE_PLAN.md "Before the first lab item or tab" (ERRORS M523) runs right after Phase 4 is on the
+    beta, on the beta first, then the payment shell, the deep checker and the registration test window. Its items are
+    listed to the user before it starts (the optional ones named as such).
   Each phase as before: built in basic mode, the beta first, its checker in ultracode, the live site only on the user's
   request. Not in this list: the Postgres restart times (the user has not answered), the real payment method.
   - **How it runs (the user, 2026-11-20):** "Oke, saya setuju. Tapi Ultracode tidak usah pakai Max karena in terms of

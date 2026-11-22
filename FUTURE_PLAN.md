@@ -259,7 +259,7 @@ server, region, atau biaya:
 | S5 | terminal-api dan Postgres di sfo, bucket di sin | Satu region untuk keduanya | Paling besar | Keputusan infrastruktur |
 
 
-### Before the first lab item or tab (3f's ultracode checker, 2026-11-21; not approved, not built)
+### Before the first lab item or tab (3f's ultracode checker, 2026-11-21; approved 2026-11-22 to run after Phase 4 is on the beta, EXEC.md EXEC-MU-ACCOUNTS; not built)
 
 3f (EXEC option A item 4) built what keeps a lab item out of the public page builds and the tab catalogs. Its checker
 (ERRORS M523) found the ways a lab item or tab would still reach people who do not hold it. Two tests refuse any lab item
