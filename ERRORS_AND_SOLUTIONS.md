@@ -8969,6 +8969,27 @@ in its staleness check.
 - **Lesson:** a tool that reads `$_` to find itself breaks under any wrapper; when a version check contradicts
   `--version`, look at how the check finds the program before upgrading anything.
 
+### M541 — CI edge-bff: the admin sign-in test from /backtest counts the backtest page's 404 (2026-11-22, cause verified, fix awaiting the user)
+
+- **Symptom:** `tests/test_admin_page.py::test_a_sign_in_through_the_authenticator_code_keeps_the_page_it_was_shown_at`
+  fails with `AssertionError: ([], [], [('GET', '/backtest-app/', 404)])`. Backend tests 45039209166 (`6cc859ee`):
+  failed, passed on its rerun; 45051592845 (`db481c2b`, the branch): failed on all three attempts; 45051594848
+  (`db481c2b`, `main`): failed then passed on its rerun. Locally it fails every time (also on the code before ERRORS
+  M538 round 2). With M539 it held the beta deploy of `db481c2b` (SKIPPED).
+- **Verified root cause:** the test signs in at `/backtest?run=bt_1`; the shell lands there and its iframe asks for
+  `/backtest-app/`. The test server serves `static/backtest-app`, which only the Docker image fills
+  (`apps/edge-bff/Dockerfile`: `COPY --from=backtest /build/backtest/dist ./static/backtest-app`); CI and a local run build
+  the page into `apps/edge-bff/backtest/dist`, so `/backtest-app/` answers 404. `Watch.check` counts every answer of 400 or
+  more seen before it runs: whether the iframe's 404 has arrived by then is timing, so CI passes it sometimes and a local
+  run never.
+- **Class:** a browser test that opens a page whose built sub-app is placed by the Docker image only (the backtest page
+  today; any page built to its own `dist`), while the test server reads `static/`.
+- **Proposal (awaiting the user):** the test server serves the sub-apps from where the CI step builds them (the way
+  `test_the_code_step_says_why_it_cannot_run` already points `main.ADMIN_APP` at `admin/dist`), in one helper for every
+  browser test, so the page under test is the built one; the test keeps refusing any unexpected 404. Not chosen: adding
+  `('GET', '/backtest-app/', 404)` to the test's expected answers (it would hide a real missing page).
+- **Status:** cause verified; fix awaiting the user's go. Not related to the Terminal change it held.
+
 ### M540 — Terminal: judul Loaders (FL51) menulis "Sell" saat pilihan Show = Loaders (2026-11-22, open)
 
 - **Ditemukan oleh:** verifikasi ronde 2 M538 di beta (pengaturan pemilik: FL51 `side: 'load'`, `top: '3'`).
@@ -9029,8 +9050,12 @@ in its staleness check.
   Statistics dan Broker activity terbuka (sebelumnya 20,9 s, 70 task). Hanya cache tanggal: 11,0 s, 69 task, p95 117 ms.
   Sesudah drag berhenti, rentang judul indikator sama dengan candle tepi yang terlihat (selisih ≤ 1 sesi, ketelitian alat
   ukur). tsc dan 1.003 vitest lulus.
+- **Persetujuan (EXEC-TERMINAL-LAG-2, selesai dan dipindah ke sini 2026-11-22):** usulan A (hitung ulang sesudah layar
+  berhenti + cache tanggal) atau B (cache tanggal saja); user: "Go" (dibaca sebagai A); sesudah pengukuran pembanding: "saya
+  setuju dengan solusi kamu untuk di execute"; atas usulan U1–U5: "U1 + U2 + U4 go, U3 setelah diukur" (U3 diukur lalu
+  masuk; U5, hitungan ke worker, tidak dikerjakan). Rilis hanya ke beta; situs live hanya atas permintaan user.
 - **Status:** fixed. Perbaikan pertama (A) di beta sejak deployment `431916ed` (commit `6cc859ee`, 2026-11-22); ronde 2
-  (U1–U4, di bawah) di beta sesudah CI hijau (RAILWAY_CHANGELOG.md). Situs live (app.edgefinance.id) menerima perbaikan ini
+  (U1–U4, di bawah) di beta sejak deployment `61a8928b` (commit `db481c2b`, 2026-11-22; RAILWAY_CHANGELOG.md). Situs live (app.edgefinance.id) menerima perbaikan ini
   hanya bila user meminta pemindahan `live`.
 - **Ronde 2 (user 2026-11-22: "U1 + U2 + U4 go, U3 setelah diukur"; EXEC-TERMINAL-LAG-2):**
   - Bukti tambahan (beta, kode lama, BBCA): tanpa keempat indikator yang mengikuti layar pan 80 langkah 2,0 s dan 0 long

@@ -244,6 +244,17 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
 - Usulan: `verification/terminal_api/pre_rally_panels/pre_rally_options.html` (20 opsi, data contoh, acuan riset dan
   sumber data per opsi: indikator Flow yang ada, harga, atau hitungan baru). Menunggu pilihan user; belum ada go.
 
+## CI-TESTS-AND-FL51 — tiga usulan dari EXEC-TERMINAL-LAG-2 (2026-11-22, menunggu keputusan user)
+
+Ditemukan saat rilis perbaikan drag Terminal; masing-masing dengan penyebab terverifikasi di ERRORS_AND_SOLUTIONS.md:
+- **M539** (tes CI edge-bff "too many clients"): fixture `store` menutup pool koneksinya sesudah setiap tes, `Store(...)`
+  yang dibuat langsung di tes ditutup juga, dan satu tes penjaga jumlah koneksi. Hanya kode tes. Tanpa ini deploy beta
+  bisa tertahan acak (sudah dua kali 2026-11-22).
+- **M541** (tes admin dari `/backtest` menghitung 404 halaman Backtest): server tes melayani sub-app dari tempat langkah CI
+  mem-build-nya (satu helper untuk semua tes browser); tes tetap menolak 404 yang tidak diharapkan. Hanya kode tes.
+- **M540** (judul FL51 menulis "Sell" saat Show = Loaders): kata sisi di judul indikator Flow diambil dari label pilihan
+  registry. Mengubah teks legenda yang user lihat.
+
 ## FI-SPEED — Terminal: sisa waktu muat di sisi server (usulan 2026-11-01, menunggu keputusan user)
 
 User 2026-11-01: "untuk load data obligasi kayaknya lama banget deh ... Coba cek deh, kenapa bisa selama ini ya?". Dua

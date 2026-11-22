@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-11-22 — Terminal drag, round 2 on the beta (ERRORS M538 round 2; user "U1 + U2 + U4 go, U3 setelah diukur")
+
+- **Commit `db481c2b`:** U1 (recompute after the release), U2 (no data for a line not drawn), U3 (a line's data from its
+  first to its last value, measured first), U4 (cached Intl formatters, the legend writes only changes), the start/end
+  kept per indicator; tests `view_follow.test.ts`, `intl_cache.test.ts`; probes `drag_settle.py`, `compare_builds.py`.
+- **CI:** on `main` Backend tests 45051594848 failed once with the edge-bff job's "too many clients" error (ERRORS M539)
+  and passed on its rerun (attempt 2, 1,184 tests); on the branch 45051592845 the admin sign-in test from `/backtest` failed
+  on all three attempts on the backtest page's 404 in the test server (ERRORS M541, not the Terminal), and its rerun was
+  cancelled when `faa93f77` (the M541 record) reached the branch. Every other workflow of `db481c2b` was green on both.
+- **Beta:** the automatic deployment `6df95286` was SKIPPED. M340 check before: 0 EDGE jobs, 0 orc turns.
+  `serviceInstanceDeployV2` with `db481c2b` → `edge-bff` `61a8928b` SUCCESS; `/ready` 200 on the beta and the live site;
+  the served Terminal bundle holds the pointer listeners.
+- **Measured on the beta as served (BBCA, the owner's four view-following indicators shown, writes refused):** normal
+  speed: no long task while the pointer is held, 0.09–0.15 s once released; CPU four times slower: drags 5.1–6.2 s, one
+  task over 0.3 s in four drags (0.35 s), 0.52–0.70 s once released (fix A: 16–42 s, 6–22 tasks of 1–2 s, 0.9–1.5 s).
+  After a drag the view-following titles match the candles at the edges of the view (within one session, the probe's
+  precision).
+- **Live:** unchanged (`edge-bff-live` `f1d6a921`, `4b35b5ed`); moving `live` waits for the user's request.
+- **Not a large update:** no database change; no Postgres restart.
+- **Rollback:** redeploy `edge-bff` `431916ed` (commit `6cc859ee`, fix A only).
+
 ## 2026-11-22 — Terminal drag lag, fix A on the beta (ERRORS M538, EXEC-TERMINAL-LAG-2)
 
 - **Commit `6cc859ee`:** the view-following indicators recompute once the view has settled (150 ms) and the legend dates
