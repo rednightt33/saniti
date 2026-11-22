@@ -8955,6 +8955,98 @@ in its staleness check.
 - **Lesson:** a tool that reads `$_` to find itself breaks under any wrapper; when a version check contradicts
   `--version`, look at how the check finds the program before upgrading anything.
 
+### M540 — Terminal: judul Loaders (FL51) menulis "Sell" saat pilihan Show = Loaders (2026-11-22, open)
+
+- **Ditemukan oleh:** verifikasi ronde 2 M538 di beta (pengaturan pemilik: FL51 `side: 'load'`, `top: '3'`).
+- **Gejala:** judul legenda "Loaders (Top 3, Sell, Domestic · Regular, from …)" padahal yang ditampilkan adalah pembeli
+  terbesar (Loaders), bukan penjual.
+- **Verified root cause:** judul semua indikator Flow menulis sisi dengan satu aturan (`apps/edge-bff/terminal/src/app/flowIndicators.ts`,
+  baris `if (p.side && p.side !== 'buy' …) parts.push(p.side === 'both' ? 'Buy & Sell' : 'Sell')`): setiap nilai selain
+  `buy` dan `both` dibaca "Sell". Pilihan FL51 di registry adalah `load` (Loaders), `sell` (Sellers), `both` (Both); `side`
+  ada di `TITLE_SKIP`, jadi label pilihannya sendiri tidak ditulis.
+- **Kelas masalah:** teks judul yang dibangun dari daftar nilai tetap, bukan dari label pilihan di registry; indikator lain
+  dengan pilihan sisi bernama lain akan mendapat kata yang salah juga.
+- **Usulan (belum dikerjakan, menunggu user):** kata sisi diambil dari label pilihan di registry (`options`), bukan dari
+  `buy`/`both`/lainnya.
+- **Status:** open; dilaporkan ke user 2026-11-22.
+
+### M539 — CI edge-bff: "too many clients" di database uji; tes-tes yang sama gagal di `main` dua kali (2026-11-22, cause verified, fix awaiting the user)
+
+- **Gejala:** Backend tests (job edge-bff) run 45029226701 (`27e33943`, commit dokumen saja) dan 45039209166 (`6cc859ee`):
+  `ERROR at setup of test_a_value_outside_its_capabilitys_domain_is_refused_when_written[terminal.tickers-…]`,
+  `psycopg.OperationalError: … FATAL: sorry, too many clients already`; commit yang sama di branch lulus (45039207127);
+  ulangan job yang gagal lulus (attempt 2). Deploy beta tertahan (SKIPPED) sampai ulangan hijau dan deploy manual.
+- **Verified root cause:** fixture `store` (`apps/edge-bff/tests/conftest.py`) mengembalikan `Store` tanpa pernah menutup
+  pool koneksinya (`app/store.py`: `POOL_MIN` 1, `max_idle` 300 s); hanya tes yang menjalankan lifespan aplikasi
+  (`TestClient`) menutupnya (`app/main.py`). Koneksi menganggur menumpuk sampai pool dibersihkan garbage collector. Bukti
+  lokal (`max_connections` 100, plugin penghitung `pg_stat_activity` per tes): 68 koneksi idle sesudah 116 tes, puncak 98,
+  lalu tes `test_terminal_fix_round.py` yang sama error "too many clients". Dengan fixture yang menutup store sesudah
+  setiap tes: 0 koneksi terbuka sesudah 100 tes (percobaan lokal, dikembalikan; belum di Git).
+- **Kelas masalah:** sumber daya tes (pool koneksi) yang tidak ditutup per tes; berlaku untuk setiap suite yang membuat
+  `Store` sendiri (23 file tes edge-bff membuat store, `Store(...)` langsung di beberapa) dan untuk suite lain yang memakai
+  pool (orc, terminal-api) bila pola yang sama ada.
+- **Usulan (menunggu user):** fixture `store` menjadi `yield` + `close()`; `Store(...)` yang dibuat langsung di tes ditutup
+  di akhir tesnya; tes penjaga yang membaca jumlah koneksi sesudah suite. TEMPORARY yang tidak dipilih: menaikkan
+  `max_connections` di service Postgres CI (menutupi kebocoran, tidak memperbaikinya).
+- **Status:** cause verified; perbaikan menunggu persetujuan user.
+
+### M538 — Terminal: drag kiri-kanan sangat laggy; indikator yang mengikuti layar dihitung ulang terus selama chart bergeser (2026-11-22, fixed)
+
+- **User 2026-11-22:** "Coba cek bagian terminal kita, saat ini sangat laggy kalau di klik kiri kemudian drag kiri kanan
+  atas bawah."
+- **Bukti (beta, login pemilik, NTBK, susunan indikator user; `verification/terminal_api/drag_lag/drag_live.py`, pan 80
+  langkah):** horizontal 19,0 s, 70 long task 14,4 s, frame p95 217 ms; vertikal mulus (0 long task). Profil CPU dengan
+  bundle lokal tanpa minify di halaman live: 14,36 dari 14,4 s di rantai `followView` → `recompute` → `refreshPlot` →
+  `refresh` → `refreshMulti` (setData seluruh seri 9,3 s; `showTip` → `paintRow` → `title` → `dayText` → `longDay`
+  6,3 s).
+- **Verified root cause:** (1) indikator yang mengikuti layar (`def.viewBound`, mis. Loaders "from … to …" yang memakai
+  candle pertama/terakhir yang terlihat) dihitung ulang setiap 120 ms selama chart bergeser
+  (`apps/edge-bff/terminal/src/app/indicators.ts`, scheduler front-end audit I12); satu hitung ulang (seluruh seri,
+  setData, legenda) memakan 100–200 ms, lebih lama dari jedanya, sehingga browser tidak punya frame kosong; (2) judul
+  legenda memformat tanggal dengan `toLocaleDateString` (`src/ui/calendar.ts` `longDay`) pada setiap gerakan crosshair dan
+  frame geser.
+- **Kelas masalah:** pekerjaan seukuran seluruh riwayat (hitung ulang seri, setData, format Intl) di handler interaksi yang
+  berulang (geser/zoom, crosshair). Kelas yang sama dengan EXEC-TERMINAL-LAG (2026-10-29: format tanggal tooltip Flow,
+  inventory per frame); jalur indikator yang mengikuti layar ditambahkan sesudahnya dan membawa kembali kelas itu.
+- **Solution:** indikator yang mengikuti layar dihitung ulang sekali, 150 ms sesudah layar berhenti bergeser (trailing,
+  untuk semua `def.viewBound`, dari definisinya; pola yang sama dengan panel Broker inventory); `longDay` menyimpan hasil
+  per tanggal (16 pemanggil). Garis Cumulative Flow Timeline tetap mengikuti langsung (biaya < 0,2 s per drag).
+- **Verifikasi:** halaman live dengan bundle perbaikan: horizontal 2,0–2,1 s, 0 long task, p95 16,8 ms; juga dengan panel
+  Statistics dan Broker activity terbuka (sebelumnya 20,9 s, 70 task). Hanya cache tanggal: 11,0 s, 69 task, p95 117 ms.
+  Sesudah drag berhenti, rentang judul indikator sama dengan candle tepi yang terlihat (selisih ≤ 1 sesi, ketelitian alat
+  ukur). tsc dan 1.003 vitest lulus.
+- **Status:** fixed. Perbaikan pertama (A) di beta sejak deployment `431916ed` (commit `6cc859ee`, 2026-11-22); ronde 2
+  (U1–U4, di bawah) di beta sesudah CI hijau (RAILWAY_CHANGELOG.md). Situs live (app.edgefinance.id) menerima perbaikan ini
+  hanya bila user meminta pemindahan `live`.
+- **Ronde 2 (user 2026-11-22: "U1 + U2 + U4 go, U3 setelah diukur"; EXEC-TERMINAL-LAG-2):**
+  - Bukti tambahan (beta, kode lama, BBCA): tanpa keempat indikator yang mengikuti layar pan 80 langkah 2,0 s dan 0 long
+    task; dengan keempatnya 22,7 s dan 71; satu Loaders saja 4,7 s, satu Broker Inventory · Price Chart saja 4,0 s.
+    Indikator yang belum ditambahkan tidak dihitung (`indicators.ts`: daftar `list` saja); yang ditambahkan tapi
+    disembunyikan atau dilipat tetap dihitung dan dikirim ke chart.
+  - Dengan perbaikan A dan CPU 4× lebih lambat (`drag_settle.py`, argumen 4): setiap frame 60–100 ms, 6–22 kali macet di
+    atas 0,3 s per drag (aturan 150 ms tanpa gerakan tercapai di antara frame yang lambat), 0,9–1,5 s sesudah dilepas.
+  - U1: hitung ulang menunggu tombol/jari dilepas (`src/app/viewFollow.ts`, tes `tests/data/view_follow.test.ts`); U2:
+    garis yang tidak digambar tidak menerima data, angka legenda tetap dihitung (`refreshMulti`, `refreshPlot`); U3: garis
+    dikirim hanya dari nilai pertama sampai terakhirnya (`inRange`); U4: satu formatter Intl per pilihan
+    (`src/data/intlCache.ts`, 27 tempat; `tests/data/intl_cache.test.ts` menolak `toLocale*()` dan `new Intl` di dalam
+    fungsi) dan legenda menulis teks hanya bila berubah (`paintRow`).
+  - Ditemukan saat verifikasi dan diperbaiki: tanggal yang dipakai hitungan terakhir (`usedStart`) disimpan per definisi,
+    sehingga dua Loaders berbagi satu nilai; Loaders dengan tanggal tetap membuat judul Loaders yang mengikuti layar ikut
+    berubah selama drag padahal angkanya belum (re-test R2-01 dilanggar). Sekarang per instance (WeakMap pada objek
+    parameternya), termasuk ujung "to" (`flowIndicators.ts` `startOf`, `endOf`). Cek live: selama tombol ditahan semua judul
+    tetap; sesudah dilepas semuanya sama dengan candle tepi layar.
+  - Hasil (CPU 4× lebih lambat, keempat indikator tampil): drag 4,7–6,9 s (sebelumnya 16–42 s), 0 macet di atas 0,3 s,
+    sesudah dilepas 0,69–0,77 s (U3: dari 0,9–1,4 s; sisanya hampir seluruhnya setData di dalam lightweight-charts). Keempat
+    indikator disembunyikan: sesudah dilepas 0,05–0,09 s (sebelumnya 1,2–1,5 s). Kecepatan normal: sesudah dilepas 0,10–0,16
+    s (sebelumnya 0,17–0,28 s), 0 long task selama drag.
+  - Tampilan tidak berubah: `compare_builds.py` (dua build berdampingan, scroll roda yang sama) 0 piksel berbeda di 4 posisi,
+    antara perbaikan A dan ronde 2, dengan indikator tampil dan dengan sembunyikan → geser → tampilkan.
+  - Tidak tercakup: biaya setData di dalam pustaka chart (sekitar 0,7 s di CPU 4× lebih lambat, sekali sesudah dilepas);
+    memindahkan hitungan ke worker (U5) tidak dikerjakan (EXEC-TERMINAL-LAG-2).
+- **Lesson:** handler `subscribeVisibleLogicalRangeChange` / `subscribeCrosshairMove` hanya melakukan pekerjaan sebesar
+  layar atau sekecil satu titik; pekerjaan sebesar seluruh riwayat menunggu layar berhenti; format tanggal/angka Intl
+  di jalur ini disimpan per nilai. Ukur drag dengan `drag_lag/drag_live.py` setelah menambah indikator yang mengikuti layar.
+
 ### M536 — The Phase 4 checker's 18 confirmed findings: an admin page acting with no known actor, a sign-in through the authenticator code losing its page, support limits applied after the work, and guards judged only at the present moment (2026-11-22; FIXED, on the beta since `259972a8`, edge-bff `bd2c4a84`; the live site does not serve the admin page)
 
 - **Found by:** the ultracode checker at xhigh over Phase 4 (workflow `wf_9a01b336-48e`: five lenses, one skeptic

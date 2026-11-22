@@ -4,6 +4,7 @@ import { $, hasLogos, logoHtml, store } from './context';
 import type { Point } from '../data/types';
 import { barDecimals, priceText } from '../data/priceFormat';
 import { parkHiddenSeries } from '../data/chartTime';
+import { dateFormat } from '../data/intlCache';
 
 export function initChart(ctx: Ctx) {
   const { L, container, SYMBOL, ohlc, lineData, volume, dates, active } = ctx;
@@ -329,7 +330,7 @@ function intradayMarks(ctx: Ctx, chart: any, series: any[], keys: string[], cont
   }
   series.forEach(s => s.attachPrimitive(new SessionLines()));
   if (!keys.length) return;
-  const day = (k: string) => new Date(k.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' }).replace('Sept', 'Sep');
+  const day = (k: string) => dateFormat('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' }).format(new Date(k.slice(0, 10) + 'T00:00:00Z')).replace('Sept', 'Sep');
   const tf = String(ctx.M.tf || '').toUpperCase(), last = keys[keys.length - 1];
   const note = document.createElement('div');
   note.className = 'tf-note';

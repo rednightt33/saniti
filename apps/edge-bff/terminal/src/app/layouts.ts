@@ -15,6 +15,7 @@ import type { Ctx } from './context';
 import { $, store, storeWatch } from './context';
 import { LayoutApiError, layoutsApi, newLayoutId, type LayoutMeta } from '../data/layoutsApi';
 import { askLocked } from './locked';
+import { dateFormat } from '../data/intlCache';
 
 export const LAYOUT_KEYS = ['ml.ind.v1', 'ml.tf', 'ml.chart.style', 'ml.chart.mode', 'ml.vol.on', 'ml.vol.removed', 'ml.events.v1',
   'ml.fi.metric', 'ml.ind.filters', 'ml.flow.filters', 'ml.flow.cum', 'ml.flow.collapsed', 'ml.flow.h', 'ml.flow.ratio',
@@ -363,7 +364,7 @@ export function initLayouts(ctx: Ctx) {
     dlg.classList.add('wide');
     const q = dlg.querySelector('input') as HTMLInputElement, box = dlg.querySelector('.lay-list') as HTMLElement;
     let armed = '';
-    const day = (t: string) => new Date(t).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }).replace('Sept', 'Sep');
+    const day = (t: string) => dateFormat('en-GB', { day:'2-digit', month:'short', year:'numeric' }).format(new Date(t)).replace('Sept', 'Sep');
     const draw = (focus?: string) => {
       if (listError) { box.innerHTML = `<div class="lay-msg">${esc(listError)}</div>`; return }
       const f = q.value.trim().toLowerCase(), rows = ordered().filter(l => !f || l.name.toLowerCase().includes(f));

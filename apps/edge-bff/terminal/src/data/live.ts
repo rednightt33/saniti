@@ -8,6 +8,7 @@ import { aggregateRows, alignCandles, alignCandlesCarry, buckets, candleOf, dayO
 import { fileStats, mark } from '../app/perf';
 import { LockedData } from '../app/locked';
 import { accessText, edge, isAccessRefusal, readError, SessionError } from '../../../shared/edge-session';
+import { numberFormat } from './intlCache';
 
 const API = '/api/terminal/v1';
 /* track guest (decision 1 of 2026-11-19, "1a"): the Terminal is the page a visitor without an account opens; its session
@@ -56,11 +57,11 @@ export const longDates = (text: string) => text.replace(/\b(\d{4})-(\d{2})-(\d{2
 export function detailText(value: unknown, kind: string): string {
   if (value === null || value === undefined || value === '') return UNAVAILABLE;
   if (typeof value !== 'number') return longDates(String(value));
-  const idr = (n: number) => 'Rp ' + (Number.isInteger(n) ? n : +n.toFixed(2)).toLocaleString('en-US');
+  const idr = (n: number) => 'Rp ' + numberFormat('en-US').format((Number.isInteger(n) ? n : +n.toFixed(2)));
   if (kind === 'idr_per_share') return idr(value) + ' / share';
   if (kind === 'idr') return idr(value);
   if (kind === 'pct') return value.toFixed(2) + '%';
-  if (kind === 'shares') return Math.round(value).toLocaleString('en-US');
+  if (kind === 'shares') return numberFormat('en-US').format(Math.round(value));
   return String(value);
 }
 const roleLabel = (role: string) => role.toLowerCase().split('_').map((w, i) => i ? w : w[0].toUpperCase() + w.slice(1)).join(' ');

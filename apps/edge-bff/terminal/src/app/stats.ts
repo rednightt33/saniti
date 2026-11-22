@@ -3,6 +3,7 @@ import { periodsPerYear, UNIT } from '../data/timeframe';
 import type { Ctx } from './context';
 import { $, avgOf, cls, empty, median, minus, pct, row, spin, store } from './context';
 import { askLocked, LockedData, lockMark, lockWord, type LockedItem } from './locked';
+import { dateFormat } from '../data/intlCache';
 
 export function initStats(ctx: Ctx) {
   const { chart, dates, closes, volume, N, SYMBOL } = ctx;
@@ -178,10 +179,10 @@ export function initStats(ctx: Ctx) {
     const pts = data.map((v,i)=>`${(i/n*SW).toFixed(1)},${(SH-4-(v-lo)/span*(SH-8)).toFixed(1)}`);
     return `<polygon points="0,${SH-4-(0-lo)/span*(SH-8)} ${pts.join(' ')} ${SW},${SH-4-(0-lo)/span*(SH-8)}" fill="${fill}"/>`;
   };
-  const fmtDay = (i: number) => new Date(dates[i].slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit',timeZone:'UTC'}).replace('Sept', 'Sep');
+  const fmtDay = (i: number) => dateFormat('en-GB',{day:'2-digit',month:'short',year:'2-digit',timeZone:'UTC'}).format(new Date(dates[i].slice(0,10)+'T00:00:00Z')).replace('Sept', 'Sep');
   const fmtTick = (i: number, long: boolean) => { const d = new Date(dates[i].slice(0,10)+'T00:00:00Z');
-    return long ? d.toLocaleDateString('en-US',{month:'short',year:'2-digit',timeZone:'UTC'}).replace(' ', " '")
-                : d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'}).replace('Sept', 'Sep') };
+    return long ? dateFormat('en-US',{month:'short',year:'2-digit',timeZone:'UTC'}).format(d).replace(' ', " '")
+                : dateFormat('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'}).format(d).replace('Sept', 'Sep') };
   const yPct = (v: number, lo: number, hi: number) => (SH-4-(v-lo)/((hi-lo)||1)*(SH-8))/SH*100;
   // c: { series:[{vals,color,dash}], idx:[session index per point], lo, hi, ticks:[...], zero?, area?, fmtY, tipFn(k) }
   const lineChart = (host: HTMLElement, c: any) => {
@@ -253,7 +254,7 @@ export function initStats(ctx: Ctx) {
     const [a,b] = visRange(); renderSeasonality(a,b);
   };
 
-  const shortDate = (d: string) => new Date(d.slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace('Sept', 'Sep');
+  const shortDate = (d: string) => dateFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(d.slice(0,10)+'T00:00:00Z')).replace('Sept', 'Sep');
   const renderStats = () => {
     if(ws.classList.contains('left-collapsed')) return;
     const [a,b] = visRange();
