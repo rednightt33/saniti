@@ -1171,6 +1171,13 @@ unset = that owner), so nothing changes for it; an owner EDGE_ADMIN_OWNERS does 
 
 ## Contact support (EXEC-MU-ACCOUNTS Phase 4, 2026-11-22)
 
+- **After the Phase 4 checker (ERRORS M536):** the emails go to every active account holding the admin right by its
+  grants (`admin.admin_holders`; the role grants nothing), the owner's address being user #1's; an email whose ticket is
+  gone is dropped, with or without images (`email_dropped`, `ticket_gone`). An upload is bounded before its body is
+  read: 30 an hour per account counted, refused ones too (`throttle.SUPPORT_UPLOAD`, 429 `support_uploads`), and the
+  hour and day limits checked first; the images are decoded off the event loop, and the 500 MB ceiling is checked under
+  one lock for every sender. `TELEGRAM_NOTIFY_URL` needs a real host and a port after a colon.
+
 The user, 2026-11-22: "saya minta dibuatkan panel sebelah kiri di live iconnya kotak surat ... Ada yang submit maka
 langsung ke admin dan telegram dan ke email pribadi saya"; "hanya yang login ... lampiran hanya 2A"; "go".
 `app/support.py`, migration `20261122_001`, `tests/test_support.py`; CONTRACT.md 10 "Contact support".
@@ -1225,6 +1232,15 @@ langsung ke admin dan telegram dan ke email pribadi saya"; "hanya yang login ...
   phone at 390 and 360 px.
 
 ## Admin page (EXEC-MU-ACCOUNTS Phase 4, 2026-11-22)
+
+- **After the Phase 4 checker (ERRORS M536):** every admin route and the code step act only as a known, active account
+  (`Auth.admin_account`: with the switch off user #1's seed is read again when the start did not read it, else 503
+  `ADMIN_ACCOUNT_UNAVAILABLE`; a disabled owner 403 `ACCOUNT_DISABLED`, and no new admin session). The admin right is
+  judged at every moment it may apply (`admin_timeline`: an admin override's end, a subscription's start or end); an
+  action is refused for the last admin only when it takes that holder away, now or for good (`kept_admins`), and the
+  account answer closes Disable for that holder. A registering account is listed and found by the name it asked for
+  (`requested_username`); Resend code is closed without `EDGE_CODE_SECRET`; the list carries each account's usage. A
+  sign-in through the authenticator code (`/mfa`) keeps the page it was shown at, its query too.
 
 The user, 2026-11-22: "1A 2A 3A", then "1A, 2B, 3A". `app/admin.py` (its docstring lists every route),
 `tests/test_admin.py`, `tests/test_admin_page.py`; CONTRACT.md 10. The admin actions on accounts are slice 5; there is no

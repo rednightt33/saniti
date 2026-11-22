@@ -16564,9 +16564,14 @@ Order of the services (CONTRACT 17, rollback floors):
             The user had not asked for it. The manual procedure of CONTRACT 10 stays the operator's, only with the
             user's go for each account. The same path brought the account menu's "Password and sign-in" dialog (R2-20,
             on the live site since the switch-on): named to the user, kept unless the user asks otherwise.
-          - Next: applying `20261122_001` on dev and the Railway variables with the beta's deploy (with the
-            `EDGE_MFA_KEY` and `EDGE_CODE_SECRET` marks checked against the live site's); the checker at xhigh over
-            Phase 4, its fixes, the beta.
+          - **The checker at xhigh over Phase 4 (2026-11-22, `wf_9a01b336-48e`):** 18 confirmed (3 medium, 15 low), 1
+            refuted; all 18 fixed on the branch (`180d8952`, ERRORS M536), each with a test red on its mutation. The
+            owner's address of the support emails read back: the same address as the admin account's (by hash). Before
+            the beta: the `EDGE_MFA_KEY` and `EDGE_CODE_SECRET` marks of the beta and the live site read equal in both
+            start logs (2026-11-22); `TELEGRAM_NOTIFY_URL`, `TELEGRAM_SUPPORT_SECRET` and `EDGE_ADMIN_ORIGIN` unset on
+            both (to set on the beta, with `TELEGRAM_SUPPORT_SECRET` on telegram-monitor).
+          - Next: the full suites green, then the beta's deploy: `20261122_001` on dev and those variables; then the lab
+            gaps (the user's order of 2026-11-22), the payment shell, the deep checker, the registration test window.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

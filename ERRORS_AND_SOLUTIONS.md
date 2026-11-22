@@ -8879,6 +8879,47 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M536 — The Phase 4 checker's 18 confirmed findings: an admin page acting with no known actor, a sign-in through the authenticator code losing its page, support limits applied after the work, and guards judged only at the present moment (2026-11-22; FIXED on the branch, `180d8952`)
+
+- **Found by:** the ultracode checker at xhigh over Phase 4 (workflow `wf_9a01b336-48e`: five lenses, one skeptic
+  each): 18 confirmed (3 medium, 15 low), 1 refuted (a test of "no account deletion", not a defect).
+- **Root causes (verified, each by code and most by a probe or a browser run):**
+  - gates-1, gates-2: the admin gate (`Auth.admin_page`) trusted the session's code-step flag alone. With the switch
+    off the principal's id comes from user #1's seed, read once at the start and swallowed on failure, and its status
+    is always "active": a missing seed left actions without an actor (no own-account guard, audit rows with no actor), a
+    disabled owner kept the page.
+  - page-tests-records-2: `landing()` read the current address, which is `/mfa` after the code step; nothing kept the
+    page the sign-in was shown at.
+  - support-3, deploy-2: the support limits ran after the body was read and decoded, on the event loop; the image
+    ceiling's sum ran under a per-account lock only.
+  - support-1, support-2: the recipients were chosen by `users.role` (a kind, not a grant); the sender checked a deleted
+    ticket only through its images.
+  - actions-1, actions-2, actions-4: the admin-right and last-admin guards and the account answer judged the present
+    moment only, and "no holder after the write" rather than "this action removed the last one"; the answer did not
+    know the site's code key.
+  - actions-3, actions-5, deploy-1, deploy-3, page-tests-records-1, -3, -5, -6: a registering account's name not
+    returned; reasons, the audit's transaction and stray errors not locked by tests; a probe that could not tell; a URL
+    pattern with `:` among the host's characters; the storage scans' hand-kept page list; the list's usage counters of
+    CONTRACT 10 not returned.
+- **General class:** a guard that reads one convenient fact (a session flag, the present moment, one lock, a role, an
+  attached image, a hand-kept list) where the guarantee depends on another (the account's identity and status, every
+  moment the grants may apply, every sender, the grant, the ticket itself, every page the app serves).
+- **Solution:** `Auth.admin_account` (the seed read again, 503 `ADMIN_ACCOUNT_UNAVAILABLE`, 403 `ACCOUNT_DISABLED`) on
+  every admin route and the code step, and `session_step_up` only for an active owner; `authFlow.from` and a query
+  carried by `go()`; the upload counted (`throttle.SUPPORT_UPLOAD`, 30 an hour) and the hour/day limit checked before the
+  body is read, the decode in a thread, one lock for every sender's images; recipients by `admin_holders`, an email
+  dropped when its ticket is gone; `admin_timeline` (accounts.GRANTS at a moment, derived from its text), `holders_of`
+  and `kept_admins`; `requested_username`; Resend code closed without `EDGE_CODE_SECRET`; the privilege probe; the URL
+  pattern; `APPS` derived from `main.py`; tests for reasons, the audit rollback, stray errors (they found the shell asking
+  a non-Monitor account for the model list: fixed) and the list's usage. Every new test was run against its mutation
+  and failed.
+- **The owner's address (support-1's second half):** the address the user gave for these emails ("email pribadi saya",
+  2026-11-22) and the admin account's ("akun admin", 2026-11-20, set on user #1 by job `db2aa27d` and read back) are the
+  same address, compared by their hashes only; the emails go to it as user #1's. No separate variable.
+- **Lesson:** a guard is written against the fact the guarantee depends on, and its test changes that fact (a missing
+  seed, a later moment, a second sender, a role without the grant); a checker's confirmed findings are all fixed or
+  put to the user before the next step.
+
 ### M535 — An account deletion action entered the Phase 4 plan although the user never decided that one is offered (2026-11-22; found by the user; FIXED: dropped before any code)
 
 - **Seen:** when the slice 6 design was about to be drafted, the user asked "Maksudnya menghapus akun apa? Akunnya apa

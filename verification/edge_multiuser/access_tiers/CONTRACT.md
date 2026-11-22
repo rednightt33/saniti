@@ -1337,6 +1337,12 @@ today.
   the page as the plan's reason in the rule's words. The beta needs `EDGE_CODE_SECRET` equal to the live site's for a
   code it sends to be one the live site takes. Not built here: overrides (no editor; the operator's) and account
   deletion (the user, 2026-11-22: "Tidak usah ada opsi ini"; below).
+- **After the Phase 4 checker** (ERRORS M536): the admin page acts only as a known, active account (else 503
+  `ADMIN_ACCOUNT_UNAVAILABLE` or 403 `ACCOUNT_DISABLED`); the admin right is judged at every moment its grants may apply
+  (an override's end, a subscription's start or end), and the last-admin rule refuses only an action that takes the last
+  holder away, now or for good; the list carries each account's usage counters (as the route list below says); a
+  registering account is named by the name it asked for; a sign-in through the authenticator code keeps the page it was
+  shown at. Support emails go to the accounts holding the admin right by their grants.
 - **Routes** `/api/v1/admin/users`:
   - list with filter and paging: username, name, email masked, phone masked, role, status, plan, expires_at,
     last_sign_in_at, created_at, usage counters;
