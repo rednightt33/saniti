@@ -867,21 +867,23 @@ export function initIndicators(ctx: Ctx) {
   // live: the broker files arrive after the first draw; the flow indicators are computed again then (EXEC-TERMINAL-UI-1026 U5)
   ctx.refreshFlowIndicators = () => list.forEach(inst => { if(inst.def === flowDef || inst.def === flowLineDef || inst.def.flow) recompute(inst) });
   /* EXEC-TERMINAL-FLOW-IND: an anchor on the first visible candle (FL18-FL20) and Broker Inventory (FL23) follow the view */
-  /* at most one recompute per 120 ms while the view moves (and one after it stops), and only when the first visible candle
-     changed: one per frame made pan and zoom stutter with several of them (front-end audit I12) */
-  let viewTimer: any = 0, viewLast = 0;
+  /* recomputed once the view has stopped moving for 150 ms, and only when the candle it follows changed (2026-11-22, user:
+     "sangat laggy kalau di klik kiri kemudian drag"): a recompute (the whole series, setData, the legend) costs 100-200 ms,
+     so the earlier "one per 120 ms while the view moves" (front-end audit I12) left no idle frame during a drag (live NTBK:
+     80-step pan 19 s, 70 long tasks; after: 2 s, none) */
+  let viewTimer: any = 0;
   /* re-test R2-01: the same "in view" rule as the anchor itself (visibleBars), so a pan that moves the anchor recomputes */
   const firstVisibleIdx = () => visibleBars(chart.timeScale().getVisibleLogicalRange(), N)[0];
   const followView = () => {
-    viewTimer = 0; viewLast = performance.now();
+    viewTimer = 0;
     const fv = firstVisibleIdx();
     /* EXEC-FLOW-NEW-3: what each indicator follows (its first or last candle in view), from its definition */
     list.forEach(inst => { if(!inst.def.viewBound) return; const k = inst.def.viewKey ? inst.def.viewKey(inst.params) : inst.params.anchor === 'view' ? String(fv) : null;
       if(k !== null && inst.viewAt !== k) { inst.viewAt = k; recompute(inst) } });
   };
   chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
-    if(viewTimer || !list.some(inst => inst.def.viewBound)) return;
-    viewTimer = setTimeout(followView, Math.max(0, 120 - (performance.now() - viewLast)));
+    if(!list.some(inst => inst.def.viewBound)) return;
+    clearTimeout(viewTimer); viewTimer = setTimeout(followView, 150);
   });
 
   function paintRow(inst, i = ctx.lastTipIdx) {

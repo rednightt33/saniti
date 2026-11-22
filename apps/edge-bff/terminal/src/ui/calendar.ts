@@ -15,8 +15,13 @@ export interface CalendarOptions {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const pad = (n: number) => String(n).padStart(2, '0');
 export const ymd = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
-export const longDay = (t: string) => new Date(t + 'T00:00:00Z')
-  .toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' }).replace('Sept', 'Sep');
+/* formatted once per date (2026-11-22): toLocaleDateString in a legend title ran on every crosshair move and pan frame */
+const longDays = new Map<string, string>();
+export const longDay = (t: string) => {
+  let s = longDays.get(t);
+  if (s === undefined) { s = new Date(t + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' }).replace('Sept', 'Sep'); longDays.set(t, s) }
+  return s;
+};
 
 /** the weeks (Monday first) of one month: each cell is a 'YYYY-MM-DD' or '' outside the month */
 export function monthGrid(y: number, m: number): string[][] {
