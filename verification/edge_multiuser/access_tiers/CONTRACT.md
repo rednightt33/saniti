@@ -1427,6 +1427,41 @@ today.
   `last_event_at` is ignored.
 - A reconciliation loop is stubbed for `test`.
 
+**Built (step 7, the user 2026-11-22: "harap disiapkan saja infrastrukturnya. Untuk tesnya nanti kita buat fase
+tersendiri karena akun Mitrans belum siap"; on the branch, not deployed; migration `20261123_001` written, not applied):**
+- Tables `edge_bff.payment_orders` (our opaque order number per attempt, `edge-` and 24 hex digits; the account, the
+  plan, the period in days, the amount in whole rupiah, `IDR`, the provider, the status, the expiry, `last_event_at`,
+  `held_reason`) and `edge_bff.payment_events` (unique per provider and event key, the verified payload without its
+  signature, `applied` and `outcome`); `subscriptions.provider` also allows `midtrans`. Expand only.
+- `app/payments/adapters.py`: `manual` (no notification: the admin page's plan action), `test` (HMAC-SHA256 of the raw
+  body in `X-Edge-Test-Signature`; `records` stand in for the provider's record) and `midtrans`, built only offline: the
+  notification's `signature_key` (SHA512 of order_id, status_code, gross_amount and the Server Key), its status words
+  (settlement, or capture with fraud_status accept: settled; pending; deny and failure: failed; cancel; expire; refund
+  and partial_refund: refunded), `gross_amount` as whole rupiah, the order number's form, the event key (order, status,
+  status code; Midtrans sends no event id) and its Jakarta time. Snap and Get Status raise `PaymentNotConfigured`: no
+  call leaves EDGE.
+- `app/payments/orders.py` `PaymentStore.apply_event`: one transaction with the order locked. pending -> settled starts
+  the subscription (provider_ref the order) or extends a live one of the same plan by the period; pending -> failed,
+  expired or cancelled; settled -> refunded and a payment after the order ended are held for the admin
+  (`refund_review`, `settled_after_end`), as is a payment while another plan is live (`plan_conflict`). A duplicate
+  changes nothing; an older event is ignored; a settled order never goes back; another amount or currency changes
+  nothing. Every notification is kept once with its outcome. `reconcile()` applies the provider's record to the pending
+  orders and ends one past its expiry that the provider does not know; it runs when called (its loop comes with Get
+  Status).
+- `app/payments/routes.py`: `POST /api/v1/hooks/payments/test` and `/midtrans`, each in `HOOK_ROUTES` with
+  `hooks.signed`; 404 NOT_FOUND (logged `payments_hook_off` with the reason) unless the accounts switch is on and
+  `EDGE_PAYMENTS_PROVIDER` names the provider; a verified notification answers 200 with its outcome; a provider that
+  confirms first (Midtrans' Get Status) answers 503 while that call is not built. `config.validate` refuses
+  `EDGE_PAYMENTS_PROVIDER=midtrans` until its phase, `test` on the live site, and a provider without
+  `EDGE_PAYMENTS_SECRET` of 32 characters or the accounts switch.
+- Tests: `apps/edge-bff/tests/test_payments.py` (FINDINGS test 8, the runtime role's grants, Midtrans' offline parts).
+
+**Waits for the Midtrans phase (the user's, once the account is ready):** the Sandbox Server Key and Client Key (Railway
+variables the user enters), Snap `create_checkout` (QRIS `other_qris` and the VAs) and Get Status (`fetch_status`, the
+confirmation before applying, and the reconciliation loop that calls it), the Payment Notification URL in Midtrans'
+dashboard (the beta's for Sandbox), the `/pay` page and the return page, the plans, prices, periods and grace period,
+who may buy, and how a held order is settled on the admin page.
+
 ## 12. Front-end
 
 - **One shared module** `apps/edge-bff/shared/edge-session.ts`, built for the shell as `/edge-session.js` and imported

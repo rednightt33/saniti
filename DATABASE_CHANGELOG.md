@@ -1,5 +1,25 @@
 # Database changelog
 
+## 2026-11-23 — Step 7, the payment shell: payment orders and their events (edge_bff, migration 20261123_001; WRITTEN, NOT APPLIED)
+
+- **Why:** EXEC.md EXEC-MU-ACCOUNTS option A item 6; the user, 2026-11-22: "langkah 7 berkaitan dengan pembuatan
+  kerangka pembayaran, harap disiapkan saja infrastrukturnya. Untuk tesnya nanti kita buat fase tersendiri karena akun
+  Mitrans belum siap" (CONTRACT.md 11).
+- **Migration:** `20261123_001_edge_bff_payments.sql`, sha256 `3cbf7677…e7db7a1f` (as written; it changes until applied):
+  `edge_bff.payment_orders` (one row per payment attempt: the opaque order number, the account, the plan, the period,
+  the amount in whole rupiah, `IDR`, the provider, the status, the expiry, the last event's time, why it is held for the
+  admin) and `edge_bff.payment_events` (every verified notification once, unique per provider and event key, with its
+  outcome); `subscriptions.provider` also allows `midtrans` (its unnamed CHECK replaced by `subscriptions_provider`).
+  `edge_bff_runtime`: SELECT, INSERT, UPDATE on the orders, SELECT, INSERT on the events (no DELETE on either, no
+  UPDATE on events); nothing for PUBLIC. Expand-only: new tables and a wider CHECK; the live site's code (`4b35b5ed`)
+  reads neither table and writes only `manual` and `test`. Refuses a second run.
+- **Not applied:** it goes to Railway's database with the step-7 deploy, which needs the user's confirmation (AGENTS.md
+  "Deploys"); `APPLIED.sha256` gets its line then. Checked on a scratch database after every edge_bff migration the
+  tests apply: it applies, the CHECK reads `manual, test, midtrans`, a second run is refused; the edge-bff tests apply
+  it (`tests/conftest.py`).
+- **No data:** the tables stay empty until a provider is switched on (`EDGE_PAYMENTS_PROVIDER`; `midtrans` refused until
+  its phase).
+
 ## 2026-11-22 — Phase 4, the contact-support panel: the support tickets and their images (edge_bff, migration 20261122_001)
 
 - **Why:** the user's answers and go of 2026-11-22 (EXEC.md EXEC-MU-ACCOUNTS: "yes, hanya yang login.. ... lampiran
