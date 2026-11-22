@@ -608,10 +608,13 @@ class BacktestStore:
             logger.info(json.dumps({'event': 'backtest_state', 'request_id': row['request_id'], 'state': row['state'],
                                     **({'code': row['error']['code']} if row.get('error') else {}), **extra}))
 
+    # W4 (ERRORS M526, the user 2026-11-22: "Untuk W4, pisahkan per situs ... OK fix it"): every read and the cancel of a
+    # job by its owner take the site too, so a site lists, serves and cancels only the jobs queued on it (user #1 has one
+    # owner on both sites). The queue limit, the one running job per owner and the variant records stay per owner.
     def find(self, owner, key):
         with self.connect() as c:
-            return c.execute('SELECT * FROM edge_bff.backtest_jobs WHERE owner_key=%s AND submission_key=%s',
-                             (owner, key)).fetchone()
+            return c.execute('SELECT * FROM edge_bff.backtest_jobs WHERE owner_key=%s AND submission_key=%s AND site=%s',
+                             (owner, key, self.site)).fetchone()
 
     def submit(self, owner, key, request, lineage_key, variant_hash, queued_limit):
         """A new QUEUED job, or the job this submission key already made (same request, same_request; another request
@@ -622,7 +625,8 @@ class BacktestStore:
             row = c.execute('SELECT * FROM edge_bff.backtest_jobs WHERE owner_key=%s AND submission_key=%s',
                             (owner, key)).fetchone()
             if row:
-                if not same_request(row['request'], request):
+                # (owner, key) is unique over both sites: a key the other site used is a conflict, never its job
+                if row['site'] != self.site or not same_request(row['request'], request):
                     raise StoreError('SUBMISSION_CONFLICT')
                 return row, False
             queued = c.execute("SELECT count(*) AS n FROM edge_bff.backtest_jobs WHERE owner_key=%s AND state='QUEUED'",
@@ -638,16 +642,16 @@ class BacktestStore:
 
     def job(self, owner, request_id):
         with self.connect() as c:
-            row = c.execute('SELECT * FROM edge_bff.backtest_jobs WHERE owner_key=%s AND request_id=%s',
-                            (owner, request_id)).fetchone() if JOB_ID.fullmatch(request_id or '') else None
+            row = c.execute('SELECT * FROM edge_bff.backtest_jobs WHERE owner_key=%s AND request_id=%s AND site=%s',
+                            (owner, request_id, self.site)).fetchone() if JOB_ID.fullmatch(request_id or '') else None
         if not row:
             raise StoreError('BACKTEST_NOT_FOUND', 404)
         return row
 
     def jobs(self, owner, limit):
         with self.connect() as c:
-            return c.execute('''SELECT * FROM edge_bff.backtest_jobs WHERE owner_key=%s
-                ORDER BY created_at DESC, request_id LIMIT %s''', (owner, limit)).fetchall()
+            return c.execute('''SELECT * FROM edge_bff.backtest_jobs WHERE owner_key=%s AND site=%s
+                ORDER BY created_at DESC, request_id LIMIT %s''', (owner, self.site, limit)).fetchall()
 
     def cancel(self, owner, request_id):
         """A queued job ends CANCELLED here (it never reaches the worker); a running one is marked and the loop asks
@@ -655,12 +659,14 @@ class BacktestStore:
         self.job(owner, request_id)
         with self.connect() as c:
             row = c.execute('''UPDATE edge_bff.backtest_jobs SET state='CANCELLED',finished_at=now(),updated_at=now()
-                WHERE owner_key=%s AND request_id=%s AND state='QUEUED' RETURNING *''', (owner, request_id)).fetchone()
+                WHERE owner_key=%s AND request_id=%s AND site=%s AND state='QUEUED' RETURNING *''',
+                (owner, request_id, self.site)).fetchone()
             if row:
                 self._log(row)
                 return row
             return c.execute('''UPDATE edge_bff.backtest_jobs SET cancel_requested=true,updated_at=now()
-                WHERE owner_key=%s AND request_id=%s AND state='RUNNING' RETURNING *''', (owner, request_id)).fetchone()
+                WHERE owner_key=%s AND request_id=%s AND site=%s AND state='RUNNING' RETURNING *''',
+                (owner, request_id, self.site)).fetchone()
 
     def part(self, owner, request_id, part):
         """The stored gzip bytes of one part of the owner's job, checked against its sha256; None when there is none
@@ -668,7 +674,8 @@ class BacktestStore:
         with self.connect() as c:
             row = c.execute('''SELECT r.payload, r.sha256 FROM edge_bff.backtest_results r
                 JOIN edge_bff.backtest_jobs j ON j.request_id = r.request_id
-                WHERE j.owner_key=%s AND r.request_id=%s AND r.part=%s''', (owner, request_id, part)).fetchone()
+                WHERE j.owner_key=%s AND j.site=%s AND r.request_id=%s AND r.part=%s''',
+                (owner, self.site, request_id, part)).fetchone()
         if not row:
             return None
         payload = bytes(row['payload'])
@@ -679,7 +686,8 @@ class BacktestStore:
     def has(self, owner, request_id, part):
         with self.connect() as c:
             return c.execute('''SELECT 1 FROM edge_bff.backtest_results r JOIN edge_bff.backtest_jobs j ON j.request_id = r.request_id
-                WHERE j.owner_key=%s AND r.request_id=%s AND r.part=%s''', (owner, request_id, part)).fetchone() is not None
+                WHERE j.owner_key=%s AND j.site=%s AND r.request_id=%s AND r.part=%s''',
+                (owner, self.site, request_id, part)).fetchone() is not None
 
     # ---- the loop's side: claim, lease, progress, end -------------------------------------------------------------
 

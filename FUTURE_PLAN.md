@@ -282,7 +282,7 @@ answer shows) can never be at the lab stage (`tests/test_releases.py` test_an_it
 LIVE_PROMOTION.md section 3). A lab build goes only to the admin who holds every item, a lab tab only with its own
 `<tab>.view` (CONTRACT.md 8 "Lab code").
 
-Open for the user (round 2, W4, ERRORS M526; older than 3f): the live site lists the admin's own beta Backtest jobs
+Decided 2026-11-22 (the user: "pisahkan per situs ... OK fix it"; built on the branch, ERRORS M526; on the live site once it is promoted). Was open for the user (round 2, W4, ERRORS M526; older than 3f): the live site lists the admin's own beta Backtest jobs
 (their requests, a point-in-time condition included, and results) and can cancel a queued beta job, because the job
 routes read by owner only and user #1 has one owner on both sites. Nobody else reaches them and no formula is returned.
 Whether a job is read and cancelled only on the site that queued it is the user's choice (`BacktestStore` job, jobs,

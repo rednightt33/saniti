@@ -9356,7 +9356,7 @@ in its staleness check.
   nothing about that date: the capture stops rather than infer it from later rows, and a trim or a check names its
   fields at every depth (a block copied whole, or a check of a field the data does not carry, checks nothing).
 
-### M526 — Saved screens kept a validation made under a wider context when only the rights differed; the live site lists and can cancel the admin's own beta Backtest jobs (2026-11-21; the review FIXED on the branch, the job history OPEN for the user; predates 3f)
+### M526 — Saved screens kept a validation made under a wider context when only the rights differed; the live site lists and can cancel the admin's own beta Backtest jobs (2026-11-21; the review FIXED on the branch; the job history FIXED on the branch 2026-11-22, the user's "pisahkan per situs ... OK fix it", it holds for the live site once the live site runs it; predates 3f)
 
 - **Found by:** 3f's checker, round 2 (W4, unverified), then verified by its skeptic (`wf_d4d13dbc-fff`, xhigh) with
   local probes. No live row was read.
@@ -9395,6 +9395,15 @@ in its staleness check.
   test_each_page_stage_builds_with_the_configuration_ci_builds_with, read from the Dockerfile: every page stage that
   copies another folder's `src/` copies its `tsconfig.json`, and every page stage takes `shared/` and the release file.
   Red on the old stage.
+- **W4, the job history (2026-11-22, the user: "Untuk W4, pisahkan per situs atau biarkan? OK fix it"):**
+  `BacktestStore` (`apps/edge-bff/app/backtest.py`) `find`, `job`, `jobs`, `cancel`, `part` and `has` take the site
+  (`AND site=%s`); `submit` refuses a submission key the other site used (`SUBMISSION_CONFLICT`, the key is unique per
+  owner over both sites). The queue limit, the one running job per owner and the variant records stay per owner.
+  Tests: `tests/test_beta_live_site.py` `test_a_site_lists_serves_and_cancels_only_the_backtests_queued_on_it` (another
+  case than the one observed: a finished job's parts and a reused key, not only the list) and
+  `test_every_owner_read_of_a_backtest_job_is_bound_to_the_site` (every owner query of the store, with the per-owner
+  rules named); three mutations red (the list, the parts, the key). The live site runs `4b35b5ed` until it is promoted:
+  until then it still lists the beta's jobs.
 - **Status:** FIXED on the branch. At the next deploy the Backtest page bundle changes, on the beta and with the
   promotion on the live site, to the one CI tests (the same source, its class fields compiled as ES2022).
 - **Lesson:** an image stage copies each source folder with the configuration that compiles it; the image and CI must

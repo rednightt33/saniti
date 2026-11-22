@@ -13,6 +13,7 @@
 - GET /version answers the site and the commit (RAILWAY_GIT_COMMIT_SHA).
 """
 import asyncio
+import hashlib
 import dataclasses
 import json
 import logging
@@ -25,6 +26,7 @@ from fastapi.testclient import TestClient
 from app import releases
 from app.allow import allow_of
 from app.backtest import BacktestLoop, BacktestStore
+from app.store import StoreError
 from app.config import Settings
 from app.main import create_app
 from app.rights import rights_of
@@ -252,6 +254,61 @@ def test_the_beta_backtest_loop_neither_reaps_nor_prunes_the_live_sites_jobs(con
         VALUES (%s, 'core', '\\x00', 1, %s, now() - interval '40 days')''', claimed['request_id'], '0' * 64)
     assert beta.reap() == [] and beta.prune() == 0
     assert live.reap() == [claimed['request_id']] and live.prune() == 1
+
+
+def test_a_site_lists_serves_and_cancels_only_the_backtests_queued_on_it(configured, store):
+    """W4 (ERRORS M526; the user 2026-11-22: "Untuk W4, pisahkan per situs ... OK fix it"): user #1 has one owner on both
+    sites, and the live site listed the admin's beta jobs, served their requests and results, and could cancel a queued
+    one. Each owner read of BacktestStore now takes the site; a submission key the other site used is a conflict."""
+    beta, live = BacktestStore(store, 'beta'), BacktestStore(store, 'live')
+    owner = configured.owner
+    queued, _ = beta.submit(owner, 'beta-queued', single(), lineage_of(single()), variant_of(single()), 3)
+    other = single('TLKM')
+    done, _ = beta.submit(owner, 'beta-done', other, lineage_of(other), variant_of(other), 3)
+    db(store, "UPDATE edge_bff.backtest_jobs SET state = 'FINISHED', started_at = now(), finished_at = now(), "
+              "data_version = %s, result_bytes = 1 WHERE request_id = %s", '0' * 64, done['request_id'])
+    db(store, '''INSERT INTO edge_bff.backtest_results(request_id, part, payload, bytes, sha256)
+        VALUES (%s, 'core', %s, 1, %s)''', done['request_id'], b'\x00', hashlib.sha256(b'\x00').hexdigest())
+    assert {r['request_id'] for r in beta.jobs(owner, 10)} == {queued['request_id'], done['request_id']}
+    assert live.jobs(owner, 10) == []
+    for request_id in (queued['request_id'], done['request_id']):
+        with pytest.raises(StoreError) as e:
+            live.job(owner, request_id)
+        assert e.value.args[0] == 'BACKTEST_NOT_FOUND'
+        with pytest.raises(StoreError):
+            live.cancel(owner, request_id)
+    assert live.part(owner, done['request_id'], 'core') is None and not live.has(owner, done['request_id'], 'core')
+    assert beta.part(owner, done['request_id'], 'core') == b'\x00' and beta.has(owner, done['request_id'], 'core')
+    assert live.find(owner, 'beta-queued') is None
+    with pytest.raises(StoreError) as e:
+        live.submit(owner, 'beta-queued', single(), lineage_of(single()), variant_of(single()), 3)
+    assert e.value.args[0] == 'SUBMISSION_CONFLICT'
+    assert db(store, 'SELECT state FROM edge_bff.backtest_jobs WHERE request_id = %s', queued['request_id']) == \
+        [{'state': 'QUEUED'}]
+    assert beta.cancel(owner, queued['request_id'])['state'] == 'CANCELLED'
+
+
+def test_every_owner_read_of_a_backtest_job_is_bound_to_the_site():
+    """The class of W4: a new BacktestStore query that reads edge_bff.backtest_jobs by owner_key without the site
+    would show one site's jobs on the other. The rules that stay per owner on purpose are named here."""
+    import ast
+    import inspect
+    import textwrap
+    tree = ast.parse(textwrap.dedent(inspect.getsource(BacktestStore)))
+    per_owner_on_purpose = (
+        "state='QUEUED'",                        # the queue limit counts both sites (one owner, one queue)
+        'submission_key=%s\x00',                # submit's own look-up: (owner, key) is unique over both sites, and a
+                                                 # row of the other site is refused in code (SUBMISSION_CONFLICT)
+        'lineage_key=%s ORDER BY recorded_seq',  # the variant records: an owner's trials, whichever site ran them
+        'make_interval(days => %s)',
+    )
+    queries = [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)
+               and 'owner_key=%s' in n.value.replace(' ', '')]
+    assert len(queries) >= 9, queries
+    unbound = [' '.join(q.split())[:120] for q in queries
+               if 'site=%s' not in q.replace(' ', '') and not any(m in q + '\x00' for m in per_owner_on_purpose)]
+    assert unbound == [], (f'BacktestStore reads jobs by owner without the site (W4, ERRORS M526): {unbound}. Add '
+                           '"AND site=%s" with self.site, or name here why the rule stays per owner')
 
 
 def test_a_failing_prune_or_reap_does_not_stop_the_backtest_claims(settings):
