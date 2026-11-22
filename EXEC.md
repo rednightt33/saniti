@@ -16472,6 +16472,11 @@ Order of the services (CONTRACT 17, rollback floors):
             the limits and the issue types held equal between the shell, the server and the email; 13 mutations of the
             dialog and 2 of its layout, each red. Seen on the way, older than Phase 4 and not touched: a free account is
             told about chart drawings as soon as it opens the Terminal (ERRORS M532, for the user).
+          - The live site, where the user asked for it: a test of the route on `site='live'` (a free test account and the
+            admin past its second factor send, a visitor is refused unread, the session answer offers `support.send`).
+            Until `live` is promoted, its older sender sends the beta's support emails without images or Reply-To
+            (LIVE_PROMOTION.md, the feature row). The session branch's CI: ERRORS M533 (fixed), green on `becd1bb3`
+            but for the edge-bff job, which ran on.
           - Next: applying `20261122_001` on dev and the Railway variables with the beta's deploy; the admin page's read
             side (slice 4) and its actions (slice 5); account deletion (slice 6); then the checker at xhigh, its fixes,
             the beta.

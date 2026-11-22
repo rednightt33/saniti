@@ -8879,6 +8879,26 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M533 — The session branch's CI red on the contact-support panel's first commit: a hand count of the capabilities and the Screener document's pointers into main.py (2026-11-22; FIXED on the branch)
+
+- **Seen:** `1e77efe8` on `claude/pensive-feynman-4ahfe3`: Backend tests run 44985088213, edge-bff job: `1 failed, 1118
+  passed, 1 rerun` (`tests/test_plan_catalog.py::test_every_seed_capability_has_a_plain_meaning`: 49 capabilities, the
+  test counts 48; the rerun was `tests/test_visual.py::test_responsive_history_details_preferences_and_keyboard[768-1024]`,
+  green on its second try, M510's class). The look-ahead gate run 44985088266, screener-worker job:
+  `tests/onboarding_pointers.test.ts`, three pointers of `SCREENER_ONBOARDING.md` into `apps/edge-bff/app/main.py` no
+  longer at their symbols (`TERMINAL_ROUTES`, `screeners.routes`, `SCREENER_CSP`).
+- **Root cause (verified):** the migration added `support.send`, the 49th capability, and the test holds the count as a
+  number with its history in a comment; the support lines in `main.py` (its import, two constants, the precheck) moved
+  every line below them, and the document cites lines. The local runs covered the edge-bff suite only (M528's lesson:
+  the pointer test lives in another app's suite).
+- **General class:** M528's: a change of a file that documents cite by line, checked by a suite of another app; and a
+  test that holds a total as a number, which every new row of its kind changes.
+- **Solution:** the count is 49, its comment naming `20261122_001` (`e438f061`); every pointer into `main.py` moved
+  through a line diff from `1c972f22`, the `/screener` pointer (stale before) set to its route, the bare pointers that
+  name terminal-api's `main.py` left as they were (`becd1bb3`). The look-ahead gate green on `becd1bb3`.
+- **Lesson:** M528's again: before any push that touches `apps/edge-bff/app/main.py`, run
+  `apps/screener-worker/tests/onboarding_pointers.test.ts` (and every suite of the two workflows), not only the app's own.
+
 ### M532 — An account without chart drawings is told "Chart drawings is not part of your EDGE plan" as soon as it opens the Terminal, before it draws anything (2026-11-22; found by the contact-support panel's screenshots; OPEN, older than Phase 4)
 
 - **Seen:** a new free account (`register()` of the browser tests, the beta's switch-on test server) opens `/terminal`:

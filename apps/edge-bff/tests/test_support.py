@@ -597,3 +597,38 @@ def test_the_dialog_holds_the_servers_limits_and_its_kinds_the_emails_words():
                          capture_output=True, text=True, timeout=30, check=True).stdout
     kinds = json.loads(out)
     assert list(kinds) == list(support_module.KINDS) and kinds == email_texts.SUPPORT_KINDS
+
+
+def test_on_the_live_site_an_account_and_the_admin_send_and_a_visitor_is_refused(settings, store):
+    """The live site, where the user asked for the panel ("panel sebelah kiri di live"): a test account on the free plan
+    (the pre-launch mode lets it in) is offered support.send by its session answer (the shell's Edge.can) and sends; the
+    admin past its second factor sends through the live site's view (every released capability); a visitor, guests on,
+    is refused before the body is read; every ticket and its summary say the live site."""
+    from test_beta_live_site import live_of, sign_in_admin
+    live = dataclasses.replace(live_of(settings), guests_enabled=True, telegram_notify_url=NOTIFY,
+                               telegram_support_secret=SECRET, admin_origin=ADMIN)
+    telegram = Telegram()
+    app = Reads(app_of(live, store, telegram))
+    with TestClient(app) as c:
+        alice = make_user(store, 'alice', 'alice-password', email='alice@example.com')
+        with store.connect() as conn:                       # the mark comes with its audit row (scripts/edge_test_account.py)
+            conn.execute('''INSERT INTO edge_bff.admin_audit(action, target_user_id, after, reason)
+                VALUES ('account.test_mark', %s, '{"test_account": true}', 'test: the live site in pre-launch')''',
+                         (alice['user_id'],))
+            conn.execute('UPDATE edge_bff.users SET test_account = true WHERE user_id = %s', (alice['user_id'],))
+        visitor = {**ORIGIN, 'x-forwarded-for': '203.0.113.7, 152.233.40.1'}
+        assert c.get('/api/v1/auth/guest', headers=visitor).status_code == 200            # a guest principal exists
+        before = app.reads
+        r = c.post(PATH, headers=visitor, json=message())
+        assert (r.status_code, error_of(r)['code'], app.reads) == (401, 'UNAUTHENTICATED', before)
+        h = sign_in(c, 'alice', 'alice-password')
+        assert 'support.send' in c.get('/api/v1/auth/session').json()['access']['capabilities']
+        assert c.post(PATH, headers=h, json=message()).status_code == 201
+        c.cookies.clear()
+        h = sign_in_admin(c, store)
+        assert c.post(PATH, headers=h, json=message(kind='feature')).status_code == 201
+        rows = db(store, "SELECT site, details->>'site' AS said, details->>'plan' AS plan FROM edge_bff.support_tickets "
+                         'ORDER BY ticket_id')
+        assert [(r['site'], r['said']) for r in rows] == [('live', 'live'), ('live', 'live')] and rows[0]['plan'] == 'free'
+        assert wait_for(lambda: len(telegram.seen) == 2)
+        assert {s['body']['details']['site'] for s in telegram.seen} == {'live'}
