@@ -91,11 +91,14 @@ causes of ERRORS M538 (verified findings left unsolved between phases, workflow 
    what it is, when it was asked, what it holds back, and by when it is needed. It is shown to the user at the end of
    every phase. A question asked only in chat is not asked.
 7. **A latent gap is asked, not only held.** A gap kept closed by a guard test is also put in the plan or asked.
-8. **Re-check after every fix round.** Before the next phase or deploy, five independent agents (Opus at medium effort,
-   by area) receive the original findings, not the fix summary; each reproduces the original failure, looks for the
-   same mechanism elsewhere, and returns a verdict per item (fixed, partly, not fixed, cannot tell) with its evidence
-   (the test or probe run, file:line). An item found incomplete is fixed and re-checked alone; at most two rounds, then
-   what remains goes into the register. CI is green as well.
+8. **Re-check after every fix round: one more phase in every checker workflow** (user 2026-11-22: "Masukan ke memory:
+   workflow ditambahkan 1 fase lagi which to test out perbaikan ya"). A checker workflow (ultracode or any other) no
+   longer ends at find, refute and fix: its last phase tests the fixes out. Before the next phase or deploy, five
+   independent agents (Opus at medium effort, by area) receive the original findings, not the fix summary; each
+   reproduces the original failure, looks for the same mechanism elsewhere, and returns a verdict per item (fixed,
+   partly, not fixed, cannot tell) with its evidence (the test or probe run, file:line). An item found incomplete is
+   fixed and tested out alone; at most two rounds, then what remains goes into the register. CI is green as well. A
+   fix that no agent other than its author tested out is not called done in a report.
 9. **Record statuses follow the deploys.** After a deploy the statuses of the entries it carries are updated in the same
    task; a test compares the statuses that say "on the beta", "on the live site" or "not deployed" with what each site
    runs.

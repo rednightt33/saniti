@@ -16595,7 +16595,12 @@ Order of the services (CONTRACT 17, rollback floors):
     selesai bisa assign 5 sub-agents Opus 5,5 medium untuk actually test out whether perbaikan bug sudah selesai":
     after the round, five agents at medium effort by area (sign-in and security; the admin page and support; the
     workers' lab gaps; the Terminal and the shell; records, CI and deploy) given the original findings, then CI, then
-    the beta. Asked the same day: whether the older fixes never re-checked independently (ERRORS M538) join them.
+    the beta. The scope, the user the same day: "A - also possible to assign those subagents to check bug yg detected from
+    ultracode findings, yang sudah di fix, tapi belum di testout?": yes, every fixed finding of an ultracode checker
+    whose last fix no agent other than its author tested out (ERRORS M538: the A2 fixes, the Terminal's TL-1 to TL-3,
+    3f round 2, the example mode's run 2 and the Watchlist's latest data, Phase 4's 18), derived from the checkers'
+    journals, joins this round's fixes. And: "Masukan ke memory: workflow ditambahkan 1 fase lagi which to test out
+    perbaikan ya" → AGENTS.md "Findings and fixes" rule 8.
   - Order: the records, group A, the lab gaps and W4, the re-check, the beta; the live site only on the user's request
     (group A reaches the live site only with a promotion, which carries Phase 4's support panel too).
 - **Pending decisions (AGENTS.md "Findings and fixes", rule 6; shown to the user at the end of every phase).** From the
@@ -16603,7 +16608,6 @@ Order of the services (CONTRACT 17, rollback floors):
 
   | Id | Decision or action of the user | Asked | Holds back | Needed by |
   |---|---|---|---|---|
-  | RC-1 | The re-check's scope: also the older fixes never re-checked independently (ERRORS M538), A or B | 2026-11-22 | the re-check's list | end of this round |
   | UD3 | A fresh Stockbit token for the broker round (broker data stops at 9 Nov) | 2026-11-20 | Radar, Flow, Foreign 5D, broker presets, corporate actions | now |
   | NC29 | The OpenRouter key expired 2026-11-22 03:55 UTC (ERRORS M539): extend or replace it and set `OPENROUTER_API_KEY` on market-ai-orc; then the consumers' redeploy | 2026-11-22 | the beta's AI, the web governor (refused now) | now |
   | UD1 | Railway usage: a soft-limit alert and a hard limit with headroom (three stops on record stop every service, the live site included) | 2026-11-22 | the live site's uptime | before step 9 |
