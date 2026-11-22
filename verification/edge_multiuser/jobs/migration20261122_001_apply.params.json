@@ -1,0 +1,63 @@
+{
+ "mode": "APPLY",
+ "migrations": [
+  "20261122_001_edge_bff_support.sql"
+ ],
+ "probes": [
+  [
+   "capability",
+   null,
+   "SELECT c.capability_key, c.kind, c.display_name, string_agg(pc.plan_key || '=' || pc.value::text, ',' ORDER BY pc.plan_key) AS plans FROM edge_bff.capabilities c LEFT JOIN edge_bff.plan_capabilities pc USING (capability_key) WHERE c.capability_key = 'support.send' GROUP BY 1, 2, 3"
+  ],
+  [
+   "guest_plans_without_it",
+   null,
+   "SELECT p.plan_key, EXISTS (SELECT 1 FROM edge_bff.plan_capabilities pc WHERE pc.plan_key = p.plan_key AND pc.capability_key = 'support.send') AS holds FROM edge_bff.plans p WHERE p.for_guests ORDER BY 1"
+  ],
+  [
+   "columns",
+   null,
+   "SELECT table_name, string_agg(column_name || ':' || data_type || ':' || is_nullable, ', ' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name IN ('support_tickets', 'support_attachments') GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "constraints",
+   null,
+   "SELECT conrelid::regclass::text AS tbl, conname, contype FROM pg_constraint WHERE conrelid IN ('edge_bff.support_tickets'::regclass, 'edge_bff.support_attachments'::regclass) ORDER BY 1, 2"
+  ],
+  [
+   "indexes",
+   null,
+   "SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'edge_bff' AND tablename IN ('support_tickets', 'support_attachments') ORDER BY 1, 2"
+  ],
+  [
+   "runtime_grants",
+   null,
+   "SELECT e.t AS table_name, e.p AS expected, string_agg(x.priv, ',' ORDER BY x.priv) FILTER (WHERE has_table_privilege('edge_bff_runtime', 'edge_bff.' || e.t, x.priv)) AS held FROM (VALUES ('support_tickets', 'DELETE,INSERT,SELECT,UPDATE'), ('support_attachments', 'DELETE,INSERT,SELECT')) AS e(t, p) CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS x(priv) GROUP BY e.t, e.p ORDER BY e.t"
+  ],
+  [
+   "public_grants",
+   null,
+   "SELECT t, has_table_privilege('public', 'edge_bff.' || t, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS any FROM unnest(ARRAY['support_tickets', 'support_attachments']) AS t ORDER BY 1"
+  ],
+  [
+   "column_grants",
+   null,
+   "SELECT c.relname, a.attname, x.privilege_type FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid CROSS JOIN LATERAL aclexplode(a.attacl) x WHERE a.attacl IS NOT NULL AND c.oid IN ('edge_bff.support_tickets'::regclass, 'edge_bff.support_attachments'::regclass) ORDER BY 1, 2, 3"
+  ],
+  [
+   "runtime_reads",
+   "edge_bff_runtime",
+   "SELECT (SELECT count(*) FROM edge_bff.support_tickets) AS tickets, (SELECT count(*) FROM edge_bff.support_attachments) AS images"
+  ],
+  [
+   "runtime_cannot_update_an_image",
+   "edge_bff_runtime",
+   "UPDATE edge_bff.support_attachments SET filename = filename WHERE false"
+  ],
+  [
+   "rows",
+   null,
+   "SELECT (SELECT count(*) FROM edge_bff.support_tickets) AS tickets, (SELECT count(*) FROM edge_bff.support_attachments) AS images, (SELECT count(*) FROM edge_bff.user_capability_overrides WHERE capability_key = 'support.send') AS overrides"
+  ]
+ ]
+}

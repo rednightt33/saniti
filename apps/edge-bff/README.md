@@ -1169,6 +1169,47 @@ unset = that owner), so nothing changes for it; an owner EDGE_ADMIN_OWNERS does 
   a grant is 429 `LIMIT_REACHED` with `Retry-After` (it was `<FAMILY>_QUOTA`).
 - `tests/test_phase3a_monitor_pages.py` walks these routes: a new one needs its line in `ROUTE_CAPS`.
 
+## Contact support (EXEC-MU-ACCOUNTS Phase 4, 2026-11-22)
+
+The user, 2026-11-22: "saya minta dibuatkan panel sebelah kiri di live iconnya kotak surat ... Ada yang submit maka
+langsung ke admin dan telegram dan ke email pribadi saya"; "hanya yang login ... lampiran hanya 2A"; "go".
+`app/support.py`, migration `20261122_001`, `tests/test_support.py`; CONTRACT.md 10 "Contact support".
+
+- **Who sends:** a signed-in account holding `support.send` (the free and the paid plan; the admin through `*`; an
+  override `false` takes it from one account). A visitor holds it on no plan: the shell's mailbox opens the sign-in box.
+- **`POST /api/v1/support`** (CSRF), JSON `{kind, subject, body, details, images: [{name, type, data}]}` ->
+  201 `{ticket_id, created_at}`:
+  - `kind` one of `bug`, `question`, `account`, `billing`, `feature`, `data`; `subject` 1 to 120 characters, one line
+    (runs of white space become one space); `body` 1 to 5000 characters; a hidden or control character (Unicode
+    categories Cc, Cf, Cs, Zl, Zp; the description's line breaks and tabs and the joiners kept;
+    `text_rules.hidden_character`) is refused with its own reason;
+  - `details`: only the page's own keys (`page`, `frame`, `viewport`, `timezone`, `language`; short strings); edge-bff
+    adds the browser (User-Agent), the build, the site, the plan and the time;
+  - `images`: at most 3, base64; each a PNG, JPG or WebP as its own first bytes say (never its name or stated type),
+    at most 5 MiB; its name kept without folders, ending in its type's extension;
+  - every refusal is 400 `INVALID_INPUT` `{fields, reasons}` naming the field and the fix, or 400 with field `request`
+    for a body that is not a JSON object.
+- **Read only when allowed** (`main.py` support_precheck, before the body): a stated `Content-Length` above
+  `REQUEST_BYTES` (three images as base64 and 64 KiB), or not a number, 413 `REQUEST_TOO_LARGE`; no session 401; a second
+  factor still pending 403 `MFA_REQUIRED`; no `support.send` 403 `CAPABILITY_REQUIRED`. A body without a stated length (a
+  proxy may forward it chunked) is read after these checks, up to `REQUEST_BYTES`. Every other write keeps 128 KiB.
+- **Limits:** `EDGE_SUPPORT_PER_HOUR` (default 5) and `EDGE_SUPPORT_PER_DAY` (default 20) per account, counted under a
+  lock per account: 429 `LIMIT_REACHED` with `details.limit` `support_hour` or `support_day`, `allowed`,
+  `retry_after_s` and `Retry-After`. The images of every ticket together at most `EDGE_SUPPORT_STORAGE_MB` (default 500):
+  past it 503 `SUPPORT_STORAGE_FULL`, and the message goes without its images.
+- **Where it goes** (one transaction, then after the commit):
+  - `edge_bff.support_tickets` and `support_attachments` (gone with the account);
+  - one email per active admin account with an address (`edge_bff.email_outbox`, purpose `support`): the message in
+    full with the technical details and the images attached when the live site's sender sends it (Resend
+    `attachments`), Reply-To the sender's address. In the log mode its text is never logged (`private`). An email whose
+    ticket was deleted before it was sent is dropped (`email_dropped`);
+  - a Telegram summary to telegram-monitor (`TELEGRAM_NOTIFY_URL`, its `/notify`; `TELEGRAM_SUPPORT_SECRET`, the secret
+    of its source `EDGE_Support` only; either unset: no summary): the number, site, type, subject, username, plan,
+    number of images and the admin page's link (`EDGE_ADMIN_ORIGIN`, the beta's https origin; unset: no link). Only an
+    answer 200 counts; the instance that runs the housekeeping (the live site) sends a summary not yet answered again
+    every 10 minutes, at most 5 times, within a day;
+  - the admin page's Support inbox (the beta; Phase 4, slice 4).
+
 ## Terminal data gate: headers and refusals (EXEC-MU-ACCOUNTS Phase 3c, 2026-11-18)
 
 CONTRACT.md 8b "3c in detail", decisions D2, D3 and D6. One module, `app/terminal_access.py`, builds what terminal-api

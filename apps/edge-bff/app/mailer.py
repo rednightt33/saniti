@@ -43,6 +43,7 @@ BACKOFF_SECONDS = (5, 30, 120)          # after the 1st, 2nd and 3rd failed try;
 LEASE_SECONDS = 60
 POLL_SECONDS = 5.0
 SEND_TIMEOUT = 15.0
+ATTACHMENT_TIMEOUT = 60.0                 # an email with images (up to about 20 MB as base64)
 HOOK_TOLERANCE_SECONDS = 300
 SUPPRESS = {'email.bounced': 'bounce', 'email.complained': 'complaint'}
 
@@ -133,6 +134,20 @@ class OutboxStore:
             c.execute('''UPDATE edge_bff.email_outbox SET status='expired', payload=NULL, lease_token=NULL,
                 lease_expires_at=NULL WHERE outbox_id=%s AND lease_token=%s''', (row['outbox_id'], row['lease_token']))
 
+    def attachments(self, refs):
+        """Phase 4, the contact-support panel: the images a support email names ([{ticket_id, position, filename}]) as
+        Resend's attachments ({filename, content: base64}), read when the email is sent; None when one is gone (its ticket
+        or its account was deleted since: the email is then not sent)."""
+        out = []
+        with self.store.connect() as c:
+            for ref in refs:
+                row = c.execute('SELECT filename, body FROM edge_bff.support_attachments WHERE ticket_id=%s AND position=%s',
+                                (int(ref['ticket_id']), int(ref['position']))).fetchone()
+                if row is None:
+                    return None
+                out.append({'filename': row['filename'], 'content': base64.b64encode(bytes(row['body'])).decode('ascii')})
+        return out
+
     def hook_event(self, svix_id, event_type, recipients):
         """Apply one webhook delivery once: False when its svix-id was seen before (nothing changes)."""
         with self.store.connect() as c:
@@ -195,6 +210,12 @@ class EmailSender:
             await asyncio.to_thread(self.outbox.expired, row)
             return
         mail = row['payload'] or {}
+        if self.settings.email_mode != 'resend' and mail.get('private'):
+            # Phase 4 (the contact-support panel): the sender's own words never reach the log, the address masked
+            logger.info(json.dumps({'event': 'email_logged', 'outbox_id': row['outbox_id'], 'purpose': row['purpose'],
+                                    'to': masked_address(row['to_email']), 'private': True}))
+            await asyncio.to_thread(self.outbox.sent, row, 'log', False)
+            return
         if self.settings.email_mode != 'resend':
             local = self.settings.environment == 'local'
             logger.info(json.dumps({'event': 'email_logged', 'outbox_id': row['outbox_id'], 'purpose': row['purpose'],
@@ -204,13 +225,24 @@ class EmailSender:
                                    ensure_ascii=False))
             await asyncio.to_thread(self.outbox.sent, row, 'log', True)
             return
+        body = {'from': self.settings.email_from, 'to': [row['to_email']], 'subject': mail.get('subject', ''),
+                'text': mail.get('text', ''), 'html': mail.get('html', '')}
+        if mail.get('reply_to'):
+            body['reply_to'] = mail['reply_to']
+        if mail.get('attachments'):
+            files = await asyncio.to_thread(self.outbox.attachments, mail['attachments'])
+            if files is None:
+                await asyncio.to_thread(self.outbox.expired, row)
+                logger.info(json.dumps({'event': 'email_dropped', 'outbox_id': row['outbox_id'], 'purpose': row['purpose'],
+                                        'why': 'attachment_gone'}))
+                return
+            body['attachments'] = files
         if self.client is None:
             self.client = httpx.AsyncClient(timeout=SEND_TIMEOUT, transport=self.transport)
         try:
             answer = await self.client.post(RESEND_URL, headers={
                 'Authorization': f'Bearer {self.settings.resend_api_key}', 'Idempotency-Key': row['idempotency_key']},
-                json={'from': self.settings.email_from, 'to': [row['to_email']], 'subject': mail.get('subject', ''),
-                      'text': mail.get('text', ''), 'html': mail.get('html', '')})
+                json=body, timeout=ATTACHMENT_TIMEOUT if 'attachments' in body else SEND_TIMEOUT)
             ok = 200 <= answer.status_code < 300
             provider = (answer.json() or {}).get('id') if ok else None
         except (httpx.HTTPError, ValueError):

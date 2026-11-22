@@ -16433,9 +16433,39 @@ Order of the services (CONTRACT 17, rollback floors):
           Asked: A keep them out (as the build does now), B show them, as the live page does (the badge of an upcoming
           corporate action on a card, 2 of the 45 on 2026-11-21, and the "Corporate action" control). Approved: B.
           Built under the go of 2026-11-22 (with Phase 4): the members' actions and their load date, never another
-          stock's; tests red on 4 mutations; it reaches the beta with Phase 4 and the live site on request. When built: the example keeps the list's members' upcoming corporate actions
-          and `events_loaded` (app/examples.py `watchlist_view`, its tests, the browser test, WATCHLIST_FORMULAS.md), then
-          the beta, and the live site only on the user's request (LIVE_PROMOTION.md).
+          stock's (`1c972f22`: app/examples.py `watchlist_view`, its tests, the browser test, WATCHLIST_FORMULAS.md);
+          tests red on 4 mutations; it reaches the beta with Phase 4 and the live site only on the user's request
+          (LIVE_PROMOTION.md).
+        - **Item 5, Phase 4 with the contact-support panel (go 2026-11-22), run log:**
+          - Slice 1, the Watchlist example's corporate actions (the user's "B"): `1c972f22`, above.
+          - Slice 2, the contact-support panel, its server side (on the session branch; not applied, not deployed):
+            - migration `20261122_001` (written, applied on dev before the deploy): the capability `support.send` (the
+              free and the paid plan; no guest plan; the admin through `*`), `edge_bff.support_tickets` and
+              `edge_bff.support_attachments`, their checks holding each row to what the route accepts, gone with the
+              account (CONTRACT 10's deletion table);
+            - `POST /api/v1/support` (`app/support.py`): an account's message, an issue type of the dialog, a subject, a
+              description and at most 3 images (PNG, JPG or WebP as their own first bytes say, 5 MB each). A visitor, a
+              second factor still pending, an account without `support.send`, a request stating a larger size: each
+              refused before the body is read (`main.py` support_precheck; a body of no stated size is read after the
+              same checks, up to the cap). A hidden or control character is
+              refused by the shared rule (`text_rules.hidden_character`, by Unicode category; the joiners emoji and some
+              scripts need are kept); every refusal names its field and the fix;
+            - an email to each active admin account with an address (the owner's personal address is the admin
+              account's own: nothing in Git), the images attached when it is sent, Reply going to the sender; in the log
+              mode the sender's words never reach the log;
+            - a Telegram summary through telegram-monitor's new source `EDGE_Support`, opened only by its own secret
+              `TELEGRAM_SUPPORT_SECRET` (which opens nothing else; `TELEGRAM_NOTIFY_SECRET` no longer opens it), sent
+              again by the live site's housekeeping every 10 minutes, at most 5 times, within a day;
+            - tests: `tests/test_support.py` (19, one of them the shape both services hold) and telegram-monitor's
+              `EdgeSupportTests` (4); 51 mutations of the route, the store, the mailer, the settings and the migration,
+              each red.
+            - Design values taken by the main agent (to tell the user): 20 messages per account per day beside the
+              user's 5 per hour; the images of every ticket together at most 500 MB (`EDGE_SUPPORT_STORAGE_MB`; past it a
+              message goes without images and says so); the Telegram summary carries the subject but never the
+              description, the images or an address (they are in the email and on the admin page); Reply-To gives the
+              admin the sender's address, which the sender's own account holds.
+          - Next: the shell's mailbox and dialog (slice 2, its page side); the admin page's read side (slice 4) and its
+            actions (slice 5); account deletion (slice 6); then the checker at xhigh, its fixes, the beta.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

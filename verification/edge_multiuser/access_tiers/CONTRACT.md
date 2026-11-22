@@ -1312,6 +1312,18 @@ today.
     is shown to the admin in the rule's words.
   - Names typed by the admin follow the name rule of section 1; an export of names or addresses to a spreadsheet uses
     `text_rules.export_cell` (R2-18).
+- **Contact support** (the user, 2026-11-22: "saya minta dibuatkan panel sebelah kiri di live iconnya kotak surat";
+  "hanya yang login ... lampiran hanya 2A"; `app/support.py`, migration `20261122_001`). The rail's mailbox opens a
+  dialog on both sites; a visitor's click opens the sign-in box. `POST /api/v1/support` (capability `support.send`, a
+  flag of the free and the paid plan, CSRF) keeps the message (`support_tickets`) and its images (`support_attachments`,
+  at most 3, PNG, JPG or WebP as their bytes say, 5 MB each), at most `EDGE_SUPPORT_PER_HOUR` (5) per account per hour
+  and `EDGE_SUPPORT_PER_DAY` (20) per day, the images of every ticket together at most `EDGE_SUPPORT_STORAGE_MB`
+  (500). The request is read only after its session is found to hold `support.send` with its second factor passed, and
+  only up to its cap (three images as base64 and 64 KiB; a larger stated size is refused unread). Then: one email per active admin account with an address, in full with its images and
+  the technical details, its Reply-To the sender's own address (so the admin who answers learns it; the sender's account
+  holds it already); a Telegram summary (section 18: the number, the site, the type, the subject, the username, the
+  plan, the number of images, the admin page's link, never the text, an image or an address); and the Support inbox of
+  the admin page (the beta), where the admin reads a ticket and its images and marks it done.
 - **Terminal subscriber** follows a disable (Phase 3).
 - **Account deletion** (R2-27; **to build, Phase 4**, as an admin action with a reason and its `admin_audit` row; until
   then an operator follows these steps by hand, with the user's go for each account). Owner-keyed rows have no foreign
@@ -1331,6 +1343,7 @@ today.
   | `edge_bff.user_preferences` | `owner_key` | delete |
   | `edge_bff.sessions` | `owner_key`, `user_id` | revoked first (every site), then deleted with the account |
   | `edge_bff.users` (and by cascade `identities`, `email_codes`, `mfa_totp`, `mfa_recovery_codes`, `user_capability_overrides`, `subscriptions`) | `user_id` | delete last, in the same transaction as the rows above |
+  | `edge_bff.support_tickets` (and `support_attachments`, by its cascade; Phase 4, the contact-support panel) | `user_id` | deleted with the `users` row (ON DELETE CASCADE); another account's ticket that this account marked done as an admin keeps its row and `done_by_user_id`, a plain number that names no row once the account is gone (pseudonymous, as `admin_audit`'s ids; section 1, R1-42). Outside EDGE's stores: each ticket's email in the admins' mailboxes (the message, its images, the sender's address) and its Telegram summary (section 18) stay where they were sent; the admin deletes them by hand when the account asks for its deletion |
   | `edge_bff.email_outbox` | `to_email` | delete the address's rows (the 24 h purge does it for an address with no account, the 30-day purge for every row sent, failed, expired or suppressed) |
   | `edge_bff.email_suppression` | `email` | kept: the address and the reason only (`email`, `reason`, `at`), so a bounce or complaint keeps protecting the sender (R2-27, the user's "ok rekomendasi", 2026-11-19) |
   | `edge_bff.admin_audit` | `actor_user_id`, `target_user_id` | kept: the ids name no row once the account is gone (pseudonymous, never rewritten; section 1) |
@@ -1637,7 +1650,8 @@ host of the server's code or of a resource a page loads that this table does not
 | Recipient | Host | What it receives | When |
 |---|---|---|---|
 | ~~Google Fonts~~ (none since the decision R2-28 "5a pakai inter", 2026-11-19) | no longer asked | nothing: EDGE serves its own copy of Inter from `/fonts/` (`apps/edge-bff/static/fonts`, SIL Open Font License 1.1, `OFL.txt`), every policy keeps `font-src 'self'` and no page names a Google host (built, track decisions; `tests/test_decisions_small.py`) | never |
-| Resend | `api.resend.com` | every email address EDGE writes to and each email's body (codes, notices) | each registration, code, reset and notice (the live site, switch on) |
+| Resend | `api.resend.com` | every email address EDGE writes to and each email's body (codes, notices); a support message in full (its text, its images and the technical details) with the sender's address as Reply-To, to the admins | each registration, code, reset and notice, and each support message (the live site's sender, switch on, sends the outbox of both sites) |
+| Telegram (through telegram-monitor) | `api.telegram.org` | a support message's summary: its number, site, issue type and subject, the sender's username and plan, how many images, the admin page's link; never its text, its images or an address | each support message (Phase 4, the contact-support panel; either site) |
 | The market-file bucket (Railway storage) | `*.t3.storageapi.dev` | the visitor's IP address and the object keys of presigned downloads | the Terminal, Backtest and Watchlist pages' file downloads; with 3c a capped principal gets cuts and reference copies through edge-bff instead |
 | Have I Been Pwned (Pwned Passwords) | `api.pwnedpasswords.com` | the first 5 hexadecimal characters of the password's SHA-1 (k-anonymity; not personal data) | each new password (registration, reset, change) |
 | Railway | the hosting | every request, the logs (no secret, codes masked) and the database | always |

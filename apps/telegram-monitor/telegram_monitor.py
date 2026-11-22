@@ -8,6 +8,7 @@ import json
 import os
 import re
 import socket
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -56,6 +57,15 @@ PUBLISH_REQUEST_SOURCE = "Terminal_Publish_Request"
 # prices; ERRORS M450, M458 item 2, D22). Only the publisher measures it, so the facts come with the request, accepted only
 # in the fixed shape parse_broker_basis checks: tickers, dates, counts and enumerations, never free text.
 BASIS_SOURCE = "Broker_Basis_Report"
+# Phase 4, the contact-support panel (the user, 2026-11-22: "Ada yang submit maka langsung ke admin dan telegram"):
+# edge-bff reports each support message after its commit (apps/edge-bff/app/support.py, telegram_details). It is the one
+# source that carries words a person typed (the subject), so it has its own secret, TELEGRAM_SUPPORT_SECRET, which opens
+# this source only and which only edge-bff holds (TELEGRAM_NOTIFY_SECRET opens every other source and not this one), and
+# it is accepted only in the fixed shape parse_edge_support checks: the ticket's number, enumerations, a username, a plan
+# key, a count, the admin page's link, and the subject (one line of 1-120 characters without a hidden or control
+# character; sent as plain text, as every message here). The description, the images and the addresses never come here:
+# they are in the admins' email and on the admin page.
+SUPPORT_SOURCE = "EDGE_Support"
 PUBLISH_SIGNAL_TABLE = "public.terminal_publish_signal"
 PUBLISH_TRIGGER_SOURCES = PRICE_MONITORING_SOURCES | {STOCKBIT_SOURCE, PUBLISH_REQUEST_SOURCE}
 RAILWAY_API_URL = "https://backboard.railway.com/graphql/v2"
@@ -66,7 +76,7 @@ mutation RunCronNow($input: DeploymentInstanceExecutionCreateInput!) {
 """
 SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE, FRESHNESS_SOURCE, HEALTH_SOURCE,
                                                 CONSENSUS_SOURCE, AUDIT_QUEUE_SOURCE, POSTGRES_RESTART_SOURCE,
-                                                PUBLISH_REQUEST_SOURCE, BASIS_SOURCE}
+                                                PUBLISH_REQUEST_SOURCE, BASIS_SOURCE, SUPPORT_SOURCE}
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
@@ -713,6 +723,83 @@ def build_broker_basis_message(report: BrokerBasisReport) -> str:
     if report.total > len(report.items):
         lines.append(f"… dan {report.total - len(report.items)} lainnya (log terminal-publisher, event broker_basis).")
     lines.append("Langkah sesudah aksi korporasi: UPDATE_TABLE.md bagian C. Backtest mengosongkan nilai yang belum cocok.")
+    return "\n".join(lines)
+
+
+SUPPORT_ID = re.compile(r"^support-([1-9][0-9]{0,17})$")
+SUPPORT_KINDS = {"bug": "Bug / ada yang tidak berfungsi", "question": "Pertanyaan", "account": "Akun atau masuk",
+                 "billing": "Tagihan atau pembayaran", "feature": "Permintaan fitur", "data": "Data terlihat salah"}
+SUPPORT_SITES = ("beta", "live")
+SUPPORT_SUBJECT_CHARS = 120
+SUPPORT_USERNAME = re.compile(r"^[a-z0-9_]{3,30}$")       # edge-bff's username rule (apps/edge-bff/app/accounts.py)
+SUPPORT_PLAN = re.compile(r"^[a-z][a-z0-9_]{1,31}$")      # edge_bff.plans.plan_key's check (migration 20261117_003)
+SUPPORT_LINK = re.compile(r"^https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?/admin\?ticket=([1-9][0-9]{0,17})$")
+SUPPORT_IMAGES = 3
+# the hidden and control characters edge-bff refuses in a support text (apps/edge-bff/app/text_rules.py,
+# hidden_character): by Unicode category, so a new one is covered without a list; the joiners some scripts and emoji need
+# are kept
+HIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Zl", "Zp"})
+JOINERS = frozenset({"\u200c", "\u200d"})
+
+
+@dataclass(frozen=True)
+class SupportNotice:
+    execution_id: str
+    ticket_id: int
+    site: str
+    kind: str
+    subject: str
+    sender: str
+    plan: str
+    images: int
+    link: str
+
+
+def has_hidden_character(text: str) -> bool:
+    return any(ch not in JOINERS and unicodedata.category(ch) in HIDDEN_CATEGORIES for ch in text)
+
+
+def parse_edge_support(execution_id: str, details: object) -> SupportNotice:
+    """edge-bff's summary of one support message, checked field by field; anything else is a ValueError (400)."""
+    match = SUPPORT_ID.fullmatch(execution_id)
+    keys = {"ticket_id", "site", "kind", "subject", "sender", "plan", "images", "link"}
+    if not match or not isinstance(details, dict) or set(details) != keys:
+        raise ValueError("invalid support notice")
+    ticket, site, kind, subject, sender, plan, images, link = (details[k] for k in (
+        "ticket_id", "site", "kind", "subject", "sender", "plan", "images", "link"))
+    if isinstance(ticket, bool) or not isinstance(ticket, int) or str(ticket) != match.group(1):
+        raise ValueError("invalid support notice")
+    if site not in SUPPORT_SITES or kind not in SUPPORT_KINDS:
+        raise ValueError("invalid support notice")
+    if (not isinstance(subject, str) or not 1 <= len(subject) <= SUPPORT_SUBJECT_CHARS or subject != subject.strip()
+            or has_hidden_character(subject)):
+        raise ValueError("invalid support subject")
+    if not isinstance(sender, str) or not (sender == "" or SUPPORT_USERNAME.fullmatch(sender)):
+        raise ValueError("invalid support sender")
+    if not isinstance(plan, str) or not (plan == "" or SUPPORT_PLAN.fullmatch(plan)):
+        raise ValueError("invalid support plan")
+    if isinstance(images, bool) or not isinstance(images, int) or not 0 <= images <= SUPPORT_IMAGES:
+        raise ValueError("invalid support images")
+    linked = SUPPORT_LINK.fullmatch(link) if isinstance(link, str) else None
+    if not isinstance(link, str) or not (link == "" or (linked and linked.group(1) == match.group(1))):
+        raise ValueError("invalid support link")
+    return SupportNotice(execution_id, ticket, site, kind, subject, sender, plan, images, link)
+
+
+def build_support_message(notice: SupportNotice) -> str:
+    who = notice.sender or "akun tanpa nama pengguna"
+    if notice.plan:
+        who += f" (paket {notice.plan})"
+    if notice.images:
+        who += f" · {notice.images} gambar"
+    lines = [f"📮 Pesan support #{notice.ticket_id} (situs {notice.site})",
+             f"Jenis: {SUPPORT_KINDS[notice.kind]}",
+             f"Judul: {notice.subject}",
+             f"Dari: {who}",
+             "Isi lengkap" + (" dan gambarnya" if notice.images else "") + " ada di email admin"
+             + (" dan di halaman admin:" if notice.link else "; balas email itu untuk menjawab pengirimnya.")]
+    if notice.link:
+        lines.append(notice.link)
     return "\n".join(lines)
 
 
@@ -1387,6 +1474,8 @@ class TelegramMonitor:
             health = parse_postgres_restart(execution_id, details)
         if source_table == BASIS_SOURCE:
             health = parse_broker_basis(execution_id, details)
+        if source_table == SUPPORT_SOURCE:
+            health = parse_edge_support(execution_id, details)
         if source_table == PUBLISH_REQUEST_SOURCE:
             loader, changed = parse_publish_request(execution_id, details)
             with psycopg.connect(self.database_url) as connection:
@@ -1450,6 +1539,8 @@ class TelegramMonitor:
                 elif isinstance(summary, BrokerBasisReport):     # P9.4: when the list of actions that need attention changes
                     for message in build_broker_basis_messages(summary):
                         message_ids.append(self.send_message(self.token, self.chat_id, message))
+                elif isinstance(summary, SupportNotice):         # Phase 4: each support message, once per ticket
+                    message_ids.append(self.send_message(self.token, self.chat_id, build_support_message(summary)))
                 elif isinstance(summary, ConsensusReport):       # every weekly report is sent, a clean one included
                     message_ids.append(self.send_message(self.token, self.chat_id, build_consensus_message(summary)))
                 elif isinstance(summary, StockbitUpdateSummary):
@@ -1490,6 +1581,22 @@ class TelegramMonitor:
                 raise
 
 
+def same_secret(supplied: str, expected: str) -> bool:
+    """A constant-time comparison of two secrets as bytes (a header that is not ASCII is a mismatch, never an error)."""
+    return bool(supplied) and bool(expected) and hmac.compare_digest(
+        supplied.encode("utf-8", "surrogateescape"), expected.encode("utf-8", "surrogateescape"))
+
+
+def secret_opens(supplied: str, notify_secret: str, support_secret: str) -> Callable[[str], bool] | None:
+    """Which sources a request's X-Notify-Secret opens, or None (401): the notify secret every source but EDGE_Support,
+    the support secret EDGE_Support only (Phase 4; an unset support secret opens nothing)."""
+    if same_secret(supplied, notify_secret):
+        return lambda source: source != SUPPORT_SOURCE
+    if same_secret(supplied, support_secret):
+        return lambda source: source == SUPPORT_SOURCE
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "SanitiTelegramMonitor/1.0"
 
@@ -1514,9 +1621,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/notify":
             self.send_json(404, {"error": "not_found"})
             return
-        expected_secret = self.server.notify_secret
-        supplied_secret = self.headers.get("X-Notify-Secret", "")
-        if not supplied_secret or not hmac.compare_digest(supplied_secret, expected_secret):
+        # each secret opens its own sources (Phase 4): TELEGRAM_NOTIFY_SECRET every source but EDGE_Support,
+        # TELEGRAM_SUPPORT_SECRET (edge-bff's) EDGE_Support only; the body is read only after one of them matched
+        opens = secret_opens(self.headers.get("X-Notify-Secret", ""), self.server.notify_secret,
+                             getattr(self.server, "support_secret", ""))
+        if opens is None:
             self.send_json(401, {"error": "unauthorized"})
             return
         try:
@@ -1524,8 +1633,14 @@ class Handler(BaseHTTPRequestHandler):
             if length <= 0 or length > MAX_REQUEST_BYTES:
                 raise ValueError("invalid request size")
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("invalid request")
+            source_table = str(payload.get("source_table", ""))
+            if not opens(source_table):
+                self.send_json(403, {"error": "source_not_allowed"})
+                return
             state, log_id = self.server.monitor.notify(
-                str(payload.get("source_table", "")),
+                source_table,
                 str(payload.get("execution_id", "")),
                 payload.get("details"),
             )
@@ -1574,6 +1689,10 @@ def main() -> None:
     server = RailwayPrivateHTTPServer(("::", int(os.environ.get("PORT", "8080"))), Handler)
     server.monitor = monitor
     server.notify_secret = required_env("TELEGRAM_NOTIFY_SECRET")
+    # Phase 4, the contact-support panel: edge-bff's own secret for EDGE_Support (unset: that source is closed)
+    server.support_secret = os.environ.get("TELEGRAM_SUPPORT_SECRET", "").strip()
+    if server.support_secret and server.support_secret == server.notify_secret:
+        raise SystemExit("TELEGRAM_SUPPORT_SECRET must differ from TELEGRAM_NOTIFY_SECRET")
     print(json.dumps({"event": "server_started", "port": server.server_port}), flush=True)
     server.serve_forever()
 

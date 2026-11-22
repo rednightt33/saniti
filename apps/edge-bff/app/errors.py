@@ -31,6 +31,9 @@ MESSAGES = {
     'INVALID_CREDENTIALS': 'The login or password is not correct. Check them and try again.',
     'ORIGIN_REJECTED': 'This request did not come from the EDGE page. Open EDGE again and retry from there.',
     'REQUEST_TOO_LARGE': 'This request is too large. Send less at once and try again.',
+    # Phase 4, the contact-support panel (app/support.py)
+    'SUPPORT_STORAGE_FULL': 'Images cannot be stored right now. Send your message without images; we will ask you for '
+                            'them by email if we need them.',
     'SERVICE_UNAVAILABLE': 'EDGE cannot answer right now. Wait a moment, then try again.',
     'NOT_READY': 'EDGE is starting. Wait a moment, then try again.',
     'TERMINAL_UNAVAILABLE': 'Market data cannot be reached right now. Wait a moment, then try again.',
@@ -222,6 +225,13 @@ def words(code, status, details=None):
                     else 'Remove one you no longer need, or upgrade the plan.')
             what = f' for {_names[limit]}' if limit in _names else ''
             return f"You have reached your plan's limit{what}{count}. {then}"
+        if limit in ('support_hour', 'support_day'):
+            # Phase 4, the contact-support panel: the account's own messages, not a plan limit
+            allowed = d.get('allowed')
+            per = 'hour' if limit == 'support_hour' else 'day'
+            count = (f'{allowed} support message' + ('' if allowed == 1 else 's')
+                     if isinstance(allowed, int) and not isinstance(allowed, bool) else 'support messages')
+            return f'You can send {count} per {per}. Wait {wait or "a while"}, then send your message again.'
         return f'Too many attempts. Wait {wait or "a while"}, then try again.'
     elif code == 'MFA_LOCKED' and d.get('locked') == 'recovery_code' and d.get('use') == 'code':
         # the recovery codes are locked, the authenticator is not (live checker ACC-2; the server says so, M519): say

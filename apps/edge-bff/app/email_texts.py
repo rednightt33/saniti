@@ -46,3 +46,43 @@ def password_changed_email():
              'If you did this, there is nothing more to do.',
              'If you did not, use "Forgot password?" on the sign-in page at once to choose a new password.']
     return _mail('Your EDGE password was changed', lines, [escape(x) for x in lines])
+
+
+SUPPORT_KINDS = {'bug': 'Bug / Something not working', 'question': 'Question', 'account': 'Account or sign-in',
+                 'billing': 'Billing or payment', 'feature': 'Feature request', 'data': 'Data looks wrong'}
+
+
+def _one_line(text, limit):
+    """A sender's text for a subject line: line breaks to spaces, cut (the header never carries a line break)."""
+    return ' '.join(str(text or '').split())[:limit]
+
+
+def support_email(info):
+    """Phase 4, the contact-support panel (app/support.py): a sender's message to the admins, in full with its images
+    attached (by reference: the sender loop reads them from edge_bff.support_attachments when it sends) and Reply going
+    to the sender's address. `private`: the log mode never writes its text (it is the sender's words)."""
+    sender = info.get('sender') or {}
+    who = sender.get('username') or 'an account'
+    kind = SUPPORT_KINDS.get(info.get('kind'), info.get('kind'))
+    images = info.get('images') or []
+    details = info.get('details') or {}
+    head = [f"Support message #{info['ticket_id']} from {who} ({sender.get('plan') or 'no plan'}), on the {info.get('site')} site.",
+            f'Type: {kind}', f"Subject: {info.get('subject')}"]
+    tail = ['Technical details:\n' + '\n'.join(f'{k}: {v}' for k, v in details.items()),
+            f'Images: {len(images)} attached.' if images else 'Images: none.']
+    if info.get('link'):
+        tail.append(f"Open it on the admin page: {info['link']}")
+    if sender.get('email'):
+        tail.append(f'Reply to this email to answer {who}.')
+    text = '\n\n'.join(head + [info.get('body') or ''] + tail) + '\n\nEDGE\n'
+    html_parts = [escape(x) for x in head]
+    html_parts.append('<span style="white-space:pre-wrap">' + escape(info.get('body') or '') + '</span>')
+    html_parts.append('Technical details:<br>' + '<br>'.join(f'{escape(str(k))}: {escape(str(v))}' for k, v in details.items()))
+    html_parts += [escape(x) for x in tail[1:]]
+    mail = {'subject': f"EDGE support #{info['ticket_id']}: {kind}: {_one_line(info.get('subject'), 120)}",
+            'text': text, 'html': _html(html_parts), 'mask': [], 'private': True,
+            'attachments': [{'ticket_id': int(info['ticket_id']), 'position': int(a['position']), 'filename': a['filename']}
+                            for a in images]}
+    if sender.get('email'):
+        mail['reply_to'] = sender['email']
+    return mail

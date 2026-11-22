@@ -839,3 +839,136 @@ class BrokerBasisReportTests(unittest.TestCase):
         self.assertTrue(all(len(p) <= tm.MAX_TELEGRAM_TEXT for p in parts))
         self.assertEqual("\n".join(parts), whole)
         self.assertIn("UPDATE_TABLE.md bagian C", parts[-1])
+
+
+class EdgeSupportTests(unittest.TestCase):
+    """Phase 4, the contact-support panel (the user, 2026-11-22): edge-bff's summary of each support message, in a fixed
+    shape, opened by its own secret only (apps/edge-bff/app/support.py telegram_details)."""
+    ID = "support-12"
+
+    def details(self, **overrides):
+        values = {"ticket_id": 12, "site": "live", "kind": "bug", "subject": "The chart does not load",
+                  "sender": "alice", "plan": "free", "images": 2, "link": "https://admin.example.test/admin?ticket=12"}
+        values.update(overrides)
+        return values
+
+    def test_the_message_names_the_ticket_and_where_to_read_it(self):
+        import telegram_monitor as tm
+        text = tm.build_support_message(tm.parse_edge_support(self.ID, self.details()))
+        self.assertEqual(text.split("\n"), [
+            "📮 Pesan support #12 (situs live)",
+            "Jenis: Bug / ada yang tidak berfungsi",
+            "Judul: The chart does not load",
+            "Dari: alice (paket free) · 2 gambar",
+            "Isi lengkap dan gambarnya ada di email admin dan di halaman admin:",
+            "https://admin.example.test/admin?ticket=12"])
+        bare = tm.build_support_message(tm.parse_edge_support(self.ID, self.details(images=0, link="", plan="")))
+        self.assertIn("Dari: alice\n", bare)
+        self.assertTrue(bare.endswith("Isi lengkap ada di email admin; balas email itu untuk menjawab pengirimnya."))
+        family = "\U0001F468\u200d\U0001F469\u200d\U0001F467"                  # the joiners an emoji needs are kept
+        self.assertIn(family, tm.build_support_message(tm.parse_edge_support(self.ID, self.details(subject=family))))
+
+    def test_anything_outside_the_fixed_shape_is_refused(self):
+        import telegram_monitor as tm
+        for execution_id, details in (
+            ("support-13", self.details()),                                            # the id differs
+            ("support-13", self.details(link="")),                                   # the id differs, no link to tell
+            ("support-012", self.details()),
+            ("ticket-12", self.details()),
+            (self.ID, self.details(ticket_id=True)),
+            (self.ID, self.details(ticket_id="12")),
+            (self.ID, self.details(site="staging")),
+            (self.ID, self.details(kind="other")),
+            (self.ID, self.details(subject="")),
+            (self.ID, self.details(subject=" padded ")),
+            (self.ID, self.details(subject="x" * 121)),
+            (self.ID, self.details(subject="two\nlines")),
+            (self.ID, self.details(subject="abc\u202edef")),                           # a direction override
+            (self.ID, self.details(subject="ad\u200bmin")),                           # a zero-width space
+            (self.ID, self.details(sender="Alice Smith")),
+            (self.ID, self.details(sender="al")),
+            (self.ID, self.details(plan="free plan")),
+            (self.ID, self.details(images=4)),
+            (self.ID, self.details(images=True)),
+            (self.ID, self.details(link="http://admin.example.test/admin?ticket=12")),
+            (self.ID, self.details(link="https://admin.example.test/admin?ticket=13")),  # another ticket
+            (self.ID, self.details(link="https://admin.example.test/other?ticket=12")),
+            (self.ID, {**self.details(), "body": "the description"}),                 # the text never comes here
+            (self.ID, {k: v for k, v in self.details().items() if k != "plan"}),
+            (self.ID, None),
+        ):
+            with self.subTest(execution_id=execution_id, details=details):
+                with self.assertRaises(ValueError):
+                    tm.parse_edge_support(execution_id, details)
+
+    def test_the_monitor_sends_it_once_per_ticket(self):
+        import telegram_monitor as tm
+        sent, claims = [], {}
+
+        class Conn:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def claim(connection, source, execution_id):
+            if (source, execution_id) in claims:
+                return "duplicate", claims[(source, execution_id)]
+            claims[(source, execution_id)] = len(claims) + 1
+            return "claimed", claims[(source, execution_id)]
+
+        monitor = TelegramMonitor.__new__(TelegramMonitor)
+        monitor.database_url, monitor.token, monitor.chat_id = "postgresql://unused", "t", "c"
+        monitor.send_message = lambda token, chat, text, *a: sent.append(text) or len(sent)
+        saved = tm.psycopg.connect, tm.claim_delivery, tm.mark_sent
+        tm.psycopg.connect = lambda *a, **k: Conn()
+        tm.claim_delivery, tm.mark_sent = claim, lambda c, log_id, ids: None
+        try:
+            self.assertEqual(monitor.notify(tm.SUPPORT_SOURCE, self.ID, self.details())[0], "sent")
+            self.assertEqual(monitor.notify(tm.SUPPORT_SOURCE, self.ID, self.details())[0], "duplicate")
+        finally:
+            tm.psycopg.connect, tm.claim_delivery, tm.mark_sent = saved
+        self.assertEqual(len(sent), 1)
+        self.assertIn("Pesan support #12", sent[0])
+
+    def test_each_secret_opens_its_own_sources_and_the_body_is_read_only_after_it(self):
+        import threading
+        import urllib.request
+        from http.server import ThreadingHTTPServer
+        import telegram_monitor as tm
+        calls = []
+
+        class Monitor:
+            def notify(self, source, execution_id, details):
+                calls.append(source)
+                return "sent", 1
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), tm.Handler)
+        server.monitor, server.notify_secret, server.support_secret = Monitor(), "main-secret", "support-secret"
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        def post(secret, source, body=None):
+            data = body if body is not None else json.dumps(
+                {"source_table": source, "execution_id": self.ID, "details": self.details()}).encode()
+            request = urllib.request.Request(f"http://127.0.0.1:{server.server_port}/notify", data=data, method="POST",
+                                             headers={"X-Notify-Secret": secret, "Content-Type": "application/json"})
+            try:
+                with urllib.request.urlopen(request, timeout=5) as answer:
+                    return answer.status
+            except urllib.error.HTTPError as error:
+                return error.code
+        try:
+            self.assertEqual(post("support-secret", tm.SUPPORT_SOURCE), 200)
+            self.assertEqual(post("support-secret", tm.POSTGRES_RESTART_SOURCE), 403)   # the support secret: EDGE_Support only
+            self.assertEqual(post("main-secret", tm.SUPPORT_SOURCE), 403)               # the main secret: never EDGE_Support
+            self.assertEqual(post("main-secret", tm.POSTGRES_RESTART_SOURCE), 200)
+            self.assertEqual(post("wrong", tm.SUPPORT_SOURCE), 401)
+            self.assertEqual(post("", tm.SUPPORT_SOURCE), 401)
+            self.assertEqual(post("support-secret", tm.SUPPORT_SOURCE, body=b"[1]"), 400)
+            self.assertEqual(calls, [tm.SUPPORT_SOURCE, tm.POSTGRES_RESTART_SOURCE])
+            server.support_secret = ""                                                    # unset: the source is closed
+            self.assertEqual(post("support-secret", tm.SUPPORT_SOURCE), 401)
+            self.assertEqual(post("", tm.SUPPORT_SOURCE), 401)
+        finally:
+            server.shutdown()
+            server.server_close()
+        self.assertIsNone(tm.secret_opens("sécret", "main-secret", "support-secret"))  # not ASCII: refused, no error

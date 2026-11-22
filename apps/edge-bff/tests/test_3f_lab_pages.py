@@ -27,6 +27,11 @@ from test_3f_public_bundles import missing
 from test_phase3a_gates import override, paid_user
 
 LAB_APPS = (('terminal-app', main.TERMINAL_CSP), ('backtest-app', main.BACKTEST_CSP))
+# the pages edge-bff serves (main.py <TAB>_APP, each a /<tab>-app/): a tab of the release file is a page, or a capability
+# domain the shell shows without a page of its own (Phase 4's support.send: the rail's Contact support dialog), which
+# test_live_switch.py holds to its live switch. Derived from main, so a new page or a new page-less domain needs no list
+PAGE_APPS = sorted(name.removesuffix('_APP') for name in vars(main) if name.endswith('_APP') and not name.endswith('_LAB_APP'))
+PAGE_TABS = {name.lower() for name in PAGE_APPS}
 
 
 def beta_on(settings):
@@ -40,7 +45,7 @@ def built(tmp_path, monkeypatch):
         (tmp_path / name / 'assets').mkdir(parents=True)
         (tmp_path / name / 'index.html').write_text(f'<!doctype html><title>{title}</title>')
         (tmp_path / name / 'assets' / f'index-{name}01.js').write_text('void 0')
-    for app in ('TERMINAL', 'BACKTEST', 'SCREENER', 'RADAR', 'OVERVIEW', 'WATCHLIST'):
+    for app in PAGE_APPS:
         monkeypatch.setattr(main, f'{app}_APP', tmp_path / 'public')
     for app in ('TERMINAL', 'BACKTEST'):
         monkeypatch.setattr(main, f'{app}_LAB_APP', tmp_path / 'lab')
@@ -145,7 +150,20 @@ def tab_statuses(c, prefix):
     return c.get(f'/{prefix}/').status_code, c.get(f'/{prefix}/assets/index-public01.js').status_code
 
 
-@pytest.mark.parametrize('tab', sorted(releases.CURRENT.tabs()))
+def test_every_tab_of_the_release_file_is_a_page_or_a_capability_domain(database):
+    """The release file's tabs: each a page (PAGE_TABS, served at /<tab>-app/) or the first part of a capability key
+    (the live switch of a page-less domain, e.g. support); never a name nothing reads. The pages are those main.py
+    serves, so the lab-page test below covers every one of them."""
+    import psycopg
+    with psycopg.connect(database) as c:
+        domains = {r[0] for r in c.execute("SELECT DISTINCT split_part(capability_key, '.', 1) FROM edge_bff.capabilities "
+                                           "WHERE capability_key <> '*'")}
+    assert PAGE_TABS >= {'terminal', 'backtest', 'screener'} and 'support' in domains - PAGE_TABS, (PAGE_TABS, domains)
+    stray = sorted(t for t in releases.CURRENT.tabs() if t not in PAGE_TABS and t not in domains)
+    assert not stray, f'{stray} in catalog/releases.json "tabs" is neither a page of main.py nor a capability domain'
+
+
+@pytest.mark.parametrize('tab', sorted(t for t in releases.CURRENT.tabs() if t in PAGE_TABS))
 def test_a_tab_at_the_lab_stage_is_served_to_the_admin_on_the_beta_only(settings, store, built, monkeypatch, tab):
     tabs = [{'id': t, 'stage': releases.LAB if t == tab else st} for t, st in releases.CURRENT.tabs().items()]
     monkeypatch.setattr(releases, 'CURRENT', releases.Releases({'schema_version': 1, 'items': [
@@ -153,7 +171,7 @@ def test_a_tab_at_the_lab_stage_is_served_to_the_admin_on_the_beta_only(settings
     prefix = f'{tab}-app'
     with TestClient(create_app(settings, store, FakeOrc())) as c:
         assert tab_statuses(c, prefix) == (404, 404)                                    # a visitor
-        others = [t for t in releases.CURRENT.tabs() if t != tab]
+        others = [t for t in releases.CURRENT.tabs() if t != tab and t in PAGE_TABS]
         assert all(c.get(f'/{t}-app/').status_code == 200 for t in others)              # the released tabs as before
         login(c)
         assert tab_statuses(c, prefix) == (200, 200)

@@ -219,6 +219,7 @@
     {"id": "screener", "stage": "released"},
     {"id": "watchlist", "stage": "released"},
     {"id": "radar", "stage": "released"},
-    {"id": "overview", "stage": "released"}
+    {"id": "overview", "stage": "released"},
+    {"id": "support", "stage": "released"}
   ]
 }

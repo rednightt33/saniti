@@ -109,6 +109,8 @@ def database():
             # 3e, the example mode (ERRORS M527): the example files and the guest plan's example flags
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261121_001_edge_bff_example_files.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261121_002_edge_bff_guest_examples.sql').read_text())
+            # Phase 4, the contact-support panel: support.send, the tickets and their images
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261122_001_edge_bff_support.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:

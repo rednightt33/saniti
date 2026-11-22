@@ -38,6 +38,7 @@ from .overview import Overview
 from .watchlist import Watchlist
 from .radar import Radar
 from .examples import Examples
+from . import support as support_module
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import SESSION_COOKIE, cookie_name, csrf_token, needs_rehash, password_verifier, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
@@ -54,6 +55,8 @@ if not startup_log.hasHandlers():
     startup_log.addHandler(_handler)
     startup_log.setLevel(logging.INFO)
 STOP_RETRIES = 3  # EXEC-Y Fase 1 (I1): a run dispatched a moment ago is registered at Orc on receipt
+SUPPORT_RETRY_SECONDS = 600  # Phase 4: how often a support ticket's Telegram summary not accepted yet is sent again
+WRITE_BYTES = 131072  # the body of a write, but the support upload's (app/support.py REQUEST_BYTES)
 STATIC = Path(__file__).resolve().parents[1] / 'static'
 SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
 # EXEC-MU-ACCOUNTS re-check R2-28 (user 2026-11-19: "5a pakai inter"): EDGE's own copy of the Inter font (static/fonts: the
@@ -260,6 +263,7 @@ def create_app(settings=None, store=None, orc=None):
     overview = Overview(settings)                       # EXEC-OVERVIEW O4
     watchlist = Watchlist(settings, store)              # EXEC-WATCHLIST L3
     examples = Examples(store, overview, watchlist.files)   # 3e, the example mode (ERRORS M527)
+    support = support_module.Support(settings, store)   # Phase 4, the contact-support panel (the user, 2026-11-22)
     # EXEC-MU-ACCOUNTS beta/live: the AI loop claims only the runs this site queued (config.py EDGE_SITE)
     worker.claim = functools.partial(store.claim, site=settings.site)
     housekeeping = Housekeeping(settings, store)        # ERRORS R2-33: the hourly purges, their own task
@@ -302,8 +306,20 @@ def create_app(settings=None, store=None, orc=None):
             started['tasks'].append(asyncio.create_task(backtests.loop.run()))
         if settings.housekeeping_enabled:
             started['tasks'].append(asyncio.create_task(housekeeping.run()))
+            # Phase 4: a support ticket's Telegram summary not accepted yet is sent again (app/support.py), by the
+            # instance that runs the housekeeping (the live site; one shared table, telegram-monitor drops a repeat)
+            started['tasks'].append(asyncio.create_task(support_retry_loop()))
         if settings.multiuser and settings.email_enabled:
             started['tasks'].append(asyncio.create_task(sender.run()))
+
+    async def support_retry_loop():
+        while True:
+            await asyncio.sleep(SUPPORT_RETRY_SECONDS)
+            try:
+                await support.retry_telegram()
+            except Exception as e:                          # noqa: BLE001 - logged by its class; the loop goes on
+                logging.getLogger('edge_bff.support').warning(json.dumps({'event': 'support_retry_failed',
+                                                                          'error': type(e).__name__}))
 
     async def start_up():
         """One attempt at the start-up steps (ERRORS R2-3, R2-36); True once they ran, and then always. Readiness first
@@ -390,6 +406,7 @@ def create_app(settings=None, store=None, orc=None):
         await radar.aclose()                          # EXEC-RADAR R6 (QA 2026-11-14): its client too
         await overview.aclose()
         await watchlist.aclose()
+        await support.aclose()
         await sender.aclose()
         password_work.close()
 
@@ -398,6 +415,7 @@ def create_app(settings=None, store=None, orc=None):
     app.state.screeners = screeners
     app.state.auth_flows, app.state.email_sender = flows, sender
     app.state.auth = auth                                 # EXEC-MU-ACCOUNTS Phase 1 (tests add routes with need and admin)
+    app.state.support = support                           # Phase 4 (tests give its Telegram client a fake transport)
 
     def error(code, status):
         # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 3): every refusal in the full shape {code, message, details}
@@ -429,6 +447,29 @@ def create_app(settings=None, store=None, orc=None):
         # Deliberately no exception body/traceback: database/http errors may contain secrets.
         return error('SERVICE_UNAVAILABLE', 503)
 
+    async def support_precheck(request):
+        """The support upload's refusal before its body is read (app/support.py), or None: a stated length within
+        REQUEST_BYTES, and a session of an account holding support.send that passed its second factor. A request that
+        states no length (a proxy may forward a body chunked) is read only up to REQUEST_BYTES, after the same checks."""
+        raw = request.headers.get('content-length', '').strip()
+        if raw and (not raw.isdigit() or int(raw) > support_module.REQUEST_BYTES):
+            return refusal(413, 'REQUEST_TOO_LARGE', {'limit': 'support_request', 'allowed': support_module.REQUEST_BYTES})
+        token = request.cookies.get(auth.session_cookie, '')
+        if not token and auth.session_cookie != COOKIE and not settings.multiuser:
+            token = request.cookies.get(COOKIE, '')
+        try:
+            p = await auth.resolve(token)
+        except Exception:                                   # noqa: BLE001 - fail closed: nothing is read
+            return error('SERVICE_UNAVAILABLE', 503)
+        if p is None:
+            return refusal(401, 'UNAUTHENTICATED')
+        if not p.mfa_ok:
+            return refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': p.mfa_enrolled})
+        if not p.can(support_module.CAPABILITY):
+            r = p.refusal(support_module.CAPABILITY)
+            return refusal(r.status, r.code, r.details, r.headers)
+        return None
+
     @app.middleware('http')
     async def protections(request, call_next):
         if request.method in ('POST', 'PATCH', 'PUT', 'DELETE'):
@@ -437,10 +478,18 @@ def create_app(settings=None, store=None, orc=None):
             # by a signature over the body instead; the size cap below and the headers still apply to it.
             if not is_hook_path(request.url.path) and request.headers.get('origin') != settings.origin:
                 return error('ORIGIN_REJECTED', 403)
+            cap = WRITE_BYTES
+            if request.method == 'POST' and request.url.path == support_module.PATH:
+                # Phase 4 (app/support.py): the support upload may be large, so its body is read only for a session
+                # that may send, and only up to its stated length; a visitor's or a stranger's large body never is
+                refused = await support_precheck(request)
+                if refused is not None:
+                    return refused
+                cap = support_module.REQUEST_BYTES
             total, chunks = 0, []
             async for chunk in request.stream():
                 total += len(chunk)
-                if total > 131072:
+                if total > cap:
                     if request.url.path.startswith('/api/v1/screener/'):
                         # report 8.8: the screener's refusals name the fix (AGENTS.md "Gates and evidence" (d))
                         return JSONResponse(status_code=413, content={'error': {
@@ -813,6 +862,7 @@ def create_app(settings=None, store=None, orc=None):
     watchlist.routes(app, auth)              # EXEC-WATCHLIST L3: the lists and the daily file
     # 3e, the example mode (user 2026-11-21; ERRORS M527): /api/v1/examples/<tab>, for <tab>.example, visitors too
     examples.routes(app, auth)
+    support.routes(app, auth)                # Phase 4: POST /api/v1/support (support.send)
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4b): the account's preferences, /api/v1/preferences
     preferences.routes(app, auth)
     catalog.routes(app, auth)                # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): /api/v1/catalog/{kind}

@@ -65,12 +65,26 @@ run. `parse_postgres_restart` accepts only fixed shapes (kind, event, mode, swit
 reason codes; never free text). The `execution_id` `pg-restart-<kind>-YYYYMMDDTHHMM-<event>` keeps it to one message per
 run and event; every report is sent, a success included.
 
+`EDGE_Support` (EXEC-MU-ACCOUNTS Phase 4, the contact-support panel; the user, 2026-11-22: "Ada yang submit maka
+langsung ke admin dan telegram") is asked by edge-bff after it keeps a support message (`apps/edge-bff/app/support.py`).
+It is the one source with words a person typed, so it has its own secret: `TELEGRAM_SUPPORT_SECRET` opens this source
+only, and `TELEGRAM_NOTIFY_SECRET` opens every other source and not this one (`secret_opens`; a request's body is read
+only after one of them matched). `parse_edge_support` accepts only the fixed shape: the ticket's number (equal to the
+`execution_id` `support-<number>`), the site, the issue type, the subject (one line, 1 to 120 characters, no hidden or
+control character, by Unicode category), the sender's username, the plan key, the number of images (0 to 3) and the
+admin page's https link to that ticket (or none). The description, the images and every address stay out: they are in
+the admins' email and on the admin page. `Telegram_Notification_Log` keeps it to one message per ticket; edge-bff asks
+again (at most 5 times within a day) until it is answered 200. If the support tables were ever made anew, their numbers
+would start again at 1 and the log would take a new ticket for one already sent: rename the `execution_id` prefix then.
+
 ## Required Railway variables
 
 - `DATABASE_URL`
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 - `TELEGRAM_NOTIFY_SECRET`
+- `TELEGRAM_SUPPORT_SECRET` (optional; the secret edge-bff sends for `EDGE_Support`, different from
+  `TELEGRAM_NOTIFY_SECRET`; unset: that source answers 401)
 - `TELEGRAM_NOTIFY_SUCCESS` (optional, defaults to `true`)
 
 Secrets must remain in Railway variables and must never be committed.

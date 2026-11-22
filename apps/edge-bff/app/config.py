@@ -39,6 +39,11 @@ def optional_switch(name):
     return switch_of(name) if os.environ.get(name) is not None else None
 
 
+def count_or(name, default):
+    """count_of, or default when the variable is unset or empty (an explicit 0 stays 0, and validate names the range)."""
+    return count_of(name) if os.environ.get(name, '').strip() else default
+
+
 def count_of(name):
     """A whole number of 0 or more, unset or empty = 0; anything else stops the start (as switch_of does)."""
     raw = os.environ.get(name, '').strip()
@@ -158,6 +163,18 @@ class Settings:
     # (EDGE_GUEST_CALLS_PER_HOUR; 0 or unset: no ceiling, nothing is counted); each visitor keeps its own quotas at
     # terminal-api besides
     guest_calls_per_hour: int = 0
+    # Phase 4, the contact-support panel (the user, 2026-11-22; app/support.py): the messages one account may send per
+    # hour and per day (EDGE_SUPPORT_PER_HOUR, default 5; EDGE_SUPPORT_PER_DAY, default 20), the images of every ticket
+    # together at most EDGE_SUPPORT_STORAGE_MB (default 500), the Telegram summary through telegram-monitor
+    # (TELEGRAM_NOTIFY_URL, its /notify address, and TELEGRAM_SUPPORT_SECRET, the secret it takes for EDGE_Support only;
+    # either unset: no summary) and the admin page's site for the summary's and the email's link (EDGE_ADMIN_ORIGIN, the
+    # beta's https origin; unset: no link)
+    support_per_hour: int = 5
+    support_per_day: int = 20
+    support_storage_mb: int = 500
+    telegram_notify_url: str = ''
+    telegram_support_secret: str = field(default='', repr=False)
+    admin_origin: str = ''
 
     @property
     def guests(self):
@@ -239,7 +256,13 @@ class Settings:
                 upgrade_contact=os.environ.get('EDGE_UPGRADE_CONTACT', '').strip(),
                 privacy_url=os.environ.get('EDGE_PRIVACY_URL', '').strip(),
                 terms_url=os.environ.get('EDGE_TERMS_URL', '').strip(),
-                guest_calls_per_hour=count_of('EDGE_GUEST_CALLS_PER_HOUR'))
+                guest_calls_per_hour=count_of('EDGE_GUEST_CALLS_PER_HOUR'),
+                support_per_hour=count_or('EDGE_SUPPORT_PER_HOUR', 5),
+                support_per_day=count_or('EDGE_SUPPORT_PER_DAY', 20),
+                support_storage_mb=count_or('EDGE_SUPPORT_STORAGE_MB', 500),
+                telegram_notify_url=os.environ.get('TELEGRAM_NOTIFY_URL', '').strip(),
+                telegram_support_secret=os.environ.get('TELEGRAM_SUPPORT_SECRET', '').strip(),
+                admin_origin=os.environ.get('EDGE_ADMIN_ORIGIN', '').strip().rstrip('/'))
         s.validate()
         return s
 
@@ -275,6 +298,16 @@ class Settings:
         if not 0 <= self.guest_calls_per_hour <= 10 ** 9:
             raise ValueError('EDGE_GUEST_CALLS_PER_HOUR is a whole number from 0 (no ceiling) to 1000000000, the Terminal '
                              'calls of every visitor together in an hour, e.g. 5000; or unset it')
+        # Phase 4, the contact-support panel: each a whole number in its range, the addresses https (the summary's link
+        # and the telegram-monitor address its service gives)
+        for name, value, top in (('EDGE_SUPPORT_PER_HOUR', self.support_per_hour, 100), ('EDGE_SUPPORT_PER_DAY', self.support_per_day, 1000),
+                                 ('EDGE_SUPPORT_STORAGE_MB', self.support_storage_mb, 100000)):
+            if not 1 <= value <= top:
+                raise ValueError(f'{name} is a whole number from 1 to {top}; or unset it for the default')
+        if self.admin_origin and not re.fullmatch(r'https://[A-Za-z0-9.-]+(:[0-9]{1,5})?', self.admin_origin):
+            raise ValueError('EDGE_ADMIN_ORIGIN is the admin page\'s origin: the beta\'s own address, https and no path')
+        if self.telegram_notify_url and not re.fullmatch(r'https?://[A-Za-z0-9.\[\]:-]+(:[0-9]{1,5})?/notify', self.telegram_notify_url):
+            raise ValueError('TELEGRAM_NOTIFY_URL is telegram-monitor\'s /notify address, e.g. http://telegram-monitor.railway.internal:8080/notify')
         for name, value in (('EDGE_PRIVACY_URL', self.privacy_url), ('EDGE_TERMS_URL', self.terms_url)):
             if value and not LEGAL_URL.fullmatch(value):
                 raise ValueError(f'{name} is an https address or a path of this site (/...), at most 500 characters')
