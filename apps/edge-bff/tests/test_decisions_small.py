@@ -121,7 +121,7 @@ def test_outbox_rows_codes_and_deliveries_are_kept_30_days_then_purged_as_the_pr
 
 
 def test_the_retention_purges_are_housekeeping_entries_held_to_the_batch_bound(store):
-    assert list(PURGES)[-3:] == ['outbox', 'codes', 'hook_events']
+    assert list(PURGES)[3:6] == ['outbox', 'codes', 'hook_events']        # after the registrations they may leave
     ana = account(store, 'bo@example.com')
     for k in range(7):
         mail(store, f'k{k}', 'bo@example.com', 'sent', 40)

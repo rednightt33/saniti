@@ -13,6 +13,7 @@ from .accounts import purge_codes, purge_pending
 from .config import BETA
 from .mailer import purge_hook_events, purge_outbox
 from .throttle import purge as purge_throttle
+from .support import purge_support_images
 
 TERMINAL = {'FINISHED', 'FAILED', 'INTERRUPTED'}
 logger = logging.getLogger('edge_bff.lifecycle')
@@ -416,6 +417,7 @@ PURGE_BATCH = 500
 # cascade); ERRORS R2-24: then, each batch in a transaction of its own (seeing the registrations purged before it), the
 # outbox rows of addresses left with no account (migration 20261119_012; the only delete of the outbox edge-bff can make);
 # the retention decided 2026-11-19 ("a", 30 days): the outbox purge also takes every address's rows after 30 days, and
-# the used email codes and the handled webhook deliveries go after 30 days (accounts.purge_codes, mailer.purge_hook_events)
+# the used email codes and the handled webhook deliveries go after 30 days (accounts.purge_codes, mailer.purge_hook_events);
+# Phase 4 (the user, 2026-11-22: "2B"): a support ticket's images 90 days after it is marked done (support.purge_support_images)
 PURGES = {'sessions': purge_sessions, 'throttle': purge_throttle, 'pending': purge_pending, 'outbox': purge_outbox,
-          'codes': purge_codes, 'hook_events': purge_hook_events}
+          'codes': purge_codes, 'hook_events': purge_hook_events, 'support_images': purge_support_images}

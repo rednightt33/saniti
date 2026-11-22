@@ -632,3 +632,30 @@ def test_on_the_live_site_an_account_and_the_admin_send_and_a_visitor_is_refused
         assert [(r['site'], r['said']) for r in rows] == [('live', 'live'), ('live', 'live')] and rows[0]['plan'] == 'free'
         assert wait_for(lambda: len(telegram.seen) == 2)
         assert {s['body']['details']['site'] for s in telegram.seen} == {'live'}
+
+
+def test_a_tickets_images_go_90_days_after_it_is_done_and_its_text_stays(on, store):
+    """The user, 2026-11-22: "2B": the hourly housekeeping deletes a ticket's images 90 days after the ticket is marked
+    done (store.PURGES 'support_images'), records when, keeps the text and the count of what was attached, and holds to
+    the batch bound; a ticket not done, done lately, or without images is left as it is."""
+    from app.store import PURGES
+    assert 'support_images' in PURGES and support_module.IMAGE_DAYS == 90
+    tickets = support_module.SupportStore(store, on)
+    alice = make_user(store, 'alice', 'alice-password')
+    p = type('P', (), {'user_id': alice['user_id'], 'plan_key': 'free'})()
+    made = {name: tickets.create(p, 'bug', name, f'the {name} text', {}, [('a.png', 'image/png', PNG)] * n)['ticket_id']
+            for name, n in (('old', 2), ('older', 1), ('recent', 1), ('open', 1), ('bare', 0))}
+    for name, days in (('old', 91), ('older', 120), ('recent', 89), ('bare', 200)):
+        db(store, "UPDATE edge_bff.support_tickets SET status = 'done', done_at = now() - make_interval(days => %s) "
+                  "WHERE ticket_id = %s", days, made[name])
+    db(store, "UPDATE edge_bff.support_tickets SET created_at = now() - interval '200 days' WHERE ticket_id = %s", made['open'])
+    held = lambda: db(store, 'SELECT coalesce(sum(bytes), 0) AS b FROM edge_bff.support_attachments')[0]['b']
+    before = held()
+    assert [store.purge('support_images', 1) for _ in range(3)] == [1, 1, 0]          # oldest first, one per batch
+    rows = {r['subject']: r for r in db(store, '''SELECT t.subject, t.body, t.images, t.images_purged_at,
+        (SELECT count(*) FROM edge_bff.support_attachments a WHERE a.ticket_id = t.ticket_id) AS kept
+        FROM edge_bff.support_tickets t''')}
+    assert {n: (r['kept'], r['images'], r['images_purged_at'] is not None) for n, r in rows.items()} == {
+        'old': (0, 2, True), 'older': (0, 1, True), 'recent': (1, 1, False), 'open': (1, 1, False), 'bare': (0, 0, False)}
+    assert rows['old']['body'] == 'the old text'
+    assert held() == before - 3 * len(PNG)                                             # the storage ceiling frees

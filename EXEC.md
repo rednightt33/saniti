@@ -16489,6 +16489,9 @@ Order of the services (CONTRACT 17, rollback floors):
             - **3A, ERRORS M532:** the Terminal stays silent when it opens for a plan without chart drawings, and the
               plan's words show only when the person tries to draw. The user's go for this change in the Terminal
               ("Terminal jangan disentuh" otherwise).
+          - Built after the answers: **3A** (`135f8051`, ERRORS M532 fixed on the branch); **2B**'s purge (the images
+            of a ticket done more than 90 days ago, `store.PURGES` `support_images`, `images_purged_at` and its index in
+            `20261122_001`, still unapplied); the manual delete comes with the admin page's support inbox.
           - Next: applying `20261122_001` on dev and the Railway variables with the beta's deploy; the admin page's read
             side (slice 4) and its actions (slice 5); account deletion (slice 6); then the checker at xhigh, its fixes,
             the beta.

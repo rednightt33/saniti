@@ -1209,6 +1209,9 @@ langsung ke admin dan telegram dan ke email pribadi saya"; "hanya yang login ...
     answer 200 counts; the instance that runs the housekeeping (the live site) sends a summary not yet answered again
     every 10 minutes, at most 5 times, within a day;
   - the admin page's Support inbox (the beta; Phase 4, slice 4).
+- **Kept** (the user, 2026-11-22: "2B"): a ticket's images are deleted 90 days after it is marked done (`IMAGE_DAYS`;
+  the hourly housekeeping's `support_images` purge, `store.PURGES`, which sets `images_purged_at` and frees the storage
+  ceiling); the text stays until the account is deleted; the admin page deletes a ticket by hand.
 - **The shell** (`static/edge-app.js` SupportDialog, `static/edge-labels.js` `support`, `static/edge-client.js`
   `Edge.sendSupport`): the mailbox (Contact support) in the left menu and in the phone's EDGE bar, shown while the site
   offers the tab `support`. A visitor's click opens the sign-in box (LockedDialog, kind `support`); an account without

@@ -9,6 +9,10 @@
 -- (a visitor is asked to sign in), the admin holds it through '*'. An admin may take it from one account with an
 -- override (false). Its tab 'support' is released in apps/edge-bff/catalog/releases.json (the user's go).
 --
+-- How long it is kept (the user, 2026-11-22: "2B"): a ticket's images are deleted 90 days after the ticket is marked
+-- done (the hourly housekeeping, app/support.py purge_support_images; images_purged_at says when), its text stays until
+-- the account is deleted; the admin page deletes a ticket by hand.
+--
 -- The tables hold what the account wrote: a ticket's text and details, and its images. The checks hold every row to
 -- what the route accepts: the kinds of the dialog, a subject of 1-120 characters, a description of 1-5000, details of at
 -- most 4 KiB, an image's type among three, its length at most 5 MiB and its SHA-256 as stated. A ticket and its images
@@ -58,10 +62,14 @@ CREATE TABLE edge_bff.support_tickets (
     done_by_user_id bigint,                          -- who marked it done: a plain number, as every *_by_user_id (R1-42)
     telegram_sent_at timestamptz,
     telegram_attempts smallint NOT NULL DEFAULT 0 CONSTRAINT support_tickets_telegram_attempts CHECK (telegram_attempts >= 0),
-    CONSTRAINT support_tickets_done CHECK ((status = 'done') = (done_at IS NOT NULL))
+    images_purged_at timestamptz,                    -- when its images were deleted (90 days after done; the user's "2B")
+    CONSTRAINT support_tickets_done CHECK ((status = 'done') = (done_at IS NOT NULL)),
+    CONSTRAINT support_tickets_images_purged CHECK (images_purged_at IS NULL OR images > 0)
 );
 CREATE INDEX support_tickets_user_time ON edge_bff.support_tickets(user_id, created_at DESC);
 CREATE INDEX support_tickets_status_time ON edge_bff.support_tickets(status, created_at DESC);
+-- the tickets whose images the hourly purge may delete (done, with images still kept), oldest first
+CREATE INDEX support_tickets_images_due ON edge_bff.support_tickets(done_at) WHERE images > 0 AND images_purged_at IS NULL;
 COMMENT ON TABLE edge_bff.support_tickets IS
     'Phase 4, the contact-support panel (the user, 2026-11-22): one message an account sent from the rail (support.send); '
     'read on the admin page (the beta), summarised to Telegram and emailed to the admins (apps/edge-bff/app/support.py). '
@@ -69,6 +77,9 @@ COMMENT ON TABLE edge_bff.support_tickets IS
 COMMENT ON COLUMN edge_bff.support_tickets.details IS
     'the technical details the page and edge-bff add (the page path, the screen size, the time zone, the browser, the '
     'build, the site, the plan): strings only, at most 4 KiB; never a password, a token or a cookie';
+COMMENT ON COLUMN edge_bff.support_tickets.images_purged_at IS
+    'when the hourly housekeeping deleted the ticket''s images, 90 days after it was marked done (the user, 2026-11-22: '
+    '"2B"); images keeps how many the account attached; the text stays';
 COMMENT ON COLUMN edge_bff.support_tickets.telegram_sent_at IS
     'when telegram-monitor accepted the summary (source EDGE_Support); NULL while not delivered (retried, then shown on the admin page)';
 

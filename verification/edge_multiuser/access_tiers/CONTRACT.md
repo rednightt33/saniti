@@ -1323,7 +1323,10 @@ today.
   the technical details, its Reply-To the sender's own address (so the admin who answers learns it; the sender's account
   holds it already); a Telegram summary (section 18: the number, the site, the type, the subject, the username, the
   plan, the number of images, the admin page's link, never the text, an image or an address); and the Support inbox of
-  the admin page (the beta), where the admin reads a ticket and its images and marks it done.
+  the admin page (the beta), where the admin reads a ticket and its images and marks it done. **Kept** (the user,
+  2026-11-22: "2B"): a ticket's images are deleted 90 days after it is marked done (the hourly housekeeping,
+  `support_images`; `images_purged_at` says when), its text stays until the account is deleted (its cascade); the admin
+  page deletes a ticket by hand (audited).
 - **Terminal subscriber** follows a disable (Phase 3).
 - **Account deletion** (R2-27; **to build, Phase 4**, as an admin action with a reason and its `admin_audit` row; until
   then an operator follows these steps by hand, with the user's go for each account). Owner-keyed rows have no foreign

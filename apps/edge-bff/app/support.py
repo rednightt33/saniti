@@ -63,6 +63,8 @@ PAGE_DETAILS = {'page': 200, 'frame': 200, 'viewport': 20, 'timezone': 60, 'lang
 USER_AGENT_CHARS = 300
 TELEGRAM_SOURCE = 'EDGE_Support'
 TELEGRAM_ATTEMPTS = 5
+# the user, 2026-11-22: "2B": a ticket's images are deleted this many days after it is marked done; its text stays
+IMAGE_DAYS = 90
 
 REASONS = {
     'kind': 'Choose an issue type from the list.',
@@ -250,6 +252,19 @@ class SupportStore:
         return [{'ticket_id': r['ticket_id'], 'site': r['site'], 'kind': r['kind'], 'subject': r['subject'],
                  'images': [None] * r['images'], 'sender': {'username': r['username'], 'plan': r['plan']},
                  'link': admin_link(self.settings, r['ticket_id'])} for r in rows]
+
+
+def purge_support_images(c, limit=None):
+    """The images of tickets marked done more than IMAGE_DAYS days ago (the user, 2026-11-22: "2B"), at most limit tickets
+    (None: every one): their attachments deleted, images_purged_at set, the text kept. Called from Store.purge, the
+    hourly housekeeping (worker.Housekeeping; store.PURGES 'support_images'); returns the tickets done."""
+    tickets = [r['ticket_id'] for r in c.execute('''SELECT ticket_id FROM edge_bff.support_tickets
+        WHERE done_at < now() - make_interval(days => %s) AND images > 0 AND images_purged_at IS NULL
+        ORDER BY done_at LIMIT %s FOR UPDATE SKIP LOCKED''', (IMAGE_DAYS, limit)).fetchall()]
+    if tickets:
+        c.execute('DELETE FROM edge_bff.support_attachments WHERE ticket_id = ANY(%s)', (tickets,))
+        c.execute('UPDATE edge_bff.support_tickets SET images_purged_at = now() WHERE ticket_id = ANY(%s)', (tickets,))
+    return len(tickets)
 
 
 def admin_link(settings, ticket_id):
