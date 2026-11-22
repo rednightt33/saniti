@@ -16148,6 +16148,14 @@ Order of the services (CONTRACT 17, rollback floors):
        support" dialog with an issue type, a subject, a description, attachments, "Relevant technical details will be
        included automatically", Cancel and Submit. Asked the open points (who may send, the attachments) before any
        build; it waits for the answers and the go.
+     - **The user's answers and go (2026-11-22):** "yes, hanya yang login.. apabila user unlogin tries to click it maka
+       akan disuruh login dulu. lampiran hanya 2A go". So: only a signed-in account sends (a visitor's click opens the
+       sign-in box); attachments are images only (PNG, JPG, WebP), at most 3 files of 5 MB; at most 5 submissions per
+       hour per account; each submission goes to the admin page's Support inbox (the beta), a Telegram summary with a
+       link (no file), and the owner's email in full with its images (Reply goes to the sender). **Go** for Phase 4
+       (the admin page, CONTRACT 10, on the beta only, plans read-only) with this panel, and with the Watchlist
+       example's corporate actions (the user's "B", proposed to be done together). Built in basic mode, checked by an
+       ultracode workflow at xhigh, the beta first; the live site only on the user's request.
   7. the registration test window (above), last, after A2.
   Each phase as before: built in basic mode, the beta first, its checker in ultracode, the live site only on the user's
   request. Not in this list: the Postgres restart times (the user has not answered), the real payment method.
