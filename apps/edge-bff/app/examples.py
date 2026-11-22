@@ -53,7 +53,7 @@ import time
 from fastapi import Depends, Request
 from fastapi.responses import JSONResponse, Response
 
-from . import terminal_access
+from . import releases, terminal_access
 from .errors import Refusal, failure_class
 
 logger = logging.getLogger('edge_bff.examples')
@@ -278,6 +278,89 @@ class Refused(Exception):
         self.answer = answer
 
 
+# Lab gap "the stored examples" (FUTURE_PLAN.md "Before the first lab item or tab"; ERRORS M527 records-promotion-3; the
+# user's go 2026-11-22, "Celah lab: go untuk butir 1-7 ... OK fix it"): a stored example was cut by the release file as it
+# stood at its capture, then served as stored, so an item put at the lab stage later stayed in it for every visitor and
+# free account. Each stored file is now held to the release file this process runs (released_view, once per read): a
+# list of items (a catalog: the Backtest's Flow indicators, the Screener's indicators, metrics and fundamentals) keeps
+# what the narrowest principal sees (catalog.tab_list with no principal: a lab entry and an access 'admin' entry left
+# out), a preset not released or reading an entry left out is left out, and a file that still names an item the release
+# file does not hold as released (a request, a screen, a result) withholds the tab's example: EXAMPLE_UNAVAILABLE, the
+# page's lock as without an example, until the example is captured again. Derived from the release file (every registry
+# id has an entry, tests/test_releases.py), so a new item or kind needs no change here.
+def _item_lists():
+    from .screener import ITEM_LISTS                     # the Screener's lists; screener.py does not import this module
+    return (('flow_indicators', ('flow_indicator',), lambda e: 'flow_indicator'),) + tuple(ITEM_LISTS)
+
+
+def not_released():
+    """Every id the release file holds at a stage other than released, of every kind."""
+    return frozenset(e['id'] for kind in releases.KINDS for e in releases.entries(kind) if e.get('stage') == releases.LAB)
+
+
+def _names(value, ids, found):
+    """The ids of `ids` a document reads: where the grammars hold an item (a reference {kind, indicator|metric|type|attr},
+    screener.REFERENCE_KEYS, the keys the workers' item walks read: backtest-worker grammar.ts ITEM_KEY, screener-worker
+    run.ts definitionItems; an indicator or metric named without a kind, as the Backtest's exit lines {indicator,
+    output}), a screen's preset, or an entry's own id (a catalog entry, a preset, a preset's items). Free text (a name, a
+    synonym, a description) is no reference; 'type' and 'attr' are one only beside a kind ('type' is also a value's)."""
+    from .screener import REFERENCE_KEYS
+    if isinstance(value, list):
+        for v in value:
+            _names(v, ids, found)
+    elif isinstance(value, dict):
+        keys = ('id', 'preset', 'indicator', 'metric') + (REFERENCE_KEYS if isinstance(value.get('kind'), str) else ())
+        found |= {value[k] for k in keys if isinstance(value.get(k), str) and value[k] in ids}
+        for v in value.values():
+            _names(v, ids, found)
+    return found
+
+
+def released_doc(doc, lab):
+    """(the document as the narrowest principal sees it under this release file, the ids of `lab` it still names)."""
+    from .catalog import tab_list
+    from .screener import PRESET_KIND, preset_reads
+    if not isinstance(doc, dict):
+        return doc, _names(doc, lab, set())
+    out, gone = doc, set()
+    for name, kinds, fallback in _item_lists():
+        if isinstance(doc.get(name), list):
+            kept, left = tab_list(None, doc[name], kinds, fallback, False)
+            if left:
+                out, gone = {**out, name: kept}, gone | left
+    if isinstance(doc.get('presets'), list):
+        presets = [x for x in doc['presets'] if not (isinstance(x, dict) and isinstance(x.get('id'), str)) or (
+            releases.stage_of(PRESET_KIND, x['id']) != releases.LAB and not preset_reads(x, gone | lab))]
+        if len(presets) != len(doc['presets']):
+            out = {**out, 'presets': presets}
+    return out, _names(out, lab, set())
+
+
+def released_view(tab, index, bodies):
+    """(index, bodies) of a stored tab held to the release file (the comment above); a body that changes is encoded
+    again (its sha256 and bytes in the index with it). Raises ExampleDataError('item_not_released') when a file still
+    names an item that is not released; logs the ids (item ids, no data value)."""
+    lab = not_released()
+    if index is None or not lab:
+        return index, bodies
+    named, files, out = set(), dict(index['files']), {}
+    for name, (sha, body) in bodies.items():
+        doc = json.loads(gzip.decompress(body))
+        view, left = released_doc(doc, lab)
+        named |= left
+        if view is doc:
+            out[name] = (sha, body)
+            continue
+        raw = gzip.compress(json.dumps(view, separators=(',', ':'), ensure_ascii=False).encode(), 6, mtime=0)
+        new = hashlib.sha256(raw).hexdigest()
+        out[name] = (new, raw)
+        files[name] = {**files[name], 'sha256': new, 'bytes': len(raw)}
+    if named:
+        logger.warning(json.dumps({'event': 'example_withheld', 'tab': tab, 'not_released': sorted(named)[:20]}))
+        raise ExampleDataError('item_not_released')
+    return {**index, 'files': files}, out
+
+
 class Stored:
     """One tab's rows of edge_bff.example_files, kept in memory (module docstring)."""
 
@@ -305,7 +388,7 @@ class Stored:
         index = {'finished_at': max(r['made_at'] for r in rows).isoformat(), 'as_of': days[-1],
                  'files': {r['name']: {'sha256': r['sha256'], 'bytes': r['bytes'], 'rows': r['rows'], 'as_of': r['as_of']}
                            for r in rows}}
-        return index, bodies
+        return released_view(self.tab, index, bodies)
 
     async def current(self, p):
         """The kept example, read again when older than REFRESH_SECONDS; a failed read keeps the last good one. Raises

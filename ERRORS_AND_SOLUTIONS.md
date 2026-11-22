@@ -9404,6 +9404,17 @@ in its staleness check.
   `test_every_owner_read_of_a_backtest_job_is_bound_to_the_site` (every owner query of the store, with the per-owner
   rules named); three mutations red (the list, the parts, the key). The live site runs `4b35b5ed` until it is promoted:
   until then it still lists the beta's jobs.
+- **The stored examples follow the release file they are served under (2026-11-22; the lab gap of FUTURE_PLAN.md, the
+  user's go "Celah lab: go untuk butir 1-7 ... OK fix it"):** `app/examples.py` `released_view` (in `Stored.read`) cuts a
+  stored catalog's item lists to what the narrowest principal sees under the running release file, leaves out a preset
+  that is lab or reads an item left out, and withholds a tab's example (`EXAMPLE_UNAVAILABLE`, logged
+  `example_withheld` with the ids) when a file still names a lab item at a reference position (the grammars' keys, a
+  screen's preset, an entry's id; free text such as a synonym is not one). Unchanged bytes are served as stored.
+  Tests: `tests/test_examples_release_cut.py` (4: a Flow indicator cut from the Backtest catalog with the index's sha256
+  following; an indicator of the Backtest's exit line, not its entry, withholding the example while the Radar's stays;
+  a Screener metric taking its preset out while a synonym spelling it is left; the shown preset withholding the
+  example); two mutations red (no cut; references only beside a kind). Holds for the live site once `live` runs it
+  (tests/test_releases.py `LAB_ITEM_HELD_UNTIL` names it until then).
 - **Status:** FIXED on the branch. At the next deploy the Backtest page bundle changes, on the beta and with the
   promotion on the live site, to the one CI tests (the same source, its class fields compiled as ES2022).
 - **Lesson:** an image stage copies each source folder with the configuration that compiles it; the image and CI must
