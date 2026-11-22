@@ -25,6 +25,14 @@ the beta, whose sessions count as past the second factor, the page's own code st
   POST /api/v1/admin/support/{id}/status  {status: done|new}: audited; done starts its images' 90 days (the user's 2B)
   POST /api/v1/admin/support/{id}/telegram    its Telegram summary sent again now (one not delivered yet)
   DELETE /api/v1/admin/support/{id}       {reason}: the ticket and its images deleted, audited (the user's 2B)
+Slice 5, the actions on an account (the user, 2026-11-22: "A, lanjut slice 5"), each with a reason and its audit row in
+the same transaction, none on the admin's own account, and what each may do is said by the account's answer (actions):
+  POST /api/v1/admin/users/{id}/status    {status: active|disabled, reason}: disabled, it is signed out everywhere
+  POST /api/v1/admin/users/{id}/plan      {plan_key, expires_at|null, reason}: a manual plan from now (the one it had ends)
+  POST /api/v1/admin/users/{id}/sessions/revoke   {reason}: signed out everywhere
+  POST /api/v1/admin/users/{id}/resend-code       {reason}: a new registration code to an account still registering
+Each is checked after it is written, in its transaction: an account's admin right ('*' or admin.access, as a session
+resolves it) never changes here (the operator's), and at least one active account keeps it.
 
 The audit (edge_bff.admin_audit, append-only) holds ids, keys, kinds and status, never a person's words, name or
 address; the reason is what the admin typed. A refusal names the field and the fix (AGENTS.md "Gates and evidence").
@@ -43,10 +51,14 @@ from datetime import datetime, timedelta
 from fastapi import Depends, Request
 from fastapi.responses import JSONResponse, Response
 
+import psycopg
+
 from . import email_texts, mailer, support as support_module, text_rules
+from .accounts import ACCOUNT_SESSIONS, GRANTS
 from .errors import Refusal
-from .principal import Principal
+from .principal import ADMIN_ACCESS, EVERYTHING, Principal
 from .security import csrf_token, token_hash
+from .throttle import REGISTRATION_MAIL, Throttle
 
 logger = logging.getLogger('edge_bff.admin')
 
@@ -79,6 +91,63 @@ PLAN_ENDS = '''(SELECT s.expires_at FROM edge_bff.subscriptions s WHERE s.user_i
 
 def invalid(**reasons):
     return Refusal(400, 'INVALID_INPUT', {'fields': list(reasons), 'reasons': reasons})
+
+
+# ---- slice 5: what makes an account an admin, and the guard every action passes ---------------------------------------
+# the admin right (principal.role_needs_mfa: '*' or admin.access held)
+ADMIN_KEYS = (EVERYTHING, ADMIN_ACCESS)
+STATUS_CHOICES = ('active', 'disabled')
+OWN = 'This is your own account. Change it from your account menu, or ask the operator.'
+STILL_REGISTERING = ('This account is still registering: it becomes active when its owner enters the email code. Resend '
+                     'code sends a new one.')
+ADMINS_OWN = 'This account holds the admin right; the operator changes its plan, not this page.'
+NO_SESSION = 'An account still registering has no session to end.'
+NOT_REGISTERING = 'A code is sent from here only to an account still registering.'
+
+
+def admin_right(c, user_id):
+    """Whether the account's grants hold the admin right now, whatever its status: its live plan and its unexpired
+    overrides as accounts.GRANTS resolves them for a session (the one rule, never a second copy)."""
+    r = c.execute('WITH found AS (SELECT user_id FROM edge_bff.users WHERE user_id = %(u)s),' + GRANTS
+                  + ''' SELECT EXISTS (SELECT 1 FROM merged WHERE capability_key = ANY(%(keys)s)
+                        AND value = 'true'::jsonb) AS admin''', {'u': user_id, 'keys': list(ADMIN_KEYS)}).fetchone()
+    return bool(r and r['admin'])
+
+
+def admin_holders(c):
+    """The active accounts that hold the admin right: every candidate (an override of an admin key, a subscription to a
+    plan holding one, or every account while the default plan holds one), each resolved by admin_right."""
+    keys = list(ADMIN_KEYS)
+    everyone = c.execute('''SELECT EXISTS (SELECT 1 FROM edge_bff.plans p JOIN edge_bff.plan_capabilities pc
+        ON pc.plan_key = p.plan_key WHERE p.is_default AND pc.capability_key = ANY(%s) AND pc.value = 'true'::jsonb) AS x''',
+                         (keys,)).fetchone()['x']
+    rows = c.execute('''SELECT u.user_id FROM edge_bff.users u WHERE u.status = 'active' AND (%s
+        OR EXISTS (SELECT 1 FROM edge_bff.user_capability_overrides o WHERE o.user_id = u.user_id
+                   AND o.capability_key = ANY(%s))
+        OR EXISTS (SELECT 1 FROM edge_bff.subscriptions s JOIN edge_bff.plan_capabilities pc ON pc.plan_key = s.plan_key
+                   WHERE s.user_id = u.user_id AND s.status = 'active' AND pc.capability_key = ANY(%s)))''',
+                     (everyone, keys, keys)).fetchall()
+    return [r['user_id'] for r in rows if admin_right(c, r['user_id'])]
+
+
+def guarded(c, user_id, before):
+    """After an action's write, in its transaction: the account's admin right is as it was (the operator's), and at
+    least one active account still holds it. A refusal rolls the whole action back."""
+    if admin_right(c, user_id) != before:
+        raise invalid(account='This would ' + ('take the admin right from' if before else 'give the admin right to')
+                              + ' the account. The operator changes admin rights, not this page.')
+    if not admin_holders(c):
+        raise invalid(account='EDGE keeps at least one active account that holds the admin right. Give it to another '
+                              'account first (the operator), then try again.')
+
+
+def db_refusal(e):
+    """The words of a refusal of the database's own rules (the restricted-plan rule, a value's domain): its message
+    without the table's name, then its hint (what to do, with right and wrong examples)."""
+    diag = getattr(e, 'diag', None)
+    text = re.sub(r'^edge_bff\.[a-z_]+: ', '', (getattr(diag, 'message_primary', '') or str(e)).strip())
+    hint = (getattr(diag, 'message_hint', '') or '').strip()
+    return (text[:1].upper() + text[1:] + ('.' if text and not text.endswith('.') else '') + (' ' + hint if hint else ''))[:1000]
 
 
 def masked_phone(phone):
@@ -192,7 +261,7 @@ class AdminStore:
         rows = rows[:limit]
         return {'users': [account_row(r) for r in rows], 'next': rows[-1]['user_id'] if more else None}
 
-    def user(self, user_id):
+    def user(self, user_id, actor=None):
         with self.store.connect() as c:
             r = c.execute(f'''SELECT u.*, {PLAN_OF} AS plan_key, {PLAN_ENDS} AS plan_ends FROM edge_bff.users u
                 WHERE u.user_id = %s''', (user_id,)).fetchone()
@@ -214,10 +283,128 @@ class AdminStore:
             trail = c.execute('''SELECT a.audit_id, a.at, a.action, a.actor_user_id, x.username AS actor, a.before, a.after,
                 a.reason FROM edge_bff.admin_audit a LEFT JOIN edge_bff.users x ON x.user_id = a.actor_user_id
                 WHERE a.target_user_id = %s ORDER BY a.audit_id DESC LIMIT 50''', (user_id,)).fetchall()
+            actions, holds = self.actions_of(c, actor, r), admin_right(c, user_id)
         return {'account': account_row(r), 'email_verified_at': r['email_verified_at'],
                 'mfa': 'confirmed' if mfa and mfa['confirmed'] else 'pending' if mfa else 'none',
                 'subscriptions': [dict(x) for x in subs], 'overrides': [dict(x) for x in overrides],
-                'sessions': dict(sessions), 'usage': usage, 'audit': [dict(x) for x in trail]}
+                'sessions': dict(sessions), 'usage': usage, 'audit': [dict(x) for x in trail],
+                'holds_admin': holds, 'actions': actions}
+
+    @staticmethod
+    def actions_of(c, actor, r):
+        """What the admin may do to this account now, each {open, why}: the page offers an open one and says the why of
+        a closed one; the routes refuse alike (slice 5)."""
+        own, pending = r['user_id'] == actor, r['status'] == 'pending'
+        admin = admin_right(c, r['user_id'])
+
+        def one(closed_by):
+            why = next((w for cond, w in closed_by if cond), None)
+            return {'open': why is None, 'why': why}
+        return {'status': one(((own, OWN), (pending, STILL_REGISTERING))),
+                'plan': one(((own, OWN), (pending, STILL_REGISTERING), (admin, ADMINS_OWN))),
+                'sessions': one(((own, OWN), (pending, NO_SESSION))),
+                'resend_code': one(((own, OWN), (not pending, NOT_REGISTERING)))}
+
+    # ---- slice 5: the actions ---------------------------------------------------------------------------------------
+    @staticmethod
+    def _account(c, user_id, actor):
+        """The account, locked for the action, or None; the admin's own is refused."""
+        if user_id == actor:
+            raise invalid(account=OWN)
+        return c.execute('SELECT user_id, owner_key, status, email FROM edge_bff.users WHERE user_id = %s FOR UPDATE',
+                         (user_id,)).fetchone()
+
+    def change_status(self, actor, user_id, status, reason):
+        """Disabled (signed out everywhere, every site) or active again; audited. None when no such account."""
+        with self.store.connect() as c:
+            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('edge_bff.admin_holders',))
+            u = self._account(c, user_id, actor)
+            if u is None:
+                return None
+            if u['status'] == 'pending':
+                raise invalid(status=STILL_REGISTERING)
+            if u['status'] == status:
+                return {'status': status, 'changed': False, 'sessions_revoked': 0}
+            c.execute('UPDATE edge_bff.users SET status = %s WHERE user_id = %s', (status, user_id))
+            ended = 0
+            if status == 'disabled':
+                ended = c.execute(f'UPDATE edge_bff.sessions SET revoked_at = now() WHERE {ACCOUNT_SESSIONS} '
+                                  'AND revoked_at IS NULL', (user_id, user_id)).rowcount
+            if not admin_holders(c):
+                raise invalid(status='EDGE keeps at least one active account that holds the admin right. Give it to '
+                                     'another account first (the operator), then try again.')
+            audit(c, actor, 'account.status', user_id, before={'status': u['status']},
+                  after={'status': status, 'sessions_revoked': ended}, reason=reason)
+        return {'status': status, 'changed': True, 'sessions_revoked': ended}
+
+    def give_plan(self, actor, user_id, plan_key, expires_at, reason):
+        """A manual plan from now to expires_at (None: no end); the subscription it had ends (cancelled). Audited with
+        the plan and end before and after. None when no such account."""
+        with self.store.connect() as c:
+            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('edge_bff.admin_holders',))
+            u = self._account(c, user_id, actor)
+            if u is None:
+                return None
+            if u['status'] == 'pending':
+                raise invalid(plan_key=STILL_REGISTERING)
+            plan = c.execute('SELECT plan_key, for_guests FROM edge_bff.plans WHERE plan_key = %s', (plan_key,)).fetchone()
+            if plan is None:
+                raise invalid(plan_key='Choose a plan the Plans view lists.')
+            if plan['for_guests']:
+                raise invalid(plan_key='The visitors\' plan is not given to an account. Choose another plan.')
+            was = c.execute(f'SELECT {PLAN_OF} AS plan_key, {PLAN_ENDS} AS ends FROM edge_bff.users u WHERE u.user_id = %s',
+                            (user_id,)).fetchone()
+            before = admin_right(c, user_id)
+            if before:
+                # the rule of actions_of: another admin's plan is the operator's (taking the right away is refused below)
+                raise invalid(plan_key=ADMINS_OWN)
+            c.execute('''UPDATE edge_bff.subscriptions SET status = 'cancelled', last_event_at = now()
+                WHERE user_id = %s AND status = 'active' ''', (user_id,))
+            c.execute('''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, expires_at, provider, provider_ref)
+                VALUES (%s, %s, 'active', %s, 'manual', 'admin')''', (user_id, plan_key, expires_at))
+            guarded(c, user_id, before)
+            stamp = lambda v: v.isoformat() if v else None
+            audit(c, actor, 'account.plan', user_id, before={'plan': was['plan_key'], 'expires_at': stamp(was['ends'])},
+                  after={'plan': plan_key, 'expires_at': stamp(expires_at)}, reason=reason)
+        return {'plan': plan_key, 'expires_at': expires_at}
+
+    def end_sessions(self, actor, user_id, reason):
+        """Every live session of the account ended (every site; the beta's of user #1 too, ACCOUNT_SESSIONS); audited
+        with the number. None when no such account."""
+        with self.store.connect() as c:
+            u = self._account(c, user_id, actor)
+            if u is None:
+                return None
+            if u['status'] == 'pending':
+                raise invalid(account=NO_SESSION)
+            ended = c.execute(f'UPDATE edge_bff.sessions SET revoked_at = now() WHERE {ACCOUNT_SESSIONS} '
+                              'AND revoked_at IS NULL', (user_id, user_id)).rowcount
+            audit(c, actor, 'account.sessions_revoke', user_id, after={'revoked': ended}, reason=reason)
+        return {'revoked': ended}
+
+    def send_code(self, actor, user_id, reason, flows_store):
+        """A new registration code to an account still registering (auth_flows: the address's lock first, as the
+        flows take it; the code is bound to its registration's browser, so it finishes nothing alone; the registration
+        mail cap holds). Audited. None when no such account."""
+        with self.store.connect() as c:
+            if user_id == actor:
+                raise invalid(account=OWN)
+            r = c.execute('SELECT email, status FROM edge_bff.users WHERE user_id = %s', (user_id,)).fetchone()
+            if r is None:
+                return None
+            if r['status'] != 'pending' or not r['email']:
+                raise invalid(account=NOT_REGISTERING)
+            flows_store._lock(c, r['email'])
+            u = self._account(c, user_id, actor)
+            if u is None or u['status'] != 'pending' or u['email'] != r['email']:
+                raise invalid(account='The account changed meanwhile. Reload it, then try again.')
+            if not flows_store._issue_code(c, user_id, 'register', r['email']):
+                # the registration's own cap (3 mails a day): its wait, as every 429 says it (CONTRACT.md section 3)
+                wait = max(1, int(Throttle._wait(c, REGISTRATION_MAIL, flows_store._h(REGISTRATION_MAIL, str(user_id))) or 1))
+                raise Refusal(429, 'LIMIT_REACHED', {'limit': 'registration_mail', 'allowed': REGISTRATION_MAIL.allowed,
+                                                     'retry_after_s': wait}, {'Retry-After': str(wait)})
+            audit(c, actor, 'account.resend_code', user_id, after={'purpose': 'register'}, reason=reason)
+        return {'sent': True}
 
     def reveal(self, actor, user_id, field, reason):
         """The address or the phone of an account in full, and its audit row, in one transaction: (False, None) when no
@@ -256,8 +443,9 @@ class AdminStore:
                 FROM edge_bff.capabilities ORDER BY capability_key''').fetchall()
             values = c.execute('''SELECT plan_key, capability_key, value, version, updated_at FROM edge_bff.plan_capabilities
                 ORDER BY plan_key, capability_key''').fetchall()
-        return {'plans': [dict(r) for r in plans], 'capabilities': [dict(r) for r in caps],
-                'values': [dict(r) for r in values]}
+        admin = {v['plan_key'] for v in values if v['capability_key'] in ADMIN_KEYS and v['value'] is True}
+        return {'plans': [{**dict(r), 'gives_admin': r['plan_key'] in admin} for r in plans],
+                'capabilities': [dict(r) for r in caps], 'values': [dict(r) for r in values]}
 
     def tickets(self, status, before, limit):
         with self.store.connect() as c:
@@ -428,7 +616,7 @@ class Admin:
 
         @app.get('/api/v1/admin/users/{user_id}')
         async def user(user_id: int, p: Principal = Depends(reader)):
-            found = await asyncio.to_thread(data.user, user_id)
+            found = await asyncio.to_thread(data.user, user_id, p.user_id)
             if found is None:
                 raise Refusal(404, 'NOT_FOUND')
             return found
@@ -443,6 +631,56 @@ class Admin:
             if not found:
                 raise Refusal(404, 'NOT_FOUND')
             return {'field': field, 'value': value}
+
+        # ---- slice 5: the actions on an account ----------------------------------------------------------------------
+        async def acted(field, fn, *args):
+            """An action in its thread; a refusal of the database's own rules (the restricted-plan rule's 23514, a value
+            outside its domain) is the field's reason, in the database's words with its hint. Caught around the whole
+            transaction: a deferred trigger refuses at its commit."""
+            try:
+                found = await asyncio.to_thread(fn, *args)
+            except (psycopg.errors.CheckViolation, psycopg.errors.RaiseException) as e:
+                raise invalid(**{field: db_refusal(e)}) from None
+            if found is None:
+                raise Refusal(404, 'NOT_FOUND')
+            return found
+
+        @app.post('/api/v1/admin/users/{user_id}/status')
+        async def account_status(user_id: int, request: Request, p: Principal = Depends(writer)):
+            b = await body_of(request)
+            if b.get('status') not in STATUS_CHOICES:
+                raise invalid(status='active or disabled.')
+            return await acted('status', data.change_status, p.user_id, user_id, b['status'], reason_of(b.get('reason')))
+
+        @app.post('/api/v1/admin/users/{user_id}/plan')
+        async def account_plan(user_id: int, request: Request, p: Principal = Depends(writer)):
+            b = await body_of(request)
+            key = b.get('plan_key')
+            if not isinstance(key, str) or not re.fullmatch(r'[a-z][a-z0-9_]{1,31}', key):
+                raise invalid(plan_key='Choose a plan the Plans view lists.')
+            ends = None
+            if b.get('expires_at') not in (None, ''):
+                ends = moment(b['expires_at'], 'expires_at')
+                if ends.tzinfo is None or ends <= datetime.now(ends.tzinfo):
+                    raise invalid(expires_at='A day after today (with its time zone, as the page sends it), or none '
+                                             'for no end.')
+            found = await acted('plan_key', data.give_plan, p.user_id, user_id, key, ends, reason_of(b.get('reason')))
+            return {**found, 'expires_at': found['expires_at'].isoformat() if found['expires_at'] else None}
+
+        @app.post('/api/v1/admin/users/{user_id}/sessions/revoke')
+        async def account_sessions(user_id: int, request: Request, p: Principal = Depends(writer)):
+            b = await body_of(request)
+            return await acted('account', data.end_sessions, p.user_id, user_id, reason_of(b.get('reason')))
+
+        @app.post('/api/v1/admin/users/{user_id}/resend-code')
+        async def account_resend(user_id: int, request: Request, p: Principal = Depends(writer)):
+            b = await body_of(request)
+            reason = reason_of(b.get('reason'))
+            if not settings.code_secret:
+                # a code is hashed with EDGE_CODE_SECRET, the live site's: another one would mail a code live never takes
+                logger.warning(json.dumps({'event': 'admin_resend_unavailable', 'missing': ['EDGE_CODE_SECRET']}))
+                raise Refusal(503, 'CODE_UNAVAILABLE')
+            return await acted('account', data.send_code, p.user_id, user_id, reason, self.flows.store)
 
         def audit_filters(action, actor, target, since, until):
             if action and not re.fullmatch(r'[a-z][a-z0-9_.]{0,63}', action):

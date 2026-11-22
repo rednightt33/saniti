@@ -68,6 +68,11 @@ BODIES = {
     ('POST', '/api/v1/admin/users/{user_id}/reveal'): {'field': 'email', 'reason': 'Alice asked for it'},
     ('POST', '/api/v1/admin/support/{ticket_id}/status'): {'status': 'done'},
     ('DELETE', '/api/v1/admin/support/{ticket_id}'): {'reason': 'Alice asked for it'},
+    # slice 5, the actions on an account, each with what would act
+    ('POST', '/api/v1/admin/users/{user_id}/status'): {'status': 'disabled', 'reason': 'Alice asked for it'},
+    ('POST', '/api/v1/admin/users/{user_id}/plan'): {'plan_key': 'free', 'reason': 'Alice asked for it'},
+    ('POST', '/api/v1/admin/users/{user_id}/sessions/revoke'): {'reason': 'Alice asked for it'},
+    ('POST', '/api/v1/admin/users/{user_id}/resend-code'): {'reason': 'Alice asked for it'},
 }
 OUTPUT = 'out_' + 'ab' * 12
 

@@ -32,10 +32,13 @@ export interface AccountDetail {
   sessions: { live: number; last_seen: string | null };
   usage: Record<string, number>;
   audit: AuditRow[];
+  holds_admin: boolean;
+  /** slice 5: what the admin may do to it now (open), or why not (the routes refuse alike) */
+  actions: Record<'status' | 'plan' | 'sessions' | 'resend_code', { open: boolean; why: string | null }>;
 }
 
 export interface Plans {
-  plans: { plan_key: string; display_name: string; is_default: boolean; for_guests: boolean }[];
+  plans: { plan_key: string; display_name: string; is_default: boolean; for_guests: boolean; gives_admin: boolean }[];
   capabilities: { capability_key: string; kind: string; unit: string | null; display_name: string; means: string | null;
                   value_min: number | null; value_max: number | null; item_pattern: string | null }[];
   values: { plan_key: string; capability_key: string; value: unknown; version: number; updated_at: string }[];
@@ -67,6 +70,10 @@ export interface AdminApi {
   users(q: Record<string, string>): Promise<Accounts>;
   user(id: number): Promise<AccountDetail>;
   reveal(id: number, field: 'email' | 'phone', reason: string): Promise<{ field: string; value: string | null }>;
+  setAccountStatus(id: number, status: 'active' | 'disabled', reason: string): Promise<{ status: string; changed: boolean; sessions_revoked: number }>;
+  givePlan(id: number, planKey: string, expiresAt: string | null, reason: string): Promise<{ plan: string; expires_at: string | null }>;
+  endSessions(id: number, reason: string): Promise<{ revoked: number }>;
+  sendCode(id: number, reason: string): Promise<{ sent: boolean }>;
   audit(q: Record<string, string>): Promise<AuditPage>;
   auditFile(q: Record<string, string>): Promise<Blob>;
   plans(): Promise<Plans>;

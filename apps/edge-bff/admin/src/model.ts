@@ -123,6 +123,13 @@ export function fileName(now = new Date()): string {
   return `edge-audit-${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}.csv`;
 }
 
+/** a plan's end from a date field: the last moment of that day in the viewer's own time, as a moment the server reads
+    with its zone (ISO, UTC); null for an empty field (no end) */
+export function endOf(date: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || '');
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59).toISOString() : null;
+}
+
 /** a reason the server takes: 1 to 1000 characters once trimmed (app/admin.py reason_of; it checks the rest) */
 export const REASON_CHARS = 1000;
 export const reasonProblem = (text: string) => !text.trim() ? 'Write why. It is kept in the audit.'

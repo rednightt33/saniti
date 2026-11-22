@@ -1,7 +1,7 @@
 /* Phase 4, the admin page: its pure functions (src/model.ts). */
 import { describe, expect, it } from 'vitest';
-import { actionsOf, ago, bytes, changeOf, codeOf, count, day, fileName, plural, queryOf, reasonProblem, ticketOf, valueText,
-         VIEWS, when } from '../src/model.ts';
+import { actionsOf, ago, bytes, changeOf, codeOf, count, day, endOf, fileName, plural, queryOf, reasonProblem, ticketOf,
+         valueText, VIEWS, when } from '../src/model.ts';
 
 describe('the ticket of the address', () => {
   it('reads ?ticket=<id> alone or among other parameters, and nothing else', () => {
@@ -83,6 +83,12 @@ describe('what the person types', () => {
     expect(reasonProblem('  ')).toMatch(/Write why/);
     expect(reasonProblem('x'.repeat(1001))).toMatch(/1,000 characters/);
     expect(reasonProblem('She asked for it')).toBe('');
+  });
+  it('a plan ends at the last moment of its day, in the viewer\'s own time; empty is no end', () => {
+    const end = endOf('2026-12-31');
+    expect(end).toBe(new Date(2026, 11, 31, 23, 59, 59).toISOString());
+    expect(end?.endsWith('Z')).toBe(true);
+    for (const s of ['', '31/12/2026', '2026-12-31T00:00', 'tomorrow']) expect(endOf(s), s).toBeNull();
   });
   it('opens on the Support inbox first', () => {
     expect(VIEWS[0]).toBe('support');

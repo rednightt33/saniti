@@ -8,8 +8,8 @@
    Every text a person wrote (a subject, a description, a name) is set as text, never as markup. A refusal shows the
    server's words, each field's reason under that field. */
 import { AdminError } from './api.ts';
-import { actionsOf, ago, bytes, changeOf, codeOf, count, day, fileName, fullName, plural, reasonProblem, REASON_CHARS,
-         valueText, VIEW_LABEL, VIEWS, when, type View } from './model.ts';
+import { actionsOf as auditActions, ago, bytes, changeOf, codeOf, count, day, endOf, fileName, fullName, plural, reasonProblem,
+         REASON_CHARS, valueText, VIEW_LABEL, VIEWS, when, type View } from './model.ts';
 import type { Account, AccountDetail, AdminApi, AuditRow, Overview, Plans, StepState, Ticket, TicketRow } from './types.ts';
 
 type Child = Node | string | number | null | undefined | false;
@@ -185,27 +185,38 @@ export function start(api: AdminApi, root: HTMLElement, opts: { ticket: number |
   }
 
   // ---- dialogs ----------------------------------------------------------------------------------------------------------
-  /** a dialog that asks why (the reason is kept in the audit) and runs `act` with it; it stays open on a refusal and shows
-      the server's reason under the field. Resolves true once `act` succeeded, false when closed. */
-  function askReason(o: { title: string; lead: string; label: string; confirm: string; danger?: boolean;
+  /** a dialog that asks why (the reason is kept in the audit) and runs `act` with it, after any fields of its own
+      (`extras`: a plan, an end); it stays open on a refusal and shows each of the server's reasons under its field (one
+      for no field above the buttons). Resolves true once `act` succeeded, false when closed. */
+  type Extra = { name: string; label: string; control: HTMLElement; hint?: string };
+  function askReason(o: { title: string; lead: string; label: string; confirm: string; danger?: boolean; extras?: Extra[];
                           act: (reason: string) => Promise<void> }): Promise<boolean> {
     return new Promise(resolve => {
       const back = document.activeElement as HTMLElement | null;
       const text = h('textarea', { class: 'inp', id: 'reason', rows: '3', maxlength: String(REASON_CHARS + 50), 'aria-describedby': 'reason-error' }) as HTMLTextAreaElement;
       const error = h('small', { class: 'ferr', id: 'reason-error', 'aria-live': 'polite' });
       const general = h('p', { class: 'ferr', role: 'alert' });
+      const errors: Record<string, HTMLElement> = { reason: error };
+      const fields = (o.extras || []).map(x => {
+        x.control.id = x.control.id || `field-${x.name}`;
+        x.control.setAttribute('aria-describedby', `${x.name}-error`);
+        errors[x.name] = h('small', { class: 'ferr', id: `${x.name}-error`, 'aria-live': 'polite' });
+        x.control.addEventListener('input', () => { errors[x.name].textContent = ''; general.textContent = '' });
+        return h('div', { class: 'extra' }, h('label', { class: 'field' }, h('span', {}, x.label), x.control),
+          x.hint ? h('small', { class: 'hint' }, x.hint) : null, errors[x.name]);
+      });
       const ok = h('button', { class: `btn ${o.danger ? 'danger' : 'primary'}`, type: 'submit' }, o.confirm) as HTMLButtonElement;
       const cancel = h('button', { class: 'btn', type: 'button' }, 'Cancel');
       const dialog = h('form', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dialog-title', novalidate: true },
         h('div', { class: 'dialog-head' }, h('strong', { id: 'dialog-title' }, o.title), h('span', { class: 'note' }, o.lead)),
-        h('div', { class: 'dialog-body' }, h('label', { class: 'field' }, h('span', {}, o.label), text), error, general),
+        h('div', { class: 'dialog-body' }, ...fields, h('label', { class: 'field' }, h('span', {}, o.label), text), error, general),
         h('div', { class: 'dialog-foot' }, cancel, ok));
       const backdrop = h('div', { class: 'backdrop' }, dialog);
       const close = (done: boolean) => { backdrop.remove(); document.removeEventListener('keydown', keys, true); back?.focus(); resolve(done) };
       const keys = (e: KeyboardEvent) => {
         if (e.key === 'Escape') { e.preventDefault(); close(false); return }
         if (e.key !== 'Tab') return;
-        const items = [...dialog.querySelectorAll<HTMLElement>('textarea,button')].filter(x => !(x as HTMLButtonElement).disabled);
+        const items = [...dialog.querySelectorAll<HTMLElement>('select,input,textarea,button')].filter(x => !(x as HTMLButtonElement).disabled);
         const first = items[0], last = items[items.length - 1];
         if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
         else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
@@ -221,14 +232,16 @@ export function start(api: AdminApi, root: HTMLElement, opts: { ticket: number |
         try { await o.act(text.value.trim()); close(true) }
         catch (err) {
           const ae = err instanceof AdminError ? err : null;
-          if (ae?.reasons.reason) { error.textContent = ae.reasons.reason; text.setAttribute('aria-invalid', 'true') }
-          else general.textContent = ae ? ae.message : 'EDGE could not do this. Try again in a minute.';
+          const reasons = Object.entries(ae?.reasons || {});
+          for (const [field, why] of reasons) (errors[field] || general).textContent = why;
+          if (!reasons.length) general.textContent = ae ? ae.message : 'EDGE could not do this. Try again in a minute.';
+          if (ae?.reasons.reason) text.setAttribute('aria-invalid', 'true');
           ok.disabled = false; cancel.disabled = false;
         }
       });
       document.addEventListener('keydown', keys, true);
       document.body.append(backdrop);
-      requestAnimationFrame(() => text.focus());
+      requestAnimationFrame(() => (o.extras?.[0]?.control ?? text).focus());
     });
   }
 
@@ -467,10 +480,69 @@ export function start(api: AdminApi, root: HTMLElement, opts: { ticket: number |
           kv('Test account', a.test_account ? 'yes' : 'no'),
           kv('Created', when(a.created_at)), kv('Last sign-in', a.last_sign_in_at ? when(a.last_sign_in_at) : 'never'),
           kv('Live sessions', count(d.sessions.live), d.sessions.last_seen ? h('span', { class: 'muted' }, ` · last seen ${ago(d.sessions.last_seen)}`) : null)),
+        h('h3', {}, 'Actions'), actionsOf(d, () => accountView(view, id)),
         h('h3', {}, 'Plan history'), subs.length ? table(['Plan', 'Status', 'From', 'Until', 'Provider'], subs) : h('p', { class: 'muted' }, 'On the default plan; no plan was given to it.'),
         h('h3', {}, 'Overrides'), overrides.length ? table(['Capability', 'Value', 'Reason', 'Until'], overrides) : h('p', { class: 'muted' }, 'None.'),
         h('h3', {}, 'Usage'), h('div', { class: 'facts' }, ...Object.entries(d.usage).map(([k, n]) => kv(k.replace(/_/g, ' '), count(n)))),
         h('h3', {}, 'Audit about this account'), d.audit.length ? auditTable(d.audit, false) : h('p', { class: 'muted' }, 'Nothing recorded yet.'))));
+  }
+
+  /** slice 5: what may be done to the account, as its answer says (actions: open, or why not); each asks why, then
+      shows the account again */
+  function actionsOf(d: AccountDetail, again: () => Promise<void>) {
+    const a = d.account, name = a.username;
+    const done = (text: string) => { toast(text); void again() };
+    const box = h('div', { class: 'acts' });
+    const add = (open: { open: boolean; why: string | null }, button: HTMLElement | null, quietWhenClosed = false) => {
+      if (open.open && button) box.append(button);
+      else if (!open.open && open.why && !quietWhenClosed) box.append(h('p', { class: 'muted why' }, open.why));
+    };
+    const disabled = a.status === 'disabled';
+    const status = h('button', { class: `btn ${disabled ? '' : 'danger'}`, type: 'button' }, disabled ? 'Enable account' : 'Disable account');
+    status.addEventListener('click', async () => {
+      const ok = await askReason(disabled
+        ? { title: `Enable ${name}?`, lead: 'It can sign in again with its own password.', label: 'Why', confirm: 'Enable account',
+            act: async reason => { await api.setAccountStatus(a.user_id, 'active', reason) } }
+        : { title: `Disable ${name}?`, lead: 'It is signed out everywhere at once and cannot sign in until it is enabled again.',
+            label: 'Why', confirm: 'Disable account', danger: true,
+            act: async reason => { await api.setAccountStatus(a.user_id, 'disabled', reason) } });
+      if (ok) done(disabled ? `${name} can sign in again.` : `${name} is disabled and signed out everywhere.`);
+    });
+    add(d.actions.status, status);
+    const plan = h('button', { class: 'btn', type: 'button' }, 'Change plan');
+    plan.addEventListener('click', async () => {
+      let choices: Plans;
+      try { choices = state.plans ?? (state.plans = await api.plans()) } catch (e) { failed(e); return }
+      const select = h('select', { class: 'sel' }, ...choices.plans.filter(p => !p.for_guests && !p.gives_admin)
+        .map(p => h('option', { value: p.plan_key, selected: p.plan_key === a.plan }, p.display_name))) as HTMLSelectElement;
+      const ends = h('input', { class: 'inp', type: 'date' }) as HTMLInputElement;
+      const ok = await askReason({ title: `Change the plan of ${name}`, label: 'Why',
+        lead: 'The new plan starts now and the one it has ends. To extend, choose the same plan and a later end.',
+        extras: [{ name: 'plan_key', label: 'Plan', control: select },
+                 { name: 'expires_at', label: 'Ends', control: ends, hint: 'The last day of the plan; empty for no end.' }],
+        confirm: 'Change plan', act: async reason => { await api.givePlan(a.user_id, select.value, endOf(ends.value), reason) } });
+      if (ok) done(`The plan of ${name} changed.`);
+    });
+    add(d.actions.plan, plan);
+    const out = h('button', { class: 'btn', type: 'button' }, 'Sign out everywhere');
+    out.addEventListener('click', async () => {
+      let ended = 0;
+      const ok = await askReason({ title: `Sign ${name} out everywhere?`, label: 'Why', confirm: 'Sign out everywhere',
+        lead: 'Every session on every site ends now; its password stays.',
+        act: async reason => { ended = (await api.endSessions(a.user_id, reason)).revoked } });
+      if (ok) done(`${plural(ended, 'session')} of ${name} ended.`);
+    });
+    add(d.actions.sessions, out, a.status === 'pending');
+    const code = h('button', { class: 'btn', type: 'button' }, 'Resend code');
+    code.addEventListener('click', async () => {
+      const ok = await askReason({ title: `Send ${name} a new code?`, label: 'Why', confirm: 'Send code',
+        lead: 'It works only in the browser where the registration began; a registration gets at most 3 emails a day.',
+        act: async reason => { await api.sendCode(a.user_id, reason) } });
+      if (ok) done(`A new code was sent to ${name}.`);
+    });
+    add(d.actions.resend_code, code, a.status !== 'pending');
+    if (!box.childNodes.length) box.append(h('p', { class: 'muted why' }, 'Nothing can be done to this account here.'));
+    return box;
   }
 
   // ---- Audit --------------------------------------------------------------------------------------------------------------
@@ -523,7 +595,7 @@ export function start(api: AdminApi, root: HTMLElement, opts: { ticket: number |
     const more = async (before = '') => {
       const page = await api.audit({ ...query(), before, limit: '50' });
       rows.push(...page.audit);
-      put(list, ...actionsOf(rows).map(x => h('option', { value: x })));
+      put(list, ...auditActions(rows).map(x => h('option', { value: x })));
       if (!rows.length) { put(body, h('div', { class: 'empty' }, h('strong', {}, 'Nothing recorded'), 'Every admin action is recorded here with its reason.')); return }
       put(body, auditTable(rows), page.next ? h('div', { class: 'card-f' }, h('button', { class: 'btn sm', type: 'button',
         onclick: (e: Event) => { (e.currentTarget as HTMLButtonElement).disabled = true; void more(String(page.next)).catch(x => failed(x)) } }, 'Show older')) : null);

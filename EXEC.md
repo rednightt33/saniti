@@ -16529,8 +16529,26 @@ Order of the services (CONTRACT 17, rollback floors):
               sign-in went to the Monitor or the Terminal); the admin page opens on the Support inbox; its entries are a
               shield in the rail and "Admin page" in the account menu; its files are served to the admin before the code
               step (the screen is in them), its data only after.
-          - Next: applying `20261122_001` on dev and the Railway variables with the beta's deploy; the admin actions
-            (slice 5); account deletion (slice 6); then the checker at xhigh, its fixes, the beta.
+          - **The user's answer (2026-11-22): "A, lanjut slice 5".** Asked with its context the same day (a sign-in kept
+            on the page it was shown at, for every tab on both sites at the next promotion, or only for the admin
+            page's link): **A**, every tab keeps it (`static/edge-app.js` `landing`, `opens`); and the go for slice 5.
+          - Slice 5, the actions on an account (on the session branch; not deployed): disable or enable (signed out
+            everywhere), a plan given or extended (a manual subscription from now, the one it had cancelled), every
+            session ended, a registration code sent again (the flows' own issue, its 3 mails a day, the live site's code
+            key). Each with a reason and its audit row in one transaction; never the admin's own account; an account's
+            admin right never changes from the page and one active admin always remains, checked after the write in the
+            same transaction; the database's own refusals (the restricted-plan rule) come back as the field's reason in
+            their words. The account's answer opens and closes each action with its why, and the page shows exactly that.
+            Tests: `tests/test_admin_actions.py` (9), the page's actions in a browser, `tests/test_runtime_role.py` (every
+            admin route and the support upload as `edge_bff_runtime`: the advisor found that every test ran as the
+            superuser; no grant was missing), the route walk with the actions' acting bodies; 22 mutations, each red.
+            - Design values taken by the main agent (to tell the user): no override editor (the operator's; only the
+              four actions named to the user); a plan that would give or take the admin right, and another admin's plan,
+              are refused; an account still registering is never activated by the admin (as decided on 2026-11-19, R2-41
+              item 9); the beta needs `EDGE_CODE_SECRET` equal to the live site's, as `EDGE_MFA_KEY`.
+          - Next: account deletion (slice 6); applying `20261122_001` on dev and the Railway variables with the beta's
+            deploy (with the `EDGE_MFA_KEY` and `EDGE_CODE_SECRET` marks checked against the live site's); then the
+            checker at xhigh, its fixes, the beta.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

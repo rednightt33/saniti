@@ -441,3 +441,93 @@ def test_the_code_step_says_why_it_cannot_run(settings, store, monkeypatch):
                     browser.close()
         finally:
             stop()
+
+
+def test_the_account_view_runs_each_action_it_offers_and_says_why_of_the_others(settings, store, monkeypatch):
+    """Slice 5 in the page: an account's Actions as its answer opens them. Disable (a reason first), change the plan with
+    an end (a past end refused under its field), sign out everywhere, enable again; an account still registering offers
+    Resend code and says why the rest are closed; the admin's own account offers nothing and says why."""
+    need_build()
+    playwright = pytest.importorskip('playwright.sync_api')
+    from datetime import date, timedelta
+    from test_screener import serve
+    monkeypatch.setattr(main, 'ADMIN_APP', DIST)
+    beta = dataclasses.replace(settings, mfa_key=KEY, code_secret='c' * 40)
+    local, stop = serve(beta, store)
+    try:
+        alice = make_user(store, 'alice_acts', 'alice-password', email='alice.acts@example.com')
+        pat = make_user(store, 'pat_acts', 'pat-password', status='pending', email='pat.acts@example.com')
+        uid = seed_id(store, beta)
+        nonce = enrol(store, uid)
+        with playwright.sync_playwright() as pw:
+            browser = open_browser(pw)
+            try:
+                page = sign_in_page(browser, local, '/admin', 'owner', 'local-test-password')
+                watch = Watch(page)
+                f = frame_of(page)
+                f.locator('#code').fill(code_of(uid, nonce))
+                f.get_by_role('button', name='Open the admin page').click()
+
+                def open_account(name):
+                    f.locator('#tab-accounts').click()
+                    f.locator('#tab-accounts').click()                              # the shown tab: back to the list
+                    f.locator('table.accounts .linklike', has_text=name).click()
+                    f.locator('#account-name', has_text=name).wait_for()
+
+                def act(button, reason, **fields):
+                    f.locator('.acts').get_by_role('button', name=button).click()
+                    box = f.get_by_role('dialog')
+                    for name, value in fields.items():                          # the dialog's own fields, by their ids
+                        control = box.locator(f'#field-{name}')
+                        control.select_option(value) if name == 'plan_key' else control.fill(value)
+                    box.get_by_label('Why', exact=True).fill(reason)
+                    return box
+
+                open_account('alice_acts')
+                f.locator('.acts').get_by_role('button', name='Disable account').click()
+                box = f.get_by_role('dialog')
+                box.get_by_role('button', name='Disable account').click()
+                box.locator('#reason-error').filter(has_text='Write why').wait_for()        # a reason first, nothing sent
+                box.get_by_label('Why', exact=True).fill('Asked to pause it')
+                box.get_by_role('button', name='Disable account').click()
+                f.locator('.account .pill', has_text='disabled').wait_for()
+                assert f.locator('.acts').get_by_role('button', name='Enable account').count() == 1
+                # a plan with an end in the past: the server's reason under Ends, the dialog stays open
+                past, later = (date.today() - timedelta(days=2)).isoformat(), (date.today() + timedelta(days=30)).isoformat()
+                box = act('Change plan', 'Paid by transfer', plan_key='paid', expires_at=past)
+                box.get_by_role('button', name='Change plan').click()
+                box.locator('#expires_at-error').filter(has_text='A day after today').wait_for()
+                box.locator('#field-expires_at').fill(later)
+                box.get_by_role('button', name='Change plan').click()
+                f.locator('.account .kv', has_text='Plan').filter(has_text='paid').first.wait_for()
+                box = act('Sign out everywhere', 'Lost her phone')
+                box.get_by_role('button', name='Sign out everywhere').click()
+                f.locator('.acts').get_by_role('button', name='Enable account').wait_for()
+                box = act('Enable account', 'Back from the pause')
+                box.get_by_role('button', name='Enable account').click()
+                f.locator('.account .pill', has_text='active').wait_for()
+                assert db(store, 'SELECT status FROM edge_bff.users WHERE user_id = %s', alice['user_id'])[0]['status'] == 'active'
+                assert [(r['plan_key'], r['status']) for r in db(store, '''SELECT plan_key, status FROM edge_bff.subscriptions
+                    WHERE user_id = %s''', alice['user_id'])] == [('paid', 'active')]
+                trail = [r['action'] for r in db(store, 'SELECT action FROM edge_bff.admin_audit WHERE target_user_id = %s '
+                                                         'ORDER BY audit_id', alice['user_id'])]
+                assert trail == ['account.status', 'account.plan', 'account.sessions_revoke', 'account.status']
+                # still registering: Resend code, and the why of the closed ones
+                open_account('pat_acts')
+                acts = f.locator('.acts')
+                assert acts.get_by_role('button').all_inner_texts() == ['Resend code']
+                assert 'still registering' in acts.inner_text()
+                box = act('Resend code', 'She lost the email')
+                box.get_by_role('button', name='Send code').click()
+                f.locator('#toast', has_text='A new code was sent').wait_for()
+                assert db(store, "SELECT count(*) AS n FROM edge_bff.email_codes WHERE user_id = %s AND purpose = 'register'",
+                          pat['user_id'])[0]['n'] == 1
+                # the admin's own account: nothing offered, and why
+                open_account('owner')
+                assert f.locator('.acts').get_by_role('button').count() == 0
+                assert 'your own account' in f.locator('.acts').inner_text()
+                watch.check({('POST', f"/api/v1/admin/users/{alice['user_id']}/plan", 400)})
+            finally:
+                browser.close()
+    finally:
+        stop()

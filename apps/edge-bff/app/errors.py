@@ -37,6 +37,8 @@ MESSAGES = {
                        'site\'s authenticator, then try again.',
     'TELEGRAM_UNAVAILABLE': 'Telegram is not connected on this site, so the summary cannot be sent from here. The ticket '
                             'is kept here and in the email.',
+    'CODE_UNAVAILABLE': 'Codes cannot be sent from this site yet. Ask the operator to connect it to the live site\'s codes, '
+                        'then try again.',
     'SUPPORT_STORAGE_FULL': 'Images cannot be stored right now. Send your message without images; we will ask you for '
                             'them by email if we need them.',
     'SERVICE_UNAVAILABLE': 'EDGE cannot answer right now. Wait a moment, then try again.',
@@ -230,6 +232,11 @@ def words(code, status, details=None):
                     else 'Remove one you no longer need, or upgrade the plan.')
             what = f' for {_names[limit]}' if limit in _names else ''
             return f"You have reached your plan's limit{what}{count}. {then}"
+        if limit == 'registration_mail':
+            # Phase 4 slice 5: the admin's Resend code, within the registration's own mail cap (throttle.REGISTRATION_MAIL)
+            allowed = d.get('allowed')
+            times = f'{allowed} times' if isinstance(allowed, int) and not isinstance(allowed, bool) else 'as often as it may'
+            return f'This registration was mailed {times} today, the most a day. Send the code again in {wait or "a day"}.'
         if limit in ('support_hour', 'support_day'):
             # Phase 4, the contact-support panel: the account's own messages, not a plan limit
             allowed = d.get('allowed')

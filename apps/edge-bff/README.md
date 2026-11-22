@@ -1249,6 +1249,30 @@ deletion slice 6.
   account can open (the route's `needs`, else `<title>.view`), the sign-in keeps that page and its query; an account page
   (`/login`, `/verify`, `/mfa`) or a page the account cannot open leads to the landing page as before. This holds for
   every tab: a person signed out at `/backtest` lands on `/backtest`.
+- **The actions on an account (slice 5; the user, 2026-11-22: "A, lanjut slice 5")**, each with a reason and its audit
+  row in the same transaction, none on the admin's own account:
+  - `POST users/{id}/status` `{status: active|disabled, reason}` (`account.status`): disabled, every session of the
+    account ends (every site, `accounts.ACCOUNT_SESSIONS`); an account still registering is not activated here;
+  - `POST users/{id}/plan` `{plan_key, expires_at|null, reason}` (`account.plan`, the plan and end before and after): a
+    manual subscription from now (`provider` manual, `provider_ref` admin), the active one cancelled; extending is the
+    same plan with a later end; the end is a moment after now with its zone (the page sends the chosen day's last moment);
+  - `POST users/{id}/sessions/revoke` `{reason}` (`account.sessions_revoke`, the number ended);
+  - `POST users/{id}/resend-code` `{reason}` (`account.resend_code`): a new registration code to an account still
+    registering, through the flows' own `_issue_code` after the address's lock; it is bound to the registration's browser
+    (it finishes nothing alone) and keeps the registration's 3 mails a day (429 with its wait). It needs `EDGE_CODE_SECRET`
+    equal to the live site's (else 503 `CODE_UNAVAILABLE`, the log naming it): a code hashed with another key is one
+    the live site never takes.
+  - **The guards**, checked after the write in the same transaction (a refusal rolls everything back): an account's
+    admin right ('*' or `admin.access`, resolved by `accounts.GRANTS`, the sessions' own rule) never changes here, another
+    admin's plan is the operator's, the visitors' plan is never given, and at least one active account keeps the admin
+    right. A refusal of the database's own rules (the restricted-plan rule's 23514, a value outside its domain) is the
+    field's reason in the database's words with its hint.
+  - The account's answer says which actions are open (`actions`: `{open, why}`) and `holds_admin`; the page offers the
+    open ones and shows the why of the others; the routes refuse alike (`tests/test_admin_actions.py`).
+- **The runtime role**: `tests/test_runtime_role.py` runs every admin route and the support upload with the app's every
+  connection acting as `edge_bff_runtime` (the role edge-bff's login holds deployed; `conftest.RoleStore`), the routes
+  taken from the app, so a new admin route is checked against the role's grants from its first commit.
+  `EDGE_TEST_APP_ROLE=edge_bff_runtime` runs any suite that way (the helpers too).
 - **Its session**: the code step renews the session (a new token); the page reads the session again for its next write,
   and the shell's next write repeats once on `CSRF_INVALID` with the renewed session (`shared/edge-session.ts` send), so
   nothing needs a reload (`tests/test_admin_page.py`: Contact support sent after the step).

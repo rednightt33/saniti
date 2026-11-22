@@ -73,6 +73,11 @@ code{font-size:var(--fs-12)}
 .images img{display:block;width:100%;height:150px;object-fit:contain;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md)}
 .images figcaption{margin-top:var(--s-2);font-size:var(--fs-12);overflow-wrap:anywhere}
 .reveal{display:inline-flex;align-items:center;gap:var(--s-3);flex-wrap:wrap;justify-content:flex-end}
+/* slice 5: the account's actions (a closed one says why instead of offering its button) */
+.acts{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-4)}
+.acts .why{flex-basis:100%;margin:0;font-size:var(--fs-12)}
+.dialog .extra{display:grid;gap:var(--s-2)}
+.dialog .extra .sel,.dialog .extra .inp{width:100%}
 .actions .btn{white-space:nowrap}
 
 /* the overview */

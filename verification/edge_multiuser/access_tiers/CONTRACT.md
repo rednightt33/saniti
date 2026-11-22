@@ -1328,6 +1328,15 @@ today.
   build, none in the public shell. The ticket of `/admin?ticket=<id>` opens first, also after a sign-in: a sign-in shown
   at a workspace page the account can open stays there with its query, for every tab (a page the account cannot open,
   and the account pages, lead to the landing page as before).
+- **Built, slice 5** (the user, 2026-11-22: "A, lanjut slice 5"; `app/admin.py`, `tests/test_admin_actions.py`): the
+  four actions of the list below that the user named for it: disable or enable, a plan given or extended (a manual
+  subscription), every session ended, a registration code sent again. Each needs a reason and writes its `admin_audit`
+  row (`account.status`, `account.plan`, `account.sessions_revoke`, `account.resend_code`) in the same transaction; none
+  acts on the admin's own account. Checked after the write, in the transaction: an account's admin right never changes
+  through the page (the operator's), and at least one active account keeps it. The restricted-plan rule's 23514 reaches
+  the page as the plan's reason in the rule's words. The beta needs `EDGE_CODE_SECRET` equal to the live site's for a
+  code it sends to be one the live site takes. Not built here: overrides (no editor; the operator's), account deletion
+  (slice 6).
 - **Routes** `/api/v1/admin/users`:
   - list with filter and paging: username, name, email masked, phone masked, role, status, plan, expires_at,
     last_sign_in_at, created_at, usage counters;

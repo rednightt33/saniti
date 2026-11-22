@@ -46,9 +46,16 @@ const fixture: AdminApi = {
       last_sign_in_at: at(2) }, email_verified_at: at(299), mfa: 'none',
       subscriptions: [], overrides: [], sessions: { live: 1, last_seen: at(1) },
       usage: { backtest_jobs: 3, screener_items: 2, watchlist_items: 10, terminal_layouts: 1, terminal_drawings: 0, support_tickets: 1 },
-      audit: [{ audit_id: 3, at: at(30), action: 'account.test_mark', actor_user_id: 1, actor: 'owner', before: null, after: { test_account: true }, reason: 'Registration test window' }] };
+      audit: [{ audit_id: 3, at: at(30), action: 'account.test_mark', actor_user_id: 1, actor: 'owner', before: null, after: { test_account: true }, reason: 'Registration test window' }],
+      holds_admin: false,
+      actions: { status: { open: true, why: null }, plan: { open: true, why: null }, sessions: { open: true, why: null },
+                 resend_code: { open: false, why: 'A code is sent from here only to an account still registering.' } } };
   },
   async reveal(_id, field) { return { field, value: field === 'email' ? 'member.one@fixture.example' : '+6281234567890' } },
+  async setAccountStatus(_id, status) { return { status, changed: true, sessions_revoked: status === 'disabled' ? 1 : 0 } },
+  async givePlan(_id, plan, expires_at) { return { plan, expires_at } },
+  async endSessions() { return { revoked: 1 } },
+  async sendCode() { return { sent: true } },
   async audit() {
     return { audit: [
       { audit_id: 5, at: at(1), action: 'support.status', actor_user_id: 1, actor: 'owner', target_user_id: 8, target: 'member1',
@@ -58,9 +65,9 @@ const fixture: AdminApi = {
   },
   async auditFile() { return new Blob(['audit_id,at\r\n'], { type: 'text/csv' }) },
   async plans() {
-    return { plans: [{ plan_key: 'free', display_name: 'Free', is_default: true, for_guests: false },
-                     { plan_key: 'paid', display_name: 'Paid', is_default: false, for_guests: false },
-                     { plan_key: 'guest', display_name: 'Visitor', is_default: false, for_guests: true }],
+    return { plans: [{ plan_key: 'free', display_name: 'Free', is_default: true, for_guests: false, gives_admin: false },
+                     { plan_key: 'paid', display_name: 'Paid', is_default: false, for_guests: false, gives_admin: false },
+                     { plan_key: 'guest', display_name: 'Visitor', is_default: false, for_guests: true, gives_admin: false }],
       capabilities: [{ capability_key: 'terminal.view', kind: 'flag', unit: null, display_name: 'Terminal', means: null, value_min: null, value_max: null, item_pattern: null },
                      { capability_key: 'support.send', kind: 'flag', unit: null, display_name: 'Contact support', means: null, value_min: null, value_max: null, item_pattern: null },
                      { capability_key: 'backtest.runs_per_day', kind: 'limit', unit: 'runs', display_name: 'Backtest runs per day', means: null, value_min: 0, value_max: 1000, item_pattern: null }],
