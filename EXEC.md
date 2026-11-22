@@ -16570,8 +16570,13 @@ Order of the services (CONTRACT 17, rollback floors):
             the beta: the `EDGE_MFA_KEY` and `EDGE_CODE_SECRET` marks of the beta and the live site read equal in both
             start logs (2026-11-22); `TELEGRAM_NOTIFY_URL`, `TELEGRAM_SUPPORT_SECRET` and `EDGE_ADMIN_ORIGIN` unset on
             both (to set on the beta, with `TELEGRAM_SUPPORT_SECRET` on telegram-monitor).
-          - Next: the full suites green, then the beta's deploy: `20261122_001` on dev and those variables; then the lab
-            gaps (the user's order of 2026-11-22), the payment shell, the deep checker, the registration test window.
+          - **On the beta (2026-11-22):** `main` `259972a8`, edge-bff `bd2c4a84` SUCCESS, telegram-monitor `307f1633`;
+            `20261122_001` applied on dev; the three variables on the beta and the support secret on telegram-monitor
+            (RAILWAY_CHANGELOG.md 2026-11-22). The live site unchanged. Waiting for the user: a try of the admin page
+            (the authenticator code) and the go for one real support message.
+          - Next: the lab gaps (the user's order of 2026-11-22: "Masukkan saja setelah langkah 6, selesai di beta, baru
+            habis itu kita lanjut ke langkah 9 sampai selesai"; their items told to the user before starting), then the
+            payment shell, the deep checker, the registration test window.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

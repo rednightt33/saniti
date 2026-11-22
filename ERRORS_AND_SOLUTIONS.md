@@ -8879,7 +8879,22 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M536 — The Phase 4 checker's 18 confirmed findings: an admin page acting with no known actor, a sign-in through the authenticator code losing its page, support limits applied after the work, and guards judged only at the present moment (2026-11-22; FIXED on the branch, `180d8952`)
+### M537 — `railway config plan` fails "requires Railway CLI 5.42.1 or newer" when run under `timeout` (2026-11-22; found by the agent; KNOWN, a way to run it)
+
+- **Found by:** the agent, recording Phase 4's variables in `.railway/railway.ts` after the beta deploy.
+- **Verified:** `timeout 120 railway config plan` stopped with "This version of railway/iac requires Railway CLI 5.42.1
+  or newer" while `railway --version` reads 5.71.0. The same command without `timeout` ran and listed the four variables
+  the file lacked.
+- **Root cause:** `node_modules/railway/dist/iac/index.js` (`assertMinimumIacCliVersion`, railway 3.11.0) reads the CLI's
+  version by running the program named in the environment variable `_`, which the shell sets to the command it started:
+  under `timeout`, `_` is `timeout`, whose `--version` (coreutils 9.x) is below 5.42.1. The check is the IaC package's,
+  not the CLI's.
+- **Solution:** run `railway config plan` (and `config pull`) directly, without a wrapper such as `timeout`, `env` or
+  `nohup` in front. The plan of 2026-11-22: "Your Railway configuration is already up to date" after the four entries.
+- **Lesson:** a tool that reads `$_` to find itself breaks under any wrapper; when a version check contradicts
+  `--version`, look at how the check finds the program before upgrading anything.
+
+### M536 — The Phase 4 checker's 18 confirmed findings: an admin page acting with no known actor, a sign-in through the authenticator code losing its page, support limits applied after the work, and guards judged only at the present moment (2026-11-22; FIXED, on the beta since `259972a8`, edge-bff `bd2c4a84`; the live site does not serve the admin page)
 
 - **Found by:** the ultracode checker at xhigh over Phase 4 (workflow `wf_9a01b336-48e`: five lenses, one skeptic
   each): 18 confirmed (3 medium, 15 low), 1 refuted (a test of "no account deletion", not a defect).

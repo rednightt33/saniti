@@ -172,7 +172,9 @@ export default defineRailway(() => {
     deploy: { restartPolicyType: "ALWAYS", sleepApplication: true },
     // 2026-11-16: PUBLISH_RAILWAY_TOKEN and TERMINAL_PUBLISHER_SERVICE_INSTANCE_ID are live (set outside this file);
     // recorded so that an apply keeps them (`railway config plan` would have deleted them)
-    env: { DATABASE_URL: preserve(), PUBLISH_RAILWAY_TOKEN: preserve(), TELEGRAM_BOT_TOKEN: preserve(), TELEGRAM_CHAT_ID: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_SUCCESS: preserve(), TERMINAL_PUBLISHER_SERVICE_INSTANCE_ID: preserve() },
+    // 2026-11-22 (Phase 4, the contact-support panel): TELEGRAM_SUPPORT_SECRET, the EDGE_Support source's own secret
+    // (edge-bff holds it as a reference)
+    env: { DATABASE_URL: preserve(), PUBLISH_RAILWAY_TOKEN: preserve(), TELEGRAM_BOT_TOKEN: preserve(), TELEGRAM_CHAT_ID: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_SUCCESS: preserve(), TELEGRAM_SUPPORT_SECRET: preserve(), TERMINAL_PUBLISHER_SERVICE_INSTANCE_ID: preserve() },
   });
   const idxPriceRecoveryCron = service("idx-price-recovery-cron", {
     source: saniti2,
@@ -256,7 +258,9 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_HEARTBEAT_SECONDS: preserve(), EDGE_HOUSEKEEPING_ENABLED: preserve(), EDGE_INITIAL_PASSWORD: preserve(), EDGE_LEASE_SECONDS: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_ORC_TIMEOUT_SECONDS: preserve(), EDGE_ORC_URL: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_POLL_SECONDS: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SECURE_COOKIE: preserve(), EDGE_SESSION_SECONDS: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_TERMINAL_URL: preserve(), EDGE_WORKER_ENABLED: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PORT: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TERMINAL_PROXY_KEY: preserve() },
+    // 2026-11-22 (Phase 4 on the beta): EDGE_ADMIN_ORIGIN (the admin page's link in the support mail), TELEGRAM_NOTIFY_URL
+    // (telegram-monitor's private /notify) and TELEGRAM_SUPPORT_SECRET (a reference to telegram-monitor's)
+    env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_ADMIN_ORIGIN: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_HEARTBEAT_SECONDS: preserve(), EDGE_HOUSEKEEPING_ENABLED: preserve(), EDGE_INITIAL_PASSWORD: preserve(), EDGE_LEASE_SECONDS: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_ORC_TIMEOUT_SECONDS: preserve(), EDGE_ORC_URL: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_POLL_SECONDS: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SECURE_COOKIE: preserve(), EDGE_SESSION_SECONDS: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_TERMINAL_URL: preserve(), EDGE_WORKER_ENABLED: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PORT: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TELEGRAM_NOTIFY_URL: preserve(), TELEGRAM_SUPPORT_SECRET: preserve(), TERMINAL_PROXY_KEY: preserve() },
   });
   // EXEC-MU-ACCOUNTS "Production environment" (user decisions 2026-11-19): the live website. A comment, not a
   // declaration, until its source is connected with the go for the live site; the service exists on Railway with its

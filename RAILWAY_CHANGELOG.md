@@ -1,5 +1,38 @@
 # Railway changelog
 
+## 2026-11-22 — Phase 4 (the admin page and the contact-support panel) on the beta
+
+- **Commit `259972a8`:** Phase 4 (EXEC-MU-ACCOUNTS step 6 of the order approved with "Go" on 2026-11-20): the admin
+  page on the beta only (accounts, support inbox, the four actions on an account; no account deletion, the user's
+  decision of 2026-11-22, ERRORS M535), the contact-support panel (the mailbox in the rail: the admin inbox, Telegram and
+  the owner's email), the checker's 18 fixes (ERRORS M536) and their records: the 29 commits after `4b35b5ed`.
+- **CI on `main`:** Backend tests 45023366390, edge-bff image builds 45023366386, Backtest page smoke 45023366341,
+  look-ahead gate 45023366342, generated files 45023366414: all green.
+- **Before:** M340 (check only) before `main` moved: 0 EDGE jobs, 0 orc turns, 0 statements. `20261122_001` (the support
+  tables and the capability `support.send`) applied on dev before the deploy (DATABASE_CHANGELOG.md: DRYRUN `14c7c244`, APPLY `979217b0`).
+- **Variables (names only; values never printed):**
+  - `telegram-monitor`: `TELEGRAM_SUPPORT_SECRET` (new, 48 characters), the EDGE_Support source's own secret.
+  - `edge-bff` (the beta): `TELEGRAM_SUPPORT_SECRET` as the reference `${{telegram-monitor.TELEGRAM_SUPPORT_SECRET}}`
+    (read back: 48 characters), `TELEGRAM_NOTIFY_URL` to telegram-monitor's private `/notify` on port 8080 (read back:
+    matches the form `config.py` accepts), `EDGE_ADMIN_ORIGIN` the beta's own address (the support mail's admin link).
+  - `edge-bff-live`: none of the three (the live site serves no admin page; its support panel waits for its own
+    promotion).
+- **Beta:** `main` moved `4b35b5ed` → `259972a8` (a fast-forward). `edge-bff` `bd2c4a84` waited for its CI and reached
+  SUCCESS; `/ready` 200; `startup_done` site beta, commit `259972a8`, the shared-key marks (`EDGE_SESSION_SECRET`,
+  `EDGE_CODE_SECRET`, `EDGE_MFA_KEY`) equal to the live site's. `/admin` is the shell; `/api/v1/admin/overview` without a
+  session 401.
+- **telegram-monitor:** `307f1633` (the same commit) started, `/health` 200, then slept (it sleeps when idle, so its
+  status reads SLEEPING, not SUCCESS; the watcher that waited for SUCCESS ran to its time limit).
+- **Live:** unchanged (`edge-bff-live` `f1d6a921`, `4b35b5ed`): `/ready` 200, `/admin` and `/api/v1/admin/overview` 404.
+- **`.railway/railway.ts`:** the four variables as `preserve()` (telegram-monitor one, edge-bff three), edited by hand
+  (ERRORS M341). `railway config plan`: "Your Railway configuration is already up to date." Run without `timeout` in
+  front (ERRORS M537).
+- **Not a large update:** a few rows; no Postgres restart.
+- **Not yet done:** the user's own try of the admin page (the authenticator code is the user's) and a real support
+  message (it emails and Telegrams the user, so it waits for the user's go).
+- **Rollback:** `main` back to `4b35b5ed` with the user's go; the three edge-bff variables are read only by the Phase 4
+  code; `20261122_001` stays (expand-only).
+
 ## 2026-11-21 — The promotion of A2, 3e (with the example mode) and 3f: the beta, then the live site
 
 - **Commit `4b35b5ed`:** A2 (ERRORS M517), 3e with the example mode (M518, M519, M527: every data page's example for a
