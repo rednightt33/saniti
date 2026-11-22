@@ -45,3 +45,46 @@ describe('a plan without terminal.drawings', () => {
     expect(local.getItem('ml.drawings.BBCA'), 'the refused drawing is kept in the browser and shown on every load').toBeNull();
   });
 });
+
+/* ERRORS M532 (the user, 2026-11-22: "3A"): a chart that opens reads the drawings by itself; for a plan without them that
+   read is refused in silence, and the plan's words show once the person draws, once only. Whatever was said, a refused
+   plan's drawings are never sent on leaving nor kept in this browser. */
+describe('a plan without terminal.drawings, as the chart opens', () => {
+  it('says nothing until the person draws, then the plan\'s words once', async () => {
+    const said: string[] = [];
+    const drawings = accountDrawings(t => { said.push(t) }, 0);
+    await edge.session();
+    local.setItem('ml.drawings.BBCA', JSON.stringify({ owner:'owner:u_cccccccccccccccccccccccc', drawings:[{ id:'old' }] }));
+    expect(await drawings.load('BBCA', 'chart', 'ml.drawings.BBCA')).toBe('[]');
+    await drawings.load('BBCA', 'flow', 'ml.drawings.flow.BBCA');
+    expect(said, 'the chart opening said the plan\'s refusal by itself').toEqual([]);
+    expect(local.getItem('ml.drawings.BBCA'), 'a refused plan\'s copy stays in the browser').toBeNull();
+    drawings.save('BBCA', 'chart', '[{"id":"d1","kind":"trend-line"}]', 'ml.drawings.BBCA');
+    await new Promise(r => setTimeout(r, 30));
+    drawings.save('BBCA', 'chart', '[{"id":"d2","kind":"trend-line"}]', 'ml.drawings.BBCA');
+    await new Promise(r => setTimeout(r, 30));
+    expect(said.filter(t => /not part of your EDGE plan/.test(t)).length, JSON.stringify(said)).toBe(1);
+    expect(said.length).toBe(1);
+  });
+
+  it('sends nothing and keeps nothing on leaving, though nothing was said yet', async () => {
+    const handlers: Record<string, () => void> = {};
+    vi.stubGlobal('window', { addEventListener(name: string, fn: () => void) { handlers[name] = fn } });
+    const sent: string[] = [];
+    const quiet = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/v1/auth/session') return answer(200, { login:'free_user', owner_key:'u_cccccccccccccccccccccccc', csrf_token:'csrf' });
+      if (init?.method && init.method !== 'GET') sent.push(`${init.method} ${url}`);
+      return answer(403, REFUSED);
+    });
+    vi.stubGlobal('fetch', quiet);
+    const said: string[] = [];
+    const drawings = accountDrawings(t => { said.push(t) }, 10_000);           // the change still waits as the page goes
+    await edge.session();
+    await drawings.load('BBCA', 'chart', 'ml.drawings.BBCA');
+    drawings.save('BBCA', 'chart', '[{"id":"d1","kind":"trend-line"}]', 'ml.drawings.BBCA');
+    handlers.pagehide?.();
+    expect(sent, 'a refused plan\'s drawing was sent on leaving').toEqual([]);
+    expect(local.getItem('ml.drawings.BBCA'), 'a refused plan\'s drawing was kept in the browser on leaving').toBeNull();
+    expect(said).toEqual([]);
+  });
+});

@@ -72,6 +72,10 @@ def test_a_free_account_is_told_a_tab_is_not_in_its_plan_and_keeps_its_terminal(
     page.wait_for_function("() => location.pathname === '/terminal'")
     drawn, text = terminal_drawn(page)
     assert drawn, f'the free plan\'s Terminal did not draw: {text[:300]}'
+    # ERRORS M532 (the user, 2026-11-22: "3A"): the chart's own read of the drawings, refused for this plan, says nothing
+    page.wait_for_timeout(1500)
+    shown = page.frame_locator('iframe.terminal-frame').locator('body').inner_text()
+    assert 'not part of your EDGE plan' not in shown, shown[-400:]
 
 
 def test_a_plan_raised_meanwhile_opens_the_tab_without_a_reload(live, chromium):

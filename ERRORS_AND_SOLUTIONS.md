@@ -8899,7 +8899,7 @@ in its staleness check.
 - **Lesson:** M528's again: before any push that touches `apps/edge-bff/app/main.py`, run
   `apps/screener-worker/tests/onboarding_pointers.test.ts` (and every suite of the two workflows), not only the app's own.
 
-### M532 — An account without chart drawings is told "Chart drawings is not part of your EDGE plan" as soon as it opens the Terminal, before it draws anything (2026-11-22; found by the contact-support panel's screenshots; OPEN, older than Phase 4)
+### M532 — An account without chart drawings is told "Chart drawings is not part of your EDGE plan" as soon as it opens the Terminal, before it draws anything (2026-11-22; found by the contact-support panel's screenshots; older than Phase 4; FIXED on the branch with the user's go "3A")
 
 - **Seen:** a new free account (`register()` of the browser tests, the beta's switch-on test server) opens `/terminal`:
   the red toast "Chart drawings is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in."
@@ -8915,10 +8915,18 @@ in its staleness check.
   shown wrongly; it reads as an error the person did not cause.
 - **General class:** a page that says a plan's refusal of a read it starts by itself (a preload, a sync, a restore);
   the same holds for any account-side store a page reads on open (layouts, presets, drawings) for a plan without it.
-- **Proposed fix (not built: the Terminal is outside Phase 4's slice, and the user's rule "Terminal jangan disentuh"
-  asks for the user's go):** a refused read on open is taken as "no drawings" without a word; the refusal is said
-  when the person draws (the write path already says it), and the drawing tools carry 3e's lock mark for a plan
-  without `terminal.drawings`. A browser test: a free account opens the Terminal and sees no refusal until it draws.
+- **Proposed fix:** a refused read on open is taken as "no drawings" without a word; the refusal is said when the
+  person draws (the write path already says it). A browser test: a free account opens the Terminal and sees no refusal
+  until it draws.
+- **The user's go (2026-11-22): "3A"** (asked with the facts above: the Terminal stays silent when it opens, the words
+  show when the person tries to draw; a change in the Terminal, "Terminal jangan disentuh" otherwise).
+- **Solution (on the branch):** `drawingsApi.ts` `refused()` takes `quiet`: the read of a chart that opens (`load`) is
+  refused in silence and still marks the plan refused (so a change waiting as the page goes is neither sent nor kept
+  in the browser); the first refused save says the plan's words, once. Tests: `terminal/tests/data/c_p1s_drawings_plan.test.ts`
+  (silent on open, the words once after drawing, nothing sent or kept on leaving) and the browser check in
+  `tests/test_3e_locked_tabs_browser.py` (a new free account's Terminal shows no refusal); each red on its mutation
+  (the open saying it, the silent read not marking the plan, the words said every time; the browser check on a build
+  of the old code). The drawing tools are not locked: the person may still draw, and is told then.
 
 ### M531 — The throttle's concurrency test failed in CI when its 24 counts crossed a minute's end (2026-11-21; FIXED on the branch)
 

@@ -6,7 +6,9 @@
    a set is kept in this browser as before and moves to the account the next time it can be read. The sets kept in this
    browser before (ml.drawings.*) move to the account once, merged by drawing id with what the account holds.
    A refusal of the plan (403 CAPABILITY_REQUIRED or PLAN_EXPIRED: the plan holds no terminal.drawings) is not an outage
-   (re-check R1-19): its own words are said, and nothing is kept in this browser for it (a copy there is dropped). */
+   (re-check R1-19): its own words are said, and nothing is kept in this browser for it (a copy there is dropped). The
+   words wait for the person: the read a chart makes as it opens is refused in silence, and the first drawing the person
+   makes says them (ERRORS M532; the user, 2026-11-22: "3A", the Terminal stays silent when it opens). */
 import { savedClient, sendOnLeave, primeToken, LayoutApiError } from './layoutsApi';
 import { store } from '../app/context';
 import { edge, isLastLogin, loginKey, onReset } from '../../../shared/edge-session';
@@ -55,6 +57,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
   // per ticker: its sets, null (unreachable), or the plan's refusal
   const lists = new Map<string, Promise<Map<string, ServerSet> | LayoutApiError | null>>();
   let locked = false;                                                        // the plan refused the drawings
+  let said = false;                                                          // and its words were shown (once)
   const rev = new Map<string, number | null>();                              // `${ticker}/${set}` -> the revision held
   const last = new Map<string, string>();                                    // the text the account holds
   const pending = new Map<string, { json: string; timer: any }>();
@@ -74,10 +77,12 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     if (warned) return; warned = true;
     say('Your drawings could not be saved to your EDGE account just now: they are kept in this browser and move to the account when it can be reached.', true);
   };
-  /* the plan's refusal: said once in its own words; nothing of the drawings stays in this browser for it */
-  const refused = (e: LayoutApiError, local?: string) => {
+  /* the plan's refusal: nothing of the drawings stays in this browser for it; its own words are said once, when the
+     person draws (`quiet`: the read of a chart that opens, which the person did not ask for, says nothing) */
+  const refused = (e: LayoutApiError, local?: string, quiet = false) => {
     if (local) store.remove(local);
-    if (locked) return; locked = true;
+    locked = true;
+    if (quiet || said) return; said = true;
     say(e.message, true);
   };
   primeToken();
@@ -93,7 +98,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     const who = await edge.session().then(() => edge.identity, () => edge.identity);
     const mine = ownCopy(here, who);
     if (here !== null && mine === null) store.remove(local);          // M468: another login's copy (or not a list)
-    if (sets instanceof LayoutApiError) { refused(sets, local); return '[]' }
+    if (sets instanceof LayoutApiError) { refused(sets, local, true); return '[]' }
     if (!sets) { unreachable(); return mine ? JSON.stringify(mine) : '[]' }
     const got = sets.get(s);
     rev.set(k(t, s), got ? got.revision : null);

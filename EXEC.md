@@ -16477,6 +16477,18 @@ Order of the services (CONTRACT 17, rollback floors):
             Until `live` is promoted, its older sender sends the beta's support emails without images or Reply-To
             (LIVE_PROMOTION.md, the feature row). The session branch's CI: ERRORS M533 (fixed), green on `becd1bb3`
             but for the edge-bff job, which ran on.
+          - **The user's answers (2026-11-22): "1A, 2B, 3A"** to three questions asked with their context the same day:
+            - **1A, the admin page on the beta:** the beta signs in with one password and its sessions always count as
+              past the second factor (the switch off, decision of 2026-11-19), while CONTRACT 10 asks the admin page for
+              the admin right and the second factor. Chosen: the admin page alone asks, on the beta, for the 6-digit code
+              of the same authenticator the admin uses on the live site (user #1's), before any of its data; every other
+              page of the beta stays as it is. Not B (the switch on for the beta), not C (one password).
+            - **2B, how long a support message is kept:** the images of a ticket are deleted automatically 90 days after
+              the ticket is marked done; its text is kept (until the account is deleted, by its cascade); the admin page
+              has a button that deletes a ticket by hand. Not A (kept until deleted by hand), not C (the whole ticket).
+            - **3A, ERRORS M532:** the Terminal stays silent when it opens for a plan without chart drawings, and the
+              plan's words show only when the person tries to draw. The user's go for this change in the Terminal
+              ("Terminal jangan disentuh" otherwise).
           - Next: applying `20261122_001` on dev and the Railway variables with the beta's deploy; the admin page's read
             side (slice 4) and its actions (slice 5); account deletion (slice 6); then the checker at xhigh, its fixes,
             the beta.
