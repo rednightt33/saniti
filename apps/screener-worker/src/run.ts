@@ -196,10 +196,6 @@ export function presetItems(definition: unknown): { kind: AllowKind; id: string 
   return [...seen.values()].sort((a, b) => a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id));
 }
 const KIND_WORDS: Readonly<Record<AllowKind, string>> = { indicator: 'indicator', flow_indicator: 'flow indicator', candle_pattern: 'candlestick pattern', screener_metric: 'Screener metric' };
-const itemName = (kind: AllowKind, id: string): string => {
-  const name = kind === 'indicator' ? SBY_ID[id]?.name : kind === 'flow_indicator' ? FLOW_BY_ID[id]?.name : METRICS_CATALOG.metrics.find(m => m.id === id)?.label;
-  return name ? `${id} (${name})` : id;
-};
 /** The first item of the definition outside `allow`, refused 403 CAPABILITY_REQUIRED (CONTRACT 8b "Worker refusal"):
     field its JSON path, details {kind, id, capability}, the message naming the item and how to pass. server.ts calls it
     (through gate) right after normalize and before any cache read, so a result cached for another principal is never
@@ -210,7 +206,9 @@ export function checkAllow(definition: unknown, allow: Allow, field = 'definitio
     const a = allow[it.kind];
     if (a === '*' || a.has(it.id)) continue;
     const capability = `${CAPABILITY_FAMILY[it.kind]}:${it.id}`;
-    throw new CapabilityError(`${it.field}: the ${KIND_WORDS[it.kind]} ${itemName(it.kind, it.id)} is not included in your plan. To run the screen, remove it (a condition, a switched-off condition, a filter or an extra column), or upgrade the plan.`,
+    // 3f checker L2, CAT-3 (the lab gap; the user's go 2026-11-22): an item outside allow is named by the id the request
+    // sent, never by a registry name (a lab item's name stays out of every answer); edge-bff adds its display name
+    throw new CapabilityError(`${it.field}: the ${KIND_WORDS[it.kind]} ${it.id} is not included in your plan. To run the screen, remove it (a condition, a switched-off condition, a filter or an extra column), or upgrade the plan.`,
       it.field, { kind: it.kind, id: it.id, capability });
   }
 }
@@ -227,6 +225,15 @@ export function restrict(definition: unknown, rights: readonly string[], field =
 export function gate(definition: unknown, e: Pick<Envelope, 'rights' | 'allow'>, field = 'definition'): void {
   restrict(definition, e.rights, field);
   checkAllow(definition, e.allow, field);
+}
+/** 3f checker L2, CAT-3 (FUTURE_PLAN.md "Before the first lab item or tab"; the user's go 2026-11-22): both gates on the
+    definition as sent, before the normalizer, as the Backtest worker checks its request first. The normalizer looks an
+    item up and refuses an unknown one with every registry id (UNKNOWN_INDICATOR's details.allowed) or a bad parameter
+    naming the item's outputs and parameters; an item outside allow (an unknown id included: allow lists only held ids)
+    is now refused here, by its id only, so those answers reach only a principal holding the item. `gate` runs again on
+    the normalized definition (a default or a synonym the normalizer fills). */
+export function gateSent(definition: unknown, e: Pick<Envelope, 'rights' | 'allow'>, field = 'definition'): void {
+  gate(definition, e, field);
 }
 
 function schema(b: Record<string, unknown>): void {

@@ -288,3 +288,40 @@ test('every preset lists the items the allow check reads, and an allow without o
     }
   }
 });
+
+/* 3f checker L2, CAT-3 (FUTURE_PLAN.md "Before the first lab item or tab"; the user's go 2026-11-22): the allow walk runs
+   on the definition as sent, before the normalizer, so an item outside allow (an id the registry has, or one it lacks) is
+   refused by its id alone: never UNKNOWN_INDICATOR's list of every registry id, never a parameter or output of an item
+   the principal does not hold, never a registry name. The whole answer is searched, not only its code. */
+test('/v1/validate, /v1/run, /v1/preview, /v1/counts: an item outside allow is refused before the normalizer names anything', async () => {
+  const registryIds = ['I01', 'I02', 'I07', 'I35', 'FL01', 'FL24'];
+  const plantedUnknown = { kind: 'indicator', indicator: 'I_LAB_PLANTED', params: {}, output: 'x' };
+  const heldNot = { ...RSI, params: { length: -5, not_a_parameter: 1 } };       // held by no one here: a bad parameter
+  const def = (metric: unknown) => ({ universe: U, conditions: [{ id: 'a', enabled: true, test: { kind: 'value', metric, op: 'lt', value: 50 } }], logic: 'all' });
+  const context = { allow: { ...ALL, indicator: ['I01'] }, limits: {} };
+  const bodies: [string, (d: unknown) => unknown][] = [
+    ['/v1/validate', d => ({ schema_version: 1, definition: d, context })],
+    ['/v1/run', d => ({ schema_version: 1, client_order: { page: 'p', seq: 1 }, data_version: dataVersion(), definition: d, context })],
+    ['/v1/preview', d => ({ schema_version: 1, client_order: { page: 'p', seq: 2 }, data_version: dataVersion(), definition: d, ticker: ticker(), context })],
+  ];
+  for (const [path, body] of bodies) {
+    for (const [metric, id] of [[plantedUnknown, 'I_LAB_PLANTED'], [heldNot, 'I13']] as const) {
+      const r = await call(port, 'POST', path, body(def(metric)), auth(OWNER_A));
+      assert.equal(r.status, 403, `${path} ${id}: ${JSON.stringify(r.body)}`);
+      assert.equal(r.body.error.code, 'CAPABILITY_REQUIRED');
+      assert.equal(r.body.error.details.id, id);
+      const text = JSON.stringify(r.body);
+      assert.ok(!('allowed' in (r.body.error.details ?? {})), `${path}: a list in details: ${text}`);
+      for (const other of registryIds) assert.ok(!text.includes(`"${other}"`) && !text.includes(` ${other} `) && !text.includes(` ${other})`), `${path} names ${other}: ${text}`);
+      assert.ok(!/RSI|Relative Strength|length|not_a_parameter/.test(text), `${path} names the item's name, outputs or parameters: ${text}`);
+    }
+  }
+  const counts = await call(port, 'POST', '/v1/counts', { schema_version: 1, data_version: dataVersion(), definitions: [{ item_id: 'x', definition: def(plantedUnknown) }], context }, auth(OWNER_A));
+  assert.equal(counts.status, 200, JSON.stringify(counts.body));
+  const entry = counts.body.counts?.[0] ?? counts.body.entries?.[0] ?? counts.body.items?.[0];
+  assert.equal(entry?.error?.code, 'CAPABILITY_REQUIRED', JSON.stringify(counts.body));
+  assert.ok(!JSON.stringify(counts.body).includes('"I01"'), JSON.stringify(counts.body));
+  // a principal holding every item still meets the normalizer's own answers (the list is the admin's to see)
+  const admin = await call(port, 'POST', '/v1/validate', { schema_version: 1, definition: def(plantedUnknown), context: { allow: ALL, limits: {} } }, auth(OWNER_A));
+  assert.equal(admin.status, 422, JSON.stringify(admin.body));
+});

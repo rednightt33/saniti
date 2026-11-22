@@ -53,7 +53,7 @@ import type { ComputeThread } from './pool.ts';
 import type { PreviewOutcome, PreviewTask } from './preview.ts';
 import { Refresher, TerminalApi } from './refresh.ts';
 import type { Held, RefreshHost } from './refresh.ts';
-import { countsAnswer, countsEnvelope, effectiveLimits, estimateCost, gate, newCostTracker, normalize, presetItems, previewEnvelope, restrict, resultKey, runEnvelope, validateEnvelope } from './run.ts';
+import { countsAnswer, countsEnvelope, effectiveLimits, estimateCost, gate, gateSent, newCostTracker, normalize, presetItems, previewEnvelope, resultKey, runEnvelope, validateEnvelope } from './run.ts';
 import type { CountsEntryOut, CountsTask, Envelope, Estimate, RunOptionsN, RunOutcome, RunTask } from './run.ts';
 import { flowContextOf, groupingsOf, materialize, referenceHash } from './snapshot.ts';
 import type { BuildStats, SnapshotDesc, SnapshotReference, TickerEntry } from './snapshot.ts';
@@ -471,7 +471,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       const e = validateEnvelope(parseJson(raw));
       const s = current;
       if (!s) throw notReady();
-      restrict(e.definition, e.rights);                          // ERRORS M521: before normalize names any parameter
+      gateSent(e.definition, e);                                 // M521, 3f L2: rights and allow before normalize
       const n = await engine.normalize(e.definition, forPlan(s, limitsOf(e)));
       gate(n.normalized, e);                                     // P5 (K8 b) admins-only flow versions; Phase 3b allow
       // versions (additive): the registries the definition was checked against, so edge-bff stores them with the item
@@ -481,7 +481,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       allow('POST');
       const e = runEnvelope(parseJson(raw));
       const s = await pinned(e.data_version), lim = limitsOf(e);
-      restrict(e.definition, e.rights);                          // ERRORS M521: before normalize names any parameter
+      gateSent(e.definition, e);                                 // M521, 3f L2: rights and allow before normalize
       const n = await engine.normalize(e.definition, forPlan(s, lim));
       gate(n.normalized, e);                                     // before compute's result-cache read
       let r: Computed | null = null, status = 'ok';
@@ -497,7 +497,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       allow('POST');
       const e = previewEnvelope(parseJson(raw));
       const s = await pinned(e.data_version), lim = limitsOf(e);
-      restrict(e.definition, e.rights);                          // ERRORS M521: before normalize names any parameter
+      gateSent(e.definition, e);                                 // M521, 3f L2: rights and allow before normalize
       const n = await engine.normalize(e.definition, forPlan(s, lim));
       gate(n.normalized, e);                                     // before the preview cache read
       const ticker = e.ticker as string;
@@ -530,7 +530,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       let cost = 0, hits = 0;
       for (const [k, d] of defs.entries()) {
         try {
-          restrict(d.definition, e.rights, `definitions[${k}].definition`);   // ERRORS M521: before normalize
+          gateSent(d.definition, e, `definitions[${k}].definition`);    // M521, 3f L2: before normalize
           const n = await engine.normalize(d.definition, sp, `definitions[${k}].definition`);
           gate(n.normalized, e, `definitions[${k}].definition`);   // per entry, before the counts cache read
           const c = counts.get(countsKey(s, n.hash));

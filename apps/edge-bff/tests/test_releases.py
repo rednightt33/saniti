@@ -92,8 +92,10 @@ def test_every_registry_id_has_an_entry_and_every_entry_names_a_registry_id():
 # What still lets a lab item reach a visitor or a principal that does not hold it, after 3f (its ultracode checker,
 # 2026-11-21; FUTURE_PLAN.md "Before the first lab item or tab"). A lab item waits until every one is closed.
 LAB_ITEM_HELD_UNTIL = (
-    "the Screener worker's refusals no longer list or name items outside the principal's allow (validate, run, preview "
-    'and counts check the allow before they look items up; checker L2, CAT-3)',
+    # checker L2, CAT-3: built 2026-11-22 (screener-worker run.ts gateSent before the normalizer, the item by its id);
+    # the worker is shared and deploys from main, so it holds for both sites from that deploy
+    "the screener-worker that checks the allow before the normalizer is deployed (run.ts gateSent; until then the "
+    "running worker answers UNKNOWN_INDICATOR with every registry id and names items outside allow by their name)",
     'one registration point for lab formulas is loaded by both registry generators and both workers, with '
     'terminal/src/lab in both engine versions (checker TR-2, B3)',
     # checker L5 (the live site runs 3f's server part) closed 2026-11-21: `live` 4b35b5ed holds ec1bd29c
@@ -340,6 +342,21 @@ def entries_of(c, kind):
     assert r.status_code == 200, r.text
     assert r.json()['kind'] == kind
     return r.json()['entries']
+
+
+def test_a_worker_refusal_names_a_lab_item_by_its_family_and_id_only(lab_file):
+    """3f checker L2, CAT-3: the worker names an item outside allow by its id; edge-bff's named() adds the display name,
+    which is errors.display_name of the capability (the family's words and the id once the catalog's names are read, a
+    plain phrase before), never the item's own catalog name, for a lab item too."""
+    from app.allow import named
+    import app.errors as errors_module
+    out = named({'code': 'CAPABILITY_REQUIRED', 'message': 'definition.x: the indicator I02 is not included in your plan.',
+                 'details': {'kind': 'indicator', 'id': 'I02', 'capability': 'terminal.indicator:I02'}})
+    registry = json.loads((BFF / 'terminal' / 'src' / 'data' / 'indRegistry.json').read_text(encoding='utf-8'))
+    entries = registry
+    name = next(e.get('name') for e in entries if isinstance(e, dict) and e.get('id') == 'I02')
+    assert name and name not in json.dumps(out), (name, out)
+    assert errors_module.display_name('terminal.indicator:I02') == out['details']['display_name']
 
 
 def test_everything_holds_every_entry_at_any_stage(settings, store, lab_file):
