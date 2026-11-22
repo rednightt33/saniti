@@ -1,5 +1,24 @@
 # Database changelog
 
+## 2026-11-22 — Phase 4, the contact-support panel: the support tickets and their images (edge_bff, migration 20261122_001)
+
+- **Why:** the user's answers and go of 2026-11-22 (EXEC.md EXEC-MU-ACCOUNTS: "yes, hanya yang login.. ... lampiran
+  hanya 2A go"; "2B" for the images' 90 days), applied with the beta's deploy of Phase 4.
+- **Migration:** `20261122_001_edge_bff_support.sql`, sha256 `381b9669…b0917589a`: `edge_bff.support_tickets` and
+  `edge_bff.support_attachments` (images in the database, PNG, JPEG or WebP by their first bytes, at most 3 of 5 MB per
+  ticket), the capability `support.send` (flag) held by the free and paid plans, not by the guest plan.
+  `edge_bff_runtime`: SELECT, INSERT, UPDATE, DELETE on the tickets, SELECT, INSERT, DELETE on the images (no UPDATE);
+  nothing for PUBLIC. Expand-only: new tables and new rows; the live site's code (`4b35b5ed`) reads neither, and both
+  sites answered `/ready` 200 after the apply.
+- **Jobs (orc-test-runner, `scripts/onboarding/run_job.sh`, `DATABASE_URL` set and removed for each run, `VAR_REMOVED`):**
+  DRYRUN `14c7c244` (the body inside one rolled-back transaction, OK), APPLY `979217b0` (SUCCESS, 11:58 UTC). Read back:
+  `support.send` `free=true,paid=true`, the guest plan without it; the grants as above, PUBLIC none; the runtime role's
+  UPDATE on images false (the probe now reads the privilege, the Phase 4 checker's deploy-1); 0 tickets, 0 images.
+  M340 before each: 0 EDGE jobs, 0 orc turns, 0 statements. Not a large update (a few rows); Postgres memory 1.97 GB at
+  the end, left to the scheduled restart.
+- **`APPLIED.sha256`:** this file's line, and the line of `20261121_002_edge_bff_guest_examples.sql`, applied on
+  2026-11-21 (the promotion, sha256 `b58e304b…a69ac790d1cba84d`, recorded below) but missing from the list until now.
+
 ## 2026-11-21 — 3e, the example mode: the example files' table, and the Radar's example of 30 October 2026 (edge_bff, migration 20261121_001; data)
 
 - **Why:** the user's go of 2026-11-21 for the example mode (EXEC.md option A: "No 6 langsung jalankan saja nanti
