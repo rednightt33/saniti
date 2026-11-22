@@ -98,3 +98,22 @@ describe('restoreSaved (3f round 2 CRIT-1: a saved entry the build lacks is park
     expect(parked).toEqual([{ at:1, o:{ def:'I_LAB' } }]);
   });
 });
+
+describe('failAll (3f SERVE-4: the Terminal worker\'s error ends every waiting stage)', () => {
+  it('rejects each stage of each waiting job with the error and empties the map', async () => {
+    const { failAll } = await import('../../src/data/live');
+    const seen: unknown[] = [];
+    const stage = () => [() => {}, (e: unknown) => seen.push(e)] as [(v: any) => void, (e: any) => void];
+    const w = new Map([[1, { price:stage(), broker:stage() }], [2, { events:stage() }]]);
+    const err = new Error('worker failed');
+    failAll(w, err);
+    expect(seen).toEqual([err, err, err]);
+    expect(w.size).toBe(0);
+  });
+  it('is the worker\'s error handler (src/data/live.ts)', async () => {
+    // @ts-expect-error: the Terminal's tsconfig has no Node types; vitest runs in Node
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../../src/data/live.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/worker\.onerror = \(ev: ErrorEvent\) => \{[^}]*failAll\(waiting,/);
+  });
+});

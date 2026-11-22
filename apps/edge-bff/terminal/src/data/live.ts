@@ -172,6 +172,12 @@ type BrokerAnswer = Omit<Extract<WorkerAnswer, { type:'broker' | 'brokerAll' }>,
 interface Job { price: Promise<PriceRow[]>; bars: Promise<PriceRow[] | undefined>; broker: Promise<BrokerAnswer>; brokerAll: Promise<BrokerAnswer>; events: Promise<Record<string, unknown>[]> }
 let worker: Worker | null = null, jobs = 0;
 const waiting = new Map<number, Record<string, [(v: any) => void, (e: any) => void]>>();
+/** 3f checker SERVE-4 (the lab gaps' optional row; the user's go 2026-11-22): every stage still waiting ends with `err`,
+    and the map is emptied (the worker's error handler below; exported for its test). */
+export function failAll(w: Map<number, Record<string, [(v: any) => void, (e: any) => void]>>, err: unknown) {
+  for (const stages of w.values()) Object.values(stages).forEach(([, no]) => no(err));
+  w.clear();
+}
 function run(files: Files, tf: Timeframe = 'D', onto?: string[]): Job {
   const stage = <T>() => { let ok!: (v: T) => void, no!: (e: any) => void; const p = new Promise<T>((a, b) => { ok = a; no = b }); p.catch(() => {}); return { p, ok, no } };
   const price = stage<PriceRow[]>(), bars = stage<PriceRow[] | undefined>(), broker = stage<any>(), brokerAll = stage<any>(), events = stage<Record<string, unknown>[]>();
@@ -201,6 +207,14 @@ function run(files: Files, tf: Timeframe = 'D', onto?: string[]): Job {
       if (type === 'price' && w.bars) { w.bars[0](data.bars); delete w.bars }
       w[type][0](type === 'price' ? data.rows : type === 'events' ? data.rows : data);
       delete w[type]; if (!Object.keys(w).length) waiting.delete(id);
+    };
+    /* a worker that fails to load or throws outside a job answered nothing, so the chart stayed silent: every waiting
+       stage now ends with the data-unavailable error the page shows, and the next job starts a new worker (as the
+       Backtest's loader does, backtest/src/api/live.ts) */
+    worker.onerror = (ev: ErrorEvent) => {
+      ev.preventDefault?.();
+      failAll(waiting, new TerminalError('The data could not be read. Reload the page to try again.', 0, 'DATA_UNAVAILABLE'));
+      worker?.terminate(); worker = null;
     };
   }
   const id = ++jobs;

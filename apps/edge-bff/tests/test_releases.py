@@ -218,6 +218,59 @@ def test_an_item_the_shipped_code_names_is_never_lab():
         'its one registration point) and out of the shared code first.')
 
 
+# 3f checker CAT-5 (the lab gaps' optional row; the user's go 2026-11-22): a released entry's own text (its name, tip,
+# description, synonyms) ships to every principal, so it must not name a lab item, by id or by name. Derived from the
+# registry files the release filter knows (shared/release-filter.mjs REGISTRIES: a list per kind, or several).
+REGISTRY_FILES = (('terminal/src/data/indRegistry.json', None, 'indicator'),
+                  ('terminal/src/data/flowRegistry.json', 'indicators', 'flow_indicator'),
+                  ('backtest/src/core/backtest-registry.json', 'indicators', 'indicator'),
+                  ('backtest/src/core/candle-registry.json', 'patterns', 'candle_pattern'),
+                  ('screener/src/core/screener-metrics.json', 'metrics', 'screener_metric'),
+                  ('screener/src/core/presets.json', 'presets', 'screener_preset'))
+
+
+def registry_entries():
+    out = []
+    for file, key, kind in REGISTRY_FILES:
+        doc = json.loads((BFF / file).read_text(encoding='utf-8'))
+        for e in (doc if key is None else doc.get(key, [])):
+            if isinstance(e, dict) and isinstance(e.get('id'), str):
+                out.append((kind, e))
+    return out
+
+
+def released_text_naming_lab(current, entries):
+    lab = {(k, e['id']): e for k, e in entries if current.stage_of(k, e['id']) != 'released'}
+    marks = {}
+    for (k, i), e in lab.items():
+        marks[i] = [re.compile(rf'\b{re.escape(i)}\b')] + ([re.compile(re.escape(e['name']))]
+                                                          if isinstance(e.get('name'), str) and len(e['name']) > 3 else [])
+    hits = []
+    for k, e in entries:
+        if (k, e['id']) in lab:
+            continue
+        text = json.dumps({f: v for f, v in e.items() if f not in ('id', 'key')}, ensure_ascii=False)
+        hits += [(k, e['id'], i) for i, pats in marks.items() if i != e['id'] and any(p.search(text) for p in pats)]
+    return sorted(hits)
+
+
+def test_a_released_entrys_text_names_no_lab_item():
+    entries = registry_entries()
+    assert len(entries) > 150, f'only {len(entries)} registry entries read: REGISTRY_FILES reads the wrong lists'
+    # the guard's self-test: an indicator put at the lab stage whose id another entry's text names
+    data = json.loads(FILE.read_text(encoding='utf-8'))
+    text_ids = {i for k, e in entries for i in re.findall(r'\b[A-Z]{1,3}\d{2}\b', json.dumps(
+        {f: v for f, v in e.items() if f not in ('id', 'key')}))}
+    named = sorted(i for k, e in entries if k == 'indicator' and e['id'] in text_ids for i in [e['id']])
+    if named:
+        planted = named[0]
+        data['items'] = [{**it, 'stage': 'lab'} if (it['kind'], it['id']) == ('indicator', planted) else it for it in data['items']]
+        assert any(h[2] == planted for h in released_text_naming_lab(Releases(data), entries))
+    hits = released_text_naming_lab(releases.load(FILE), entries)
+    assert not hits, (f'released entries whose own text names a lab item ({hits[:5]}): that text ships to every '
+                      'principal. Reword it, or release the item first.')
+
+
 def test_the_module_loads_the_repository_file_and_an_unknown_id_is_lab():
     assert releases.PATH == FILE and releases.CURRENT.entries('indicator') == releases.load(FILE).entries('indicator')
     assert stage_of('indicator', 'I01') == 'released'

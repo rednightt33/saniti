@@ -311,3 +311,16 @@ def test_a_lab_build_without_its_assets_is_not_served(settings, store, built, tm
     with TestClient(create_app(settings, store, FakeOrc())) as c:
         login(c)
         assert served(c, 'terminal-app') == ('public', 404)
+
+
+def test_sign_out_clears_the_browsers_cache_of_this_site(settings, store):
+    """3f checker SERVE-2: a lab build's files stayed in the admin's private browser cache after sign-out. The sign-out
+    answer now asks the browser to clear this site's cache (Clear-Site-Data "cache"), not its storage."""
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+    from conftest import FakeOrc
+    from test_edge import login
+    with TestClient(create_app(settings, store, FakeOrc())) as c:
+        h = login(c)
+        r = c.post('/api/v1/auth/sign-out', headers=h, json={})
+        assert r.status_code == 200 and r.headers.get('clear-site-data') == '"cache"', r.headers
