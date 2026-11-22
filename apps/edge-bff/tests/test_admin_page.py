@@ -130,6 +130,23 @@ def open_browser(pw):
     return pw.chromium.launch(executable_path=CHROMIUM, headless=True, args=['--no-sandbox'])
 
 
+class Watch:
+    """What went wrong in the page and its frame: an uncaught error, a console error (a policy refusal is one), a request
+    that failed, and every answer of 400 or more (method, path, status), so a test names the ones it expects."""
+    def __init__(self, page):
+        self.errors, self.failed, self.answers = [], [], []
+        page.on('pageerror', lambda e: self.errors.append(str(e)))
+        # an answer of 400 or more is also logged as "Failed to load resource"; it is judged below, by its request
+        page.on('console', lambda m: m.type == 'error' and 'Failed to load resource' not in m.text and self.errors.append(m.text))
+        page.on('requestfailed', lambda r: self.failed.append((r.method, r.url, r.failure)))
+        page.on('response', lambda r: r.status >= 400 and self.answers.append(
+            (r.request.method, re.sub(r'^https?://[^/]+', '', r.url).split('?')[0], r.status)))
+
+    def check(self, expected=()):
+        unexpected = [a for a in self.answers if a not in expected]
+        assert (self.errors, self.failed, unexpected) == ([], [], []), (self.errors, self.failed, unexpected)
+
+
 def frame_of(page):
     page.locator('iframe.terminal-frame').wait_for()
     return page.frame_locator('iframe.terminal-frame')
@@ -190,8 +207,7 @@ def test_the_telegram_link_opens_its_ticket_after_sign_in_and_the_code(settings,
             browser = open_browser(pw)
             try:
                 page = browser.new_page(viewport={'width': 1440, 'height': 900})
-                errors = []
-                page.on('pageerror', lambda e: errors.append(str(e)))
+                watch = Watch(page)
                 page.goto(f'{local.origin}/admin?ticket={ticket}')
                 page.locator('#auth-login').fill('owner')
                 page.locator('#auth-password').fill('local-test-password')
@@ -237,7 +253,10 @@ def test_the_telegram_link_opens_its_ticket_after_sign_in_and_the_code(settings,
                 assert db(store, 'SELECT count(*) AS n FROM edge_bff.support_tickets WHERE ticket_id = %s', ticket)[0]['n'] == 0
                 trail = db(store, "SELECT action, reason FROM edge_bff.admin_audit WHERE action LIKE 'support.%%' ORDER BY audit_id")
                 assert [(t['action'], t['reason']) for t in trail] == [('support.status', None), ('support.delete', 'Answered by email')]
-                assert errors == []
+                # expected: the shell's session read before the sign-in (401), the wrong code (400), the shell's first
+                # write after the renewal (403 CSRF, repeated once with the renewed session)
+                watch.check({('GET', '/api/v1/auth/session', 401), ('POST', '/api/v1/admin/step-up', 400),
+                             ('POST', '/api/v1/support', 403)})
             finally:
                 browser.close()
     finally:
@@ -260,8 +279,7 @@ def test_every_view_fits_each_width_in_both_themes(settings, store, monkeypatch,
             browser = open_browser(pw)
             try:
                 page = browser.new_page(viewport={'width': width, 'height': height})
-                errors = []
-                page.on('pageerror', lambda e: errors.append(str(e)))
+                watch = Watch(page)
                 page.goto(f'{local.origin}/login')
                 page.locator('#auth-login').fill('owner')
                 page.locator('#auth-password').fill('local-test-password')
@@ -304,7 +322,64 @@ def test_every_view_fits_each_width_in_both_themes(settings, store, monkeypatch,
                     else:                                                         # the shown tab leads back to its list
                         f.locator('#tab-support').click()
                     f.locator('table.tickets').wait_for()
-                assert errors == []
+                watch.check({('GET', '/api/v1/auth/session', 401)})          # the session read before the sign-in
+            finally:
+                browser.close()
+    finally:
+        stop()
+
+
+def test_an_account_is_shown_in_full_only_with_a_reason_and_the_audit_file_downloads(settings, store, monkeypatch):
+    """An account's detail: its address and phone masked; Show asks why (refused without), then puts the value in place
+    and writes one audit row with the field and the reason. The audit view lists it and Download CSV saves the file (the
+    page's blob path under its policy)."""
+    need_build()
+    playwright = pytest.importorskip('playwright.sync_api')
+    from test_screener import serve
+    monkeypatch.setattr(main, 'ADMIN_APP', DIST)
+    beta = dataclasses.replace(settings, mfa_key=KEY)
+    local, stop = serve(beta, store)
+    try:
+        alice = make_user(store, 'alice_shown', 'alice-password', email='alice.shown@example.com')
+        db(store, "UPDATE edge_bff.users SET phone_e164 = '+6281234567890' WHERE user_id = %s", alice['user_id'])
+        uid = seed_id(store, beta)
+        nonce = enrol(store, uid)
+        with playwright.sync_playwright() as pw:
+            browser = open_browser(pw)
+            try:
+                page = sign_in_page(browser, local, '/admin', 'owner', 'local-test-password')
+                watch = Watch(page)
+                f = frame_of(page)
+                f.locator('#code').fill(code_of(uid, nonce))
+                f.get_by_role('button', name='Open the admin page').click()
+                f.locator('#tab-accounts').click()
+                f.locator('table.accounts .linklike', has_text='alice_shown').click()
+                f.locator('#account-name', has_text='alice_shown').wait_for()
+                email_row = f.locator('.account .kv').filter(has=f.get_by_text('Email', exact=True))
+                assert 'alice.shown@example.com' not in f.locator('.account').inner_text()
+                assert 'a***@example.com' in email_row.inner_text()
+                email_row.get_by_role('button', name='Show').click()
+                box = f.get_by_role('dialog')
+                box.get_by_role('button', name='Show').click()
+                box.locator('#reason-error').filter(has_text='Write why').wait_for()
+                box.get_by_label('Why you need it').fill('She asked to change her address')
+                box.get_by_role('button', name='Show').click()
+                email_row.filter(has_text='alice.shown@example.com').wait_for()
+                assert email_row.get_by_role('button', name='Show').count() == 0
+                phone = f.locator('.account .kv').filter(has=f.get_by_text('Phone', exact=True)).inner_text()
+                assert '+62' in phone and '1234567' not in phone                               # still masked
+                trail = db(store, "SELECT action, target_user_id, after, reason FROM edge_bff.admin_audit")
+                assert trail == [{'action': 'account.reveal', 'target_user_id': alice['user_id'], 'after': {'field': 'email'},
+                                  'reason': 'She asked to change her address'}]
+                f.locator('#tab-audit').click()
+                f.locator('table.audit td', has_text='account.reveal').wait_for()
+                with page.expect_download() as got:
+                    f.get_by_role('button', name='Download CSV').click()
+                saved = got.value
+                assert re.fullmatch(r'edge-audit-\d{4}-\d{2}-\d{2}\.csv', saved.suggested_filename)
+                text = Path(saved.path()).read_text()
+                assert text.startswith('audit_id,at,action') and 'account.reveal' in text and 'She asked' in text
+                watch.check()
             finally:
                 browser.close()
     finally:

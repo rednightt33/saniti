@@ -165,6 +165,21 @@ def test_on_the_beta_the_admin_page_asks_for_the_authenticator_code_and_nothing_
             assert 'locked on both sites' in error_of(r)['message'] and 'recovery code' not in error_of(r)['message']
 
 
+def test_the_code_step_finds_user_one_after_a_restart_beside_other_accounts(beta, store):
+    """The beta's real order: user #1 was seeded at an earlier start, other accounts exist since, the authenticator was
+    set up on the live site; the next start (a deploy) still knows user #1, so the step passes as user #1."""
+    with TestClient(create_app(beta, store, FakeOrc())):
+        pass                                                                    # the first start seeds user #1
+    make_user(store, 'alice_restart', 'alice-password')
+    uid = seed_id(store, beta)
+    nonce = enrol(store, uid)
+    with TestClient(create_app(beta, store, FakeOrc())) as c:                   # the next start: users not empty
+        h = login(c)
+        r = c.post('/api/v1/admin/step-up', headers=h, json={'code': code_of(uid, nonce)})
+        assert r.status_code == 200, r.text
+        assert c.get('/api/v1/admin/overview').status_code == 200
+
+
 def test_the_code_step_names_a_missing_key_and_is_not_offered_with_the_switch_on(settings, store, caplog):
     with TestClient(create_app(settings, store, FakeOrc())) as c:                    # the beta without EDGE_MFA_KEY
         h = login(c)
@@ -254,6 +269,10 @@ def test_the_audit_file_never_holds_a_formula_and_follows_the_filters(beta, stor
         assert ',=HYPERLINK' not in text
         r = c.get('/api/v1/admin/audit', params={'since': 'yesterday'})
         assert (r.status_code, error_of(r)['details']['fields']) == (400, ['since'])
+        # the page sends the viewer's day as a moment in UTC (toISOString, "...Z"); an offset works too
+        for since in ('2000-01-01T00:00:00.000Z', '2000-01-01T07:00:00+07:00', '2000-01-01'):
+            assert len(c.get('/api/v1/admin/audit', params={'since': since}).json()['audit']) == 3, since
+        assert c.get('/api/v1/admin/audit', params={'until': '2000-01-02T00:00:00.000Z'}).json()['audit'] == []
         # more rows than the file holds: refused, naming the dates to narrow, never a file cut short
         monkeypatch.setattr(admin_module, 'CSV_ROWS', 2)
         r = c.get('/api/v1/admin/audit.csv')

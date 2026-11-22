@@ -16502,7 +16502,8 @@ Order of the services (CONTRACT 17, rollback floors):
             the audited reveal, the audit and its spreadsheet file, the plans (read-only), the settings that are no
             secret (`SHOWN_SETTINGS`), and the Support inbox with its images (sandboxed, never cached), done/new, the
             Telegram summary again and, by **2B**, the delete by hand with a reason, each audited in its own
-            transaction. Tests: `tests/test_admin.py` (8); 28 mutations of the gate, the code step, the masks, the
+            transaction. Tests: `tests/test_admin.py` (10, with the restart order of the real beta: user #1 seeded
+            at an earlier start, other accounts since); 28 mutations of the gate, the code step, the masks, the
             audit and the image headers, each red but one equivalent (the recovery code passed on to a check it can no
             longer reach).
             - Design values taken by the main agent (to tell the user): the beta needs `EDGE_MFA_KEY` equal to the live
@@ -16515,12 +16516,14 @@ Order of the services (CONTRACT 17, rollback floors):
             cannot check the code, or no authenticator is set up on the live site yet), the Support inbox with the
             Telegram link's ticket, the overview, the accounts with the asked-for reveal, the audit and its file, the
             plans and the settings; in the shell `/admin`, the rail's shield and the account menu's "Admin page". Tests:
-            `tests/test_admin_page.py` (11: who gets the files, the gate whatever the release file says, the live site,
+            `tests/test_admin_page.py` (12: who gets the files, the gate whatever the release file says, the live site,
             the shell's words, the link's ticket after sign-in and the code, a shell write after the step, the delete with
-            a reason, every view at 1440, 1152, 390 and 360 px light and dark with each table's headers over their
-            columns, the sign-in rule on other pages, the closed screens), the page's unit, bundle and design-copy tests
-            (12); 20 mutations of the server, the shell, the page and its model, each red; the 4a route walk now reaches
-            the admin routes and watches rows kept by user id (ERRORS M534).
+            a reason, an account's address shown only with a reason and the audit file downloaded, every view at 1440,
+            1152, 390 and 360 px light and dark with each table's headers over their columns, the sign-in rule on other
+            pages, the closed screens; every browser test fails on a console error, a failed request or an answer of 400
+            or more it does not name), the page's unit, bundle and design-copy tests (12); 23 mutations of the server,
+            the shell, the page and its model, each red; the 4a route walk now reaches the admin routes and watches rows
+            kept by user id (ERRORS M534).
             - Design values taken by the main agent (to tell the user): **a sign-in stays at the page it was shown at**
               when the account can open it, for every tab on both sites (needed for the Telegram link; before, every
               sign-in went to the Monitor or the Terminal); the admin page opens on the Support inbox; its entries are a
