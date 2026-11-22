@@ -2935,7 +2935,9 @@ function SourceFold({title, children}) {
  const m=/^(.*) \((\d+)\)$/.exec(title), label=m?m[1]:title, count=m?m[2]:null, key="edge-sources-open:"+label;
  let open=false;try{open=localStorage.getItem(key)==="true";}catch{/* folded */}
  return element("details",{className:"content-block edge-source-fold",open,onToggle:event=>{try{localStorage.setItem(key,String(event.currentTarget.open));}catch{/* not kept */}}},
-  element("summary",null,element("span",null,label),count!=null&&element("span",{className:"edge-section-count","aria-hidden":"true"},count),element(DisclosureChevron)),
+  // ERRORS M547: the choice is kept on the summary's click, before the browser's toggle event: a redraw between the
+  // two (the run's next poll) mounted the part again from the old choice and closed what the user had just opened
+  element("summary",{onClick:event=>{const d=event.currentTarget.parentElement;try{localStorage.setItem(key,String(!(d&&d.open)));}catch{/* not kept */}}},element("span",null,label),count!=null&&element("span",{className:"edge-section-count","aria-hidden":"true"},count),element(DisclosureChevron)),
   children);
 }
 function Sources({run, act}) {

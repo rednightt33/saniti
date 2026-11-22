@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 import pytest
+from playwright.sync_api import expect
 import uvicorn
 
 from app.main import create_app
@@ -380,9 +381,15 @@ def test_sources_list_the_answers_tables_with_an_export_request(fixture_server, 
     tables = sources.locator('details.edge-source-fold').filter(has=page.locator('summary', has_text='Result tables'))
     assert tables.locator('.edge-section-count').inner_text() == '1' and not tables.evaluate('node => node.open')
     tables.locator('summary').click()
-    assert sources.get_by_text('Net beli broker asing', exact=True).is_visible()
-    assert sources.locator('.edge-source-ref').first.inner_text() == 'out.1'
-    table = sources.locator('.edge-source').first.inner_text()
+    # ERRORS M547: every read waits until the opened part shows its rows; read at once, a closed or redrawn part gave ''
+    # (CI 45043526824; locally 1 run in 2 under load)
+    expect(tables).to_have_js_property('open', True)
+    page.wait_for_timeout(1500)  # ERRORS M547: the next poll's redraw comes within this; the part must stay open
+    expect(tables).to_have_js_property('open', True)
+    expect(sources.get_by_text('Net beli broker asing', exact=True)).to_be_visible()
+    expect(tables.locator('.edge-source-ref').first).to_have_text('out.1')
+    expect(tables.locator('.edge-source').first).to_contain_text('Data as of')
+    table = tables.locator('.edge-source').first.inner_text()
     assert 'Rows\n12' in table and 'Columns\n3' in table and 'Data as of\n15 October 2026' in table and '{n}' not in table
     assert 'older' not in sources.inner_text() and 'ringkasan' not in sources.inner_text()
     assert 'DATA_COVERAGE_VERIFIED' not in sources.inner_text() and 'Net beli harian per broker asing.' in table

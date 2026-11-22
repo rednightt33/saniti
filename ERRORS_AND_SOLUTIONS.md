@@ -8886,6 +8886,25 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M547 — The AI page's Sources: a part the user just opened closed again when the panel was drawn anew (2026-11-22; found by the agent from a flaky test; FIXED on the branch, see Status)
+
+- **Found by:** the agent, from `tests/test_answer_view.py::test_sources_list_the_answers_tables_with_an_export_request`
+  failing in the full local run (`assert '' == 'out.1'`) and in CI 45043526824 (passed on its rerun).
+- **Symptom:** in Sources, a part opened with a click (Result tables) was closed again about a second later. Measured in
+  the test: open right after the click, `open` false 1.5 s later; the test read an empty part.
+- **Verified root cause:** `SourceFold` (`apps/edge-bff/static/edge-app.js`) takes its open state from localStorage when
+  it mounts and saves the choice in the browser's `toggle` event, which fires after the click. The run's next poll draws
+  the panel anew; when that mount came between the click and the `toggle` event, it read the old choice (closed), and
+  the event of the old element then saved "open" for an element no longer on the page.
+- **Class:** a choice kept in an asynchronous event and read back on mount: any folded part of the shell drawn anew by
+  a poll (the Sources parts today) can lose a click made just before the redraw.
+- **Solution:** the summary's click saves the new choice at once (`onClick` on the `summary`, before the toggle); the
+  toggle handler stays. The test waits for each read (Playwright `expect`) and checks that the part is still open
+  1.5 s after the click.
+- **Evidence:** 6 of 6 runs pass with the fix; with it removed, 1 run of 4 fails (the race is timing-bound, so the
+  test catches it only part of the time; step 8 to judge whether a deterministic probe is needed).
+- **Status:** FIXED on the branch (this entry's commit); its test-out joins step 8 (EXEC UD23).
+
 ### M546 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; FIXED on the branch, `6b3edc6c`)
 
 - **Same defect as M541** (another session's entry of the same day, with the same root cause and the same proposed fix,
@@ -9014,7 +9033,7 @@ in its staleness check.
   `buy`/`both`/lainnya.
 - **Status:** open; dilaporkan ke user 2026-11-22.
 
-### M539 — CI edge-bff: "too many clients" di database uji; tes-tes yang sama gagal di `main` dua kali (2026-11-22, cause verified, fix awaiting the user)
+### M539 — CI edge-bff: "too many clients" di database uji; tes-tes yang sama gagal di `main` dua kali (2026-11-22, cause verified; FIXED on the branch, see its update)
 
 - **Gejala:** Backend tests (job edge-bff) run 45029226701 (`27e33943`, commit dokumen saja) dan 45039209166 (`6cc859ee`):
   `ERROR at setup of test_a_value_outside_its_capabilitys_domain_is_refused_when_written[terminal.tickers-…]`,
@@ -9033,6 +9052,11 @@ in its staleness check.
   di akhir tesnya; tes penjaga yang membaca jumlah koneksi sesudah suite. TEMPORARY yang tidak dipilih: menaikkan
   `max_connections` di service Postgres CI (menutupi kebocoran, tidak memperbaikinya).
 - **Status:** cause verified; perbaikan menunggu persetujuan user.
+- **Update 2026-11-22 (branch `claude/pensive-feynman-4ahfe3`, the user's go: "Apabila ada error di tes, harap dicatat untuk
+  perbaikan bisa langsung dijalankan sebelum deploy beta"):** the same five setup errors in the full local run
+  (1206 passed). Fixture `store` (`apps/edge-bff/tests/conftest.py`) now yields and closes its pool after each test;
+  the two tests that build `Store(...)` themselves (`test_decisions_small.py`, `test_r2_life.py` `runtime_store`)
+  already closed theirs. Guard: `tests/test_store_fixture.py` (red with the close removed). Its test-out: step 8.
 
 ### M538 — Terminal: drag kiri-kanan sangat laggy; indikator yang mengikuti layar dihitung ulang terus selama chart bergeser (2026-11-22, fixed)
 

@@ -123,7 +123,13 @@ def store(database):
     # EXEC-SCREENER (migration 20261028_001): with the saved screener items and the watchlist; EXEC-MU-ACCOUNTS: and the
     # sign-in throttle, so one test's wrong passwords never limit another's sign-in
     with psycopg.connect(database) as c:c.execute('TRUNCATE edge_bff.sessions,edge_bff.jobs,edge_bff.conversation_ui,edge_bff.screener_items,edge_bff.watchlist_items,edge_bff.watchlist_lists,edge_bff.terminal_layouts,edge_bff.indicator_presets,edge_bff.terminal_drawings,edge_bff.auth_throttle,edge_bff.users,edge_bff.user_preferences,edge_bff.email_outbox,edge_bff.email_suppression,edge_bff.email_hook_events,edge_bff.admin_audit CASCADE')  # admin_audit by name: 20261119_040 dropped its foreign keys to users, so the cascade no longer reaches it
-    return RoleStore(database, APP_ROLE) if APP_ROLE else Store(database)
+    s = RoleStore(database, APP_ROLE) if APP_ROLE else Store(database)
+    # ERRORS M539: the store's pool is closed after each test; left to the garbage collector, idle connections piled up
+    # (68 idle after 116 tests, a peak of 98 of 100) until a later test failed 'too many clients already'
+    try:
+        yield s
+    finally:
+        s.close()
 
 # Phase 4 (the advisor's check of 2026-11-22): every test runs as the superuser, so a grant the runtime role lacks never
 # shows here and becomes a 500 deployed. EDGE_TEST_APP_ROLE=edge_bff_runtime runs every store connection (the app's and
