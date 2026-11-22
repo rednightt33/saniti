@@ -16612,6 +16612,11 @@ Order of the services (CONTRACT 17, rollback floors):
     that hour is free); the count's cost measured from the logs after the beta deploy, B the way back.
   - Order: the records, group A, the lab gaps and W4, the re-check, the beta; the live site only on the user's request
     (group A reaches the live site only with a promotion, which carries Phase 4's support panel too).
+- **The user's go for the rest of the round (2026-11-22): "Lanjutkan sisa pekerjaan, kemudian penutup putaran ya.. then
+  proceed ke langkah 7. Aman?"** The rest (R1-5 A1, lab gap 3 and L11, the status test of rule 9), then the close (the
+  re-check by five agents with the older fixes, the beta deploy with the shared workers' check against the live site's
+  older edge-bff, the proposal to move `live`, which waits for the user's go), then step 7. Q1 and Q2 stay as they are
+  and in the register unless answered before the close.
 - **Pending decisions (AGENTS.md "Findings and fixes", rule 6; shown to the user at the end of every phase).** From the
   open-items report of 2026-11-22 (workflows `wf_12dda52c-918`, `wf_539660fc-8ff`; UD = waiting for the user):
 
