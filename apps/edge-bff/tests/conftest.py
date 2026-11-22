@@ -215,6 +215,9 @@ class FakeOrc:
 # browser now gets every sub-app the image would hold: the mapping is read from the Dockerfile's COPY lines, so a new
 # page is covered when its COPY line is added. A folder the test points elsewhere itself (a stand-in, 'not-built')
 # keeps the test's own value (its setattr comes after this fixture); a folder already built in static/ is left as it is.
+# A lab build (main.py's *_LAB_APP, the admin's build of a page that has one) is left as it is on disk: it would replace
+# a stand-in the test points the public folder at for the admin (test_backtest_tab_in_the_browser), and a test that
+# needs the lab build points its folder there itself (test_3f_lab_pages).
 DOCKERFILE = Path(__file__).resolve().parents[1] / 'Dockerfile'
 COPIED_BUILD = re.compile(r'^COPY --from=\S+ /build/(\S+) \./static/(\S+)\s*$', re.M)
 
@@ -232,7 +235,7 @@ def built_pages(request, monkeypatch):
     from app import main
     builds = image_builds()
     for name, value in list(vars(main).items()):
-        if name.endswith('_APP') and isinstance(value, Path) and value.parent == main.STATIC:
+        if name.endswith('_APP') and not name.endswith('_LAB_APP') and isinstance(value, Path) and value.parent == main.STATIC:
             build = builds.get(value.name)
             if build and not (value / 'index.html').is_file() and (build / 'index.html').is_file():
                 monkeypatch.setattr(main, name, build)
