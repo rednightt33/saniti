@@ -16664,6 +16664,13 @@ Order of the services (CONTRACT 17, rollback floors):
     `20261123_001` applied first (expand-only), the backtest-worker uploaded by CLI, then `main`; the live site does not
     move. Anything outside the list given to the user that day (step 7, the lab lift and L11, the look-ahead loader fix,
     the step 9 test, the records) is named and asked again.
+  - The sequence after the test-out fixes (2026-11-23): "Catat sequence berikut. Yang pertama saya izinkan. Setelah kamu
+    push ke main, kamu akan mengerjakan bagian preview. Saya minta juga bagian ini dikerjakan uuga setelah bagian
+    preview. [...] indikator Flow (FL) baru belum bisa dijadikan lab, karena titik pendaftaran rumusnya belum dibangun
+    [...] konfirmasi dulu." → (1) the APPLY of migration `20261123_001` (permitted), the backtest-worker upload, `main`
+    to the branch, the beta checked; (2) the "preview" stage (its plan above); (3) the lab Flow indicator's
+    registration point (the carried part "A lab Flow indicator's registration point"), after (2). Each deploy within
+    (2) and (3) is asked as AGENTS.md "Deploys" says.
 - **The user's go for the rest of the round (2026-11-22): "Lanjutkan sisa pekerjaan, kemudian penutup putaran ya.. then
   proceed ke langkah 7. Aman?"** The rest (R1-5 A1, lab gap 3 and L11, the status test of rule 9), then the close (the
   re-check by five agents with the older fixes, the beta deploy with the shared workers' check against the live site's
