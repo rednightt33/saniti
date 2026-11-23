@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M548 — The lab item guard lifted; its dry run found the look-ahead gate passing a lab indicator without computing it (2026-11-23; found by the dry run; FIXED on the branch, see Status)
+### M548 — The lab item guard lifted; its dry run found the look-ahead gate passing a lab indicator without computing it (2026-11-23; found by the dry run; FIXED on the branch, `6ab63c15`)
 
 - **The user (2026-11-23):** "Cabut tes penjaga lab".
 - **Lifted per kind** (`apps/edge-bff/tests/test_releases.py`, `LAB_ITEM_HELD_UNTIL` replaced by `LAB_KIND_HELD`): an
@@ -8907,7 +8907,7 @@ in its staleness check.
 - **Class and lesson:** a guard that silently skips a missing formula is not a gate; a test that names the next free id
   breaks at the first new item. `terminal/src/lab/index.ts` is hashed into both engine versions, so they change at the
   next worker deploy.
-- **Status:** FIXED on the branch (this entry's commit); the CRIT-1 round trip on the real sites runs at the first lab
+- **Status:** FIXED on the branch, `6ab63c15`; the CRIT-1 round trip on the real sites runs at the first lab
   indicator's beta deploy (INDICATOR_BETA_TO_LIVE.md Part A step 12); its test-out: the workflow of items 1-3, then
   step 8.
 
