@@ -32,3 +32,25 @@ def test_flow_registry_is_current():
     pytest.importorskip('openpyxl')
     run = subprocess.run(['python3', 'scripts/build_flow_registry.py', '--check'], cwd=ROOT, capture_output=True, text=True, timeout=600)
     assert run.returncode == 0, f'{run.stdout}{run.stderr}'
+
+
+def test_flow_spec_workbook_is_current(tmp_path):
+    """check of steps 2-3 (2026-11-23, F1): FLOW_INDICATORS_SPEC.xlsx is itself written by
+    verification/terminal_api/flow_indicators/build_spec_workbook.py from user_input_20261030.xlsx, so a row added to the
+    workbook by hand is lost at the next rebuild (and with it the Flow indicator's registry entry). The rebuilt workbook
+    must hold the committed one's cells, sheet by sheet (INDICATOR_BETA_TO_LIVE.md "A lab Flow indicator" step 1)."""
+    openpyxl = pytest.importorskip('openpyxl')
+    folder = ROOT / 'verification' / 'terminal_api' / 'flow_indicators'
+    out = tmp_path / 'FLOW_INDICATORS_SPEC.xlsx'
+    run = subprocess.run(['python3', '-I', 'build_spec_workbook.py', 'user_input_20261030.xlsx', str(out)], cwd=folder,
+                         capture_output=True, text=True, timeout=600)
+    assert run.returncode == 0, f'{run.stdout}{run.stderr}'
+    def cells(path):
+        wb = openpyxl.load_workbook(path, data_only=True)
+        return {ws.title: [list(r) for r in ws.iter_rows(values_only=True)] for ws in wb.worksheets}
+    built, committed = cells(out), cells(folder / 'FLOW_INDICATORS_SPEC.xlsx')
+    assert sorted(built) == sorted(committed), (sorted(built), sorted(committed))
+    for sheet in committed:
+        assert built[sheet] == committed[sheet], (
+            f'{sheet}: FLOW_INDICATORS_SPEC.xlsx differs from what build_spec_workbook.py writes; change the builder and '
+            'rebuild (python3 -I build_spec_workbook.py user_input_20261030.xlsx FLOW_INDICATORS_SPEC.xlsx), never the workbook')

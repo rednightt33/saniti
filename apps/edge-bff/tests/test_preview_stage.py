@@ -41,8 +41,8 @@ def preview_one_of_each(monkeypatch):
               'preset': ('screener_preset', releases.entries('screener_preset')[0]['id'])}
     assert all(releases.stage_of(k, i) == 'released' for k, i in chosen.values())
     picked = set(chosen.values())
-    items = [{'kind': k, 'id': e['id'], 'stage': PREVIEW if (k, e['id']) in picked else e['stage']}
-             for k in releases.KINDS for e in releases.entries(k)]
+    items = [{'kind': k, 'id': e['id'], 'stage': PREVIEW if (k, e['id']) in picked else 'released'}
+             for k in releases.KINDS for e in releases.entries(k)]                      # the others released, whatever today's file holds
     monkeypatch.setattr(releases, 'CURRENT', releases.Releases({
         'schema_version': 1, 'items': items, 'tabs': [{'id': t, 'stage': st} for t, st in releases.CURRENT.tabs().items()]}))
     return chosen

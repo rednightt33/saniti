@@ -46,12 +46,16 @@ export function menuItems(indReg: any[], flowReg: { families: string[]; indicato
 }
 
 /** EXEC-MU-ACCOUNTS "A preview release stage" (the user 2026-11-23: a new indicator on the live site for the admin only,
-    "user paid tidak bisa lihat"): an entry the page build marks `release` (shared/release-filter.mjs: a preview item,
-    or a lab one in the admin's lab build) that the catalog does not list for the principal (live.ts lockRules) is left
+    "user paid tidak bisa lihat"): an entry the page build marks `release` (shared/release-filter.mjs marks a preview
+    item, in both builds; a lab entry carries no mark) that the catalog does not list for the principal (live.ts lockRules) is left
     out of the menu, its search included, rather than shown locked as a released item outside the plan is. A catalog
     that cannot be read locks its kind, so the entry stays out (fail closed). */
 export const heldBack = (i: MenuItem, locks: Locks | undefined) =>
   !!i.release && i.kind !== 'Base' && !!locks?.item(i.kind === 'Flow' ? 'flow_indicator' : 'indicator', i.id);
+/** the menu's rows for a principal: menuItems without the entries held back for it (heldBack); the one list the menu,
+    its search, its favourites and its lock box read (check of steps 2-3, P1: the filter is tested through this) */
+export const menuRows = (indReg: any[], flowReg: { families: string[]; indicators: any[] }, have: ReadonlySet<Input>, locks: Locks | undefined): MenuItem[] =>
+  menuItems(indReg, flowReg, have).filter(i => !heldBack(i, locks));
 
 /** the rows a group (or a search) shows: a search looks at the name, code, group and kind of every row */
 export type KindFilter = 'all' | 'Technical' | 'Flow';
@@ -117,7 +121,7 @@ const CHECK = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentC
    All indicators, then Technical and Flow; a click on a row or Add always adds and shows "<name> added" */
 export function initIndMenu(ctx: Ctx) {
   const { IND_REG, Ind, volCtl } = ctx;
-  const items = menuItems(IND_REG as any[], FLOW_REG as any, inputsOf(ctx.M)).filter(i => !heldBack(i, ctx.M.locks));
+  const items = menuRows(IND_REG as any[], FLOW_REG as any, inputsOf(ctx.M), ctx.M.locks);
   const groupsOf = (kind: 'Technical' | 'Flow') => [...new Set(items.filter(i => kind === 'Flow' ? i.kind === 'Flow' : i.kind !== 'Flow').map(i => i.group))];
   let favs = new Set<string>();
   try { favs = new Set(JSON.parse(store.get(FAV_KEY) || '[]')) } catch { /* none saved */ }

@@ -148,6 +148,10 @@ All edits are on the session branch; one commit per indicator (or one per batch)
       ERRORS M523 (CRIT-1).
 13. **Tell the user** the indicator is on the beta only, how to see it, and what Part B will move.
 
+**The tripwire in Part A** (check of steps 2-3, F7): a lab formula moves both engine versions, so the Backtest tripwire
+(`npm run tripwire` in `apps/edge-bff/screener`, not in CI) is recorded in the lab commit with the user's words
+(`--record --exec <section> --decision "<words>" --note "<what>"`), as Part B step 2 records it at release.
+
 ## Part B: release to the live site, on the user's OK
 
 Only when the user names the indicator ("I54 boleh ke live"); never on a schedule (AGENTS.md "The live site").
@@ -202,16 +206,28 @@ checked: a browser drawing the lab FL53 on the lab Terminal (its lab bundle hold
 steps 9-13 (tests, commit, CI, the deploys, the check on the beta) and Parts B and C apply as for a technical
 indicator; these replace its steps 1-8:
 
-1. **The registry entry, from the spreadsheet.** `verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx`:
-   a row in `Ringkasan` (id, name `<Family> · <Name>`, place, unit, frequency) and its rows in `Parameter_Terminal`; its
-   plain tip in `scripts/build_flow_registry.py` `PLAIN` (or the `Indikator_baru_dari_Screener` sheet). Then
-   `python3 scripts/build_flow_registry.py` (it sorts by number). An indicator the script builds itself goes in
-   `extra_indicators`. None of these files is in a page build.
+1. **The registry entry, from the spreadsheet's builder.** Its id is the next free `FL` after the registry's last
+   (`tests/test_releases.py` `test_the_flow_registry_is_numbered_without_gaps`); release in id order where the user
+   allows. The spreadsheet `FLOW_INDICATORS_SPEC.xlsx` is generated: add the indicator to
+   `verification/terminal_api/flow_indicators/build_spec_workbook.py` (its row of `Ringkasan`: id, name, place, unit,
+   frequency; its parameter rows), rebuild with `python3 -I build_spec_workbook.py user_input_20261030.xlsx
+   FLOW_INDICATORS_SPEC.xlsx` in that folder (`scripts/tests/test_registries_current.py`
+   `test_flow_spec_workbook_is_current` refuses a hand edit of the workbook), then `python3 scripts/build_flow_registry.py`
+   (it sorts by number). In `scripts/build_flow_registry.py`: its plain tip in `PLAIN`; its menu family is the name's
+   head before ` · ` looked up in `FAMILY_OF` (`Share`, `Transaction Size`, `Transactions`, `Activity Spike`,
+   `Concentration HHI`, `Concentration Top-N`, `Top Brokers`, `Buy VWAP`, `Sell VWAP`, `Implied Cost`, `Flow Ratio`, the
+   `Net Flow` names; any other head is `Other`); each spreadsheet word must be in `LABELS`, `OPTIONS`, `UNIT` or `PLACE`
+   (the script names the map and the fix when one is not); an output other than `value` is named in `outputs()`. An
+   indicator the script builds itself goes in `extra_indicators`. None of these files is in a page build.
 2. **Its stage:** `apps/edge-bff/catalog/releases.json` `{"kind": "flow_indicator", "id": "FL53", "stage": "lab"}`.
 3. **Its formula, in the lab module only:** `apps/edge-bff/terminal/src/lab/index.ts`,
    `registerFlow('FL53', (c, p) => ...)` built from `flowKit` (`calc/flow.ts`: the call's broker grid, the window,
    the Top-N cohort and its sums, the ratio and null rules). A block it needs that the kit lacks is added to `flowKit`
-   in the same commit; never copy one. `registerFlow` refuses an id that has a formula.
+   in the same commit; never copy one. `registerFlow` refuses an id that has a formula. What a block returns is shared
+   with the released formulas: read it, never change it (the cohort is handed out as a copy).
+   Its unit test: `terminal/tests/calc/<id>.test.ts` imports `../../src/lab/index.ts` and checks `computeFlow` against
+   values computed by hand (as `flow_register.test.ts` does for FL97); the page tests never load the lab module. At
+   release, the Flow oracle (`verification/terminal_api/flow_indicators/oracle/`) is extended or the release says why not.
 4. **Its Screener output kinds:** `apps/edge-bff/screener/src/core/flow-kinds.json` `indicators.FL53` (each output's
    kind letter, `adv_floor`). The generator refuses an output without one.
 5. **The generated registries:** `npm run registry` in `apps/edge-bff/screener` (it imports the lab module through the
@@ -222,11 +238,18 @@ indicator; these replace its steps 1-8:
    bundle scan finds it. A lab Flow indicator that needs such a row cannot be lab today: the tables would first be
    derived from the registry entry (EXEC-MU-ACCOUNTS, Carried open parts, "A lab Flow indicator that needs a per-id
    row"), which the user decides.
-7. **The gates:** the look-ahead gate computes it with every option and fails when a registry Flow indicator has no
-   formula (`apps/backtest-worker/tests/lookahead.test.ts`, "every Flow indicator of the registry has a formula");
-   the screener-worker's catalog count is derived from the generated registry (`tests/flow.test.ts`).
+7. **The gates:** the look-ahead gate computes it with every option and its numbers at their minimum, three times the
+   default and the maximum, and fails when a registry Flow indicator has no formula or only nulls at its defaults
+   (`apps/backtest-worker/tests/lookahead.test.ts`); the screener-worker's catalog count is derived from the generated
+   registry (`tests/flow.test.ts`). **The tripwire:** the engine versions hash the lab module and `flowRegistry.json`, so
+   record its baseline in the lab commit with the user's words (`npm run tripwire` in `apps/edge-bff/screener`; `--record
+   --exec <section> --decision "<words>" --note "<what>"`, `scripts/screener/check_backtest_untouched.mjs`). Part A step 9's
+   expected changes for a Flow indicator: both engine versions and `screener_registry_version`; `registry_version` stays.
 8. **Its release** (Part B) or preview (Part C) moves the formula into `calc/flow.ts` `FLOW` and out of the lab module;
-   the page tests then compute it (`terminal/tests/calc/flow.test.ts` "registry").
+   the page tests then compute it (`terminal/tests/calc/flow.test.ts` "registry"). No Flow count is pinned in the page
+   tests (check of steps 2-3, P2: `terminal/tests/data/pane_filters.test.ts` holds the final proposal's counts for
+   FL01-FL52 and a rule for every later one, `flow.test.ts` the order, `screener/tests/core/catalog.test.ts` follows the
+   generated registry). Preview: the rule of Part C step 0.
 
 ## Part C: on the live site for the admin only (preview), on the user's OK
 
@@ -237,12 +260,20 @@ not: the admin (`*`, or an account given its id) sees and runs it on both sites;
 it (the menus leave it out, the catalogs do not list it, the workers refuse it); its definition and formula are in the
 public page files, so anyone reading those files can see them. A formula that must stay private stays lab.
 
+0. **Can it be preview?** an indicator or a Flow indicator may be preview only when no shipped code but its own formula
+   definition names or computes it (`tests/test_releases.py` `test_an_item_the_shipped_code_names_is_never_lab`, its
+   `FORMULA_HOME` rule): 36 of today's 53 indicators and 20 of the 52 Flow indicators qualify today; a new one qualifies
+   when only its formula names it (checked on disk 2026-11-23 with I53 and FL22 at preview: every
+   suite named below green). An item that another formula, a built-in, a worker or a page list names or computes stays lab or
+   released, or that code moves first.
 1. **Record the user's words** in `EXEC.md`.
-2. **One commit that moves it to preview:** every line of Part B step 2 (the formula into `calc/indicators.ts` and out
-   of `src/lab/index.ts`, the registries, the release pins, the golden, the pointers, the oracle, the tripwire record),
-   with its `releases.json` stage `preview` instead of `released`. The public builds now hold it, marked `release:
-   'preview'`; `terminal/tests/calc/public_formulas.test.ts` fails if its formula is still lab-only.
-3. **The tests of Part A step 9**, `tests/test_preview_stage.py` and `tests/test_3f_public_bundles.py`.
+2. **One commit that moves it to preview:** every line of Part B step 2 (the formula into `calc/indicators.ts` or
+   `calc/flow.ts` and out of `src/lab/index.ts`, the registries, the release pins, the golden, the pointers, the oracle,
+   the tripwire record), with its `releases.json` stage `preview` instead of `released`. The public builds now hold it,
+   marked `release: 'preview'`; `terminal/tests/calc/public_formulas.test.ts` fails if its formula is still lab-only.
+   A stored example (`/api/v1/examples`) that names it is withheld from visitors until it is captured again.
+3. **The tests of Part A step 9**, `tests/test_releases.py` (the shipped-code rule above), `tests/test_preview_stage.py`,
+   `tests/test_3f_tab_catalogs.py` and `tests/test_3f_public_bundles.py`.
 4. **Commit and push; read its CI runs** (Part A step 10).
 5. **The beta deploy, with the user's confirmation** (Part A step 11).
 6. **The promotion** (Part B step 7): `scripts/live_diff.py --sites` names it under "preview (on the live site for the
@@ -262,10 +293,14 @@ its `releases.json` stage `released` and the tripwire record; then Part B steps 
 - A fix of a lab formula only (no registry row changed) moves both engine versions but not `registry_version` or the
   Screener's `formula_version`: the registry hashes `indRegistry.json` and `calc/indicators.ts`, not the lab module.
 - Other kinds (tests/test_releases.py `LAB_KIND_HELD`): a Screener metric and a preset may be lab (data the workers read
-  whole); a candle pattern and a Flow indicator may not yet: a lab candle needs its pair and mirror (`candles.ts`), a
-  `CASES` entry and the count pins of `lookahead.test.ts`, `candles.test.ts` and `operators.test.ts` made derived, and a
-  dry run like the indicator's (EXEC-MU-ACCOUNTS, Carried open parts). A Flow indicator may be lab since 2026-11-23
-  (section "A lab Flow indicator"). Any kind may be preview (Part C): its formula is public at that stage.
+  whole); a Flow indicator may be lab since 2026-11-23 (section "A lab Flow indicator"); a candle pattern may not yet: a
+  lab candle needs its pair and mirror (`candles.ts`), a `CASES` entry and the count pins of `lookahead.test.ts`,
+  `candles.test.ts` and `operators.test.ts` made derived, and a dry run like the indicator's (EXEC-MU-ACCOUNTS, Carried
+  open parts). Preview (Part C): an indicator or a Flow indicator may be preview only when no shipped code but its own
+  formula definition names or computes it (`tests/test_releases.py` `test_an_item_the_shipped_code_names_is_never_lab`,
+  its `FORMULA_HOME` rule): 36 of today's 53 indicators and 20 of the 52 Flow indicators qualify today; a new one
+  qualifies when only its formula names it; candle patterns, most Screener metrics and presets qualify
+  as data. Its formula is public at that stage.
 
 ## Many indicators at once
 

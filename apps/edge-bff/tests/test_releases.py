@@ -81,7 +81,8 @@ def test_every_registry_id_has_an_entry_and_every_entry_names_a_registry_id():
     assert not missing, (
         'These registry items have no release stage in apps/edge-bff/catalog/releases.json (an unlisted item is lab '
         'at run time, but the file must name each one). Add one line per item to "items": "lab" for a beta-only item '
-        '(INDICATOR_BETA_TO_LIVE.md part A; not a Flow indicator, LAB_KIND_HELD), or "released" with the user\'s go '
+        '(INDICATOR_BETA_TO_LIVE.md part A, a Flow indicator its section "A lab Flow indicator"; not a candle pattern, '
+        'LAB_KIND_HELD), "preview" for the admin only (part C), or "released" with the user\'s go '
         '(part B; LIVE_PROMOTION.md section 3):\n'
         + '\n'.join(f'    {{"kind": "{kind}", "id": "{i}", "stage": "lab"}},' for kind, i in missing))
     stale = [(kind, i) for kind in KINDS for i in listed[kind] if i not in registries[kind]]
@@ -189,10 +190,11 @@ def test_an_item_no_worker_gates_by_id_is_never_lab():
     ref, shown = not_gated_by_id()
     assert ref and shown, 'the catalog has no ref entry or no row entry: not_gated_by_id reads the wrong fields'
     planted = sorted({min(ref), min(shown)})
-    data = json.loads(FILE.read_text(encoding='utf-8'))
-    data['items'] = [{**it, 'stage': 'lab'} if it['kind'] == 'screener_metric' and it['id'] in planted else it
-                     for it in data['items']]
-    assert lab_not_gated(Releases(data)) == planted                                     # the guard's self-test
+    for stage in ('lab', 'preview'):                    # never preview either (check of steps 2-3, PV-4)
+        data = json.loads(FILE.read_text(encoding='utf-8'))
+        data['items'] = [{**it, 'stage': stage} if it['kind'] == 'screener_metric' and it['id'] in planted else it
+                         for it in data['items']]
+        assert lab_not_gated(Releases(data)) == planted, stage                           # the guard's self-test
     lab = lab_not_gated(releases.load(FILE))
     assert not lab, (
         f'{lab} at the lab stage in apps/edge-bff/catalog/releases.json, but no worker gates them by id: a universe '
@@ -231,15 +233,35 @@ def key_aliases():
     return out
 
 
-def named_in_code(current):
+# The public formula files where a preview or released item's formula is defined (INDICATOR_BETA_TO_LIVE.md Part C): an
+# indicator's `<key>: def('<key>', ...)` line in calc/indicators.ts, a Flow indicator's `FLnn:` entry of FLOW in
+# calc/flow.ts. A preview item's own definition there is its public formula by design (CONTRACT 8 "Preview"); any other
+# code that names or computes it (another formula built on it, a built-in, a worker, a page list) still refuses it
+# (check of steps 2-3, 2026-11-23, PV-1 and F5).
+FORMULA_HOME = {'indicator': BFF / 'terminal' / 'src' / 'calc' / 'indicators.ts',
+                'flow_indicator': BFF / 'terminal' / 'src' / 'calc' / 'flow.ts'}
+
+
+def own_definition(kind, item_id, key):
+    """The pattern of an item's own formula definition in its FORMULA_HOME, or None."""
+    if kind == 'indicator' and key:
+        return re.compile(rf'(?m)^[ \t]*{re.escape(key)}[ \t]*:[ \t]*def\(.*$')
+    if kind == 'flow_indicator':
+        return re.compile(rf'(?m)^([ \t]*){re.escape(item_id)}(?=[ \t]*:)')
+    return None
+
+
+def named_in_code(current, preview_home=False):
     """{(kind, id): [files]} of the release file's items the shipped code names (the comment above): by the id, or by
     the item's own registry key (key_aliases) as a quoted literal or a property (terminal/src/lab/index.ts registers a
-    lab formula as F.my_key)."""
+    lab formula as F.my_key). With preview_home, an item's own formula definition in its FORMULA_HOME is not counted
+    (the rule for a preview item; a lab item's formula lives in the lab folder, so nothing is left out for it)."""
     files = [p for d in CODE_DIRS if d.exists() for p in d.rglob('*') if p.suffix in ('.ts', '.tsx', '.js', '.mjs')
              and 'lab' not in p.relative_to(d).parts and 'tests' not in p.relative_to(d).parts]
     files += sorted((BFF / 'static').glob('edge-*.js'))
     assert len(files) > 50, f'only {len(files)} code files found: CODE_DIRS reads the wrong folders'
     texts = {p: _code(p.read_text(encoding='utf-8', errors='ignore')) for p in files}
+    assert all(p in texts for p in FORMULA_HOME.values()), 'a FORMULA_HOME file is not among the code files read'
     aliases = key_aliases()
     found = {}
     for kind in KINDS:
@@ -249,10 +271,24 @@ def named_in_code(current):
             if (kind, i) in aliases:            # by its key: a quoted literal, or a property of a formula map (F.donchian)
                 key = re.escape(aliases[(kind, i)])
                 patterns += [re.compile(rf'[\'"`]{key}[\'"`]'), re.compile(rf'\.{key}\b')]
-            hits = [p.relative_to(BFF.parent.parent).as_posix() for p, t in texts.items() if any(x.search(t) for x in patterns)]
+            own = own_definition(kind, i, aliases.get((kind, i))) if preview_home else None
+            hits = []
+            for p, t in texts.items():
+                if own is not None and p == FORMULA_HOME.get(kind):
+                    t = own.sub(lambda m: m.group(1) if m.groups() else '', t)
+                if any(x.search(t) for x in patterns):
+                    hits.append(p.relative_to(BFF.parent.parent).as_posix())
             if hits:
                 found[(kind, i)] = hits
     return found
+
+
+def all_released():
+    """The repository's release file with every item released: the self-tests below plant their own stages on it, so
+    they hold whatever the file holds today (check of steps 2-3, F10)."""
+    data = json.loads(FILE.read_text(encoding='utf-8'))
+    data['items'] = [{**it, 'stage': 'released'} for it in data['items']]
+    return data
 
 
 def test_an_item_the_shipped_code_names_is_never_lab():
@@ -266,17 +302,34 @@ def test_an_item_the_shipped_code_names_is_never_lab():
     assert key_aliases()[('indicator', 'I10')] == 'donchian' and key_aliases()[('indicator', 'I29')] == 'bollinger_width'
     for i in ('I10', 'I29'):
         assert any(f.endswith('screener/src/core/transforms.ts') for f in named.get(('indicator', i), [])), (i, named.get(('indicator', i)))
-    data0 = json.loads(FILE.read_text(encoding='utf-8'))
+    data0 = all_released()
     data0['items'] = [{**it, 'stage': 'lab'} if (it['kind'], it['id']) in {('indicator', 'I10'), ('indicator', 'I29')} else it
                       for it in data0['items']]
     trial0 = Releases(data0)
     assert sorted(k for k in named if trial0.stage_of(*k) != 'released') == [('indicator', 'I10'), ('indicator', 'I29')]
-    data = json.loads(FILE.read_text(encoding='utf-8'))
+    data = all_released()
     planted = next(iter(sorted(named)))
     data['items'] = [{**it, 'stage': 'lab'} if (it['kind'], it['id']) == planted else it for it in data['items']]
     trial = Releases(data)
     assert [k for k in named if trial.stage_of(*k) != 'released'] == [planted]            # the guard's self-test
-    lab = {k: named[k][:3] for k in named if current.stage_of(*k) != 'released'}
+    # a preview item may be named by its own formula definition only (FORMULA_HOME): an indicator and a Flow indicator
+    # whose only hit is that definition pass at preview and are refused at lab; one another formula or a built-in
+    # computes (I10 by transforms.ts, FL23 by FL52 and the Backtest's point-in-time spec) is refused at preview too
+    home = named_in_code(current, preview_home=True)
+    home_rel = {k: p.relative_to(BFF.parent.parent).as_posix() for k, p in FORMULA_HOME.items()}
+    only_home = {kind: sorted(i for (k, i), files in named.items() if k == kind and files == [home_rel[kind]])
+                 for kind in FORMULA_HOME}
+    assert only_home['indicator'] and only_home['flow_indicator'], only_home
+    for kind, ids in only_home.items():
+        assert (kind, ids[0]) not in home, (kind, ids[0], home.get((kind, ids[0])))
+    assert ('indicator', 'I10') in home and ('flow_indicator', 'FL23') in home, 'built-ins and other formulas still count'
+    lab = {k: named[k][:3] for k in named if current.stage_of(*k) == releases.LAB}
+    preview = {k: home[k][:3] for k in home if current.stage_of(*k) == releases.PREVIEW}
+    assert not preview, (
+        f'{preview} at the preview stage in apps/edge-bff/catalog/releases.json, but code that ships to every principal '
+        'names or computes them beyond their own formula definition (the files listed): a preview item is held by the '
+        'admin only, so another formula, a built-in or a page list must not compute or name it for everyone. Set them '
+        '"released", or move that code first (INDICATOR_BETA_TO_LIVE.md Part C).')
     assert not lab, (
         f'{lab} at the lab stage in apps/edge-bff/catalog/releases.json, but the code that ships to every principal '
         'names them (the files listed): a lab stage would keep them in the public bundles or running for everyone. Set '
@@ -308,9 +361,13 @@ def registry_specs():
         kind = re.search(r"kind: '([^']+)'", ln)
         keyed = re.search(r"keyed: '([^']+)'", ln)
         if 'keyedParts: [' in ln:
-            # objects keyed by item id, each part with the kinds its ids may be of (step 3 of 2026-11-23)
-            parts = re.findall(r"\['(\w+)', \[([^\]]*)\]\]", ln)
-            specs.append((file, [(key, tuple(re.findall(r"'(\w+)'", kinds))) for key, kinds in parts], PARTS))
+            # objects keyed by item id, each part with the kinds its ids may be of (step 3 of 2026-11-23), and lists that
+            # name their item by a field (`lists: [[key, kind, field]]`, check of steps 2-3, P4)
+            keyed_src, _, lists_src = ln.partition('lists: [')
+            parts = re.findall(r"\['(\w+)', \[([^\]]*)\]\]", keyed_src)
+            fields = re.findall(r"\['(\w+)', '(\w+)'(?:, '(\w+)')?\]", lists_src)
+            specs.append((file, [(key, tuple(re.findall(r"'(\w+)'", kinds))) for key, kinds in parts]
+                          + [(key, (kind,), field or 'id') for key, kind, field in fields], PARTS))
             assert specs[-1][1], ln
             continue
         if 'lists: [' in ln:
@@ -337,7 +394,11 @@ def registry_entries(only=None):
             continue
         doc = json.loads((BFF / file).read_text(encoding='utf-8'))
         if keyed == PARTS:
-            for key, kinds in lists:
+            for key, kinds, *field in lists:
+                if field:                   # a list naming its item by a field: the entry as it is, its id read there
+                    out += [(kinds[0], {**e, 'id': e[field[0]]}) for e in doc[key]
+                            if isinstance(e, dict) and isinstance(e.get(field[0]), str)]
+                    continue
                 # an id is of the first kind the release file lists it under (shared/release-filter.mjs filtered)
                 out += [(releases.kind_of(i, kinds) or kinds[0], {'id': i, 'value': v}) for i, v in doc[key].items()]
             continue
@@ -385,8 +446,11 @@ def test_a_released_entrys_text_names_no_lab_item():
     named = sorted(i for k, e in entries if k == 'indicator' and e['id'] in text_ids for i in [e['id']])
     if named:
         planted = named[0]
-        data['items'] = [{**it, 'stage': 'lab'} if (it['kind'], it['id']) == ('indicator', planted) else it for it in data['items']]
-        assert any(h[2] == planted for h in released_text_naming_lab(Releases(data), entries))
+        for stage in ('lab', 'preview'):                # a released text names no preview item either (PV-4)
+            trial = json.loads(FILE.read_text(encoding='utf-8'))
+            trial['items'] = [{**it, 'stage': stage} if (it['kind'], it['id']) == ('indicator', planted) else it
+                              for it in trial['items']]
+            assert any(h[2] == planted for h in released_text_naming_lab(Releases(trial), entries)), stage
     # every file REGISTRIES names is read: a sentence planted in the first entry of each, naming an indicator set to the
     # lab stage, is caught (test-out wf_c72ae04c-a73: "Compare with I02." in I01's description of screener-registry.json)
     for file, lists, keyed in registry_specs():
@@ -412,6 +476,49 @@ def test_a_released_entrys_text_names_no_lab_item():
     hits = released_text_naming_lab(releases.load(FILE), entries)
     assert not hits, (f'released entries whose own text names a lab item ({hits[:5]}): that text ships to every '
                       'principal. Reword it, or release the item first.')
+
+
+def held_back_in_one_kind_only(current):
+    """The ids the release file lists under more than one kind whose stages differ in being held back (lab or preview in
+    one kind, released in another)."""
+    by_id = {}
+    for kind in KINDS:
+        for e in current.entries(kind):
+            by_id.setdefault(e['id'], []).append((kind, releases.held_back(e['stage'])))
+    return sorted(i for i, ks in by_id.items() if len(ks) > 1 and len({h for _, h in ks}) > 1)
+
+
+def test_an_id_two_kinds_share_is_held_back_in_both_or_in_neither():
+    """check of steps 2-3 (2026-11-23, PV-5): the stored examples match an item by its bare id (app/examples.py
+    not_released, _names), and three ids are both a Screener metric and a preset (squeeze, silent, piotroski). One of them
+    held back in one kind only would read as held back in the other too: a released metric's example withheld (fail
+    closed), or, the other way, a check by kind elsewhere that trusts the bare id. Until the examples match by kind
+    (EXEC-MU-ACCOUNTS, Carried open parts), such an id is held back in both kinds or in neither."""
+    current = releases.load(FILE)
+    shared = sorted({e['id'] for k in KINDS for e in current.entries(k)} & {
+        e['id'] for k1 in KINDS for k2 in KINDS if k1 < k2 for e in current.entries(k1)
+        if any(x['id'] == e['id'] for x in current.entries(k2))})
+    assert shared, 'no id is listed under two kinds: the rule has nothing to hold (remove it with the carried part)'
+    data = all_released()
+    data['items'] = [{**it, 'stage': 'preview'} if (it['kind'], it['id']) == ('screener_preset', shared[0]) else it
+                     for it in data['items']]
+    assert held_back_in_one_kind_only(Releases(data)) == [shared[0]]                       # the guard's self-test
+    found = held_back_in_one_kind_only(current)
+    assert not found, (f'{found} are listed under two kinds and held back (lab or preview) in only one: the stored '
+                       'examples match by the bare id, so the released one reads as held back too. Hold both back, or '
+                       'give the new item an id of its own.')
+
+
+def test_the_flow_registry_is_numbered_without_gaps():
+    """The source file of the Terminal's Flow registry (every stage) holds FL01..FLnn without a gap; a new Flow indicator
+    takes the next free id (INDICATOR_BETA_TO_LIVE.md "A lab Flow indicator"). The page tests read the public build's
+    view, where a lab one is left out, so they check order only (check of steps 2-3, 2026-11-23, P2 and F4)."""
+    ids = ids_of_flow_source()
+    assert ids == [f'FL{k:02d}' for k in range(1, len(ids) + 1)], ids
+
+
+def ids_of_flow_source():
+    return [e['id'] for e in json.loads((BFF / 'terminal' / 'src' / 'data' / 'flowRegistry.json').read_text())['indicators']]
 
 
 def test_the_module_loads_the_repository_file_and_an_unknown_id_is_lab():

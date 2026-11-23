@@ -55,7 +55,9 @@ def lab_one_of_each(monkeypatch):
               'preset': ('screener_preset', releases.entries('screener_preset')[0]['id'])}
     assert all(releases.stage_of(k, i) == 'released' for k, i in chosen.values())
     lab = set(chosen.values())
-    items = [{'kind': k, 'id': e['id'], 'stage': releases.LAB if (k, e['id']) in lab else e['stage']}
+    # every other item released, whatever the repository's file holds today (a preview item there would give the live
+    # admin an allow the account lacks; check of steps 2-3, F5)
+    items = [{'kind': k, 'id': e['id'], 'stage': releases.LAB if (k, e['id']) in lab else 'released'}
              for k in releases.KINDS for e in releases.entries(k)]
     monkeypatch.setattr(releases, 'CURRENT', releases.Releases({
         'schema_version': 1, 'items': items, 'tabs': [{'id': t, 'stage': st} for t, st in releases.CURRENT.tabs().items()]}))

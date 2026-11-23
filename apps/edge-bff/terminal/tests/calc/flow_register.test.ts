@@ -3,7 +3,7 @@
    the call's rows before the shared helpers read them (a formula called after another context's call reads its own
    rows), and an id that already has a formula, or that is no FL id, is refused. */
 import { describe, expect, it } from 'vitest';
-import { FLOW, computeFlow, flowKit as K, flowRows, registerFlow, type FlowContext, type FlowParams } from '../../src/calc/flow';
+import { FLOW, computeFlow, flowDefaults, flowKit as K, flowRows, registerFlow, type FlowContext, type FlowParams } from '../../src/calc/flow';
 
 type Row = { d: string; b: string; i: string; m: string; bv: number; sv: number; bl: number; sl: number; bf?: number | null; sf?: number | null };
 const r = (d: string, b: string, bv: number, sv: number, bl: number, sl: number): Row => ({ d, b, i:'Domestic', m:'Regular', bv, sv, bl, sl, bf:1, sf:1 });
@@ -38,5 +38,18 @@ describe('registerFlow', () => {
     expect(() => registerFlow('FL97', netShare)).toThrow(/already has a formula/);
     expect(() => registerFlow('I54', netShare)).toThrow(/not a Flow indicator id/);
     expect(typeof FLOW.FL01).toBe('function');
+  });
+});
+
+describe('flowKit', () => {
+  it('hands out a copy of the cohort: a lab formula that changes it changes no released output', () => {
+    const p = { ...flowDefaults('FL10'), scope:'topn', top:2, rank:'net_buy', window:2 };   // the parameters FL10 runs with
+    const before = computeFlow('FL10', A, p);
+    let mutated = 0;
+    // a lab formula run on A that changes every cohort the kit hands it (the same grid and cohort keys as FL10's)
+    registerFlow('FL96', (c, q) => { const g = K.grid0(q); for (let t = 1; t < c.rows.N; t++) { const C = K.cohort(g, c.rows, q, t - 1, t); if (C && C.length) { C.length = 0; mutated++ } } return { value:[] } });
+    computeFlow('FL96', A, p);
+    expect(mutated).toBeGreaterThan(0);
+    expect(computeFlow('FL10', A, p)).toEqual(before);
   });
 });

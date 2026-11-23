@@ -47,11 +47,27 @@ function reachedJson(entries, edge = EDGE_BFF) {
   return [...out].sort();
 }
 
-const kindsOf = spec => (spec.lists ? spec.lists.map(([, kind]) => kind) : spec.keyedParts ? [...new Set(spec.keyedParts.flatMap(([, kinds]) => kinds))] : [spec.kind]);
+const kindsOf = spec => [...new Set([...(spec.keyedParts ?? []).flatMap(([, kinds]) => kinds), ...(spec.lists ?? []).map(([, kind]) => kind),
+  ...(spec.kind ? [spec.kind] : [])])];
 /** The ids a registry holds in the parts its spec filters. */
 const heldIds = (spec, doc) => (spec.keyed ? Object.keys(doc[spec.keyed])
-  : spec.keyedParts ? spec.keyedParts.flatMap(([key]) => Object.keys(doc[key]))
-  : spec.lists ? spec.lists.flatMap(([key]) => doc[key].map(e => e?.id)) : spec.list(doc).map(e => e?.id)).filter(x => typeof x === 'string');
+  : [...(spec.keyedParts ?? []).flatMap(([key]) => Object.keys(doc[key])),
+     ...(spec.lists ?? []).flatMap(([key, , field = 'id']) => doc[key].map(e => e?.[field])),
+     ...(!spec.keyedParts && !spec.lists ? spec.list(doc).map(e => e?.id) : [])]).filter(x => typeof x === 'string');
+/** The reference fields a JSON file may name an item by, beside `id` and an object key (check of steps 2-3, P4). */
+const REFERENCE_FIELDS = ['indicator', 'metric', 'pattern'];
+/** The ids a JSON document names by key, id or a reference field (namedIds, plus a string under REFERENCE_FIELDS). */
+function referencedIds(doc, ids) {
+  const found = namedIds(doc, ids);
+  const walk = x => {
+    if (Array.isArray(x)) { x.forEach(walk); return }
+    if (!x || typeof x !== 'object') return;
+    for (const f of REFERENCE_FIELDS) if (typeof x[f] === 'string' && ids.has(x[f])) found.add(x[f]);
+    Object.values(x).forEach(walk);
+  };
+  walk(doc);
+  return found;
+}
 /** What a public build with no item released keeps of a registry that names an item of its own kinds. */
 function leftOver(spec, doc, items = ITEMS) {
   const ids = new Set([...items.filter(it => kindsOf(spec).includes(it.kind)).map(it => it.id), ...heldIds(spec, doc)]);
@@ -90,7 +106,7 @@ describe('3f: the release filter covers every file a public entry reaches that c
     };
     const naming = pages().flatMap(page => fs.existsSync(path.join(EDGE_BFF, page, 'src')) ? walk(path.join(EDGE_BFF, page, 'src')) : [])
       .map(f => path.relative(EDGE_BFF, f))
-      .filter(f => { try { return namedIds(JSON.parse(fs.readFileSync(path.join(EDGE_BFF, f), 'utf8')), ids).size > 0 } catch { return false } });
+      .filter(f => { try { return referencedIds(JSON.parse(fs.readFileSync(path.join(EDGE_BFF, f), 'utf8')), ids).size > 0 } catch { return false } });
     expect(naming).toEqual(expect.arrayContaining(['screener/src/core/flow-kinds.json', 'terminal/src/data/flowRegistry.json']));
     expect(naming.filter(f => !COVERED.has(f) && !NAMES_NO_ITEM[f]),
       'add each to shared/release-filter.mjs REGISTRIES (keyedParts for an object keyed by id)').toEqual([]);

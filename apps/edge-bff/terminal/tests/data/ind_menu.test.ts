@@ -1,9 +1,11 @@
 // EXEC-IND-CARDS IC1 (user go 2026-11-01): the indicator menu's rows come from the registries, grouped and searchable
 import { describe, expect, it } from 'vitest';
-import { MENU_HIDDEN, heldBack, menuItems, visibleItems } from '../../src/app/indMenu';
+import { MENU_HIDDEN, heldBack, menuItems, menuRows, visibleItems } from '../../src/app/indMenu';
 import { SINGLE_SECURITY } from '../../src/app/flowIndicators';
 import IND from '../../src/data/indRegistry.json';
 import FLOW from '../../src/data/flowRegistry.json';
+import menuSrc from '../../src/app/indMenu.ts?raw';
+import { ALL_INPUTS } from '../../src/data/inputs';
 
 describe('indicator menu rows', () => {
   const all = menuItems(IND as any[], FLOW as any);
@@ -118,6 +120,22 @@ describe('preview entries', () => {
     const admin = locks([ind.id, flow.id, other.id]);
     expect(rows.filter(i => !heldBack(i, admin)).map(i => i.id)).toEqual(expect.arrayContaining([ind.id, flow.id]));
     expect(rows.filter(i => !heldBack(i, undefined))).toHaveLength(rows.length);   // no locks (the fixture page): all
+  });
+  it('menuRows, the list initIndMenu builds the menu from, leaves the entry out for paid, guest and a catalog that failed; keeps it for its holder and without locks', () => {
+    const ALL = ALL_INPUTS;
+    const ids = (l: any) => menuRows(marked, flows, ALL, l).map(i => i.id);
+    for (const l of [locks([other.id]), { ...locks([]), guest:true }, locks([])]) {     // paid, guest, a catalog that could not be read
+      expect(ids(l)).not.toContain(ind.id);
+      expect(ids(l)).not.toContain(flow.id);
+      expect(ids(l)).toContain(other.id);
+    }
+    expect(ids(locks([ind.id, flow.id, other.id]))).toEqual(expect.arrayContaining([ind.id, flow.id]));
+    expect(ids(undefined)).toEqual(menuItems(marked, flows, ALL).map(i => i.id));
+  });
+  it('the menu is built from menuRows (the filter cannot be dropped from initIndMenu alone)', () => {
+    const init = menuSrc.slice(menuSrc.indexOf('export function initIndMenu'));
+    expect(init).toMatch(/const items = menuRows\(/);
+    expect(init).not.toMatch(/menuItems\(/);
   });
   it('a search does not find a preview entry left out', () => {
     const paid = locks([]);

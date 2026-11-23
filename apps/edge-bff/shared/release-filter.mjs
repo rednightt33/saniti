@@ -45,11 +45,12 @@ export const REGISTRIES = [
   { file: 'backtest/src/core/compare-lag.json', kind: 'indicator', keyed: 'price_compare_lag' },
   // the Screener core's hand-kept files keyed by item id (step 3 of 2026-11-23, the lab Flow dry run: a page test reads
   // the filtered registries, so a file of the same items left whole disagreed with them, "FL53 is not an indicator of
-  // flowRegistry.json"). Each part lists the kinds its ids may be of (an id is of the first kind the release file lists
-  // it under: the overlay's `bars` is a Screener metric). terminal/tests/lab/coverage.test.mjs fails on a JSON file
-  // under a page's src naming an item that no entry here covers.
+  // flowRegistry.json"). Each keyed part lists the kinds its ids may be of (an id is of the first kind the release file
+  // lists it under); a list part may name its item by another field than `id` (the overlay's overrides and cost reviews
+  // by `indicator`; check of steps 2-3, P4). terminal/tests/lab/coverage.test.mjs fails on a JSON file under a page's src
+  // that names an item, by key, id or a reference field, and that no entry here covers.
   { file: 'screener/src/core/flow-kinds.json', keyedParts: [['indicators', ['flow_indicator']], ['screener_entries', ['flow_indicator']]] },
-  { file: 'screener/src/core/screener-overlay.json', keyedParts: [['indicators', ['indicator', 'screener_metric']]] },
+  { file: 'screener/src/core/screener-overlay.json', keyedParts: [['indicators', ['indicator']]], lists: [['overrides', 'indicator', 'indicator'], ['cost_reviews', 'indicator', 'indicator']] },
 ];
 
 /** The release stages of an item (app/releases.py STAGES). */
@@ -85,9 +86,9 @@ export function readStages(file = RELEASES) {
     rewritten would pass through unfiltered (3f checker B4, BUN2-4, CS-4). terminal/tests/lab/coverage.test.mjs checks
     that no other part of a registry file names an item. */
 export function filtered(spec, doc, { lab, stages }) {
-  const stage = (kind, e) => e && typeof e.id === 'string' ? stages.get(`${kind}\t${e.id}`) : undefined;
-  const keep = kind => e => lab || PUBLIC_STAGES.includes(stage(kind, e));
-  const mark = kind => e => stage(kind, e) === PREVIEW ? { ...e, release: PREVIEW } : e;
+  const stage = (kind, e, field = 'id') => e && typeof e[field] === 'string' ? stages.get(`${kind}\t${e[field]}`) : undefined;
+  const keep = (kind, field) => e => lab || PUBLIC_STAGES.includes(stage(kind, e, field));
+  const mark = (kind, field) => e => stage(kind, e, field) === PREVIEW ? { ...e, release: PREVIEW } : e;
   if (spec.keyedParts) {
     let out = doc;
     for (const [key, kinds] of spec.keyedParts) {
@@ -96,6 +97,10 @@ export function filtered(spec, doc, { lab, stages }) {
       // the first kind the release file lists the id under decides; an id it lists under none is lab
       const of = id => stage(kinds.find(k => stages.has(`${k}\t${id}`)) ?? kinds[0], { id });
       out = { ...out, [key]: Object.fromEntries(Object.entries(by).filter(([id]) => lab || PUBLIC_STAGES.includes(of(id)))) };
+    }
+    for (const [key, kind, field = 'id'] of spec.lists ?? []) {
+      if (!Array.isArray(out?.[key])) throw new Error(`release filter: ${spec.file} has no list "${key}" (the entries of kind ${kind})`);
+      out = { ...out, [key]: out[key].filter(keep(kind, field)).map(mark(kind, field)) };
     }
     return out;
   }

@@ -65,7 +65,7 @@ export const evalCond = (tk: string, c: Card): Uint8Array => API.conditionSeries
 
 /* price-level lines a stop can sit on = overlay outputs of the registry (derived, not listed by hand) */
 /* EXEC-MU-ACCOUNTS "A preview release stage" (the user 2026-11-23): an entry the page build marks `release` (a preview
-   item; a lab one in the admin's lab build) is offered only when the account's catalog lists it (SC.by: the Screener
+   item, in both builds; a lab entry carries no mark) is offered only when the account's catalog lists it (SC.by: the Screener
    catalog edge-bff filters per principal, catalog.tab_list), so a paid account never sees a preview line's name; a
    catalog not read yet offers none (fail closed). A released line outside the plan stays, marked not calculated. */
 export const offered = (r: RegRow) => !r.release || SC.by.has(r.id);

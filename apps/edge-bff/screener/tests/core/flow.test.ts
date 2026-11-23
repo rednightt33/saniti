@@ -58,7 +58,9 @@ describe('catalog (P5_FLOW.md section 2)', () => {
     // maxima derived from the broker window: the anchor at most the window less its own candle, a lookback the window
     expect(FLOW_BY_ID.FL18.params.find(p => p.key === 'anchor_sessions')).toMatchObject({ kind: 'int', min: 1, max: 59, default: 20, condition: true, screener: true });
     expect([FLOW_BY_ID.FL23.params.find(p => p.key === 'lookback')!.max, FLOW_BY_ID.fnet.params.find(p => p.key === 'window')!.max]).toEqual([60, 60]);
-    expect(G.flowEntries(REG, KINDS)).toEqual(FLOWS);                                       // the generator's own build
+    // the generator's own build; the imported registry is the page build's view, where a preview entry carries the mark
+    // release 'preview' (shared/release-filter.mjs), which the generator does not write (check of steps 2-3, Part C dry run)
+    expect(G.flowEntries(REG, KINDS)).toEqual(FLOWS.map(({ release, ...e }: any) => e));
     const a = availabilityMap({}, METRICS_CATALOG, undefined, FLOW_CTX);
     expect(FLOWS.filter(f => a.get(f.id)!.availability !== 'AVAILABLE').map(f => f.id)).toEqual(['FL31', 'ksei_net']);
   });

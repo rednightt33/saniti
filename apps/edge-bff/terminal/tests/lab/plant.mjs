@@ -37,18 +37,18 @@ const idOf = (kind, s) => {
 for (const spec of REGISTRIES) {
   const file = path.join(edge, spec.file);
   let doc = JSON.parse(fs.readFileSync(file, 'utf8'));
-  const parts = spec.keyed ? [[spec.keyed, spec.kind]] : spec.keyedParts ? spec.keyedParts.map(([key, kinds]) => [key, kinds[0]])
-    : spec.lists ?? [[null, spec.kind]];
-  for (const [key, kind] of parts) {
+  const parts = spec.keyed ? [[spec.keyed, spec.kind, 'id', true]]
+    : [...(spec.keyedParts ?? []).map(([key, kinds]) => [key, kinds[0], 'id', true]),
+       ...(spec.lists ?? (spec.keyedParts ? [] : [[null, spec.kind]])).map(([key, kind, field = 'id']) => [key, kind, field, false])];
+  for (const [key, kind, field, byId] of parts) {
     const part = `${path.basename(spec.file, '.json')}${key ? `.${key}` : ''}`;
     markers[part] = {};
-    const byId = spec.keyed || spec.keyedParts;
     if (byId) keyed.push(part);
     for (const s of ['R', 'L', 'U', 'P']) {
       const id = idOf(kind, s), marker = `PROOF7F3A-${part}-${s}`;
       markers[part][s] = marker;
       if (byId) doc[key] = { ...doc[key], [id]: { proof: marker } };
-      else if (key) doc[key] = [...doc[key], { id, proof: marker }];
+      else if (key) doc[key] = [...doc[key], { [field]: id, proof: marker }];
       else doc = spec.put(doc, [...spec.list(doc), { id, proof: marker }]);
       if (STAGE[s]) items.set(`${kind}\t${id}`, { kind, id, stage: STAGE[s] });
     }

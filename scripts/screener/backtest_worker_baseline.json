@@ -2,16 +2,16 @@
   "schema": 1,
   "about": "The approved state of apps/backtest-worker for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a worker that differs from origin/main only while its content hash is worker_tree and the versions are these. Recorded with --record and changed only by a deliberate commit (EXEC-MU-RUNTIME).",
   "base_commit": "597125470d9a7fb258c0c0b76ebc59832aa6c6c7",
-  "recorded_on": "b24361fd4486279c85b6ac6d7c1d09f64decab5b",
+  "recorded_on": "53b710b6187a9d5ae417421ff5cf27c53f390377",
   "recorded_at": "2026-11-23",
-  "engine_version": "e3f9b07c1213ff92",
+  "engine_version": "83f48778aac56395",
   "base_engine_version": "ecc16914a1ed19e3",
   "registry_version": "514dc3df60a25aff",
-  "worker_tree": "5e61ba069738bffe46d1c20afc184fa5b2bbf6b99d1bb784d6f55338dbd9ff00",
+  "worker_tree": "57c643bd9bd10e501c318fb4548b73b496814451ed2985f51568096443f9e49f",
   "worker_files": 69,
   "exec": {
     "section": "EXEC-MU-ACCOUNTS",
-    "decision": "Saya minta juga bagian ini dikerjakan uuga setelah bagian preview. Satu batasan yang masih ada: indikator Flow (FL) baru belum bisa dijadikan lab, karena titik pendaftaran rumusnya belum dibangun. Kalau Anda mau menambah FL khusus beta, bagian itu perlu dibangun dulu. (2026-11-23; then: Oke, mulai.)"
+    "decision": "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error = betulkan. Yang di benerin di remark untuk step 8 nanti. Setelah itu deploy. (2026-11-23)"
   },
-  "note": "Step 3: calc/flow.ts gains registerFlow and flowKit (additive; no released output changes: screener-registry.json entries identical, only its flow.ts hash and version moved); the engine_version moves with the file."
+  "note": "The check of steps 2-3 (wf_6a8c44c8-978) fixes: the look-ahead gate varies Flow numbers and requires a finite value (F2, F3); calc/flow.ts flowKit hands out a cohort copy (F6). No released output changes: screener-registry.json entries identical, only its source hash and version moved."
 }

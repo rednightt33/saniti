@@ -20,7 +20,7 @@ What a principal holds (`grants`, key -> value, each checked against its capabil
 - `limits`: the limits (non-negative integers) and lists (arrays of strings), read with `p.limit(key)`;
 - item families (`items` values {ids, stages, all}): `p.can('<family>:<id>')` holds the item when its id is listed,
   its release stage (releases.py stage_of) is listed, or all is true (a value may name the stages lab and released only,
-  releases.GRANT_STAGES: a preview item is held by its id or `*`). Unknown keys are not held.
+  releases.GRANT_STAGES: a preview item is held by its id, `*` or all; EXEC UD28). Unknown keys are not held.
 
 Dependencies (`Auth`, handed to every router as `routes(app, auth)`):
 - `auth.principal`: the Principal (401 UNAUTHENTICATED otherwise); sets request.state.owner and request.state.principal;

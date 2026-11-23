@@ -18,8 +18,9 @@ message naming the problem rather than refusing items at run time.
     stay out of the public page builds (INDICATOR_BETA_TO_LIVE.md part A; LAB_KIND_HELD names the kinds that may not be
     lab yet);
   - 'preview' (the user 2026-11-23, EXEC-MU-ACCOUNTS "A preview release stage"): on both sites, held only by a principal
-    whose grants name the item itself (the admin's `*`, or an id list): no plan holds it by stage (GRANT_STAGES, the
-    database's capability_value_check), so a paid or free account never holds it, and it is not beta-only. Its
+    whose grants name the item (the admin's `*`, an id list, or a family value {"all": true}, which no seeded plan holds:
+    tests/test_preview_stage.py; EXEC UD28 asks whether `all` should hold it): no plan holds it by stage (GRANT_STAGES,
+    the database's capability_value_check), and it is not beta-only. Its
     definition and formula are in the public page builds (marked `release: 'preview'`, shared/release-filter.mjs), so
     the pages leave it out for a principal who does not hold it rather than show it locked;
   - 'released': held by every plan that holds the released stage.

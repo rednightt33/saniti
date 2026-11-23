@@ -344,8 +344,37 @@ def build():
             'families': FAMILIES, 'indicators': indicators}
 
 
+# check of steps 2-3 (2026-11-23, F9): a word the maps above do not know stopped the script with a bare KeyError ('FL54');
+# each lookup of a spreadsheet word now names its map and the fix (a new Flow indicator, INDICATOR_BETA_TO_LIVE.md
+# "A lab Flow indicator" step 1)
+MAPS = {'LABELS': 'a parameter label (Parameter_Terminal column D): add it to LABELS with its key and English label',
+        'OPTIONS': 'a choice or default (Parameter_Terminal columns F and G): add it to OPTIONS with its value and label',
+        'UNIT': 'a unit (Ringkasan column F): add it to UNIT', 'PLACE': 'a place (Ringkasan column E): add it to PLACE',
+        'tip': 'the indicator\'s tip: add the id to PLAIN (a plain Indonesian sentence) or a row to Indikator_baru_dari_Screener'}
+
+
+class SpecWordError(SystemExit):
+    pass
+
+
+def MAPS_HINT(e):
+    """The map a KeyError's word comes from, read from where it was raised."""
+    import traceback
+    line = traceback.extract_tb(e.__traceback__)[-1].line or ''
+    for name in ('LABELS', 'OPTIONS', 'UNIT', 'PLACE', 'PLOT_OPTIONS'):
+        if name + '[' in line:
+            return MAPS.get(name, f'a key of {name}')
+    if 'tips[' in line:
+        return MAPS['tip']
+    return f'a word the script does not know (line: {line.strip()})'
+
+
 def main(argv):
-    text = json.dumps(build(), ensure_ascii=False, indent=1) + '\n'
+    try:
+        doc = build()
+    except KeyError as e:
+        raise SpecWordError(f'build_flow_registry.py: {e.args[0]!r} is not known: it is {MAPS_HINT(e)}') from None
+    text = json.dumps(doc, ensure_ascii=False, indent=1) + '\n'
     if '--check' in argv:
         if not OUT.exists() or OUT.read_text() != text:
             raise SystemExit(f'{OUT.relative_to(ROOT)} is stale: run python3 scripts/build_flow_registry.py')

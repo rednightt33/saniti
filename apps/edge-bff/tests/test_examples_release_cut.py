@@ -137,3 +137,24 @@ def test_the_screener_example_follows_its_preset_and_its_metrics(guests, store, 
     with_lab(monkeypatch, tmp_path, {('screener_preset', shown)}, stage)
     with TestClient(create_app(guests, store, FakeOrc())) as c:
         assert served(c, 'screener')[:2] == (503, 'EXAMPLE_UNAVAILABLE')
+
+
+@pytest.mark.parametrize('stage', ['lab', 'preview'])
+def test_a_held_back_preset_the_example_does_not_show_is_cut_and_the_example_still_served(
+        guests, store, stored_examples, screener_files, monkeypatch, tmp_path, stage):
+    """check of steps 2-3 (2026-11-23, PV-3): examples.released_doc's preset line on its own. A preset at lab or
+    preview that the stored screen does not show and no stored file reads is cut from the stored catalog; the example
+    is still served (read as lab-only, the line kept a preview preset, which then withheld the whole example)."""
+    catalog = screener_files['screener-catalog']
+    shown = screener_files['screener-screen']['preset']
+    stored = json.dumps({n: d for n, d in screener_files.items() if n != 'screener-catalog'})
+    quiet = next(p['id'] for p in catalog['presets'] if p['id'] != shown and f'"{p["id"]}"' not in stored
+                 and not any(it.get('id') == p['id'] for q in catalog['presets'] for it in (q.get('items') or [])
+                             if isinstance(it, dict)))
+    with_lab(monkeypatch, tmp_path, {('screener_preset', quiet)}, stage)
+    with TestClient(create_app(guests, store, FakeOrc())) as c:
+        status, index, docs = served(c, 'screener')
+    assert status == 200, index
+    kept = [p['id'] for p in docs['screener-catalog']['presets']]
+    assert quiet not in kept and shown in kept
+    assert len(kept) == len(catalog['presets']) - 1

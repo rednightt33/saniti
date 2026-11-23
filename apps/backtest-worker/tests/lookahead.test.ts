@@ -145,6 +145,14 @@ test('the shared grammar: every transform function and every pattern type it imp
   assert.deepEqual(leaks, []);
 });
 
+/** A Flow parameter's numbers to try beside its default: its minimum, three times its default and its maximum, capped at
+    400 sessions (the fixture has about 600), integers for an int parameter. */
+function numericVariants(q: { kind: string; default?: unknown; min?: number; max?: number }): number[] {
+  const d = Number(q.default), lo = q.min ?? (q.kind === 'int' ? 1 : d / 4), hi = Math.min(q.max ?? (Number.isFinite(d) ? d * 10 : 400), 400);
+  const vs = [lo, Number.isFinite(d) ? Math.min(hi, d * 3) : hi, hi].filter(v => Number.isFinite(v));
+  return [...new Set(vs.map(v => q.kind === 'int' ? Math.round(v) : v))].filter(v => v !== d);
+}
+
 test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads future data (ERRORS M448)', () => {
   const ctxAt = (t: Ticker, rows: Row[], n: number): TF.FlowContext => {
     const d = t.dates.slice(0, n), at = new Map(d.map((x, k) => [x, k])), b = head(t, n).bars;
@@ -154,8 +162,11 @@ test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads 
   const leaking = new Set<string>(); let runs = 0;
   for (const r of (FLOW_REG as { indicators: { id: string; params: { key: string; kind: string; options?: unknown[] }[] }[] }).indicators) {
     const variants: Record<string, unknown>[] = [{}];
-    for (const q of r.params) {
-      const opts = q.kind === 'select' ? (q.options ?? []).map(o => Array.isArray(o) ? o[0] : o) : q.kind === 'bool' ? [true, false] : q.kind === 'multi' ? (q.options ?? []).map(o => [Array.isArray(o) ? o[0] : o]) : [];
+    for (const q of r.params as { key: string; kind: string; options?: unknown[]; default?: unknown; min?: number; max?: number }[]) {
+      const opts = q.kind === 'select' ? (q.options ?? []).map(o => Array.isArray(o) ? o[0] : o) : q.kind === 'bool' ? [true, false] : q.kind === 'multi' ? (q.options ?? []).map(o => [Array.isArray(o) ? o[0] : o])
+        // check of steps 2-3 (2026-11-23, F3): a window, a baseline or a Top N at other values than its default, as the
+        // technical part varies its numbers (a leak may show only at a longer window); capped by the fixture's length
+        : q.kind === 'int' || q.kind === 'num' ? numericVariants(q) : [];
       for (const v of opts) variants.push({ [q.key]: v });
     }
     for (const v of variants) {
@@ -172,13 +183,20 @@ test('every Flow indicator of the registry has a formula and computes at its def
   // answers {} for an id without a formula and `safely` reads a throw as a refused setting, so a lab Flow indicator
   // whose formula was not registered (calc/flow.ts registerFlow, from src/lab/index.ts) passed the gate untested
   const n = A.dates.length, d = A.dates, at = new Map(d.map((x, k) => [x, k]));
+  // insider rows too, so every indicator has the data it reads (FL31); the check of steps 2-3 (2026-11-23, F2): a formula
+  // that answers only nulls at its defaults is as dead as a missing one
   const ctx: TF.FlowContext = { rows: TF.flowRows(M.rows[A.ticker], n, x => at.get(x) ?? -1), dates: d, close: A.bars.C as number[],
-    volume: A.bars.V as number[], insider: [], classification: { AA: 'Institutional-heavy', BK: 'Retail-heavy', YP: 'Retail-heavy' } };
+    volume: A.bars.V as number[], insider: [{ t: 120, value: 5e8 }, { t: 300, value: -2e8 }, { t: 450, value: 1e8 }],
+    classification: { AA: 'Institutional-heavy', BK: 'Retail-heavy', YP: 'Retail-heavy' } };
   const dead: string[] = [];
   for (const r of (FLOW_REG as { indicators: { id: string }[] }).indicators) {
     if (typeof TF.FLOW[r.id] !== 'function') { dead.push(`${r.id}: no formula (calc/flow.ts FLOW, or registerFlow from src/lab/index.ts)`); continue }
-    try { if (!Object.keys(TF.computeFlow(r.id, ctx, {})).length) dead.push(`${r.id}: no output at its defaults`) }
-    catch (e) { dead.push(`${r.id}: ${(e as Error).message}`) }
+    try {
+      const out = TF.computeFlow(r.id, ctx, {});
+      if (!Object.keys(out).length) dead.push(`${r.id}: no output at its defaults`);
+      else if (!Object.values(out).some(a => Array.isArray(a) && a.some(v => typeof v === 'number' && Number.isFinite(v))))
+        dead.push(`${r.id}: no finite value at its defaults`);
+    } catch (e) { dead.push(`${r.id}: ${(e as Error).message}`) }
   }
   assert.deepEqual(dead, []);
 });

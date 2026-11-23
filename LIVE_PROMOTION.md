@@ -97,8 +97,11 @@ admin saja yang bisa lihat, user paid tidak bisa lihat"; plan "B"; CONTRACT 8 "P
   it to its holders only;
 - what it does not hide: anyone reading the public page files can see its definition and formula. A formula that must
   stay private stays `lab`;
-- every kind may be preview, a Flow indicator included (its formula is public); an item no worker gates by id, or one
-  the shipped code names, may not (as for lab);
+- which items may be preview: an indicator or a Flow indicator may be preview only when no shipped code but its own
+  formula definition names or computes it (`tests/test_releases.py` `test_an_item_the_shipped_code_names_is_never_lab`,
+  its `FORMULA_HOME` rule): 36 of today's 53 indicators and 20 of the 52 Flow indicators qualify today; a new one
+  qualifies when only its formula names it (checked on disk 2026-11-23 with I53 and FL22); candle patterns,
+  most Screener metrics and presets as data; an item no worker gates by id may not (as for lab);
 - `scripts/live_diff.py` names the items at preview on the beta's side ("preview (on the live site for the admin only,
   paid and free accounts do not see it)"), so a promotion says what reaches the live site that way.
 
@@ -133,10 +136,14 @@ These tests enforce the switches:
   must be listed as lab or released, or belong to `BETA_ONLY_TABS`. The same file shows that a lab tab is refused on
   the live site, the admin's `*` included, is hidden from the live rail, and stays on the beta. It refuses any lab tab
   for now (above).
-- `apps/edge-bff/tests/test_releases.py`: every registry id has an entry; an item is at the lab stage only in a kind `LAB_KIND_HELD` does not hold (a candle pattern and a Flow indicator held); a tab has no preview stage.
+- `apps/edge-bff/tests/test_releases.py`: every registry id has an entry; an item is at the lab stage only in a kind
+  `LAB_KIND_HELD` does not hold (a candle pattern held); a tab has no preview stage; a preview item is named by no
+  shipped code but its own formula definition (`FORMULA_HOME`); an id two kinds share is held back in both or in
+  neither.
 - `apps/edge-bff/tests/test_preview_stage.py`: through the real principals of both sites, the admin holds a preview
   item (catalog, both workers' allow, the tab catalogs with its mark) and a paid or free account does not; no seeded
-  plan but one holding `*` holds it; no grant can name the stage. The Terminal's `tests/data/ind_menu.test.ts` and the
+  plan but one holding `*` holds it; no grant can name the stage. The Terminal's `tests/data/ind_menu.test.ts` (`menuRows`,
+  the list the menu is built from, and a check that the menu is built from it) and the
   Backtest's `tests/preview-lines.test.ts` show the pages leave a marked entry out; `terminal/tests/calc/
   public_formulas.test.ts` shows every indicator of the public build computes without the lab module.
 - `apps/edge-bff/tests/test_3f_public_bundles.py` scans every file served without the admin check (each page's build,

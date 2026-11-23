@@ -871,8 +871,12 @@ export function registerFlow(id: string, fn: FlowFn): void {
 /** The building blocks the formulas above are made of, for a lab formula (src/lab/index.ts): the call's broker grid
     (grid0 reads the rows of the call registerFlow wraps), the window, the Top-N cohort and its sums, the ratio and null
     rules of FORMULAS.md. A lab formula that needs another block adds it here, in its lab commit; a block that stays
-    out is never a reason to copy one (two copies of a rule drift). */
-export const flowKit = { grid0, boardOnly, each, sided, mirrored, cohort, cw, cmiss, cc, bw, aw, div, W, win, series, int,
+    out is never a reason to copy one (two copies of a rule drift). What a block returns is shared with the released
+    formulas (the grid and the cohorts are kept per call's rows): a lab formula reads it and never changes it; the
+    cohort is handed out as a copy (check of steps 2-3, 2026-11-23, F6: a lab formula that sorted it would have changed
+    a released output another principal is served). */
+const cohortCopy = (...a: Parameters<typeof cohort>) => { const C = cohort(...a); return C ? C.slice() : C };
+export const flowKit = { grid0, boardOnly, each, sided, mirrored, cohort:cohortCopy, cw, cmiss, cc, bw, aw, div, W, win, series, int,
   firstData, lastData, topBrokers, topOf, netOf, distance, percentile, zscore, meanSd, changeOf, lagOf } as const;
 /** lots per transaction of p's cohort on one side, the cohort ranked exactly as p says (no side rule): the series FL08 and
     FL09 rank, read by their cards for the history */

@@ -8886,6 +8886,54 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed on the branch, not deployed)
+
+- **The check (the user 2026-11-23: "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error =
+  betulkan. Yang di benerin di remark untuk step 8 nanti. Setelah itu deploy."):** three fresh agents at xhigh (preview
+  on the server, preview in the pages, the lab Flow path cold with a FL54 of its own). No preview or lab item reached a
+  principal without it on any surface tried; 0 high, 10 medium, 10 low. (The agents' worktrees were made from `main`,
+  not the branch head; each moved itself to `53b710b6` before checking.)
+- **Fixed:**
+  - PV-1, F5: no indicator or Flow indicator could be preview: the shipped-code guard counted preview as lab, and the
+    formula of a preview item sits where it looks. A preview item may now be named by its own formula definition only
+    (`tests/test_releases.py` `FORMULA_HOME`, `named_in_code(preview_home=True)`); another formula, a built-in, a worker
+    or a page list naming it still refuses it. Checked on disk: I53 and FL22 at preview in the real release file, the
+    release, live-switch, preview, tab-catalog, example, allow, Terminal, Screener (1358), Backtest page (99) and
+    proof-build suites green, then the file restored. The tab-catalog and preview fixtures no longer read today's stages.
+  - PV-3: the stored examples' preset line had no test; a held-back preset the example does not show is cut and the
+    example still served (`test_examples_release_cut.py`, lab and preview; red with the line read as lab-only).
+  - PV-4: the "never preview either" self-tests plant preview too. F10: the shipped-code guard's self-tests plant on a
+    file with every item released, so a real lab item meets the guard's own message.
+  - PV-5 (guard; the real fix carried): an id two kinds share (squeeze, silent, piotroski) is held back in both or in
+    neither, since the stored examples match bare ids.
+  - PV-6, F8: stale texts (a Flow indicator "may not" be lab; "any kind may be preview"); the completeness test's message.
+  - P1: the menu's preview filter is `menuRows`, tested for paid, guest, a failed catalog and the admin, and the menu is
+    checked to be built from it (red when `initIndMenu` calls `menuItems` alone).
+  - P2, F4: the Flow pins derived (`pane_filters.test.ts` holds the proposal's counts for FL01-FL52 plus a rule for every
+    later one; `flow.test.ts` the order; `screener/tests/core/catalog.test.ts` the generated registry); the source file's
+    FL01..FLnn without gaps is a test of its own; the guide gives the id rule.
+  - P3: two comments said a lab entry is marked; only preview is. P4: the overlay's `overrides` and `cost_reviews` name
+    their indicator by a field and are filtered (`release-filter.mjs` lists with a field); the coverage scan reads
+    reference fields too; the `bars` comment was wrong.
+  - F1: the guide had the spreadsheet edited by hand; it is built by `build_spec_workbook.py`, and a test now rebuilds
+    and compares it (`scripts/tests/test_registries_current.py`).
+  - F2: the gate passed a Flow formula of nulls; it requires a finite value at the defaults (insider rows in its fixture
+    for FL31); the guide adds the lab formula's unit test. F3: the Flow look-ahead gate varies numbers (minimum, three
+    times the default, maximum, capped at 400) in `lookahead.test.ts` and `flow-helpers.ts`; no new leak.
+  - F6: `flowKit.cohort` handed out the memoized array; it hands out a copy (a lab formula emptying it changed FL10 for
+    everyone before; red without the copy). F7: the tripwire step in Part A and the Flow section. F9: the family heads,
+    the generator's vocabulary maps (its errors name the map and the fix), the expected version changes for Flow.
+  - `screener-registry.json` regenerated (only `calc/flow.ts`'s hash and the version); the tripwire recorded with the
+    user's words above.
+- **Asked (EXEC UD28):** PV-2, a family value `{"all": true}` holds every preview item on the live site (no seeded plan
+  has one; an operator's SQL write would). The texts that said "only `*` or an id" now name it.
+- **Carried (EXEC-MU-ACCOUNTS, Carried open parts):** PV-5's real fix (the stored examples match by kind); P4's other
+  by-value references (screener-metrics.json operators and transforms, preset definitions), not reached by any public
+  page entry.
+- **Not tested out by another agent yet:** step 8 (the ledger, 20 rows).
+- **Lesson:** a stage rule must be planted on disk, not only by replacing the module's file in memory; a workflow's
+  worktrees must start at the commit being checked.
+
 ### M551 — The lab Flow indicator's registration point, and what its dry run found (2026-11-23; built in `521c5048` on the branch, not deployed)
 
 - **Request (the user 2026-11-23, step 3 of the sequence):** "Satu batasan yang masih ada: indikator Flow (FL) baru belum
