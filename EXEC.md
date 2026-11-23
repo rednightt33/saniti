@@ -17033,8 +17033,8 @@ menunggu), "jika sudah jelas masukan exec. Saya lanjut indikator selanjutnya." P
 - Tambahan Screener (user 2026-11-23: "boleh tambah juga screener apabila harga above or below swing high / swing low
   berdasarkan indikator tersebut?"): close di atas/bawah level swing high terakhir dan close di atas/bawah level swing low
   terakhir, keadaan hari itu. Level swing dihitung hanya dari swing yang sudah terkonfirmasi pada hari itu (sebelum
-  konfirmasi, yang dipakai swing sebelumnya), agar kausal. Terbuka: juga di Backtest, dan juga kejadian "menembus level
-  dalam N sesi" (ditanyakan ke user).
+  konfirmasi, yang dipakai swing sebelumnya), agar kausal. User 2026-11-23 ("Yes. Please tambahkan"): juga di Backtest,
+  dan juga kejadian "close menembus level swing high/low dalam N sesi".
 - Terbuka: dukungan Terminal untuk segmen garis antara dua titik dan arsiran latar (dipastikan saat membangun; bila perlu
   tambahan di mesin gambar Terminal, dilaporkan dulu); nilai pembanding dari TradingView (tanggal SH/SL, BULL/BEAR DIV,
   BUY A di BBCA).
