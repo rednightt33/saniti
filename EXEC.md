@@ -16680,7 +16680,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD16 | Remove `EDGE_INITIAL_PASSWORD` from the beta | not yet asked with context (a row of the 2026-11-22 report) | security | any time |
   | UD17 | The old data defects (sector swap, Feature 04 bloat, five tickers, candle flags, M335, M426, M157) | each its own date | the data's accuracy | before paid launch |
   | UD18 | The Terminal defects and proposals only the user opens (M454, M447, M333) | each its own date | paying accounts' pages | before paid launch |
-  | UD24 | Mass downloads of the Terminal's data (the user 2026-11-23: "Goalnya adalah kita mau deteksi kode yang mencegah user untuk mendownload data via penarikan masal"): today only per-account quotas (paid: 60 tickers an hour, 200 a day, 300 files an hour, 500 MB a day), presigned URLs of 120 s and the audit log `terminal.access_log` (90 days); no detector tells a browser from a script; which detection or prevention to build | 2026-11-23 with context | protection of the data | before step 9 (registration) |
+  | UD24 | (acknowledged by the user 2026-11-23, "Dicatat dulu saja"; not shown again) Mass downloads of the Terminal's data (the user 2026-11-23: "Goalnya adalah kita mau deteksi kode yang mencegah user untuk mendownload data via penarikan masal"): today only per-account quotas (paid: 60 tickers an hour, 200 a day, 300 files an hour, 500 MB a day), presigned URLs of 120 s and the audit log `terminal.access_log` (90 days); no detector tells a browser from a script; which detection or prevention to build | 2026-11-23 with context | protection of the data | before step 9 (registration) |
   | UD20 | A valid Railway token for telegram-trigger (the Telegram Run Now buttons fail) | 2026-11-03 | the manual restart button | any time |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
@@ -16716,6 +16716,40 @@ Order of the services (CONTRACT 17, rollback floors):
     buyers and the admin's handling of held orders). Owner: step 7's builder. Trigger: the user's Midtrans account is
     ready (the user, 2026-11-22: "akun Mitrans belum siap").
   - Its check joins step 8 (the user's "Pengecekan perbaikan tersebut dilakukan di langkah 8"; EXEC UD23).
+
+- **Step 9, the registration test window: implementation plan (2026-11-23, from the live site's code at `ec739a06`; the
+  user: "Sekarang akan masuk langkah 9 instead of langkah 8 ... segera execute").**
+  - What the switch does (code read at `ec739a06`): `EDGE_PRELAUNCH` is unset on edge-bff-live, so `Settings.prelaunch`
+    holds (`app/config.py:223-225`, the live site's default). `EDGE_PRELAUNCH=false` opens registration and its code step
+    (`app/auth_flows.py:739-745`, `/api/v1/auth/config` `registration` true, the sign-in page's "Create account") and
+    sign-in for every account (`app/main.py:997`); unsetting it again closes both, ends the session of every account that
+    is neither the admin nor a test account at its next request (`app/principal.py:558`), refuses a pending
+    registration's code (REGISTRATION_CLOSED) and leaves the accounts made as they are (status active).
+  - Rehearsed: `apps/edge-bff/tests/test_step9_window.py` (open: register, the code mail queued, verify signs in, sign out
+    and in again; close: registration and a pending code 403 REGISTRATION_CLOSED, the window session 401, sign-in 403
+    SIGN_IN_CLOSED, the account kept), green on the branch and on `ec739a06` (a worktree of the live commit, with
+    `test_guest.py`: 18 passed).
+  - Mail: the live site sends through Resend (`EDGE_EMAIL_MODE=resend`, sender at mail.edgefinance.id, the key set). No
+    send by the live site is on record (its logs hold no `email_sent`; the live database is not readable from the agent's
+    environment), so the window's code mail is the first real send: the address must be one the user reads (a "+alias"
+    of the user's own mailbox).
+  - The register before step 9, for a short window with the user's own addresses: UD1, UD2, UD4, UD5, UD10, UD11 and
+    UD12 do not hold it (they hold the launch); UD24 acknowledged; UD8 and UD21 stand as accepted residuals of the
+    pre-launch mode; **UD22 becomes reachable while the window is open** (anyone may register then); **UD6 needs the
+    user's explicit acceptance** that the window runs without Privacy and Terms texts (R1-2's condition).
+  - Steps, each flip a deploy that needs the user's confirmation (AGENTS.md "Deploys"), the user present to register:
+    1. M340 check (no active run); `EDGE_PRELAUNCH=false` on edge-bff-live (a redeploy of `ec739a06`; no `main` move:
+       the branch head carries step 7 and its unapplied migration); read back `/ready` 200 and `/api/v1/auth/config`
+       `registration` true.
+    2. The user registers on app.edgefinance.id with a "+alias" address, enters the code, lands signed in, signs out and
+       in again; the agent reads the logs (`email_sent`, no `email_send_failed`).
+    3. Close within the agreed time: `EDGE_PRELAUNCH` removed (a redeploy); read back `registration` false and the
+       smoke (registration 403 REGISTRATION_CLOSED).
+    4. The accounts made in the window are listed on the beta's admin page (Accounts, newest first); the user disables
+       or keeps each (no account is deleted, ERRORS M535; a kept one signs in only once marked a test account).
+    5. Records: RAILWAY_CHANGELOG (both flips, the deployments, the read-backs), EXEC, ERRORS for anything found.
+  - Executed so far (2026-11-23): the plan, the rehearsal test, the register review. The open-close flips wait for the
+    user's confirmation and presence. Its test-out: the workflow of items 1-3; fixes go to step 8.
 
 - **The step-8 ledger (UD23's answer):** `verification/records/step8_ledger.json` (workflow `wf_877859a9-d28`, 2026-11-22):
   376 rows: 111 fixed and tested out, 168 fixed and not tested out, 23 open with an owner row, 65 open without one, 4
