@@ -16708,7 +16708,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD29 | ERRORS M553, the Backtest tripwire for indicator releases (EXEC-TRIPWIRE-LAB): (a) the tool takes a release record (the ALWAYS paths' content hash, the ids, the user's words), or (b) the guide drops the record step and the release is evidenced by CI, the formula tests and EXEC | 2026-11-23 with context (the user: "Ok untuk M553 -- masukan exec dulu"; the choice asked again with the options) | the guide's record step; a content-hash record of the Backtest core changes of EXEC-PINE-INDICATORS (M554, M555) | before the next indicator release to the live site or the next Backtest core change |
   | UD30 | (answered 2026-11-23: "A" (build now, one beta deploy)) EXEC-PINE-INDICATORS: the TradingView label boxes for Alpha Extract (BULL, BEAR) and Alpha Divergence (SH, SL, BULL DIV, BEAR DIV, BUY A): build them in this batch, before the beta deploy, or after it | 2026-11-23 with context (the user: "Tolong catat ... tampilannya bisa seperti terlampir") | the labels' look on the beta | before the beta deploy of the lab indicators |
   | UD31 | (answered 2026-11-23: "Y", narrowed the same day to the indicators drawn on the price chart, zone overlay) EXEC-PINE-INDICATORS: line style (solid, dashed, dotted) and opacity per output in the Terminal's Style tab: for the seven lab indicators only, or for every Terminal indicator (the released ones change on the beta, then on the live site when it moves) | 2026-11-23 with context | the Style tab change | before the Style tab is changed |
-  | UD32 | EXEC-PINE-INDICATORS: a TradingView-style colour picker in the Terminal's Style tab (a large grid of colours and tints, a custom colour, opacity, thickness and line style in one box, shared by indicators and the compare lines), in this batch with Y or later | 2026-11-23 with an estimate | the Style tab's colour box | before Y is built (one box) |
+  | UD32 | (answered 2026-11-23: "All at once", in this batch) EXEC-PINE-INDICATORS: a TradingView-style colour picker in the Terminal's Style tab (a large grid of colours and tints, a custom colour, opacity, thickness and line style in one box, shared by indicators and the compare lines), in this batch with Y or later | 2026-11-23 with an estimate | the Style tab's colour box | before Y is built (one box) |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17326,6 +17326,11 @@ dengan konfirmasi user per deploy.
     pemilih warna gaya TradingView (kisi warna besar dengan gradasi, warna kustom, slider opacity, tebal dan jenis garis
     dalam satu kotak). Sekarang: kotak 9 warna, dua salinan kode (indikator di `app/indicators.ts`, garis aset di
     `app/assets.ts`). Dijawab dengan perkiraan; ikut batch ini atau tidak ditanyakan (UD32).
+  - User 2026-11-23: "All at once. Then jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading time,
+    dll dengan 10 agent subsonnet high. Bereskan temuan. Deploy." Urutan: A, Y dan pemilih warna (UD32: ikut batch ini)
+    dibangun; 10 agent Sonnet (effort high) memeriksa per area; temuan dibereskan; uji ulang perbaikan (AGENTS.md
+    "Findings and fixes" aturan 8: lima agent Opus effort medium); CI hijau; deploy beta (upload backtest-worker, lalu
+    `main`: edge-bff beta dan screener-worker). "Deploy" adalah konfirmasi deploy beta batch ini; live tidak dipindah.
 
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
