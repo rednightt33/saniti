@@ -4,6 +4,7 @@
    the Terminal's field names, mapped here to the names the page reads). Every series comes from the BacktestApi. */
 import IND_REG from '../../terminal/src/data/indRegistry.json' with { type: 'json' };
 import { EXTRA_GROUPS as CORE_EXTRA, LEGACY, type LegacySpec, type RegCard } from './core/catalog.ts';
+import { priceLevels } from './core/priceLevels.ts';
 import type { Card, TestCard } from './api/types.ts';
 import { SC, entryOf, testGroup } from './grammar.ts';
 import { API, CAT, DATA } from './env.ts';
@@ -69,7 +70,9 @@ export const evalCond = (tk: string, c: Card): Uint8Array => API.conditionSeries
    catalog edge-bff filters per principal, catalog.tab_list), so a paid account never sees a preview line's name; a
    catalog not read yet offers none (fail closed). A released line outside the plan stays, marked not calculated. */
 export const offered = (r: RegRow) => !r.release || SC.by.has(r.id);
-export const LEVEL_LINES = () => REG.filter(r => r.zone==='overlay' && offered(r)).flatMap(r => r.out.filter(o => o!=='direction').map(o => ({id:r.id, o, label:`${r.name} · ${OUT_LABEL(o)}`, ready:regReady(r.id)})));
+/* ERRORS M554: an overlay indicator's price levels only (core/priceLevels.ts, the unit probe), the rule of the worker's
+   engine.ts LEVEL_LINES: never a state or a 0/1 flag drawn on the price (Inside Bar's ib) */
+export const LEVEL_LINES = () => REG.filter(r => r.zone==='overlay' && offered(r)).flatMap(r => r.out.filter(o => priceLevels(r.id).includes(o)).map(o => ({id:r.id, o, label:`${r.name} · ${OUT_LABEL(o)}`, ready:regReady(r.id)})));
 export const mkRegWith = (id: string, over: Record<string, any>) => { const c = mkReg(id); const {p, ...rest} = over; Object.assign(c, rest); if(p) c.p = {...c.p, ...p}; return c };
 
 /** whether a change from `before` to `after` keeps a condition list within limits.max_conditions: the worker counts the

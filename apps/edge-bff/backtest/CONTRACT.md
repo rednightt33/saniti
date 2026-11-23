@@ -161,8 +161,11 @@ not in the path.
   into `request_hash` all the same, so it is held to its type, not to the range its mode would check (the page keeps
   what was typed into a field it no longer shows, a cleared input as 0): `exit.atr_length` without an ATR stop or
   target and the numbers of the stop, take-profit and trailing modes not chosen are numbers (`INVALID_EXIT`), and both
-  price lines are checked as a line mode checks its line (a registry overlay indicator, an output other than
-  `direction`, the registry's parameters) whichever mode is chosen (review VAL-1).
+  price lines are checked as a line mode checks its line (a registry overlay indicator, one of its price levels, the
+  registry's parameters) whichever mode is chosen (review VAL-1). A price level is an output the Screener generator's
+  unit probe marks as unit price comparable with close (`core/compare-lag.json` `price_levels`, `core/priceLevels.ts`;
+  ERRORS M554): a state such as Supertrend's `direction` or a 0/1 flag such as Inside Bar's `ib` is refused
+  (`UNKNOWN_OUTPUT`).
 - Flow: enabled flow conditions and `rank_by = 'fnet'` are refused with `FLOW_UNAVAILABLE` while
   `catalog.flow.available` is false. An enabled broker condition's code must be in terminal-api's broker reference list
   (`UNKNOWN_BROKER`, field `….params.broker`). A request reads the broker files when an enabled flow condition (entry

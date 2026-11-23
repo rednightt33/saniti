@@ -30,6 +30,7 @@ import type { Num, Params } from '../../../terminal/src/calc/indicators.ts';
 import { isN } from '../../../terminal/src/calc/indicators.ts';
 import display from '../../../terminal/src/data/indRegistry.json' with { type: 'json' };
 import { Calc } from './conditions.ts';
+import { priceLevels } from './priceLevels.ts';
 import { BY_ID, REGISTRY, ValidationError, indicator, resolveParams } from './registry.ts';
 import { RANK_BY, barMap, byTicker, conditionsWithin, emptyTrack, isIsoDate, leftOut, liquidity, periodSignals, rankScores, requestConditions, resultCalendar, signalSummary, track, unlessLeftOut } from './signals.ts';
 import type { BarMap, Exclusion, RankBy, TickerSignals } from './signals.ts';
@@ -113,23 +114,25 @@ function prepared(ctx: Context, ticker: string, field: string): Prepared {
 }
 
 /* ---- price lines a stop or a trailing stop can sit on (the page's LEVEL_LINES) ----------------------------- */
-/* The page offers the outputs of the indicators drawn on the price (indRegistry zone 'overlay'), without their
-   'direction' output (a +1/-1 state, not a price). Derived from the registries, not listed by hand. */
+/* The page offers the price levels (priceLevels.ts: the outputs the unit probe marks as a price, ERRORS M554) of the
+   indicators drawn on the price (indRegistry zone 'overlay'): never a state (Supertrend's direction, +1/-1) or a 0/1
+   flag (Inside Bar's ib). Derived from the registries and the probe, not listed by hand. */
 const OVERLAY = new Set((display as unknown as { id: string; zone: string }[]).filter(r => r.zone === 'overlay').map(r => r.id));
+const levelsOf = (r: { id: string; outputs: string[] }) => r.outputs.filter(o => priceLevels(r.id).includes(o));
 export const LEVEL_LINES: { indicator: string; output: string }[] = REGISTRY.indicators
   .filter(r => OVERLAY.has(r.id) && r.available_for_backtest)
-  .flatMap(r => r.outputs.filter(o => o !== 'direction').map(output => ({ indicator: r.id, output })));
+  .flatMap(r => levelsOf(r).map(output => ({ indicator: r.id, output })));
 
 export interface Line { key: string; params: Params; output: string }
-/** A price line as the page sends it (contract.ts LineRef): a registry overlay indicator, one of its outputs other
-    than direction, its parameters as the registry takes them. The worker's validate.ts holds the line of a stop or
+/** A price line as the page sends it (contract.ts LineRef): a registry overlay indicator, one of its price levels
+    (priceLevels.ts), its parameters as the registry takes them. The worker's validate.ts holds the line of a stop or
     trailing mode that is not chosen to it too. */
 export function lineOf(ref: unknown, field: string): Line {
   if (!ref || typeof ref !== 'object' || Array.isArray(ref)) throw new ValidationError('INVALID_EXIT', field, `${field} must name an indicator line.`);
   const { indicator: id, output, params } = ref as { indicator?: unknown; output?: unknown; params?: unknown };
   const r = indicator(id, `${field}.indicator`);
   if (!OVERLAY.has(r.id)) throw new ValidationError('INVALID_LINE', `${field}.indicator`, `${field}.indicator: ${r.id} is not drawn on the price, so it is not a price line.`);
-  const allowed = r.outputs.filter(o => o !== 'direction');
+  const allowed = levelsOf(r);
   if (typeof output !== 'string' || !allowed.includes(output)) throw new ValidationError('UNKNOWN_OUTPUT', `${field}.output`, `${field}.output must be one of ${allowed.join(', ')}.`);
   return { key: r.key, params: resolveParams(r, params, `${field}.params`), output };
 }

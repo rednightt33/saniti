@@ -41,8 +41,8 @@ export const REGISTRIES = [
   { file: 'screener/src/core/presets.json', kind: 'screener_preset', ...asList('presets') },
   // the generated Screener registry holds three kinds: each list is filtered by its own kind
   { file: 'screener/src/core/screener-registry.json', lists: [['indicators', 'indicator'], ['flows', 'flow_indicator'], ['candles', 'candle_pattern']] },
-  // the Backtest page's comparison lag, keyed by indicator id (checker L3, 2026-11-21)
-  { file: 'backtest/src/core/compare-lag.json', kind: 'indicator', keyed: 'price_compare_lag' },
+  // the Backtest page's comparison lag and price levels, each keyed by indicator id (checker L3, 2026-11-21; ERRORS M554)
+  { file: 'backtest/src/core/compare-lag.json', keyedParts: [['price_compare_lag', ['indicator']], ['price_levels', ['indicator']]] },
   // the Screener core's hand-kept files keyed by item id (step 3 of 2026-11-23, the lab Flow dry run: a page test reads
   // the filtered registries, so a file of the same items left whole disagreed with them, "FL53 is not an indicator of
   // flowRegistry.json"). Each keyed part lists the kinds its ids may be of (an id is of the first kind the release file

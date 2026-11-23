@@ -3567,5 +3567,350 @@
 "info": "Alpha Volatile mengukur seberapa jauh close dari moving average-nya dalam rupiah. Titik merah berarti jarak itu keluar dari pita rata-rata plus minus Z kali standar deviasi jarak selama periode lookback.",
 "display": "Titik jarak, desil dan pita Z di panel terpisah",
 "position": "Separate indicator pane"
+},
+{
+"id": "I55",
+"cat": "Trend",
+"name": "Inside Bar Detection",
+"key": "inside_bar",
+"short": "Inside Bar",
+"req": "HLC",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "ib",
+"label": "Inside bar",
+"r": "marker",
+"role": "marker_dots",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session it happens.",
+"colors": [
+"#ffeb3b"
+],
+"marker": {
+"shape": "arrowDown",
+"position": "aboveBar",
+"text": "IB"
+}
+},
+{
+"k": "break_up",
+"label": "Break up",
+"r": "marker",
+"role": "marker_dots",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session it happens.",
+"colors": [
+"#4caf50"
+],
+"marker": {
+"shape": "arrowUp",
+"position": "aboveBar",
+"text": "IB BREAK ↑"
+}
+},
+{
+"k": "break_down",
+"label": "Break down",
+"r": "marker",
+"role": "marker_dots",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session it happens.",
+"colors": [
+"#f23645"
+],
+"marker": {
+"shape": "arrowDown",
+"position": "belowBar",
+"text": "IB BREAK ↓"
+}
+}
+],
+"params": [
+{
+"k": "calculation_parameters",
+"label": "Calculation Parameters",
+"type": "fixed",
+"def": "none",
+"ev": "NOT_APPLICABLE",
+"hint": "No adjustable inputs: a bar inside the previous bar's high and low, the break of the mother bar by the close"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Menandai inside bar dan close yang menembus high atau low mother bar.",
+"info": "Inside bar adalah candle dengan high tidak di atas dan low tidak di bawah candle sebelumnya. Inside bar pertama memulai kompresi dengan candle sebelumnya sebagai mother bar; kompresi selesai saat close menembus high (BREAK ↑) atau low (BREAK ↓) mother bar.",
+"display": "Label IB dan IB BREAK di atas/bawah candle",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I56",
+"cat": "Trend",
+"name": "Alpha Price Action BUY",
+"key": "price_action_buy",
+"short": "Price Action BUY",
+"req": "HLC",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "level_1",
+"label": "Candle 1 High",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#2962ff"
+],
+"step": true
+},
+{
+"k": "level_a",
+"label": "Candle A High",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#f23645"
+],
+"step": true
+},
+{
+"k": "level_b",
+"label": "Candle B High",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#ff9800"
+],
+"step": true
+},
+{
+"k": "break_1",
+"label": "Break Candle 1 high",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session the break source rises above the Candle 1 level."
+},
+{
+"k": "break_a",
+"label": "Break Candle A high",
+"r": "marker",
+"role": "marker_dots",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session it happens.",
+"colors": [
+"#00e676"
+],
+"marker": {
+"shape": "arrowUp",
+"position": "belowBar",
+"text": "A"
+}
+},
+{
+"k": "break_b",
+"label": "Break Candle B high",
+"r": "marker",
+"role": "marker_dots",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session it happens.",
+"colors": [
+"#00bcd4"
+],
+"marker": {
+"shape": "arrowUp",
+"position": "belowBar",
+"text": "B"
+}
+}
+],
+"params": [
+{
+"k": "lookback_length",
+"label": "Lookback N (completed candles)",
+"type": "integer",
+"def": 30,
+"ev": "PROPOSED_DEFAULT",
+"min": 3,
+"max": 400,
+"step": 1,
+"hint": "The completed candles before the bar that are searched"
+},
+{
+"k": "break_source",
+"label": "Breakout source",
+"type": "enum",
+"def": "High (wick)",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"High (wick)",
+"Close"
+]
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Level high Candle 1, A dan B dari 30 candle sebelumnya, dengan tanda saat level itu ditembus ke atas.",
+"info": "Candle 1 adalah candle dengan low terendah di N candle sebelumnya; Candle A candle lebih lama pertama yang high-nya di atas high Candle 1; Candle B candle lebih lama dari A yang high-nya di atas high A. Garis bertingkat menunjukkan level high ketiganya setiap hari.",
+"display": "Garis bertingkat level Candle 1, A, B di chart harga",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I57",
+"cat": "Trend",
+"name": "Alpha Price Action SELL",
+"key": "price_action_sell",
+"short": "Price Action SELL",
+"req": "HLC",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "level_1",
+"label": "Candle 1 Low",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#2962ff"
+],
+"step": true
+},
+{
+"k": "level_a",
+"label": "Candle A Low",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#f23645"
+],
+"step": true
+},
+{
+"k": "level_b",
+"label": "Candle B Low",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#ff9800"
+],
+"step": true
+},
+{
+"k": "break_1",
+"label": "Break Candle 1 low",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session the break source falls below the Candle 1 level."
+},
+{
+"k": "break_a",
+"label": "Break Candle A low",
+"r": "marker",
+"role": "marker_dots",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session it happens.",
+"colors": [
+"#f23645"
+],
+"marker": {
+"shape": "arrowDown",
+"position": "aboveBar",
+"text": "A"
+}
+},
+{
+"k": "break_b",
+"label": "Break Candle B low",
+"r": "marker",
+"role": "marker_dots",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session it happens.",
+"colors": [
+"#ff9800"
+],
+"marker": {
+"shape": "arrowDown",
+"position": "aboveBar",
+"text": "B"
+}
+}
+],
+"params": [
+{
+"k": "lookback_length",
+"label": "Lookback N (completed candles)",
+"type": "integer",
+"def": 30,
+"ev": "PROPOSED_DEFAULT",
+"min": 3,
+"max": 400,
+"step": 1,
+"hint": "The completed candles before the bar that are searched"
+},
+{
+"k": "break_source",
+"label": "Breakdown source",
+"type": "enum",
+"def": "Low (wick)",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"Low (wick)",
+"Close"
+]
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Level low Candle 1, A dan B dari 30 candle sebelumnya, dengan tanda saat level itu ditembus ke bawah.",
+"info": "Candle 1 adalah candle dengan high tertinggi di N candle sebelumnya; Candle A candle lebih lama pertama yang low-nya di bawah low Candle 1; Candle B candle lebih lama dari A yang low-nya di bawah low A. Garis bertingkat menunjukkan level low ketiganya setiap hari.",
+"display": "Garis bertingkat level Candle 1, A, B di chart harga",
+"position": "Price chart overlay (candle pane)"
 }
 ]

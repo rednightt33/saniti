@@ -72,3 +72,57 @@ F.alpha_volatile = def('alpha_volatile', AV_OUTS, () => 'C', (B: Seg, p) => {
     back_in_any: flag((s, q) => s === 0 && q !== null && q !== 0),
   };
 });
+
+/* ---- Inside Bar Detection (EXEC-PINE-INDICATORS; the user's Pine "Nic- Inside Bar Chain Break Alert (Stable & Exact)",
+   2026-11-23). Causal. As the Pine:
+   - ib = high <= high[1] and low >= low[1] (an equal bar counts; a day without trades counts too, the user's "1.B");
+   - the first inside bar outside a compression starts one, the mother bar being the bar before it (its high and low);
+     inside the compression a bar may trade beyond the mother's range while its close stays inside;
+   - break_up = close > mother high, break_down = close < mother low, during a compression; either ends it.
+   Flags 1 on the bar, else 0 (bar 0: 0). */
+DEFAULTS.inside_bar = {};
+F.inside_bar = def('inside_bar', ['ib', 'break_up', 'break_down'], () => 'HLC', (B: Seg) => {
+  const n = B.N, ib: number[] = [], up: number[] = [], down: number[] = [];
+  let on = false, mh = NaN, ml = NaN;
+  for (let i = 0; i < n; i++) {
+    const inside = i > 0 && B.H[i] <= B.H[i - 1] && B.L[i] >= B.L[i - 1];
+    if (!on && inside) { mh = B.H[i - 1]; ml = B.L[i - 1]; on = true }
+    const bu = on && B.C[i] > mh, bd = on && B.C[i] < ml;
+    ib.push(inside ? 1 : 0); up.push(bu ? 1 : 0); down.push(bd ? 1 : 0);
+    if (bu || bd) { on = false; mh = NaN; ml = NaN }
+  }
+  return { ib, break_up: up, break_down: down };
+});
+
+/* ---- Alpha Price Action BUY / SELL (EXEC-PINE-INDICATORS; the user's Pine "Nic - Candle A BUY" / "Nic - Candle A SELL",
+   2026-11-23). Causal: on bar t only the N completed bars before it (offsets 1..N) are read, from bar N on. As the Pine:
+   - BUY: Candle 1 = the lowest low (a tie: the most recent); A = the first older bar with high > Candle 1's high; B = the
+     first older bar than A with high > A's high; levels = the highs of 1, A, B (null when not found);
+   - SELL: Candle 1 = the highest high; A = the first older bar with low < Candle 1's low; B = older than A with low < A's
+     low; levels = the lows;
+   - break of a level: the source (wick: high for BUY, low for SELL; or close) beyond today's level while the source of the
+     bar before was not (BUY: src > level and src[1] <= level; SELL: src < level and src[1] >= level). The Pine breaks A and
+     B; break_1 follows the same rule (the user's "levelnya bisa dipilih", 1, A or B). */
+function priceAction(B: Seg, p: Record<string, unknown>, buy: boolean) {
+  const n = B.N, N = Math.floor(Number(p.lookback_length)), close = p.break_source === 'Close';
+  const ext = buy ? B.L : B.H, opp = buy ? B.H : B.L;            // the extreme that picks Candle 1, the side its levels use
+  const beyond = (a: number, b: number) => buy ? a > b : a < b;
+  const src = close ? B.C : opp;
+  const lv: Record<'1' | 'a' | 'b', (number | null)[]> = { '1': [], a: [], b: [] };
+  for (let t = 0; t < n; t++) {
+    if (t < N) { lv['1'].push(null); lv.a.push(null); lv.b.push(null); continue }
+    let c1 = 1;
+    for (let i = 2; i <= N; i++) if (buy ? ext[t - i] < ext[t - c1] : ext[t - i] > ext[t - c1]) c1 = i;
+    const l1 = opp[t - c1];
+    let a = 0; for (let i = c1 + 1; i <= N; i++) if (beyond(opp[t - i], l1)) { a = i; break }
+    let b = 0; if (a) for (let i = a + 1; i <= N; i++) if (beyond(opp[t - i], opp[t - a])) { b = i; break }
+    lv['1'].push(l1); lv.a.push(a ? opp[t - a] : null); lv.b.push(b ? opp[t - b] : null);
+  }
+  const brk = (L: (number | null)[]) => L.map((l, t) => l === null || t === 0 ? (l === null ? null : 0) : beyond(src[t], l) && !beyond(src[t - 1], l) ? 1 : 0);
+  return { level_1: lv['1'], level_a: lv.a, level_b: lv.b, break_1: brk(lv['1']), break_a: brk(lv.a), break_b: brk(lv.b) };
+}
+const PA_OUTS = ['level_1', 'level_a', 'level_b', 'break_1', 'break_a', 'break_b'];
+DEFAULTS.price_action_buy = { lookback_length: 30, break_source: 'High (wick)' };
+DEFAULTS.price_action_sell = { lookback_length: 30, break_source: 'Low (wick)' };
+F.price_action_buy = def('price_action_buy', PA_OUTS, () => 'HLC', (B: Seg, p) => priceAction(B, p, true));
+F.price_action_sell = def('price_action_sell', PA_OUTS, () => 'HLC', (B: Seg, p) => priceAction(B, p, false));

@@ -3005,6 +3005,495 @@
           ]
         }
       }
+    },
+    "I55": {
+      "shape": "dir",
+      "synonyms": [
+        "inside bar",
+        "IB",
+        "mother bar",
+        "inside bar break"
+      ],
+      "description": "Marks a bar inside the previous bar's high and low, and the close that breaks the mother bar's high or low.",
+      "default_test": {
+        "form": "event_value",
+        "output": "break_up",
+        "op": "crosses_above",
+        "value": 0.5,
+        "within": 5
+      },
+      "outputs": {
+        "ib": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Inside bar on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Inside bar formed"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "break_up": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Mother bar broken upward on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Mother bar broken upward"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "break_down": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Mother bar broken downward on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Mother bar broken downward"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I56": {
+      "shape": "line",
+      "synonyms": [
+        "price action",
+        "candle A",
+        "candle B",
+        "Alpha Price Action BUY"
+      ],
+      "description": "Levels of Candle 1, A and B from the last N completed candles (highs above the lowest low) and their breaks.",
+      "default_test": {
+        "form": "event_value",
+        "output": "break_a",
+        "op": "crosses_above",
+        "value": 0.5,
+        "within": 5
+      },
+      "outputs": {
+        "level_1": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above the Candle 1 level",
+                "lt": "Close below the Candle 1 level"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "level_a": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above the Candle A level",
+                "lt": "Close below the Candle A level"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "level_b": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above the Candle B level",
+                "lt": "Close below the Candle B level"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "break_1": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Broke above the Candle 1 level on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Broke above the Candle 1 level"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "break_a": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Broke above the Candle A level on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Broke above the Candle A level"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "break_b": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Broke above the Candle B level on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Broke above the Candle B level"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I57": {
+      "shape": "line",
+      "synonyms": [
+        "price action",
+        "candle A",
+        "candle B",
+        "Alpha Price Action SELL"
+      ],
+      "description": "Levels of Candle 1, A and B from the last N completed candles (lows below the highest high) and their breaks.",
+      "default_test": {
+        "form": "event_value",
+        "output": "break_a",
+        "op": "crosses_above",
+        "value": 0.5,
+        "within": 5
+      },
+      "outputs": {
+        "level_1": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above the Candle 1 level",
+                "lt": "Close below the Candle 1 level"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "level_a": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above the Candle A level",
+                "lt": "Close below the Candle A level"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "level_b": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above the Candle B level",
+                "lt": "Close below the Candle B level"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "break_1": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Broke below the Candle 1 level on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Broke below the Candle 1 level"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "break_a": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Broke below the Candle A level on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Broke below the Candle A level"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "break_b": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Broke below the Candle B level on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Broke below the Candle B level"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        }
+      }
     }
   }
 }

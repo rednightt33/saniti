@@ -5,7 +5,7 @@
      2. Flow indicators (Net Buy Flow, Net Buy Flow (Line)): hand-written schema (inputs[], style[], compute, title).
    Backend: window.marketLabIndicators.export() / import() carry the saved list as JSON.
    Ported line for line; closure values the reference reassigns are read from ctx. */
-import { DEFAULTS, F } from '../calc/indicators';
+import { DEFAULTS, F, isN } from '../calc/indicators';
 import { initFlowIndicators } from './flowIndicators';
 import type { Ctx } from './context';
 import { draggable } from './draggable';
@@ -538,7 +538,8 @@ export function initIndicators(ctx: Ctx) {
       }
       else if(o.r === 'segmented_line') inst.parts.push({ o, kind:'seg', series:mk(L.LineSeries, {}), series2:mk(L.LineSeries, { lastValueVisible:false }) });
       else if(o.r === 'dots') inst.parts.push({ o, kind:'dots', series:mk(L.LineSeries, { lineVisible:false, pointMarkersVisible:true }) });
-      else inst.parts.push({ o, kind:'line', series:mk(L.LineSeries, {}) });
+      /* EXEC-PINE-INDICATORS: a stepped line (registry `step`, Pine plot.style_stepline: Alpha Price Action's levels) */
+      else inst.parts.push({ o, kind:'line', series:mk(L.LineSeries, o.step ? { lineType:L.LineType.WithSteps } : {}) });
     });
     inst.series = inst.parts.find(pt => pt.series)?.series || null;
     if(panel && (r.guides.length || r.levelsParam)) inst.series.applyOptions({ autoscaleInfoProvider:orig => {   // keep visible reference levels inside the pane (e.g. RSI 30 / 70)
@@ -600,10 +601,15 @@ export function initIndicators(ctx: Ctx) {
       if(pt.series && (r.zone !== 'overlay' || own(pt)) && pt.kind !== 'marker' && pt.kind !== 'strip' && pt.kind !== 'cells') pt.series.applyOptions({ lastValueVisible:a ? a[a.length - 1] !== null && a[a.length - 1] !== undefined : false });
       if(pt.kind === 'marker') {
         /* EXEC-TERMINAL-FLOW-IND: a mark under each candle where the indicator holds (FL09, FL27), on the series drawn */
-        const host = ctx.chartStyle === 'line' || ctx.displayMode === 'return' ? ctx.mainLine : ctx.candle;
+        /* EXEC-PINE-INDICATORS: a mark as its source draws it (registry `marker` {shape, position, text, size, on}): on the
+           price series (aboveBar, belowBar) or, with `on`, at another output's value on that output's own series (a label
+           at an oscillator's value: atPriceTop, atPriceBottom, atPriceMiddle). Without `marker`, an arrow under the candle. */
+        const m = pt.o.marker || {}, onPart = m.on ? inst.parts.find(q => q.o.k === m.on && q.series) : null, at = m.on ? inst.disp[m.on] : null;
+        const host = onPart ? onPart.series : ctx.chartStyle === 'line' || ctx.displayMode === 'return' ? ctx.mainLine : ctx.candle;
         if(pt.plugin && pt.host !== host) { pt.plugin.detach(); pt.plugin = null }
         if(!pt.plugin) { pt.plugin = L.createSeriesMarkers(host, []); pt.host = host }
-        pt.plugin.setMarkers(keyedMarkers(vis ? inRange(a, (v, i) => v === 1 ? [{ time:T(i), position:'belowBar', color:c1, shape:'arrowUp', size:1 }] : []) : []));
+        const mark = (i: number) => at ? (isN(at[i]) ? { position:m.position || 'atPriceMiddle', price:cv(at[i]) } : null) : { position:m.position || 'belowBar' };
+        pt.plugin.setMarkers(keyedMarkers(vis ? inRange(a, (v, i) => { const w = v === 1 && mark(i); return w ? [{ time:T(i), ...w, color:c1, shape:m.shape || 'arrowUp', size:m.size ?? 1, ...(m.text ? { text:m.text } : {}) }] : [] }) : []));
         return;
       }
       /* U2 (EXEC-TERMINAL-LAG-2, user 2026-11-22): a line not drawn (the indicator hidden or folded, the output off) gets no
@@ -644,7 +650,11 @@ export function initIndicators(ctx: Ctx) {
         pt.series.setData(inRange(a, (v, i) => v === null ? [] : [{ time:T(i), value:conv(v), color:dir && dir[i] === -1 ? c2 : c1 }]));
         pt.series.applyOptions({ visible:vis, color:c1, pointMarkersRadius:Math.max(1, s.width) });
       } else {
-        pt.series.setData(gapped(inRange(a, (v, i) => v === null ? [{ time:T(i) }] : [breaks.has(i + 1) ? { time:T(i), value:cv(v), color:GAP } : { time:T(i), value:cv(v) }])))   // a gap, not a bridge (agent 5 F1);
+        /* EXEC-PINE-INDICATORS: a line coloured per bar from a palette by another output's index (registry `palette` and
+           `paletteFrom`: Alpha KAMA's 20 colours) */
+        const pal = Array.isArray(pt.o.palette) && pt.o.paletteFrom ? inst.disp[pt.o.paletteFrom] : null;
+        const tint = (i: number) => { const k = pal ? pal[i] : null; return isN(k) && pt.o.palette[k] ? { color:alpha(pt.o.palette[k], op) } : {} };
+        pt.series.setData(gapped(inRange(a, (v, i) => v === null ? [{ time:T(i) }] : [breaks.has(i + 1) ? { time:T(i), value:cv(v), color:GAP } : { time:T(i), value:cv(v), ...tint(i) }])))   // a gap, not a bridge (agent 5 F1);
         pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width });
       }
       if(r.zone === 'overlay' && !own(pt)) [pt.series, pt.series2].filter(Boolean).forEach(se => se.applyOptions({ priceFormat:ctx.formatMode() }));

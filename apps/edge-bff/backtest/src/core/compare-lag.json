@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "about": "Indicator outputs a comparison with a bar field reads one bar late (the lag probe of build-screener-registry.mjs, report 6.8): price gt / crosses_above the output reads its gt entry, lt / crosses_below its lt entry. Generated: do not edit.",
+  "schema_version": 2,
+  "about": "Indicator outputs a comparison with a bar field reads one bar late (the lag probe of build-screener-registry.mjs, report 6.8): price gt / crosses_above the output reads its gt entry, lt / crosses_below its lt entry. price_levels: the outputs the unit probe marks as a price level (unit price, comparable with close), the only ones a Backtest stop or trailing stop can sit on. Generated: do not edit.",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "price_compare_lag": {
     "I10": {
@@ -15,5 +15,61 @@
         "lt": 1
       }
     }
+  },
+  "price_levels": {
+    "I01": [
+      "sma"
+    ],
+    "I02": [
+      "ema"
+    ],
+    "I03": [
+      "wma"
+    ],
+    "I04": [
+      "hma"
+    ],
+    "I05": [
+      "kama"
+    ],
+    "I09": [
+      "supertrend"
+    ],
+    "I10": [
+      "upper",
+      "basis",
+      "lower"
+    ],
+    "I11": [
+      "upper",
+      "basis",
+      "lower"
+    ],
+    "I12": [
+      "sar"
+    ],
+    "I27": [
+      "upper",
+      "basis",
+      "lower"
+    ],
+    "I42": [
+      "vwma"
+    ],
+    "I43": [
+      "vwap",
+      "upper1",
+      "lower1"
+    ],
+    "I56": [
+      "level_1",
+      "level_a",
+      "level_b"
+    ],
+    "I57": [
+      "level_1",
+      "level_a",
+      "level_b"
+    ]
   }
 }

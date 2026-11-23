@@ -931,18 +931,25 @@ export const serialize = doc => JSON.stringify(doc, null, 2) + '\n';
     Backtest core (conditions.ts indicatorCondition): its "price above / crosses above the upper band" then reads the
     band of the prior bar, as the Screener does, instead of a comparison that can never be true. One derivation (this
     probe) for both; an output the probe marks later is covered without a code change. The Backtest core cannot read
-    screener-registry.json itself (its generator reads the Backtest registry; the page would also carry 0.46 MB). */
+    screener-registry.json itself (its generator reads the Backtest registry; the page would also carry 0.46 MB).
+    ERRORS M554 (2026-11-23): the same file carries `price_levels`, the outputs of each indicator the unit probe marks as
+    a price level (unit price, comparable with close: they scale with the price and move with a shift of it), in the
+    registry's order. The Backtest's price lines (engine.ts LEVEL_LINES and lineOf, the page's reg.ts LEVEL_LINES: the
+    lines a stop or a trailing stop can sit on) read it instead of every output but one named `direction`, which offered
+    a 0/1 flag of an indicator drawn on the price (Inside Bar's `ib`) as a stop line. */
 export function compareLagDoc(doc) {
-  const lag = {};
+  const lag = {}, levels = {};
   for (const i of doc.indicators) for (const o of i.outputs) {
     const l = o.price_compare_lag;
     if (l && (l.gt || l.lt)) (lag[i.id] ??= {})[o.key] = { field: o.comparable_with, gt: l.gt, lt: l.lt };
+    if (o.unit === 'price' && o.comparable_with === 'close') (levels[i.id] ??= []).push(o.key);
   }
   return {
-    schema_version: 1,
-    about: 'Indicator outputs a comparison with a bar field reads one bar late (the lag probe of build-screener-registry.mjs, report 6.8): price gt / crosses_above the output reads its gt entry, lt / crosses_below its lt entry. Generated: do not edit.',
+    schema_version: 2,
+    about: 'Indicator outputs a comparison with a bar field reads one bar late (the lag probe of build-screener-registry.mjs, report 6.8): price gt / crosses_above the output reads its gt entry, lt / crosses_below its lt entry. price_levels: the outputs the unit probe marks as a price level (unit price, comparable with close), the only ones a Backtest stop or trailing stop can sit on. Generated: do not edit.',
     generated_by: PATHS.generator,
     price_compare_lag: lag,
+    price_levels: levels,
   };
 }
 

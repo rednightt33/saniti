@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "registry_version": "8d000db5ddcd354e",
+  "registry_version": "1cea3dc93ee46054",
   "generated_by": "apps/backtest-worker/scripts/build-registry.mjs",
   "sources": [
     {
       "file": "apps/edge-bff/terminal/src/data/indRegistry.json",
-      "sha256": "2f428f6bdd24628edfb4c5a9993b11cb32f94c08b570768ec956ea1e1c1be105"
+      "sha256": "23db0e8bc54cf35990e1d2192154b9145f15f3f8308eb0435add8b0aed8d0ea8"
     },
     {
       "file": "apps/edge-bff/terminal/src/calc/indicators.ts",
@@ -2176,6 +2176,117 @@
           "default": 2,
           "min": 0,
           "step": 0.1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I55",
+      "key": "inside_bar",
+      "name": "Inside Bar Detection",
+      "category": "Trend",
+      "function": "F.inside_bar",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "ib",
+        "break_up",
+        "break_down"
+      ],
+      "params": [],
+      "not_accepted": [
+        {
+          "key": "calculation_parameters",
+          "value": "none",
+          "reason": "fixed in the workbook"
+        }
+      ],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I56",
+      "key": "price_action_buy",
+      "name": "Alpha Price Action BUY",
+      "category": "Trend",
+      "function": "F.price_action_buy",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "level_1",
+        "level_a",
+        "level_b",
+        "break_1",
+        "break_a",
+        "break_b"
+      ],
+      "params": [
+        {
+          "key": "lookback_length",
+          "type": "integer",
+          "default": 30,
+          "min": 3,
+          "max": 400,
+          "step": 1
+        },
+        {
+          "key": "break_source",
+          "type": "enum",
+          "default": "High (wick)",
+          "options": [
+            "High (wick)",
+            "Close"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I57",
+      "key": "price_action_sell",
+      "name": "Alpha Price Action SELL",
+      "category": "Trend",
+      "function": "F.price_action_sell",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "level_1",
+        "level_a",
+        "level_b",
+        "break_1",
+        "break_a",
+        "break_b"
+      ],
+      "params": [
+        {
+          "key": "lookback_length",
+          "type": "integer",
+          "default": 30,
+          "min": 3,
+          "max": 400,
+          "step": 1
+        },
+        {
+          "key": "break_source",
+          "type": "enum",
+          "default": "Low (wick)",
+          "options": [
+            "Low (wick)",
+            "Close"
+          ]
         }
       ],
       "not_accepted": [],
