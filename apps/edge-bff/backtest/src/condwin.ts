@@ -12,6 +12,7 @@
 import { $, esc, ico, nf, toast } from './format.ts';
 import { BROKER_CODES, CAT, DATA } from './env.ts';
 import { S, mkCond } from './state.ts';
+import { cwMap } from './cwmap.ts';
 import { CATALOG, REG_BY, catOf, condReady, mkReg, regMedian, switchedOn, withinLimit } from './reg.ts';
 import type { Card, TestCard } from './api/types.ts';
 import type { LegacyCard, RegCard } from './core/catalog.ts';
@@ -43,22 +44,7 @@ const MY_KEY = 'ml.my';
 const myList = (): My[] => { try { return JSON.parse(localStorage.getItem(MY_KEY) || '[]') } catch { return [] } };
 const mySave = (l: My[]) => { try { localStorage.setItem(MY_KEY, JSON.stringify(l.slice(-50))) } catch { /* storage off: kept for this page only */ } };
 
-/* ---- the page's own card for a registry choice (the design's cwMap): the Screener's option key is `${form}|${output}|${op}` ---- */
-const OPM: Record<string, RegCard['op']> = { gt: 'gt', lt: 'lt', crosses_above: 'ca', crosses_below: 'cb' };
-function cwMap(code: string, key: string, label: string): Pick<RegCard, 'lhs' | 'op' | 'rhs'> | null {
-  const t = REG_BY[code];
-  if (!t || !key) return null;
-  const q = key.split('|'), kind = q[0], o = q[1], op = OPM[q[q.length - 1]];
-  if (!op || !t.out.includes(o)) return null;
-  const ev = op === 'ca' || op === 'cb';
-  if ((kind === 'value' && !ev) || (kind === 'event_value' && ev)) return { lhs: { t: 'out', o }, op, rhs: { t: 'val', v: 0 } };
-  if ((kind === 'state_level' && !ev) || (kind === 'event_level' && ev)) return { lhs: { t: 'price' }, op, rhs: { t: 'out', o } };
-  if (kind === 'state_output' || kind === 'event_output') {
-    const L = label.toLowerCase(), oth = t.out.find(k => k !== o && L.includes(k.replace(/_/g, ' ').toLowerCase())) || t.out.find(k => k !== o && k !== 'direction');
-    if (oth && ((kind === 'state_output' && !ev) || (kind === 'event_output' && ev))) return { lhs: { t: 'out', o }, op, rhs: { t: 'out', o: oth } };
-  }
-  return null;
-}
+/* ---- the page's own card for a registry choice: cwmap.ts (cwMap) ---- */
 /** the Screener option key of a page registry card (the inverse of cwMap) */
 function csOfReg(c: RegCard): string {
   const ev = c.op === 'ca' || c.op === 'cb', K = { gt: 'gt', lt: 'lt', ca: 'crosses_above', cb: 'crosses_below' }[c.op];
@@ -76,7 +62,7 @@ function rows(): Row[] {
     const why = refusalOf(e), base = { n: e.label, c: e.key, ds: e.desc, g: groupOf(e.group), e };
     if (why) { out.push({ ...base, kind: 'na', na: why, opts: [] }); continue }
     const opts: Opt[] = e.opts.length ? e.opts.map(o => [o.key, o.label, !o.disabled]) : e.ops ? [[OP_CHOICE, opWords(e, mkTest(e, 'probe')), true]] : [];
-    const reg = e.kind === 'indicator' && !!REG_BY[e.key] && e.opts.some(o => cwMap(e.key, o.key, o.label));
+    const reg = e.kind === 'indicator' && !!REG_BY[e.key] && e.opts.some(o => cwMap(e.key, o));
     out.push({ ...base, kind: reg ? 'reg' : 'test', opts, cs: e.opts.length ? e.def.opt : OP_CHOICE });
   }
   CW.drafts.entry.clear(); CW.drafts.exit.clear();
@@ -86,11 +72,10 @@ function rows(): Row[] {
     the real number; a row that says "Not in backtest" is not counted, Agent 10, M460 item 8) */
 export const condWinCount = (): number => SC.state === 'ready' ? rows().filter(r => r.kind !== 'na').length : 0;
 
-const optLabel = (r: Row, cs: string) => r.opts.find(x => x[0] === cs)?.[1] ?? '';
 /** a card for row `r` at choice `cs` (a page card where the page writes it exactly, else a test card) */
 function cardFor(r: Row, cs: string, id = Math.random().toString(36).slice(2, 8)): Card {
   if (r.kind === 'pre') { const c = mkCond(r.type!); c.id = id; c.op = cs || c.op; return c }
-  const e = r.e!, m = r.kind === 'reg' ? cwMap(e.key, cs, optLabel(r, cs)) : null;
+  const e = r.e!, m = r.kind === 'reg' ? cwMap(e.key, e.opts.find(o => o.key === cs)) : null;
   if (m) {
     const c = mkReg(e.key); c.id = id; c.lhs = m.lhs; c.op = m.op;
     c.rhs = m.rhs.t === 'val' ? { t: 'val', v: c.rhs.t === 'val' ? c.rhs.v : regMedian(e.key, c.p, (m.lhs as { o: string }).o) } : m.rhs;
