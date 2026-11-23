@@ -1,5 +1,38 @@
 # Railway changelog
 
+## 2026-11-23 — The beta on `c91e2809`: the seven lab Pine indicators, the label boxes, the colour box and the fixes of their checker round (the user: "All at once ... Deploy")
+
+- **The user's words:** "All at once. Then jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading
+  time, dll dengan 10 agent subsonnet high. Bereskan temuan. Deploy." (EXEC-PINE-INDICATORS; "Hanya di beta saja for
+  now ya": the live site does not move).
+- **Commit `c91e2809`** on `main` (fast-forward from `37e6be83`, 26 commits of this session): the lab indicators I55-I60
+  (I54 was the pilot), the category forms of the Screener and Backtest, the label boxes (A), the colour box with
+  per-output opacity, thickness and line style on the price chart's indicators (Y, UD32), the fixes of the checker
+  round and its two re-check rounds (ERRORS M554-M558), the real-data look-ahead check (`dd925164`), the records.
+- **Order:**
+  1. **backtest-worker `3f87892d`** SUCCESS 19:46 UTC: CLI upload of `git archive c91e2809` of its Dockerfile's COPY
+     paths with the Dockerfile (its `Backtest look-ahead gate` run 45247783331 green: the worker, the Screener worker
+     and the pages); start line `engine_version="6ed4c80f76fcbd09"` (as computed from the tree),
+     `registry_version="2a69cd7d3f01ceaf"`.
+  2. **`main` `37e6be83` → `c91e2809`** 19:55 UTC (Wait for CI off; every check of `c91e2809` was green before the push,
+     Backend tests run 45247783444 included): `edge-bff` `abd9f587` and `screener-worker` `071c2415` SUCCESS;
+     `market-ai-orc` `8e92a00c` SKIPPED (no watched path). The beta's `/version` names `c91e2809`; `/ready` 200 on both
+     sites.
+- **Checks:** before the upload and before the push 0 EDGE jobs, 0 orc turns, 0 active statements (M340); no other
+  deployment waiting. As the owner on the beta: the Screener catalog lists I54-I60 (registry `ae69a0330d713449`);
+  seven screens ran (I55 break up within 5: 135 stocks; I56 break of Candle A: 200; I57: 73; I58 colour green: 72;
+  I58 yellow to green within 5: 34; I59 BULL within 10: 63; I60 BULL DIV within 20: 147); a Backtest signals preview
+  with an I60 BULL DIV entry on ASII, BBCA, BBRI, MYOR, PGAS (2-5 signals each); the Terminal's served lab build draws
+  six lab indicators on BBCA with no page error and its colour box opens beside the dialog. As a visitor: the lab
+  build and its probe 404 on both sites; the public Terminal bundle holds none of the lab names.
+- **Postgres:** the real-data look-ahead check read about 285 thousand rows through pgweb (read-only); not a large
+  update, no restart.
+- **Shared:** both sites use the new workers (engine and registry versions moved: saved screens and backtests are
+  re-reviewed once); the lab items are computed only for a principal whose allow holds them, on the live site no one.
+- **Live:** unchanged (`edge-bff-live` `87ef1cba`, `ec739a06`).
+- **Rollback:** the beta: redeploy `edge-bff` `41bb9e28` (`37e6be83`); screener-worker `98a7bef5`; backtest-worker: a
+  CLI upload of `git archive 37e6be83` (its previous deployment `9c18509a` was replaced).
+
 ## 2026-11-23 — The beta on `37e6be83`: the pilot lab indicator Alpha Volatile (I54) and M540 (the user: "Langsung deploy")
 
 - **The user's words:** "Ok" (the pilot, EXEC-PINE-INDICATORS), "Hanya di beta saja for now ya" (lab), "Langsung deploy".

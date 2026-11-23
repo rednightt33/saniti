@@ -17349,6 +17349,11 @@ dengan konfirmasi user per deploy.
     panjang smoothing desimal tak berpengaruh, tanda klik backdrop) dibereskan di putaran 2 (`9afa833f`), diuji ulang
     oleh dua agent Opus (`wf_c2fe2424-bf4`). Cek look-ahead data nyata: 214 seri di BBRI, BBCA, GOTO, COCO, 0 bocor
     (`dd925164`). Pertanyaan baru ke user: UD33-UD37 di register.
+  - Deploy beta 2026-11-23 (konfirmasi user "Deploy"): backtest-worker `3f87892d` (CLI upload `c91e2809`, gerbang
+    look-ahead hijau), lalu `main` `37e6be83` → `c91e2809`: edge-bff `abd9f587` dan screener-worker `071c2415` SUCCESS.
+    Dicek di beta sebagai owner (katalog I54-I60, tujuh screen, preview Backtest I60, Terminal enam indikator lab dan
+    kotak warna) dan sebagai pengunjung (build lab 404, bundle publik tanpa nama lab). Live tidak dipindah
+    (RAILWAY_CHANGELOG.md 2026-11-23).
 
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 

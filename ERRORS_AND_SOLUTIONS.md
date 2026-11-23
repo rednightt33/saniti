@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M558 — Checker round of the lab Pine indicators before their beta release: 60 findings, two fix rounds (2026-11-23; fixed on the branch in `12863820`, `9afa833f` and the round 2 close, parts open below)
+### M558 — Checker round of the lab Pine indicators before their beta release: 60 findings, two fix rounds (2026-11-23; fixed in `12863820`, `9afa833f` and `c91e2809`, on the beta since 2026-11-23, parts open below)
 
 - **Found by:** the user's "All at once ... jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading
   time, dll dengan 10 agent subsonnet high. Bereskan temuan. Deploy." Ten Sonnet checkers at effort high, one per area
@@ -8955,10 +8955,10 @@ in its staleness check.
   (`ctx.indicatorColors`, `ctx.assetColors`), the label boxes snap x and y each on its own pixel ratio. These last
   fixes were tested out by their author only (the mutation run above): the next checker workflow tests them out
   (EXEC.md carried part).
-- **Status:** fixed on the branch (`12863820`, `9afa833f`, the round 2 close); the re-check round 1 found 31 fixed and
-  the rest open or kept as above, its new defects fixed in round 2 and tested out; deploys with the lab indicators.
+- **Status:** on the beta since 2026-11-23 (`c91e2809`, RAILWAY_CHANGELOG.md); the re-check round 1 found 31 fixed and
+  the rest open or kept as above, its new defects fixed in round 2 and tested out; the live site does not run it.
 
-### M557 — The Terminal broke a Pine line at a bar without a value, where TradingView runs it on (2026-11-23; fixed on the branch in `2ebbf6b5`)
+### M557 — The Terminal broke a Pine line at a bar without a value, where TradingView runs it on (2026-11-23; fixed in `2ebbf6b5`, on the beta since 2026-11-23)
 
 - **Found by:** the user, comparing the Alpha Price Action BUY / SELL screenshots with TradingView (2026-11-23: "untuk
   candle A, buy dan sell, sepertinya ada line chart yang putus-putus").
@@ -8972,9 +8972,9 @@ in its staleness check.
 - **Solution:** per output `join: true` (indRegistry) draws no point on a missing bar, so the line holds its last value
   to the next one; set on I56 / I57 level_1, level_a, level_b and I58 kama. Every other line keeps the gap.
 - **Lesson for new data:** read each Pine `plot`'s style when translating: a joining style is `join: true`.
-- **Status:** fixed on the branch (`2ebbf6b5`); look_check11 PASS; deploys with the lab indicators.
+- **Status:** on the beta since 2026-11-23 (`c91e2809`); look_check11 PASS; the live site does not run it.
 
-### M556 — A plan catalog test assumed one lab indicator, so the branch's Backend tests turned red with I55-I58 (2026-11-23; fixed on the branch in `a52b07bf`)
+### M556 — A plan catalog test assumed one lab indicator, so the branch's Backend tests turned red with I55-I58 (2026-11-23; fixed in `a52b07bf`, on the beta since 2026-11-23)
 
 - **Found by:** CI "Backend tests", job edge-bff, on the session branch at `0613006c` and `4111a5c3`:
   `tests/test_plan_catalog.py::test_the_catalog_route_filters_by_the_resolved_plan` (1 failed, 1256 passed).
@@ -8986,9 +8986,9 @@ in its staleness check.
   (`test_beta_live_site.py`, `test_preview_stage.py`, checked: 52 passed).
 - **Solution:** the expectation is the indicators the release file holds at `released`, the marked one aside, and no
   indicator at `lab` is in the answer.
-- **Status:** fixed on the branch; local run 16 passed (the file) and 52 passed (the tests that read the release file).
+- **Status:** on the beta since 2026-11-23 (`c91e2809`); local run 16 passed (the file) and 52 passed (the tests that read the release file).
 
-### M555 — The Screener's unit probe judged a series by its start, so a Pine recursion from 0 was not a price level (2026-11-23; fixed on the branch in `7f193584`)
+### M555 — The Screener's unit probe judged a series by its start, so a Pine recursion from 0 was not a price level (2026-11-23; fixed in `7f193584`, on the beta since 2026-11-23)
 
 - **Found by:** the lab indicator Alpha KAMA (I58, EXEC-PINE-INDICATORS): `npm run registry` in `apps/edge-bff/screener`
   stopped with "overlay I58.kama: state_level needs a level comparable with a bar field (the scaling probe finds
@@ -9013,9 +9013,9 @@ in its staleness check.
   lists them; `registry:check` of both generators current.
 - **Lesson for new data:** a property the generator derives from a probe is judged where the property holds by
   definition (here: after the start); a new probe states the part of the fixture it reads.
-- **Status:** fixed on the branch (`7f193584`); deploys with the lab indicators (EXEC-PINE-INDICATORS).
+- **Status:** on the beta since 2026-11-23 (`7f193584` in `c91e2809`); the live site does not run it.
 
-### M554 — The Backtest read "a price line" and "the other output" by a name rule, not by what the outputs are (2026-11-23; fixed on the branch in `afcf2841` and `ce188bbb`)
+### M554 — The Backtest read "a price line" and "the other output" by a name rule, not by what the outputs are (2026-11-23; fixed in `afcf2841` and `ce188bbb`, on the beta since 2026-11-23)
 
 - **Found by:** the lab indicators Inside Bar Detection (I55) and Alpha Price Action BUY/SELL (I56, I57)
   (EXEC-PINE-INDICATORS, group 1): `apps/backtest-worker` `tests/engine.test.ts` "price lines are the outputs of the
@@ -9051,7 +9051,7 @@ in its staleness check.
   or declared fields, never from its name; a new output kind adds a field the generator derives.
 - **Follow-up:** the `engine.ts` edit moved a line SCREENER_ONBOARDING.md points at (`ADJUSTED_HISTORY_BOUNDARY`, the
   screener-worker suite's pointer test, red at `afcf2841`); the pointer moved in `7f193584`.
-- **Status:** fixed on the branch (`afcf2841`, `ce188bbb`, `7f193584`); deploys with the lab indicators (EXEC-PINE-INDICATORS).
+- **Status:** on the beta since 2026-11-23 (`afcf2841`, `ce188bbb`, `7f193584` in `c91e2809`); the live site does not run it.
 
 ### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23, open, asked of the user)
 
