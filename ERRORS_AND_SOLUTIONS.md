@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed in `61fb22c4` on the branch, not deployed)
+### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed in `61fb22c4`, on the beta since 2026-11-23 (`fb4a5c3c`))
 
 - **The check (the user 2026-11-23: "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error =
   betulkan. Yang di benerin di remark untuk step 8 nanti. Setelah itu deploy."):** three fresh agents at xhigh (preview
@@ -8934,7 +8934,7 @@ in its staleness check.
 - **Lesson:** a stage rule must be planted on disk, not only by replacing the module's file in memory; a workflow's
   worktrees must start at the commit being checked.
 
-### M551 — The lab Flow indicator's registration point, and what its dry run found (2026-11-23; built in `521c5048` on the branch, not deployed)
+### M551 — The lab Flow indicator's registration point, and what its dry run found (2026-11-23; built in `521c5048`, on the beta since 2026-11-23 (`fb4a5c3c`))
 
 - **Request (the user 2026-11-23, step 3 of the sequence):** "Satu batasan yang masih ada: indikator Flow (FL) baru belum
   bisa dijadikan lab, karena titik pendaftaran rumusnya belum dibangun. Kalau Anda mau menambah FL khusus beta, bagian
@@ -8980,7 +8980,7 @@ in its staleness check.
 - **Lesson:** a file that names items by id is part of the release filter from its first commit; a gate that may skip a
   missing formula must first prove each one exists.
 
-### M550 — The preview release stage: an item on the live site for the admin only (2026-11-23; built in `1894adfc` on the branch, not deployed)
+### M550 — The preview release stage: an item on the live site for the admin only (2026-11-23; built in `1894adfc`, on the beta since 2026-11-23 (`fb4a5c3c`))
 
 - **Request (the user 2026-11-23):** "apakah versi indikator yang released dari main ke live bisa dibedakan antara user
   paid dan admin? misalkan ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya admin

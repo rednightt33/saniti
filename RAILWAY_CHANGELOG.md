@@ -1,5 +1,27 @@
 # Railway changelog
 
+## 2026-11-23 — The beta on `fb4a5c3c`: the preview stage, the lab Flow registration point and the fixes of their check (the user's order)
+
+- **The user's words:** "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error = betulkan.
+  Yang di benerin di remark untuk step 8 nanti. Setelah itu deploy." (EXEC UD27).
+- **Commit `fb4a5c3c`** on `main` (fast-forward from `59712547`): step 2, the preview stage (ERRORS M550); step 3, the lab
+  Flow indicator's registration point (M551); the fixes of their check `wf_6a8c44c8-978` (M552); the records.
+- **Order:**
+  1. **backtest-worker `37b284af`** SUCCESS: CLI upload of `git archive fb4a5c3c` (its `Backtest look-ahead gate` run
+     45144049231 green), `engine_version` `83f48778aac56395` (read from its start line), `registry_version`
+     `514dc3df60a25aff` (unchanged).
+  2. **`main` `59712547` → `fb4a5c3c`** (Wait for CI off): `edge-bff` `ccc00250` and `screener-worker` `64124b65` SUCCESS;
+     no other service's paths changed. The beta's `/version` names `fb4a5c3c`; `/ready` 200 on both sites.
+- **Checks:** 0 EDGE jobs and 0 active statements before the upload (M340); the lab probe 404 to a visitor on both sites;
+  the live site unchanged (`ec739a06`); the live HTTP smoke (`http_smoke.py`, runner variables) green: every gated route
+  as expected (`unexpected` empty), every tab's example served, registration open (the step 9 window). CI of `fb4a5c3c`
+  on `main` read to its end (reported if red).
+- **Shared:** both sites use the new workers: the backtest engine version and the Screener's `screener_registry_version`
+  moved (`calc/flow.ts` gained `registerFlow` and `flowKit`; no released output changed: the registry's entries are
+  identical); no item is at preview or lab today, so no page changes.
+- **Rollback:** the beta: redeploy `edge-bff` `82d1ce37` (`59712547`); backtest-worker `9dcd5f64`; screener-worker
+  `d3577693`.
+
 ## 2026-11-23 — The beta on `59712547`: step 7's payment shell, the lab item guard lifted, the test-out fixes (the user's order)
 
 - **The user's words:** "3. hasil workflow selesai --> fix it --> push to main." and "Catat sequence berikut. Yang
