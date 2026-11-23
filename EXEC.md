@@ -17012,3 +17012,24 @@ menunggu), "jika sudah jelas masukan exec. Saya lanjut indikator selanjutnya." P
 - Nama di EDGE ("5 namanya Alpha KAMA"): "Alpha KAMA".
 - Terbuka: nilai pembanding dari TradingView (KAMA dan warna di 2–3 tanggal, tanggal ENTER LONG/SHORT); awal riwayat harga
   kita dibanding TradingView (KAMA mulai dari 0 dan menyesuaikan lambat), dicek dan dilaporkan saat membangun.
+
+### I56 — Divergence (Pine v6 "Nic - Divergence Detector - Swing Comparison"; dari user 2026-11-23)
+
+- Terminal: apa adanya (user: "Terminal indicator as is"): SMI (K 10, D 3; batas ±40) melacak swing; label SH/SL, BULL DIV,
+  BEAR DIV di candle swing-nya (seperti TradingView, hindsight hanya untuk tampilan), garis divergensi, garis putus-putus
+  level BUY A, label BUY A. Mode swing "Original (SMI extreme)" (bawaan) atau "Proposed (Price extreme)". Tambahan (user
+  2026-11-23: "Untuk opsi gambar bisa tambahkan juga layer saja, seperti arsiran hijau atau merah dibackground"): arsiran
+  latar hijau untuk BULL DIV dan merah untuk BEAR DIV, sebagai pilihan tampilan di samping label dan garis; dibaca sebagai
+  rentang divergensi (dari swing sebelumnya ke swing terakhir) dan dikonfirmasi ke user di laporan.
+- Rumus (dibaca dari Pine): swing low mulai dilacak saat SMI < −40, dikonfirmasi saat SMI crossover 0; swing high mulai saat
+  SMI > +40, dikonfirmasi saat SMI crossunder 0. BULL DIV: saat konfirmasi, low swing terakhir < low swing sebelumnya dan
+  SMI-nya lebih tinggi; BEAR DIV kebalikannya. BUY A: sesudah BULL DIV, level = harga swing high terakhir yang sudah
+  terkonfirmasi; sekali, saat close pertama di atas level; aktif lagi sesudah BULL DIV berikutnya.
+- Screener dan Backtest (user 2026-11-23: "1-4 OK"):
+  - tanggal kejadian = hari konfirmasi (SMI melewati 0), satu-satunya yang kausal;
+  - BULL DIV, BEAR DIV dan BUY A, masing-masing "terjadi dalam N sesi terakhir";
+  - mode swing sebagai parameter dengan bawaan Original, di Terminal, Screener dan Backtest.
+- Nama di EDGE ("5 divergence"): "Divergence".
+- Terbuka: dukungan Terminal untuk segmen garis antara dua titik dan arsiran latar (dipastikan saat membangun; bila perlu
+  tambahan di mesin gambar Terminal, dilaporkan dulu); nilai pembanding dari TradingView (tanggal SH/SL, BULL/BEAR DIV,
+  BUY A di BBCA).
