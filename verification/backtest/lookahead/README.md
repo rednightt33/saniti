@@ -28,3 +28,12 @@ basis whole at every cut, and reports the sessions still off the price basis wit
 `results_2026-11-16.json`: 168 series each, 0 leaks on the four; COCO 799 sessions off without the factors, 0 with
 them (rights issues 2025-10-09 factor 2.7097 and 2026-07-09 factor 1.7429); BBRI, GOTO, ALKA 0. Actions before the
 export's first date read as unresolved (no sessions measured) and mask only the windows across them.
+
+## 2026-11-23 (EXEC-PINE-INDICATORS, before the beta release of the seven lab indicators)
+
+`results_2026-11-23.json`: BBRI, BBCA, GOTO, COCO, 2023-01-02 to 2026-11-23 (895 to 926 bars, 24,509 to 89,483 broker
+rows), with the broker basis: 214 series per stock (122 indicator outputs, among them every output of the lab
+indicators I54 to I60 through the worker's '@edge-lab' registration, 8 price action, 20 candles, 4 grammar tests, 44 Flow
+A-C, 16 point-in-time), **0 leaks** on the four. The 10 refusals per stock are the same as on 2026-11-16 (the eight
+`sell` lines of buy-side Flow indicators and FL34's two metrics). COCO 799 sessions off the price basis without the
+factors, 0 with them; the other three 0.
