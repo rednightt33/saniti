@@ -17051,3 +17051,18 @@ menunggu), "jika sudah jelas masukan exec. Saya lanjut indikator selanjutnya." P
   "3. Inside Bar Detection saja": nama di EDGE "Inside Bar Detection".
 - Screener: IB terjadi hari ini atau dalam N sesi terakhir; break terjadi dalam N sesi terakhir. Backtest: break terjadi
   dalam N sesi terakhir.
+
+### I58 — Alpha Volatile (Pine v6 "Nic - Tail Move Indicator V2 (RAW Distance)"; dari user 2026-11-23)
+
+- Terminal: apa adanya, tampilan seperti screenshot user ("Untuk terminal tambahkan as is sesuai screenshot terlampir
+  visual wise"): jarak sebagai titik biru (di dalam pita) / merah (di luar pita), desil garis oranye, pita atas garis
+  merah, pita bawah garis hijau, garis nol hitam tebal.
+- Rumus (dibaca dari Pine, kausal): jarak = close − MA (EMA atau SMA); pita Z = SMA(jarak, lookback) ± Z × stdev populasi
+  (jarak, lookback) (ta.stdev); desil = nilai urutan floor(desil/10 × n) − 1 (minimal 0) dari jarak `lookback` bar terakhir
+  yang diurutkan (hanya digambar); di luar pita = jarak > pita atas atau < pita bawah.
+- Nilai bawaan dari screenshot user ("1. OK"): MA EMA 26, lookback 100, desil 9, Z 2, recent 5 (kode Pine: EMA 200).
+- Screener: jarak keluar pita dalam N sesi terakhir (arah atas / bawah / salah satu, bawaan salah satu; sama dengan
+  "Recently" skrip); masuk kembali setelah keluar dalam N sesi terakhir (kemarin di luar pita, hari ini di dalam: dari atas
+  atau dari bawah; arah dipilih, bawaan salah satu). Backtest: masuk kembali setelah keluar dalam N sesi terakhir (arah
+  sama). User 2026-11-23: "2. OK".
+- Nama di EDGE: "Alpha Volatile".
