@@ -10,6 +10,7 @@ from urllib.parse import urlsplit, urlunsplit
 import psycopg
 from fastapi.testclient import TestClient
 
+from app import releases
 from app.accounts import AccountStore
 from app.main import create_app
 from app.principal import Auth
@@ -55,7 +56,7 @@ def test_existing_user_one_without_subscription_switch_off(settings, store):
                            'capabilities': ['*'], 'limits': {}, 'version': 'env', 'next': None,
                            'owner_key': 'edge-private', 'mfa_enrolled': False, 'seed': True, 'expired_plan': None}
             assert a.headers['X-Edge-Entitlements'] == 'env'
-            assert len(c.get('/api/v1/catalog/indicator').json()['entries']) == 53
+            assert len(c.get('/api/v1/catalog/indicator').json()['entries']) == len(releases.entries('indicator'))   # '*': lab ones too
             for path in ('/api/v1/conversations', '/api/v1/preferences', '/api/v1/models'):
                 assert c.get(path).status_code == 200, path
     rows = db(store, 'SELECT plan_key, status, provider, expires_at FROM edge_bff.subscriptions')
@@ -87,7 +88,7 @@ def test_edge_bff_started_before_the_catalog_migration(settings, store):
             assert a.status_code == 200 and a.json()['access']['capabilities'] == ['*']
             assert a.headers['X-Edge-Entitlements'] == 'env'
             assert c.get('/api/v1/conversations').status_code == 200
-            assert len(c.get('/api/v1/catalog/indicator').json()['entries']) == 53
+            assert len(c.get('/api/v1/catalog/indicator').json()['entries']) == len(releases.entries('indicator'))   # '*': lab ones too
         on = dataclasses.replace(s, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40)
         with TestClient(create_app(on, store, FakeOrc()), raise_server_exceptions=False) as c:
             ready = c.get('/ready').status_code

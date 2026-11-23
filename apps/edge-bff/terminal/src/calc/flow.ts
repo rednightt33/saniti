@@ -854,6 +854,30 @@ export const FLOW: Record<string, Fn> = {
 };
 
 for (const id of Object.keys(FLOW)) { const fn = FLOW[id]; FLOW[id] = (c, p) => { ctxRows = c.rows; return fn(c, p) } }
+
+/* EXEC-MU-ACCOUNTS step 3 of the user's sequence of 2026-11-23 (the lab Flow indicator's registration point;
+   INDICATOR_BETA_TO_LIVE.md "A lab Flow indicator"): a lab Flow indicator's formula is not written in FLOW above, which
+   every public build carries, but in src/lab/index.ts, which only the alias '@edge-lab' reaches (the lab build, the
+   workers, their compute threads and the registry generators), and registered here. */
+export type FlowFn = Fn;
+/** Registers a lab Flow indicator's formula under its registry id, wrapped as every formula of FLOW is (the shared
+    helpers read the call's rows). An id that already has a formula is refused, so a lab formula never replaces a
+    released one, and so is anything but an FL id. */
+export function registerFlow(id: string, fn: FlowFn): void {
+  if (!/^FL\d{2,}$/.test(id)) throw new Error(`registerFlow: ${JSON.stringify(id)} is not a Flow indicator id (FLnn)`);
+  if (Object.prototype.hasOwnProperty.call(FLOW, id)) throw new Error(`registerFlow: ${id} already has a formula`);
+  FLOW[id] = (c, p) => { ctxRows = c.rows; return fn(c, p) };
+}
+/** The building blocks the formulas above are made of, for a lab formula (src/lab/index.ts): the call's broker grid
+    (grid0 reads the rows of the call registerFlow wraps), the window, the Top-N cohort and its sums, the ratio and null
+    rules of FORMULAS.md. A lab formula that needs another block adds it here, in its lab commit; a block that stays
+    out is never a reason to copy one (two copies of a rule drift). What a block returns is shared with the released
+    formulas (the grid and the cohorts are kept per call's rows): a lab formula reads it and never changes it; the
+    cohort is handed out as a copy (check of steps 2-3, 2026-11-23, F6: a lab formula that sorted it would have changed
+    a released output another principal is served). */
+const cohortCopy = (...a: Parameters<typeof cohort>) => { const C = cohort(...a); return C ? C.slice() : C };
+export const flowKit = { grid0, boardOnly, each, sided, mirrored, cohort:cohortCopy, cw, cmiss, cc, bw, aw, div, W, win, series, int,
+  firstData, lastData, topBrokers, topOf, netOf, distance, percentile, zscore, meanSd, changeOf, lagOf } as const;
 /** lots per transaction of p's cohort on one side, the cohort ranked exactly as p says (no side rule): the series FL08 and
     FL09 rank, read by their cards for the history */
 export function transactionSize(ctx: FlowContext, p: FlowParams, side: 'buy' | 'sell'): Series { ctxRows = ctx.rows; return sizeLot(ctx, p, side) }

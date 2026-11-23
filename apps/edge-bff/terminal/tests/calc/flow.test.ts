@@ -19,9 +19,13 @@ const near = (a: number | null, b: number) => { expect(a).not.toBeNull(); expect
 describe('registry', () => {
   it('has one function per indicator of the agreed spreadsheet, with its outputs', () => {
     const ids = (REG as any).indicators.map((i: any) => i.id);
-    // EXEC-TERMINAL-IND-EDIT: FL01-FL39 (2026-10-30) and FL40 on (2026-11-05), numbered without gaps
+    // EXEC-TERMINAL-IND-EDIT: FL01-FL39 (2026-10-30) and FL40 on (2026-11-05). This import is the public build's view (the
+    // release filter leaves a lab one out), so it holds unique FLnn ids in ascending order; the source file's ids are
+    // numbered without gaps (tests/test_releases.py test_the_flow_registry_is_numbered_without_gaps; check of steps 2-3, P2)
     expect(ids.length).toBeGreaterThanOrEqual(48);
-    expect(ids).toEqual(Array.from({ length:ids.length }, (_, k) => `FL${String(k + 1).padStart(2, '0')}`));
+    expect(ids.every((i: string) => /^FL\d{2,}$/.test(i))).toBe(true);
+    const nums: number[] = ids.map((i: string) => Number(i.slice(2)));
+    expect(nums).toEqual([...new Set(nums)].sort((a, b) => a - b));
     const c = ctx([r(D[0], 'AA', 100, 0, 1, 0)], D);
     for (const ind of (REG as any).indicators) {
       const p = Object.fromEntries(ind.params.filter((q: any) => q.default !== undefined).map((q: any) => [q.key, q.default]));

@@ -1,9 +1,11 @@
 // EXEC-IND-CARDS IC1 (user go 2026-11-01): the indicator menu's rows come from the registries, grouped and searchable
 import { describe, expect, it } from 'vitest';
-import { MENU_HIDDEN, menuItems, visibleItems } from '../../src/app/indMenu';
+import { MENU_HIDDEN, heldBack, menuItems, menuRows, visibleItems } from '../../src/app/indMenu';
 import { SINGLE_SECURITY } from '../../src/app/flowIndicators';
 import IND from '../../src/data/indRegistry.json';
 import FLOW from '../../src/data/flowRegistry.json';
+import menuSrc from '../../src/app/indMenu.ts?raw';
+import { ALL_INPUTS } from '../../src/data/inputs';
 
 describe('indicator menu rows', () => {
   const all = menuItems(IND as any[], FLOW as any);
@@ -89,5 +91,54 @@ describe('indicators hidden from the menu', () => {
       expect(visibleItems(all, 'fav', '', new Set([id])), `favorite ${id}`).toEqual([]);
     }
     expect(visibleItems(all, 'all', 'relative volume', new Set()).map(i => i.id)).toEqual([]);
+  });
+});
+
+// EXEC-MU-ACCOUNTS "A preview release stage" (the user 2026-11-23): an entry the page build marks `release` (a preview
+// item) that the catalog does not list for the principal is left out of the menu, not shown locked
+describe('preview entries', () => {
+  const ind = (IND as any[])[0], flow = (FLOW as any).indicators[0], other = (IND as any[])[1];
+  const marked = [{ ...ind, release:'preview' }, ...(IND as any[]).slice(1)];
+  const flows = { ...(FLOW as any), indicators:[{ ...flow, release:'preview' }, ...(FLOW as any).indicators.slice(1)] };
+  const rows = menuItems(marked, flows);
+  const locks = (held: string[]) => ({ guest:false, ticker:() => false, feature:() => false,
+    item:(_k: 'indicator' | 'flow_indicator', id: string) => !held.includes(id) });
+  it('carries the mark from the registry entry', () => {
+    expect(rows.find(i => i.id === ind.id)?.release).toBe('preview');
+    expect(rows.find(i => i.id === flow.id)?.release).toBe('preview');
+    expect(rows.find(i => i.id === other.id)?.release).toBeUndefined();
+  });
+  it('leaves a preview entry out for a principal the catalog does not list it for, and keeps it for its holder', () => {
+    const paid = locks([other.id]);                                       // holds the released one only
+    const shown = rows.filter(i => !heldBack(i, paid)).map(i => i.id);
+    expect(shown).not.toContain(ind.id);
+    expect(shown).not.toContain(flow.id);
+    expect(shown).toContain(other.id);
+    expect(shown).toContain('VOL');
+    // a released entry outside the plan stays in the menu (shown locked, as before)
+    expect(rows.filter(i => !heldBack(i, locks([]))).map(i => i.id)).toContain(other.id);
+    const admin = locks([ind.id, flow.id, other.id]);
+    expect(rows.filter(i => !heldBack(i, admin)).map(i => i.id)).toEqual(expect.arrayContaining([ind.id, flow.id]));
+    expect(rows.filter(i => !heldBack(i, undefined))).toHaveLength(rows.length);   // no locks (the fixture page): all
+  });
+  it('menuRows, the list initIndMenu builds the menu from, leaves the entry out for paid, guest and a catalog that failed; keeps it for its holder and without locks', () => {
+    const ALL = ALL_INPUTS;
+    const ids = (l: any) => menuRows(marked, flows, ALL, l).map(i => i.id);
+    for (const l of [locks([other.id]), { ...locks([]), guest:true }, locks([])]) {     // paid, guest, a catalog that could not be read
+      expect(ids(l)).not.toContain(ind.id);
+      expect(ids(l)).not.toContain(flow.id);
+      expect(ids(l)).toContain(other.id);
+    }
+    expect(ids(locks([ind.id, flow.id, other.id]))).toEqual(expect.arrayContaining([ind.id, flow.id]));
+    expect(ids(undefined)).toEqual(menuItems(marked, flows, ALL).map(i => i.id));
+  });
+  it('the menu is built from menuRows (the filter cannot be dropped from initIndMenu alone)', () => {
+    const init = menuSrc.slice(menuSrc.indexOf('export function initIndMenu'));
+    expect(init).toMatch(/const items = menuRows\(/);
+    expect(init).not.toMatch(/menuItems\(/);
+  });
+  it('a search does not find a preview entry left out', () => {
+    const paid = locks([]);
+    expect(visibleItems(rows.filter(i => !heldBack(i, paid)), 'all', ind.name, new Set()).map(i => i.id)).not.toContain(ind.id);
   });
 });

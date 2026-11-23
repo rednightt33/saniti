@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "about": "The approved state of apps/backtest-worker for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a worker that differs from origin/main only while its content hash is worker_tree and the versions are these. Recorded with --record and changed only by a deliberate commit (EXEC-MU-RUNTIME).",
-  "base_commit": "8194a16cbd83e8f260f2792cca8279e6b3724a70",
-  "recorded_on": "2eb8d0ce5898c9321b64b273821ab6b4edc1d5af",
-  "recorded_at": "2026-11-16",
-  "engine_version": "681b18d3ffe51792",
-  "base_engine_version": "e3be5b3a63d4e629",
+  "base_commit": "597125470d9a7fb258c0c0b76ebc59832aa6c6c7",
+  "recorded_on": "53b710b6187a9d5ae417421ff5cf27c53f390377",
+  "recorded_at": "2026-11-23",
+  "engine_version": "83f48778aac56395",
+  "base_engine_version": "ecc16914a1ed19e3",
   "registry_version": "514dc3df60a25aff",
-  "worker_tree": "e01e493ec050ad30dce0f70f37a73e5b8349e7b24d09ebe1a2ffed5e20142696",
-  "worker_files": 64,
+  "worker_tree": "57c643bd9bd10e501c318fb4548b73b496814451ed2985f51568096443f9e49f",
+  "worker_files": 69,
   "exec": {
-    "section": "EXEC-BACKTEST-REVAMP",
-    "decision": "User 2026-11-16 (ERRORS M463, verbatim in EXEC-BACKTEST-REVAMP \"Pelaksanaan deploy\"): \"tidak apa-apa untuk naikkan ke 2 GB apabila run memang diperlukan. Tapi bisa nggak setelah selesai run langsung dibuat tidur atau otomatis di-cut? ... RAM hanya berjalan ketika ada request saja\", then \"Go untuk opsi 1\""
+    "section": "EXEC-MU-ACCOUNTS",
+    "decision": "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error = betulkan. Yang di benerin di remark untuk step 8 nanti. Setelah itu deploy. (2026-11-23)"
   },
-  "note": "M463: a compute thread ends once it has no task left (compute.ts retire), a V8 heap limit per thread derived from the container memory (config.ts threadHeapMb, BACKTEST_THREAD_HEAP_MB), thread_start and thread_end log rss_bytes; the image sets MALLOC_ARENA_MAX=2 and MALLOC_TRIM_THRESHOLD_; three server tests; README memory section"
+  "note": "The check of steps 2-3 (wf_6a8c44c8-978) fixes: the look-ahead gate varies Flow numbers and requires a finite value (F2, F3); calc/flow.ts flowKit hands out a cohort copy (F6). No released output changes: screener-registry.json entries identical, only its source hash and version moved."
 }

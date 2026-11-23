@@ -207,6 +207,12 @@ class Settings:
     telegram_notify_url: str = ''
     telegram_support_secret: str = field(default='', repr=False)
     admin_origin: str = ''
+    # step 7, the payment shell (app/payments): the provider whose notifications the hook route takes
+    # (EDGE_PAYMENTS_PROVIDER: unset = no payment route answers; 'test', the shell's own, on the beta only; 'midtrans'
+    # refused until the Midtrans phase builds Snap and Get Status) and its signing secret (EDGE_PAYMENTS_SECRET: the
+    # test provider's HMAC key; Midtrans' Server Key in its phase)
+    payments_provider: str = ''
+    payments_secret: str = field(default='', repr=False)
 
     @property
     def guests(self):
@@ -294,7 +300,9 @@ class Settings:
                 support_storage_mb=count_or('EDGE_SUPPORT_STORAGE_MB', 500),
                 telegram_notify_url=os.environ.get('TELEGRAM_NOTIFY_URL', '').strip(),
                 telegram_support_secret=os.environ.get('TELEGRAM_SUPPORT_SECRET', '').strip(),
-                admin_origin=os.environ.get('EDGE_ADMIN_ORIGIN', '').strip().rstrip('/'))
+                admin_origin=os.environ.get('EDGE_ADMIN_ORIGIN', '').strip().rstrip('/'),
+                payments_provider=os.environ.get('EDGE_PAYMENTS_PROVIDER', '').strip().lower(),
+                payments_secret=os.environ.get('EDGE_PAYMENTS_SECRET', '').strip())
         s.validate()
         return s
 
@@ -435,5 +443,17 @@ class Settings:
         if self.resend_webhook_secret and not (self.resend_webhook_secret.startswith('whsec_')
                                                and len(self.resend_webhook_secret) >= 30):
             raise ValueError('RESEND_WEBHOOK_SECRET is the whsec_... signing secret of the Resend webhook')
+        if self.payments_provider not in ('', 'test', 'midtrans'):
+            raise ValueError("EDGE_PAYMENTS_PROVIDER is unset (no payment route answers) or 'test'; "
+                             f"{self.payments_provider!r} is not a provider EDGE has")
+        if self.payments_provider == 'midtrans':
+            raise ValueError('EDGE_PAYMENTS_PROVIDER=midtrans is not built yet: Snap and Get Status come with the Midtrans '
+                             "phase (EXEC.md EXEC-MU-ACCOUNTS step 7). Leave it unset, or 'test' on the beta")
+        if self.payments_provider == 'test' and self.site == LIVE:
+            raise ValueError("EDGE_PAYMENTS_PROVIDER=test is the shell's own provider for tests: the beta only, never "
+                             'the live site (it would let its secret activate plans)')
+        if self.payments_provider and (len(self.payments_secret) < 32 or not self.multiuser):
+            raise ValueError('EDGE_PAYMENTS_PROVIDER needs EDGE_MULTIUSER=true and EDGE_PAYMENTS_SECRET of at least 32 '
+                             'characters (the signing secret of its notifications)')
         if self.session_idle_seconds < 60:
             raise ValueError('EDGE_SESSION_IDLE_SECONDS must be at least 60')

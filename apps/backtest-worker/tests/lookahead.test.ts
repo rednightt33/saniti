@@ -57,8 +57,23 @@ test('self-test: a centred moving average (it reads the next bars) is caught', (
   assert.match(leak(centred) ?? '', /cut/);
 });
 
-test('the 53 registry indicators: defaults, short, long and extreme numbers, every option', () => {
+test('every registry indicator (53 released and any at the lab stage): defaults, short, long and extreme numbers, every option', () => {
   const leaks: string[] = []; let runs = 0;
+  // every registry indicator has its formula in this process (a lab one through loader/register.mjs): `safely` below
+  // reads a refused setting as no series, so a missing formula would pass the gate unseen (lab dry run, 2026-11-23)
+  assert.deepEqual(REGISTRY.indicators.filter(r => typeof F[r.key] !== 'function').map(r => r.id), []);
+  // ... and computes: its defaults run outside `safely` and give at least one finite value, so a formula that throws on
+  // every call (a missing DEFAULTS entry, a wrong need) fails here naming it (test-out of 2026-11-23, LLA-F1)
+  const dead: string[] = [];
+  for (const r of REGISTRY.indicators) {
+    try {
+      const out = F[r.key](bars(A, N), resolveParams(r, {})) as Record<string, unknown> | null;
+      const finite = Object.values(out ?? {}).some(a => a != null && typeof (a as ArrayLike<unknown>).length === 'number'
+        && Array.from(a as ArrayLike<unknown>).some(x => num(x) !== null));
+      if (!finite) dead.push(`${r.id}: no finite value at its defaults`);
+    } catch (e) { dead.push(`${r.id}: ${(e as Error).message}`) }
+  }
+  assert.deepEqual(dead, []);
   for (const r of REGISTRY.indicators) {
     const variants: Record<string, unknown>[] = [{}];
     for (const p of r.params) {
@@ -130,6 +145,14 @@ test('the shared grammar: every transform function and every pattern type it imp
   assert.deepEqual(leaks, []);
 });
 
+/** A Flow parameter's numbers to try beside its default: its minimum, three times its default and its maximum, capped at
+    400 sessions (the fixture has about 600), integers for an int parameter. */
+function numericVariants(q: { kind: string; default?: unknown; min?: number; max?: number }): number[] {
+  const d = Number(q.default), lo = q.min ?? (q.kind === 'int' ? 1 : d / 4), hi = Math.min(q.max ?? (Number.isFinite(d) ? d * 10 : 400), 400);
+  const vs = [lo, Number.isFinite(d) ? Math.min(hi, d * 3) : hi, hi].filter(v => Number.isFinite(v));
+  return [...new Set(vs.map(v => q.kind === 'int' ? Math.round(v) : v))].filter(v => v !== d);
+}
+
 test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads future data (ERRORS M448)', () => {
   const ctxAt = (t: Ticker, rows: Row[], n: number): TF.FlowContext => {
     const d = t.dates.slice(0, n), at = new Map(d.map((x, k) => [x, k])), b = head(t, n).bars;
@@ -139,8 +162,11 @@ test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads 
   const leaking = new Set<string>(); let runs = 0;
   for (const r of (FLOW_REG as { indicators: { id: string; params: { key: string; kind: string; options?: unknown[] }[] }[] }).indicators) {
     const variants: Record<string, unknown>[] = [{}];
-    for (const q of r.params) {
-      const opts = q.kind === 'select' ? (q.options ?? []).map(o => Array.isArray(o) ? o[0] : o) : q.kind === 'bool' ? [true, false] : q.kind === 'multi' ? (q.options ?? []).map(o => [Array.isArray(o) ? o[0] : o]) : [];
+    for (const q of r.params as { key: string; kind: string; options?: unknown[]; default?: unknown; min?: number; max?: number }[]) {
+      const opts = q.kind === 'select' ? (q.options ?? []).map(o => Array.isArray(o) ? o[0] : o) : q.kind === 'bool' ? [true, false] : q.kind === 'multi' ? (q.options ?? []).map(o => [Array.isArray(o) ? o[0] : o])
+        // check of steps 2-3 (2026-11-23, F3): a window, a baseline or a Top N at other values than its default, as the
+        // technical part varies its numbers (a leak may show only at a longer window); capped by the fixture's length
+        : q.kind === 'int' || q.kind === 'num' ? numericVariants(q) : [];
       for (const v of opts) variants.push({ [q.key]: v });
     }
     for (const v of variants) {
@@ -150,6 +176,29 @@ test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads 
   }
   assert.ok(runs > 400, `${runs} variants`);
   assert.deepEqual([...leaking].sort(), TERMINAL_HINDSIGHT);
+});
+
+test('every Flow indicator of the registry has a formula and computes at its defaults (the gate above never passes a missing one)', () => {
+  // step 3 of 2026-11-23 (the lab Flow dry run), the mechanism of ERRORS M549 LLA-F1 for the Flow indicators: computeFlow
+  // answers {} for an id without a formula and `safely` reads a throw as a refused setting, so a lab Flow indicator
+  // whose formula was not registered (calc/flow.ts registerFlow, from src/lab/index.ts) passed the gate untested
+  const n = A.dates.length, d = A.dates, at = new Map(d.map((x, k) => [x, k]));
+  // insider rows too, so every indicator has the data it reads (FL31); the check of steps 2-3 (2026-11-23, F2): a formula
+  // that answers only nulls at its defaults is as dead as a missing one
+  const ctx: TF.FlowContext = { rows: TF.flowRows(M.rows[A.ticker], n, x => at.get(x) ?? -1), dates: d, close: A.bars.C as number[],
+    volume: A.bars.V as number[], insider: [{ t: 120, value: 5e8 }, { t: 300, value: -2e8 }, { t: 450, value: 1e8 }],
+    classification: { AA: 'Institutional-heavy', BK: 'Retail-heavy', YP: 'Retail-heavy' } };
+  const dead: string[] = [];
+  for (const r of (FLOW_REG as { indicators: { id: string }[] }).indicators) {
+    if (typeof TF.FLOW[r.id] !== 'function') { dead.push(`${r.id}: no formula (calc/flow.ts FLOW, or registerFlow from src/lab/index.ts)`); continue }
+    try {
+      const out = TF.computeFlow(r.id, ctx, {});
+      if (!Object.keys(out).length) dead.push(`${r.id}: no output at its defaults`);
+      else if (!Object.values(out).some(a => Array.isArray(a) && a.some(v => typeof v === 'number' && Number.isFinite(v))))
+        dead.push(`${r.id}: no finite value at its defaults`);
+    } catch (e) { dead.push(`${r.id}: ${(e as Error).message}`) }
+  }
+  assert.deepEqual(dead, []);
 });
 
 test('the engine as a whole: the same request on the full data and on the data cut at t gives the same ledger', () => {

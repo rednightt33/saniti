@@ -1,5 +1,103 @@
 # Railway changelog
 
+## 2026-11-23 — The beta on `fb4a5c3c`: the preview stage, the lab Flow registration point and the fixes of their check (the user's order)
+
+- **The user's words:** "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error = betulkan.
+  Yang di benerin di remark untuk step 8 nanti. Setelah itu deploy." (EXEC UD27).
+- **Commit `fb4a5c3c`** on `main` (fast-forward from `59712547`): step 2, the preview stage (ERRORS M550); step 3, the lab
+  Flow indicator's registration point (M551); the fixes of their check `wf_6a8c44c8-978` (M552); the records.
+- **Order:**
+  1. **backtest-worker `37b284af`** SUCCESS: CLI upload of `git archive fb4a5c3c` (its `Backtest look-ahead gate` run
+     45144049231 green), `engine_version` `83f48778aac56395` (read from its start line), `registry_version`
+     `514dc3df60a25aff` (unchanged).
+  2. **`main` `59712547` → `fb4a5c3c`** (Wait for CI off): `edge-bff` `ccc00250` and `screener-worker` `64124b65` SUCCESS;
+     no other service's paths changed. The beta's `/version` names `fb4a5c3c`; `/ready` 200 on both sites.
+- **Checks:** 0 EDGE jobs and 0 active statements before the upload (M340); the lab probe 404 to a visitor on both sites;
+  the live site unchanged (`ec739a06`); the live HTTP smoke (`http_smoke.py`, runner variables) green: every gated route
+  as expected (`unexpected` empty), every tab's example served, registration open (the step 9 window). CI of `fb4a5c3c`
+  on `main` read to its end (reported if red).
+- **Shared:** both sites use the new workers: the backtest engine version and the Screener's `screener_registry_version`
+  moved (`calc/flow.ts` gained `registerFlow` and `flowKit`; no released output changed: the registry's entries are
+  identical); no item is at preview or lab today, so no page changes.
+- **Rollback:** the beta: redeploy `edge-bff` `82d1ce37` (`59712547`); backtest-worker `9dcd5f64`; screener-worker
+  `d3577693`.
+
+## 2026-11-23 — The beta on `59712547`: step 7's payment shell, the lab item guard lifted, the test-out fixes (the user's order)
+
+- **The user's words:** "3. hasil workflow selesai --> fix it --> push to main." and "Catat sequence berikut. Yang
+  pertama saya izinkan. Setelah kamu push ke main, kamu akan mengerjakan bagian preview. [...]", "Oke, mulai."
+- **Commit `59712547`** on `main` (fast-forward from `ec739a06`): step 7 (the payment shell, routes off), the lab item
+  guard lifted per kind and L11 (ERRORS M548), the test-out fixes of items 1-3 (M549), the step 9 tests, the records.
+- **Order:**
+  1. **Migration `20261123_001`** on dev: DRYRUN 04:37 UTC, APPLY 05:32 UTC (DATABASE_CHANGELOG 2026-11-23).
+  2. **backtest-worker `9dcd5f64`** SUCCESS: CLI upload of `git archive b715b964` (its `Backtest look-ahead gate` run
+     45112793108 green; the worker tree equals `59712547`'s), `engine_version` `ecc16914a1ed19e3`, `registry_version`
+     `514dc3df60a25aff`.
+  3. **`main` `ec739a06` → `59712547`** (Wait for CI off): `edge-bff` `82d1ce37` and `screener-worker` `d3577693`
+     SUCCESS; market-ai-orc and telegram-monitor SKIPPED (no change in their paths). The beta's `/version` names
+     `59712547`; `/ready` 200 on both sites.
+- **Checks:** M340 0 EDGE jobs, 0 orc turns before each step; the lab probe (`lab-probe.svg`) 404 to a visitor on both
+  sites; the live site unchanged (`ec739a06`, the registration window open). CI of `59712547` read to its end (reported
+  if red).
+- **Shared:** both sites use the new workers: their engine versions changed (saved screens re-reviewed once); the
+  look-ahead gate's fixes; the price-line check before the registry (LLA-F4).
+- **Rollback:** the beta: redeploy `edge-bff` `e594bba8` (`ec739a06`); backtest-worker `df495720`; screener-worker
+  `4438dbb0`; the migration's own rollback block (comment) drops the two empty tables and narrows the CHECK.
+
+## 2026-11-23 — Step 9: the registration window open on the live site for 24 hours (the user's go)
+
+- **The user's words:** "Buka jendela sekarang, 24 jam kedepan, UD6 setuju".
+- **Before:** M340 0 EDGE jobs, 0 orc turns (03:23 UTC); the live site `306c1190` on `ec739a06`.
+- **Change:** `EDGE_PRELAUNCH=false` on `edge-bff-live` (a redeploy of the running commit, no `main` or `live` move):
+  deployment `87ef1cba` SUCCESS 03:24 UTC; `/version` `ec739a06`; `/ready` 200; `/api/v1/auth/config` `registration`
+  true, `prelaunch` false. `.railway/railway.ts` preserves `EDGE_PRELAUNCH` (`railway config plan`: up to date).
+- **While open:** anyone may register and every account may sign in (UD22 reachable); the code mail is the live site's
+  first real Resend send.
+- **Close:** 2026-11-24 03:24 UTC (a scheduled message to the session): `EDGE_PRELAUNCH` back to the pre-launch mode,
+  read back `registration` false; the window's accounts listed on the beta's admin page.
+- **Rollback (close early):** remove `EDGE_PRELAUNCH` from `edge-bff-live` (the live site's default is the pre-launch
+  mode), or set it to `true`.
+
+## 2026-11-22 — The round's close: the beta and the live site on `ec739a06` (the user's go: "langsung saja go untuk promosi live dan deploy")
+
+- **The user's words (2026-11-22):** "Oke, deploy beta dan promosi live go. Setelah itu lanjut ke langkah 7. Setelah
+  seluruh tes aplikasi situs web selesai. Apabila ada error di tes, harap dicatat untuk perbaikan bisa langsung
+  dijalankan sebelum deploy beta dan promosi live go." and "langsung saja go untuk promosi live dan deploy ... You have
+  my go. Only for this turn only." (AGENTS.md "Deploys": every deploy waits for the user's confirmation.)
+- **Commit `ec739a06`** on `main` and `live` (fast-forwards from `f31bd73d` and `4b35b5ed`): Phase 4 (the admin page,
+  beta only), the contact-support panel, group A (R2-37 part, R1-23, SH1, R1-16, R1-5, C3-6), the lab gaps (L2/CAT-3,
+  TR-2, CRIT-1, CRIT-3, SERVE-2/3/4, CAT-5, W4, the stored examples' release cut), fix round 1 of the test-out, the
+  full-suite fixes (ERRORS M539, M547) and the other session's Terminal drag rounds (M538). No new migration
+  (`20261122_001` was applied on dev with Phase 4).
+- **Before:** the full edge-bff suite 1214 passed (after M539 and M547 were fixed; the first run had 5 setup errors and 1
+  failure); the page, worker, publisher and script suites green. CI green on the branch, on `main` and on `live` for
+  `ec739a06` (Backend tests 45066019127, 45066248909, 45069066330). M340: 0 EDGE jobs, 0 orc turns (20:21, 20:53 UTC).
+- **Order:**
+  1. **backtest-worker `df495720`** SUCCESS 20:23 UTC: CLI upload of `git archive ec739a06` of its Dockerfile's COPY
+     paths (the lab folder included), `--path-as-root`; start log `engine_version` `f88ab6246833eaaa`.
+  2. **`railway config apply`**: screener-worker `build.watchPatterns` gains `/apps/edge-bff/terminal/src/lab/**` (the
+     plan empty afterwards).
+  3. **`main` `f31bd73d` → `ec739a06`**: `edge-bff` `e594bba8` and `screener-worker` `4438dbb0` waited for CI, then
+     SUCCESS 20:52 UTC; the beta's `/version` names `ec739a06`, `/ready` 200, `startup_done` with that commit.
+     market-ai-orc SKIPPED (no change in its paths).
+  4. **edge-bff-live variables** (references, no value typed; `--skip-deploys`, so they took effect with step 5):
+     `TELEGRAM_NOTIFY_URL` = telegram-monitor's private address on port 8080, `TELEGRAM_SUPPORT_SECRET` = telegram-monitor's,
+     `EDGE_ADMIN_ORIGIN` = the beta's address (LIVE_PROMOTION.md, the contact-support row). `.railway/railway.ts` preserves
+     them; `railway config plan`: up to date.
+  5. **`live` `4b35b5ed` → `ec739a06`**: `edge-bff-live` `306c1190` waited for CI on `live`, SUCCESS; `/version` names
+     `ec739a06`, `/ready` 200.
+- **Live smoke (from outside):** `http_smoke.py`: `/ready` 200, CSP and HSTS, `hidden_tabs` admin and monitor, `/admin`
+  and `/monitor` 404, a visitor's BBCA 200 and TLKM 403 with the sign-in words, `routes.unexpected` `{}` (62 routes),
+  registration 403 `REGISTRATION_CLOSED`, a foreign origin 403, an unknown login 401, the public builds without the lab
+  worker file, every example 200. `browser_smoke.cjs /terminal`: the Terminal on BBCA (the screenshot; `shows_bbca`
+  reads the shell's text), the rail with Contact support and no Monitor or lab tab, no model list asked.
+  `example_smoke.py`: the five examples in their frames, only `/api/v1/examples/...` read, VERDICT OK.
+- **Not uploaded:** terminal-publisher (a CLI upload) still runs its older `examples.py`; the Radar cut by name of the
+  test-out fix round gives the same bytes today (EXEC-MU-ACCOUNTS, Carried open parts).
+- **Rollback:** `live` back to `4b35b5ed` (deployment `f1d6a921`) with the user's go; the beta: redeploy `edge-bff`
+  `61a8928b` (`db481c2b`); the workers: backtest-worker `ac092f2e`, screener-worker `4f68955c`.
+- **Not a large update:** no database change; no Postgres restart.
+
 ## 2026-11-22 — Terminal drag, round 2 on the beta (ERRORS M538 round 2; user "U1 + U2 + U4 go, U3 setelah diukur")
 
 - **Commit `db481c2b`:** U1 (recompute after the release), U2 (no data for a line not drawn), U3 (a line's data from its

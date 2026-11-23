@@ -24,6 +24,7 @@ from .client import OrcClient, OrcError, public_data
 from .config import LIVE, Settings
 from .errors import Refusal, UnexpectedErrors, http_refusal, refusal, set_registration_open, validation_refusal
 from .hooks import is_hook_path
+from .payments import routes as payment_routes
 from .layouts import Layouts
 from .monitor import ModelCatalog, run_refusal, visible as visible_models
 from .auth_flows import AuthFlows, ended_here
@@ -902,6 +903,8 @@ def create_app(settings=None, store=None, orc=None):
     # 3e, the example mode (user 2026-11-21; ERRORS M527): /api/v1/examples/<tab>, for <tab>.example, visitors too
     examples.routes(app, auth)
     support.routes(app, auth)                # Phase 4: POST /api/v1/support (support.send)
+    # step 7, the payment shell: POST /api/v1/hooks/payments/<provider>, off unless EDGE_PAYMENTS_PROVIDER names it
+    payment_routes.install(app, settings, store)
     admin.routes(app, auth)                  # Phase 4: /api/v1/admin/* (auth.admin_page; 404 on the live site)
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4b): the account's preferences, /api/v1/preferences
     preferences.routes(app, auth)

@@ -10,10 +10,18 @@ import FLOW from '../../src/data/flowRegistry.json';
 // an indicator with a box (FL51 Loaders, its period end 'end') offers Top N (and Show) in the box, not on its row (2026-11-08)
 const keysOf = (r: any) => PANE_FILTER_KEYS.filter(k => !(r.params.some((q: any) => q.key === 'end') && k === 'top')
   && r.params.some((q: any) => q.key === k && q.kind !== 'fixed'));
-const shown = (FLOW as any).indicators.filter((r: any) => !MENU_HIDDEN.has(r.id));
+// the final proposal's counts cover FL01-FL52 (EXEC-FLOW-NEW-3); a Flow indicator added later is held by the rule below
+// instead of a count (check of steps 2-3, 2026-11-23, P2: a preview or released FL53 would turn these counts red)
+const PROPOSAL_LAST = 52;
+const all = (FLOW as any).indicators.filter((r: any) => !MENU_HIDDEN.has(r.id));
+const shown = all.filter((r: any) => Number(r.id.slice(2)) <= PROPOSAL_LAST);
 
 describe('pane-row choices derived from the registry (the final proposal)', () => {
   // EXEC-FLOW-NEW-3 (2026-11-08): FL49-FL52 add 4 (N on FL49 and FL50; Board on all four, Investor on FL51 and FL52)
+  it('every Flow indicator the page lists, a later one included: a broker scope comes with Broker, N and Rank by', () => {
+    expect(all.length).toBeGreaterThanOrEqual(shown.length);
+    expect(all.filter((r: any) => keysOf(r).includes('scope')).every((r: any) => ['top', 'rank', 'brokers'].every(k => keysOf(r).includes(k as any)))).toBe(true);
+  });
   it('27 with a broker scope get Broker, N and Rank by; 9 more get N without a scope; Board 44, Investor 43', () => {
     expect(shown.length).toBe(49);
     expect(shown.filter((r: any) => keysOf(r).includes('scope')).length).toBe(27);

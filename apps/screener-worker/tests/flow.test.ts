@@ -14,6 +14,7 @@ import { createApp } from '../src/server.ts';
 import type { WorkerApp } from '../src/server.ts';
 import { BROKER_DAY_SESSIONS } from '../src/broker.ts';
 import { FLOW_DESIGN_SESSIONS } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import SCREENER_REGISTRY from '../../edge-bff/screener/src/core/screener-registry.json' with { type: 'json' };
 import { brokerRowsOf as fakeRows, startFakeTerminal, universe } from './fake-terminal.mjs';
 import { OWNER_A, PROXY, auth, call, captureLogs, configFor } from './helpers.ts';
 
@@ -61,14 +62,19 @@ test('the window of K1 is the publisher\'s: 60 sessions, the core\'s design wind
   assert.equal(FLOW_DESIGN_SESSIONS, BROKER_DAY_SESSIONS);
 });
 
-test('the catalog: the 48 flow indicators with their Terminal setup and the Screener\'s own flow entries, available on a complete window (FL31 and ksei_net need data not published); the Screener\'s versions marked; no other flow entry', async () => {
+test('the catalog: the Terminal\'s flow indicators with their Terminal setup and the Screener\'s own flow entries, available on a complete window (FL31 and ksei_net need data not published); the Screener\'s versions marked; no other flow entry', async () => {
   const { port, app } = await start(pubOf('2026-10-27T13:03:23Z'));
   assert.deepEqual(app.state().current!.desc.data.broker_window, { first: FIRST, last: LAST, sessions: 60, complete: true });
   assert.equal(Object.keys(app.state().current!.desc.brokerClasses).length, CLASSES.length, 'the classification of the reference file brokers');
   const cat = (await call(port, 'GET', '/v1/catalog', undefined, auth())).body;
   const flows = (cat.metrics as any[]).filter(m => m.kind === 'flow' && m.flow);
-  assert.equal(flows.length, 50);
-  assert.equal((cat.metrics as any[]).filter(m => m.kind === 'flow').length, 50, 'every flow entry is a generated one');
+  // derived (step 3 of 2026-11-23, the lab Flow dry run): every generated flow entry (screener-registry.json `flows`: 48
+  // of the Terminal's indicators and the Screener's fnet and ksei_net today), so a new or lab Flow indicator changes no
+  // pin here; each of them is in the worker's catalog and no other flow entry is
+  const generated = (SCREENER_REGISTRY as { flows: { id: string }[] }).flows.map(f => f.id);
+  assert.ok(generated.length >= 50, `${generated.length} generated flow entries`);
+  assert.deepEqual(flows.map(m => m.id).sort(), [...generated].sort());
+  assert.equal((cat.metrics as any[]).filter(m => m.kind === 'flow').length, generated.length, 'every flow entry is a generated one');
   assert.deepEqual(flows.filter(m => m.availability !== 'AVAILABLE').map(m => m.id), ['FL31', 'ksei_net']);
   assert.deepEqual(flows.filter(m => m.flow.version === 'screener').map(m => m.id), ['FL18', 'FL19', 'FL20', 'FL23', 'FL44', 'FL45', 'fnet', 'ksei_net']);
   const fl23 = flows.find(m => m.id === 'FL23'), fl18 = flows.find(m => m.id === 'FL18');

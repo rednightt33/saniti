@@ -5,21 +5,22 @@
 import IND_REG from '../../terminal/src/data/indRegistry.json' with { type: 'json' };
 import { EXTRA_GROUPS as CORE_EXTRA, LEGACY, type LegacySpec, type RegCard } from './core/catalog.ts';
 import type { Card, TestCard } from './api/types.ts';
-import { entryOf, testGroup } from './grammar.ts';
+import { SC, entryOf, testGroup } from './grammar.ts';
 import { API, CAT, DATA } from './env.ts';
 import { nf, OPS, toast } from './format.ts';
 import { S } from './state.ts';
 
 /* ---- INDICATOR REGISTRY (the reference's REG) ---- */
 export interface RegParam { k: string; l: string; cls: string; t: string; ev: string; min?: number; max?: number; step?: number; m?: string; d?: any; opt?: string[]; note?: string }
-export interface RegRow { id: string; cat: string; name: string; key: string; data: string; zone: string; out: string[]; short: string; detail: string; disp: string; p: RegParam[] }
+export interface RegRow { id: string; cat: string; name: string; key: string; data: string; zone: string; out: string[]; short: string; detail: string; disp: string; p: RegParam[]; release?: string }
 
 /* indRegistry.json → the reference's REG: req → data, outs[].k → out, tip → short, info → detail, display → disp;
    per parameter label → l, type → t, hint → m, def → d, opts → opt, and cls 'Fixed' for a fixed parameter (else
    'Calculation'), which is what the reference's 02_PARAMETERS class column holds */
 export const REG: RegRow[] = (IND_REG as any[]).map(r => ({
   id:r.id, cat:r.cat, name:r.name, key:r.key, data:r.req, zone:r.zone, out:r.outs.map((o: any) => o.k), short:r.tip, detail:r.info, disp:r.display,
-  p:r.params.map((q: any) => ({ k:q.k, l:q.label, cls:q.type==='fixed'?'Fixed':'Calculation', t:q.type, ev:q.ev, min:q.min, max:q.max, step:q.step, m:q.hint, d:q.def, opt:q.opts }))
+  p:r.params.map((q: any) => ({ k:q.k, l:q.label, cls:q.type==='fixed'?'Fixed':'Calculation', t:q.type, ev:q.ev, min:q.min, max:q.max, step:q.step, m:q.hint, d:q.def, opt:q.opts })),
+  ...(r.release ? { release:r.release } : {})
 }));
 export const REG_BY: Record<string, RegRow> = Object.fromEntries(REG.map(r => [r.id, r]));
 export const REG_CATS = [...new Set(REG.map(r => r.cat))];
@@ -63,7 +64,12 @@ export const regName = (c: RegCard) => { const r = REG_BY[c.ind], vals = r.p.fil
 export const evalCond = (tk: string, c: Card): Uint8Array => API.conditionSeries(tk, c) ?? new Uint8Array(DATA[tk] ? DATA[tk].dates.length : 0);
 
 /* price-level lines a stop can sit on = overlay outputs of the registry (derived, not listed by hand) */
-export const LEVEL_LINES = () => REG.filter(r => r.zone==='overlay').flatMap(r => r.out.filter(o => o!=='direction').map(o => ({id:r.id, o, label:`${r.name} · ${OUT_LABEL(o)}`, ready:regReady(r.id)})));
+/* EXEC-MU-ACCOUNTS "A preview release stage" (the user 2026-11-23): an entry the page build marks `release` (a preview
+   item, in both builds; a lab entry carries no mark) is offered only when the account's catalog lists it (SC.by: the Screener
+   catalog edge-bff filters per principal, catalog.tab_list), so a paid account never sees a preview line's name; a
+   catalog not read yet offers none (fail closed). A released line outside the plan stays, marked not calculated. */
+export const offered = (r: RegRow) => !r.release || SC.by.has(r.id);
+export const LEVEL_LINES = () => REG.filter(r => r.zone==='overlay' && offered(r)).flatMap(r => r.out.filter(o => o!=='direction').map(o => ({id:r.id, o, label:`${r.name} · ${OUT_LABEL(o)}`, ready:regReady(r.id)})));
 export const mkRegWith = (id: string, over: Record<string, any>) => { const c = mkReg(id); const {p, ...rest} = over; Object.assign(c, rest); if(p) c.p = {...c.p, ...p}; return c };
 
 /** whether a change from `before` to `after` keeps a condition list within limits.max_conditions: the worker counts the

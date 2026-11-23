@@ -1,0 +1,43 @@
+{
+ "mode": "APPLY",
+ "migrations": [
+  "20261123_001_edge_bff_payments.sql"
+ ],
+ "probes": [
+  [
+   "tables",
+   null,
+   "SELECT table_name, string_agg(column_name || ':' || data_type || ':' || is_nullable, ', ' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name IN ('payment_orders', 'payment_events') GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "provider_check",
+   null,
+   "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'edge_bff.subscriptions'::regclass AND contype = 'c' ORDER BY 1"
+  ],
+  [
+   "runtime_grants",
+   null,
+   "SELECT t, string_agg(p, ',' ORDER BY p) FILTER (WHERE has_table_privilege('edge_bff_runtime', 'edge_bff.' || t, p)) AS held FROM unnest(ARRAY['payment_orders', 'payment_events']) AS t CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']) AS p GROUP BY t ORDER BY t"
+  ],
+  [
+   "public_grants",
+   null,
+   "SELECT t, has_table_privilege('public', 'edge_bff.' || t, 'SELECT,INSERT,UPDATE,DELETE') AS any FROM unnest(ARRAY['payment_orders', 'payment_events']) AS t ORDER BY 1"
+  ],
+  [
+   "sequence_grant",
+   null,
+   "SELECT has_sequence_privilege('edge_bff_runtime', 'edge_bff.payment_events_event_id_seq', 'USAGE') AS usage"
+  ],
+  [
+   "runtime_reads",
+   "edge_bff_runtime",
+   "SELECT (SELECT count(*) FROM edge_bff.payment_orders) AS orders, (SELECT count(*) FROM edge_bff.payment_events) AS events"
+  ],
+  [
+   "subscriptions_by_provider",
+   null,
+   "SELECT provider, status, count(*) FROM edge_bff.subscriptions GROUP BY 1, 2 ORDER BY 1, 2"
+  ]
+ ]
+}

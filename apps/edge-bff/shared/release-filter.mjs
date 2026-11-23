@@ -2,15 +2,21 @@
    is meant for.
 
    - The public build (the one every visitor downloads, served without a session) keeps, in each registry below, the
-     entries whose item is `released` in the release file, apps/edge-bff/catalog/releases.json.
+     entries whose item is `released` or `preview` in the release file, apps/edge-bff/catalog/releases.json. A preview
+     entry carries `release: 'preview'` (the user 2026-11-23, EXEC-MU-ACCOUNTS "A preview release stage": on both sites,
+     held only by the principals whose grants name it, the admin's `*`), so a page that lists entries from its registry
+     leaves one out for a principal the catalog does not list it for, rather than show it locked (the Terminal's menu,
+     the Backtest's line choices). Its definition and formula are public; a formula that must stay out of the files a
+     visitor downloads stays lab.
    - The lab build (the admin's, which edge-bff serves only to the admin on the beta, under /<app>-app/lab/) keeps every
-     entry.
+     entry, a preview one with the same mark.
    - An item the release file does not list is lab. A release file that is missing or cannot be read stops the build
      (fail closed), so a public bundle is never built from a guess.
 
    A lab item's formula lives in a module under apps/edge-bff/terminal/src/lab/ that only the alias '@edge-lab' reaches:
    the public build points the alias at src/lab/none.ts (labAlias below). LIVE_PROMOTION.md section 3 lists the tests
-   that hold this and what still holds back the first lab item (tests/test_releases.py, LAB_ITEM_HELD_UNTIL). */
+   that hold this; INDICATOR_BETA_TO_LIVE.md is the checklist of a lab indicator (tests/test_releases.py LAB_KIND_HELD
+   names the kinds that may not be lab yet). */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,10 +43,25 @@ export const REGISTRIES = [
   { file: 'screener/src/core/screener-registry.json', lists: [['indicators', 'indicator'], ['flows', 'flow_indicator'], ['candles', 'candle_pattern']] },
   // the Backtest page's comparison lag, keyed by indicator id (checker L3, 2026-11-21)
   { file: 'backtest/src/core/compare-lag.json', kind: 'indicator', keyed: 'price_compare_lag' },
+  // the Screener core's hand-kept files keyed by item id (step 3 of 2026-11-23, the lab Flow dry run: a page test reads
+  // the filtered registries, so a file of the same items left whole disagreed with them, "FL53 is not an indicator of
+  // flowRegistry.json"). Each keyed part lists the kinds its ids may be of (an id is of the first kind the release file
+  // lists it under); a list part may name its item by another field than `id` (the overlay's overrides and cost reviews
+  // by `indicator`; check of steps 2-3, P4). terminal/tests/lab/coverage.test.mjs fails on a JSON file under a page's src
+  // that names an item, by key, id or a reference field, and that no entry here covers.
+  { file: 'screener/src/core/flow-kinds.json', keyedParts: [['indicators', ['flow_indicator']], ['screener_entries', ['flow_indicator']]] },
+  { file: 'screener/src/core/screener-overlay.json', keyedParts: [['indicators', ['indicator']]], lists: [['overrides', 'indicator', 'indicator'], ['cost_reviews', 'indicator', 'indicator']] },
 ];
 
-/** The release stages: a Map of `${kind}\t${id}` -> 'lab' | 'released', read from the release file (or `file`). Throws
-    when the file is missing, is not JSON or has no items list: the build stops. */
+/** The release stages of an item (app/releases.py STAGES). */
+export const STAGES = ['lab', 'preview', 'released'];
+/** The stages a public build keeps: every other (lab, or an id the release file does not list) is left out. */
+export const PUBLIC_STAGES = ['preview', 'released'];
+export const PREVIEW = 'preview';
+
+/** The release stages: a Map of `${kind}\t${id}` -> 'lab' | 'preview' | 'released', read from the release file (or
+    `file`). Throws when the file is missing, is not JSON, has no items list or an entry of another stage: the build
+    stops. */
 export function readStages(file = RELEASES) {
   let data;
   try {
@@ -51,20 +72,38 @@ export function readStages(file = RELEASES) {
   if (!data || !Array.isArray(data.items)) throw new Error(`release filter: ${file} has no "items" list`);
   const stages = new Map();
   for (const it of data.items) {
-    if (!it || typeof it.kind !== 'string' || typeof it.id !== 'string' || !['lab', 'released'].includes(it.stage))
-      throw new Error(`release filter: ${file} has an entry without kind, id or a stage lab|released: ${JSON.stringify(it)}`);
+    if (!it || typeof it.kind !== 'string' || typeof it.id !== 'string' || !STAGES.includes(it.stage))
+      throw new Error(`release filter: ${file} has an entry without kind, id or a stage ${STAGES.join('|')}: ${JSON.stringify(it)}`);
     stages.set(`${it.kind}\t${it.id}`, it.stage);
   }
   return stages;
 }
 
-/** The registry document as the build keeps it: every entry for the lab build, the released ones for the public build
-    (an unlisted id is lab). Each part the spec names must be there in its shape, a list (`list`, each of `lists`) or an
-    object keyed by id (`keyed`), else the build stops: a part renamed or rewritten would pass through unfiltered
-    (3f checker B4, BUN2-4, CS-4). terminal/tests/lab/coverage.test.mjs checks that no other part of a registry file
-    names an item. */
+/** The registry document as the build keeps it: every entry for the lab build, the released and preview ones for the
+    public build (an unlisted id is lab); an entry of a list whose item is at preview carries `release: 'preview'` in
+    both builds (an object keyed by id keeps its values as they are). Each part the spec names must be there in its
+    shape, a list (`list`, each of `lists`) or an object keyed by id (`keyed`), else the build stops: a part renamed or
+    rewritten would pass through unfiltered (3f checker B4, BUN2-4, CS-4). terminal/tests/lab/coverage.test.mjs checks
+    that no other part of a registry file names an item. */
 export function filtered(spec, doc, { lab, stages }) {
-  const keep = kind => e => lab || (e && typeof e.id === 'string' && stages.get(`${kind}\t${e.id}`) === 'released');
+  const stage = (kind, e, field = 'id') => e && typeof e[field] === 'string' ? stages.get(`${kind}\t${e[field]}`) : undefined;
+  const keep = (kind, field) => e => lab || PUBLIC_STAGES.includes(stage(kind, e, field));
+  const mark = (kind, field) => e => stage(kind, e, field) === PREVIEW ? { ...e, release: PREVIEW } : e;
+  if (spec.keyedParts) {
+    let out = doc;
+    for (const [key, kinds] of spec.keyedParts) {
+      const by = out?.[key];
+      if (!by || typeof by !== 'object' || Array.isArray(by)) throw new Error(`release filter: ${spec.file} has no object "${key}"`);
+      // the first kind the release file lists the id under decides; an id it lists under none is lab
+      const of = id => stage(kinds.find(k => stages.has(`${k}\t${id}`)) ?? kinds[0], { id });
+      out = { ...out, [key]: Object.fromEntries(Object.entries(by).filter(([id]) => lab || PUBLIC_STAGES.includes(of(id)))) };
+    }
+    for (const [key, kind, field = 'id'] of spec.lists ?? []) {
+      if (!Array.isArray(out?.[key])) throw new Error(`release filter: ${spec.file} has no list "${key}" (the entries of kind ${kind})`);
+      out = { ...out, [key]: out[key].filter(keep(kind, field)).map(mark(kind, field)) };
+    }
+    return out;
+  }
   if (spec.keyed) {
     const by = doc[spec.keyed];
     if (!by || typeof by !== 'object' || Array.isArray(by)) throw new Error(`release filter: ${spec.file} has no object "${spec.keyed}"`);
@@ -74,16 +113,17 @@ export function filtered(spec, doc, { lab, stages }) {
     let out = doc;
     for (const [key, kind] of spec.lists) {
       if (!Array.isArray(out?.[key])) throw new Error(`release filter: ${spec.file} has no list "${key}" (the entries of kind ${kind})`);
-      out = { ...out, [key]: out[key].filter(keep(kind)) };
+      out = { ...out, [key]: out[key].filter(keep(kind)).map(mark(kind)) };
     }
     return out;
   }
   const list = spec.list(doc);
   if (!Array.isArray(list)) throw new Error(`release filter: ${spec.file} has no list of entries where it is expected`);
-  return spec.put(doc, list.filter(keep(spec.kind)));
+  return spec.put(doc, list.filter(keep(spec.kind)).map(mark(spec.kind)));
 }
 
-/** The Vite plugin: it loads each registry filtered for the build (lab: every entry; else the released ones). Every page
+/** The Vite plugin: it loads each registry filtered for the build (lab: every entry; else the released and preview
+    ones). Every page
     build puts it in `plugins` and in `worker.plugins` alike: Vite builds a Web Worker's bundle with the worker's plugins
     only (checker L1, 2026-11-21: the Terminal's worker had the whole Flow registry). tests/test_3f_public_bundles.py
     builds every page with its own configuration on a copy of apps/edge-bff whose registries hold fixture items, and
@@ -102,6 +142,23 @@ export function releaseFilter({ lab = false } = {}) {
       stages ??= readStages();
       const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
       return JSON.stringify(filtered(spec, doc, { lab, stages }));
+    },
+  };
+}
+
+/** L11 (3f checker; built 2026-11-23 when the lab item guard was lifted): a file of a fixed name that only a lab build
+    holds, at <base>assets/lab-probe.svg (a .js file would read as a bundle to the proof builds). A hashed lab file's name cannot be known from outside once the public and lab
+    builds differ, so a smoke that asks for the public build's names under /lab/ passes by absence; this one name
+    proves the lab build is not served (the live smoke, verification/edge_multiuser/live_smoke/http_smoke.py) and is
+    served to the admin on the beta (tests/test_3f_lab_pages.py). An empty image, not a script: it holds no code, and
+    the bundle scans of tests/test_3f_public_bundles.py read the builds' .js files. */
+export const LAB_PROBE = 'lab-probe.svg';
+export function labProbe({ lab = false } = {}) {
+  return {
+    name: 'edge-lab-probe',
+    generateBundle() {
+      if (lab) this.emitFile({ type: 'asset', fileName: `assets/${LAB_PROBE}`,
+                               source: '<svg xmlns="http://www.w3.org/2000/svg"><!-- EDGE lab build probe: only the lab build holds this file --></svg>\n' });
     },
   };
 }

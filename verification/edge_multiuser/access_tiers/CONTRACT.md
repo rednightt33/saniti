@@ -461,7 +461,8 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 ## 8. Catalog and release (Phase 2)
 
 - **Release stage per item** lives in the repository, because it decides which code chunk an item ships in:
-  `apps/edge-bff/catalog/releases.json` with `{kind, id, stage: "lab"|"released"}`.
+  `apps/edge-bff/catalog/releases.json` with `{kind, id, stage: "lab"|"preview"|"released"}` (a tab: `lab` or
+  `released` only).
   - Kinds (`app/releases.py` KINDS): `indicator`, `flow_indicator`, `candle_pattern`, `screener_metric`,
     `screener_preset`.
   - A test fails when a registry id has no entry; an unlisted id is `lab`.
@@ -491,6 +492,31 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
     A new one is staged in the lab with an id the workers gate.
   - The released definitions and formulas stay in the public bundles for speed: a released item's name shows locked to
     a plan without it (3e), so serving its definition per principal would hide nothing.
+- **Preview (the user 2026-11-23, EXEC-MU-ACCOUNTS "A preview release stage": "ada indikator baru di main --> promote ke
+  live, tapi saya mau promote ke live hanya admin saja yang bisa lihat, user paid tidak bisa lihat"; plan "B"):** an
+  item at `preview` is on both sites and held only by a principal whose grants name the item itself: `*` or its id. A
+  family value `{"all": true}` holds every lab and released item but no preview one (the user's "Ok A", 2026-11-23,
+  EXEC UD28; `principal.holds`; `allow.allow_of` and `catalog.holds_every` give it '*' only while its kind has no
+  preview item; `tests/test_preview_stage.py`). Which items may be preview: an indicator or a Flow
+  indicator may be preview only when no shipped code but its own formula definition names or computes it
+  (`tests/test_releases.py` `test_an_item_the_shipped_code_names_is_never_lab`, its `FORMULA_HOME` rule): 36 of today's
+  53 indicators and 20 of the 52 Flow indicators qualify today; a new one qualifies when only its formula names it.
+  - No grant can name the stage: `{"stages": [...]}` takes `lab` and `released` only (`releases.GRANT_STAGES`; the
+    database's `capability_value_check` refuses `preview` at write time, `principal.valid_value` on read). A paid, free
+    or guest principal never holds a preview item.
+  - It is not beta-only (`principal.beta_only` is the lab stage alone), so the admin holds it on the live site, where
+    `allow.allow_of` names it by its id.
+  - The public build keeps its definition and formula (the admin on the live site is served the public build), its
+    list entry marked `release: 'preview'` (`shared/release-filter.mjs`). A page that lists entries from its registry
+    leaves a marked one out for a principal the catalog does not list it for, instead of showing it locked (the
+    Terminal's menu, `indMenu.ts` `heldBack`; the Backtest's stop and trailing lines, `reg.ts` `offered`).
+  - The catalogs list it to its holders only, with its stage (`/api/v1/catalog/{kind}`; the tab catalogs' entries and
+    presets carry `release: 'preview'`, `catalog.tab_list`, `screener.catalog_for`); the stored examples hold it back
+    as a lab item (`examples.not_released`, `releases.held_back`).
+  - The trade-off the user accepted with "B": anyone reading the public page files can see a preview item's definition
+    and formula; only its use and its place in the menus are held. A formula that must stay out of the files a visitor
+    downloads stays `lab`. An item no worker gates by id, or one the shipped code names, is never preview either
+    (`tests/test_releases.py`).
   - `GET /api/v1/catalog/{kind}` answers the ids and stages the principal holds; the tab catalogs follow its rule
     (8a "Tab catalogs").
 
@@ -1247,16 +1273,18 @@ today.
     files carry only the released ones.
   - Built since (TR-2): the registry generators and both workers load the lab formulas through the same registration
     point (`terminal/src/lab/index.ts`, alias `@edge-lab` in `apps/backtest-worker/loader/resolve.mjs`; both images copy
-    the lab folder). Not built: a lab Flow indicator's formula has no registration point (`calc/flow.ts` does not export
-    its map; LIVE_PROMOTION.md section 3).
-- **The held gaps (no item or tab may be lab yet; `tests/test_releases.py` LAB_ITEM_HELD_UNTIL, `tests/test_live_switch.py`
-  LAB_TAB_HELD_UNTIL; FUTURE_PLAN.md "Before the first lab item or tab"), each with where it stands:**
+    the lab folder). A lab Flow indicator's formula is registered from the lab module (`calc/flow.ts` `registerFlow`,
+    `flowKit`; built 2026-11-23, step 3 of the user's sequence; the earlier "does not export its map" was wrong).
+- **The held gaps (FUTURE_PLAN.md "Before the first lab item or tab"), each with where it stands. The item guard was lifted
+  on 2026-11-23 (the user: "Cabut tes penjaga lab"; every item gap below closed on both sites by the deploys of
+  2026-11-22): a new item may be lab but a Flow indicator (`tests/test_releases.py` `LAB_KIND_HELD`); no tab yet
+  (`tests/test_live_switch.py` LAB_TAB_HELD_UNTIL). A lab indicator: `INDICATOR_BETA_TO_LIVE.md`.**
   - the workers' refusals listed and named items outside the principal's allow before the plan check (checker L2):
     closed. Both workers check allow on the request as sent; a reference whose id is not a string or is missing is
     refused by its field only; every refusal to a principal whose allow is not everything leaves with its registry
     list cut to the items held (screener-worker `src/run.ts` `forAllow`, backtest-worker `src/access.ts` `forAllow`;
     test-out wf_c72ae04c-a73);
-  - the lab formulas for the generators and the workers: built (above), the Flow registration point not;
+  - the lab formulas for the generators and the workers: built (above), the Flow registration point too (2026-11-23);
   - the live site's edge-bff from before 3f (checker L5): closed by the promotion of 2026-11-21;
   - a lab tab's rail entry, route and words in the public shell, and `auth/config` naming it (checker SERVE-3): the
     names are out (`hidden_tabs` lists the beta-only tabs; `test_no_lab_tab_is_named_in_the_public_shell` over the
@@ -1426,6 +1454,41 @@ today.
 - State machine as `FINDINGS.md` §4. The amount and currency must match the order. An event older than
   `last_event_at` is ignored.
 - A reconciliation loop is stubbed for `test`.
+
+**Built (step 7, the user 2026-11-22: "harap disiapkan saja infrastrukturnya. Untuk tesnya nanti kita buat fase
+tersendiri karena akun Mitrans belum siap"; on the branch, not deployed; migration `20261123_001` written, not applied):**
+- Tables `edge_bff.payment_orders` (our opaque order number per attempt, `edge-` and 24 hex digits; the account, the
+  plan, the period in days, the amount in whole rupiah, `IDR`, the provider, the status, the expiry, `last_event_at`,
+  `held_reason`) and `edge_bff.payment_events` (unique per provider and event key, the verified payload without its
+  signature, `applied` and `outcome`); `subscriptions.provider` also allows `midtrans`. Expand only.
+- `app/payments/adapters.py`: `manual` (no notification: the admin page's plan action), `test` (HMAC-SHA256 of the raw
+  body in `X-Edge-Test-Signature`; `records` stand in for the provider's record) and `midtrans`, built only offline: the
+  notification's `signature_key` (SHA512 of order_id, status_code, gross_amount and the Server Key), its status words
+  (settlement, or capture with fraud_status accept: settled; pending; deny and failure: failed; cancel; expire; refund
+  and partial_refund: refunded), `gross_amount` as whole rupiah, the order number's form, the event key (order, status,
+  status code; Midtrans sends no event id) and its Jakarta time. Snap and Get Status raise `PaymentNotConfigured`: no
+  call leaves EDGE.
+- `app/payments/orders.py` `PaymentStore.apply_event`: one transaction with the order locked. pending -> settled starts
+  the subscription (provider_ref the order) or extends a live one of the same plan by the period; pending -> failed,
+  expired or cancelled; settled -> refunded and a payment after the order ended are held for the admin
+  (`refund_review`, `settled_after_end`), as is a payment while another plan is live (`plan_conflict`). A duplicate
+  changes nothing; an older event is ignored; a settled order never goes back; another amount or currency changes
+  nothing. Every notification is kept once with its outcome. `reconcile()` applies the provider's record to the pending
+  orders and ends one past its expiry that the provider does not know; it runs when called (its loop comes with Get
+  Status).
+- `app/payments/routes.py`: `POST /api/v1/hooks/payments/test` and `/midtrans`, each in `HOOK_ROUTES` with
+  `hooks.signed`; 404 NOT_FOUND (logged `payments_hook_off` with the reason) unless the accounts switch is on and
+  `EDGE_PAYMENTS_PROVIDER` names the provider; a verified notification answers 200 with its outcome; a provider that
+  confirms first (Midtrans' Get Status) answers 503 while that call is not built. `config.validate` refuses
+  `EDGE_PAYMENTS_PROVIDER=midtrans` until its phase, `test` on the live site, and a provider without
+  `EDGE_PAYMENTS_SECRET` of 32 characters or the accounts switch.
+- Tests: `apps/edge-bff/tests/test_payments.py` (FINDINGS test 8, the runtime role's grants, Midtrans' offline parts).
+
+**Waits for the Midtrans phase (the user's, once the account is ready):** the Sandbox Server Key and Client Key (Railway
+variables the user enters), Snap `create_checkout` (QRIS `other_qris` and the VAs) and Get Status (`fetch_status`, the
+confirmation before applying, and the reconciliation loop that calls it), the Payment Notification URL in Midtrans'
+dashboard (the beta's for Sandbox), the `/pay` page and the return page, the plans, prices, periods and grace period,
+who may buy, and how a held order is settled on the admin page.
 
 ## 12. Front-end
 

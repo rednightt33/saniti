@@ -61,7 +61,12 @@ describe('screener-metrics.json', () => {
   it('derives availability from the published index: technical metrics need none, a decision wins; the flow entries (the 48 Terminal flow indicators, then the Screener\'s own) follow the broker window (P5a, P5b)', () => {
     const flows = METRICS_CATALOG.metrics.filter(m => m.kind === 'flow');
     expect(flows.every(m => !!m.flow)).toBe(true);                                // no flow entry is typed in screener-metrics.json
-    expect(flows.map(m => m.id)).toEqual([...Array.from({ length: 48 }, (_, k) => `FL${String(k + 1).padStart(2, '0')}`), 'fnet', 'ksei_net']);
+    // derived (check of steps 2-3, 2026-11-23, P2): the Terminal's Flow indicators of the generated registry in id order,
+    // then the Screener's own; FL01-FL48 at least (a preview or released FL53 changes no line here)
+    const terminal = flows.map(m => m.id).filter(i => /^FL\d+$/.test(i));
+    expect(terminal).toEqual([...terminal].sort((a, b) => Number(a.slice(2)) - Number(b.slice(2))));
+    expect(terminal.slice(0, 48)).toEqual(Array.from({ length: 48 }, (_, k) => `FL${String(k + 1).padStart(2, '0')}`));
+    expect(flows.map(m => m.id)).toEqual([...terminal, 'fnet', 'ksei_net']);
     const none = availabilityMap({});
     for (const id of ['hi52', 'rs', 'return_rank', 'breakout', 'squeeze', 'last', 'adv20_idr']) expect(none.get(id)!.availability).toBe('AVAILABLE');
     // the flow entries: no window (no broker days) -> REQUIRES_DATA; a window still loading -> REQUIRES_DATA with

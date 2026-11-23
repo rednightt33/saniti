@@ -303,6 +303,9 @@ export function checkRequest(input: unknown, refs: References, cfg: Pick<Config,
   }
   only(q.sizing, 'sizing', 'sizing'); only(q.costs, 'costs', 'costs'); only(q.robustness, 'robustness', 'robustness');
 
+  // the plan's allow for the price lines before the core's checks read the full registry (validateRun), so a line naming
+  // an item outside allow is refused alike whether its id is lab, held or unknown (test-out 2026-11-23, LLA-F4)
+  if (isObject(q.exit)) lineItems(q, allow);
   validateRun(q, undefined, cfg.limits);
   if (!OOS_FRACTIONS.includes(q.period.oos_fraction)) fail('INVALID_PERIOD', 'period.oos_fraction', `period.oos_fraction must be one of ${OOS_FRACTIONS.join(', ')}.`);
   const r = q.robustness;
@@ -332,7 +335,6 @@ export function checkRequest(input: unknown, refs: References, cfg: Pick<Config,
   }
   const active = requestConditions(q);
   unreadTypes(q);
-  lineItems(q, allow);
   withinConditions([[active.entry, 'entry.conditions'], [active.exit, 'exit.signals.conditions']], cfg.limits.max_conditions);
   const reads = checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...listed(q.exit.signals.conditions, 'exit.signals.conditions')], cfg.flow, refs.brokers, cfg.limits.max_flow_series, rights, allow);
   return { tickers, broker: broker || reads.broker, columns: reads.columns };

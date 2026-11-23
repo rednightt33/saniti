@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ROOT, pageEntries, pages, reachable } from '../../../shared/import-walk.mjs';
-import { EDGE_BFF, REGISTRIES, RELEASES, filtered, labAlias } from '../../../shared/release-filter.mjs';
+import { EDGE_BFF, REGISTRIES, RELEASES, filtered, labAlias, readStages } from '../../../shared/release-filter.mjs';
 
 /** JSON files a public entry reaches that are not registries, each with why it names no item (none today). */
 const NAMES_NO_ITEM = {};
@@ -47,10 +47,27 @@ function reachedJson(entries, edge = EDGE_BFF) {
   return [...out].sort();
 }
 
-const kindsOf = spec => (spec.lists ? spec.lists.map(([, kind]) => kind) : [spec.kind]);
+const kindsOf = spec => [...new Set([...(spec.keyedParts ?? []).flatMap(([, kinds]) => kinds), ...(spec.lists ?? []).map(([, kind]) => kind),
+  ...(spec.kind ? [spec.kind] : [])])];
 /** The ids a registry holds in the parts its spec filters. */
 const heldIds = (spec, doc) => (spec.keyed ? Object.keys(doc[spec.keyed])
-  : spec.lists ? spec.lists.flatMap(([key]) => doc[key].map(e => e?.id)) : spec.list(doc).map(e => e?.id)).filter(x => typeof x === 'string');
+  : [...(spec.keyedParts ?? []).flatMap(([key]) => Object.keys(doc[key])),
+     ...(spec.lists ?? []).flatMap(([key, , field = 'id']) => doc[key].map(e => e?.[field])),
+     ...(!spec.keyedParts && !spec.lists ? spec.list(doc).map(e => e?.id) : [])]).filter(x => typeof x === 'string');
+/** The reference fields a JSON file may name an item by, beside `id` and an object key (check of steps 2-3, P4). */
+const REFERENCE_FIELDS = ['indicator', 'metric', 'pattern'];
+/** The ids a JSON document names by key, id or a reference field (namedIds, plus a string under REFERENCE_FIELDS). */
+function referencedIds(doc, ids) {
+  const found = namedIds(doc, ids);
+  const walk = x => {
+    if (Array.isArray(x)) { x.forEach(walk); return }
+    if (!x || typeof x !== 'object') return;
+    for (const f of REFERENCE_FIELDS) if (typeof x[f] === 'string' && ids.has(x[f])) found.add(x[f]);
+    Object.values(x).forEach(walk);
+  };
+  walk(doc);
+  return found;
+}
 /** What a public build with no item released keeps of a registry that names an item of its own kinds. */
 function leftOver(spec, doc, items = ITEMS) {
   const ids = new Set([...items.filter(it => kindsOf(spec).includes(it.kind)).map(it => it.id), ...heldIds(spec, doc)]);
@@ -75,6 +92,26 @@ describe('3f: the release filter covers every file a public entry reaches that c
     }
   });
 
+  it('every JSON file under a page\'s src that names an item is covered by the filter (a page test reads the filtered view of each)', () => {
+    // step 3 of 2026-11-23 (the lab Flow dry run): flow-kinds.json and screener-overlay.json name items by id; a page test
+    // read the filtered registries beside them whole and disagreed. A new file of item ids is covered from its first commit.
+    const ids = new Set(ITEMS.map(it => it.id));
+    const walk = (dir, out = []) => {
+      for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, f.name);
+        if (f.isDirectory()) { if (!['node_modules', 'dist', 'dist-lab', 'tests'].includes(f.name)) walk(p, out) }
+        else if (f.name.endsWith('.json')) out.push(p);
+      }
+      return out;
+    };
+    const naming = pages().flatMap(page => fs.existsSync(path.join(EDGE_BFF, page, 'src')) ? walk(path.join(EDGE_BFF, page, 'src')) : [])
+      .map(f => path.relative(EDGE_BFF, f))
+      .filter(f => { try { return referencedIds(JSON.parse(fs.readFileSync(path.join(EDGE_BFF, f), 'utf8')), ids).size > 0 } catch { return false } });
+    expect(naming).toEqual(expect.arrayContaining(['screener/src/core/flow-kinds.json', 'terminal/src/data/flowRegistry.json']));
+    expect(naming.filter(f => !COVERED.has(f) && !NAMES_NO_ITEM[f]),
+      'add each to shared/release-filter.mjs REGISTRIES (keyedParts for an object keyed by id)').toEqual([]);
+  });
+
   it.each(REGISTRIES.map(spec => [spec.file, spec]))('%s, filtered with nothing released, names no item of its kinds', (_, spec) => {
     const doc = JSON.parse(fs.readFileSync(path.join(EDGE_BFF, spec.file), 'utf8'));
     expect(heldIds(spec, doc).length, 'the spec reads the registry\'s entries').toBeGreaterThan(0);
@@ -93,6 +130,25 @@ describe('3f: the release filter covers every file a public entry reaches that c
     expect([two.a.map(e => e.id), two.b]).toEqual([['R1'], []]);             // R1 is released as an indicator only
     const keyed = { file: 'z.json', kind: 'indicator', keyed: 'lag' };
     expect(Object.keys(filtered(keyed, { lag: { R1: 1, L1: 2, U1: 3 } }, { lab: false, stages }).lag)).toEqual(['R1']);
+  });
+  it('the filter keeps a preview id in both builds, marked release preview, and readStages refuses an unknown stage', () => {
+    // EXEC-MU-ACCOUNTS "A preview release stage": on both sites for the admin only, its definition public
+    const spec = { file: 'x.json', kind: 'indicator', list: d => d.indicators, put: (d, l) => ({ ...d, indicators: l }) };
+    const doc = { indicators: [{ id: 'R1' }, { id: 'P1', name: 'Preview one' }, { id: 'L1' }] };
+    const stages = new Map([['indicator\tR1', 'released'], ['indicator\tP1', 'preview'], ['indicator\tL1', 'lab']]);
+    expect(filtered(spec, doc, { lab: false, stages }).indicators).toEqual([{ id: 'R1' }, { id: 'P1', name: 'Preview one', release: 'preview' }]);
+    expect(filtered(spec, doc, { lab: true, stages }).indicators).toEqual([{ id: 'R1' }, { id: 'P1', name: 'Preview one', release: 'preview' }, { id: 'L1' }]);
+    expect(doc.indicators[1]).toEqual({ id: 'P1', name: 'Preview one' });            // the source document is not changed
+    const lists = { file: 'y.json', lists: [['a', 'indicator'], ['b', 'flow_indicator']] };
+    expect(filtered(lists, { a: [{ id: 'P1' }], b: [{ id: 'P1' }] }, { lab: false, stages })).toEqual({ a: [{ id: 'P1', release: 'preview' }], b: [] });
+    const keyed = { file: 'z.json', kind: 'indicator', keyed: 'lag' };
+    expect(filtered(keyed, { lag: { R1: 1, P1: 2, L1: 3 } }, { lab: false, stages }).lag).toEqual({ R1: 1, P1: 2 });
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-stages-'));
+    const file = path.join(dir, 'releases.json');
+    fs.writeFileSync(file, JSON.stringify({ items: [{ kind: 'indicator', id: 'P1', stage: 'preview' }] }));
+    expect(readStages(file).get('indicator\tP1')).toBe('preview');
+    fs.writeFileSync(file, JSON.stringify({ items: [{ kind: 'indicator', id: 'B1', stage: 'beta' }] }));
+    expect(() => readStages(file)).toThrow(/lab\|preview\|released/);
   });
 
   it('a part a spec names that is missing or of another shape stops the build (round 2 BUN2-4, CS-4)', () => {

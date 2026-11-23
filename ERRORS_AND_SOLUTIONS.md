@@ -8886,7 +8886,197 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M547 — The AI page's Sources: a part the user just opened closed again when the panel was drawn anew (2026-11-22; found by the agent from a flaky test; FIXED on the branch, `4f1e6d3e`)
+### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed in `61fb22c4`, on the beta since 2026-11-23 (`fb4a5c3c`))
+
+- **The check (the user 2026-11-23: "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error =
+  betulkan. Yang di benerin di remark untuk step 8 nanti. Setelah itu deploy."):** three fresh agents at xhigh (preview
+  on the server, preview in the pages, the lab Flow path cold with a FL54 of its own). No preview or lab item reached a
+  principal without it on any surface tried; 0 high, 10 medium, 10 low. (The agents' worktrees were made from `main`,
+  not the branch head; each moved itself to `53b710b6` before checking.)
+- **Fixed:**
+  - PV-1, F5: no indicator or Flow indicator could be preview: the shipped-code guard counted preview as lab, and the
+    formula of a preview item sits where it looks. A preview item may now be named by its own formula definition only
+    (`tests/test_releases.py` `FORMULA_HOME`, `named_in_code(preview_home=True)`); another formula, a built-in, a worker
+    or a page list naming it still refuses it. Checked on disk: I53 and FL22 at preview in the real release file, the
+    release, live-switch, preview, tab-catalog, example, allow, Terminal, Screener (1358), Backtest page (99) and
+    proof-build suites green, then the file restored. The tab-catalog and preview fixtures no longer read today's stages.
+  - PV-3: the stored examples' preset line had no test; a held-back preset the example does not show is cut and the
+    example still served (`test_examples_release_cut.py`, lab and preview; red with the line read as lab-only).
+  - PV-4: the "never preview either" self-tests plant preview too. F10: the shipped-code guard's self-tests plant on a
+    file with every item released, so a real lab item meets the guard's own message.
+  - PV-5 (guard; the real fix carried): an id two kinds share (squeeze, silent, piotroski) is held back in both or in
+    neither, since the stored examples match bare ids.
+  - PV-6, F8: stale texts (a Flow indicator "may not" be lab; "any kind may be preview"); the completeness test's message.
+  - P1: the menu's preview filter is `menuRows`, tested for paid, guest, a failed catalog and the admin, and the menu is
+    checked to be built from it (red when `initIndMenu` calls `menuItems` alone).
+  - P2, F4: the Flow pins derived (`pane_filters.test.ts` holds the proposal's counts for FL01-FL52 plus a rule for every
+    later one; `flow.test.ts` the order; `screener/tests/core/catalog.test.ts` the generated registry); the source file's
+    FL01..FLnn without gaps is a test of its own; the guide gives the id rule.
+  - P3: two comments said a lab entry is marked; only preview is. P4: the overlay's `overrides` and `cost_reviews` name
+    their indicator by a field and are filtered (`release-filter.mjs` lists with a field); the coverage scan reads
+    reference fields too; the `bars` comment was wrong.
+  - F1: the guide had the spreadsheet edited by hand; it is built by `build_spec_workbook.py`, and a test now rebuilds
+    and compares it (`scripts/tests/test_registries_current.py`).
+  - F2: the gate passed a Flow formula of nulls; it requires a finite value at the defaults (insider rows in its fixture
+    for FL31); the guide adds the lab formula's unit test. F3: the Flow look-ahead gate varies numbers (minimum, three
+    times the default, maximum, capped at 400) in `lookahead.test.ts` and `flow-helpers.ts`; no new leak.
+  - F6: `flowKit.cohort` handed out the memoized array; it hands out a copy (a lab formula emptying it changed FL10 for
+    everyone before; red without the copy). F7: the tripwire step in Part A and the Flow section. F9: the family heads,
+    the generator's vocabulary maps (its errors name the map and the fix), the expected version changes for Flow.
+  - `screener-registry.json` regenerated (only `calc/flow.ts`'s hash and the version); the tripwire recorded with the
+    user's words above.
+- **Asked (EXEC UD28), then fixed with the user's "Ok A" (2026-11-23):** PV-2, a family value `{"all": true}` held every
+  preview item on the live site (no seeded plan has one; an operator's SQL write would). It now holds every lab and
+  released item but no preview one (`principal.holds`; `allow.allow_of` and `catalog.holds_every` give '*' only while the
+  kind has no preview item; `tests/test_preview_stage.py`, both sites, red with the rule removed; `bb638e12`); on the branch, not
+  deployed. LIVE_PROMOTION.md §4 gained a table of the three paths for an indicator (the user's request).
+- **Carried (EXEC-MU-ACCOUNTS, Carried open parts):** PV-5's real fix (the stored examples match by kind); P4's other
+  by-value references (screener-metrics.json operators and transforms, preset definitions), not reached by any public
+  page entry.
+- **Not tested out by another agent yet:** step 8 (the ledger, 20 rows).
+- **Lesson:** a stage rule must be planted on disk, not only by replacing the module's file in memory; a workflow's
+  worktrees must start at the commit being checked.
+
+### M551 — The lab Flow indicator's registration point, and what its dry run found (2026-11-23; built in `521c5048`, on the beta since 2026-11-23 (`fb4a5c3c`))
+
+- **Request (the user 2026-11-23, step 3 of the sequence):** "Satu batasan yang masih ada: indikator Flow (FL) baru belum
+  bisa dijadikan lab, karena titik pendaftaran rumusnya belum dibangun. Kalau Anda mau menambah FL khusus beta, bagian
+  itu perlu dibangun dulu"; "Oke, mulai".
+- **The recorded reason was wrong:** `tests/test_releases.py` `LAB_KIND_HELD`, LIVE_PROMOTION.md §3, CONTRACT and EXEC
+  said `calc/flow.ts` kept its `FLOW` map unexported. It was exported. The gaps were: no wrapped entry point (each
+  formula reads the call's broker rows through a module variable the load-time wrap sets), and the shared building
+  blocks were private, so a lab formula would have copied them. Corrected wherever it was written.
+- **Built:** `calc/flow.ts` `registerFlow(id, fn)` (wrapped as every formula; refuses an id with a formula or one that is
+  no FL id) and `flowKit` (the grid, window, cohort, sums, ratio and null rules); `terminal/src/lab/index.ts` documents
+  the path; `LAB_KIND_HELD` holds candle patterns only; the guide's section "A lab Flow indicator".
+- **Found by the dry run (a lab FL53 in a copy: spreadsheet rows, the generator, `registerFlow` with `flowKit`, a
+  `flow-kinds.json` entry, every page built), each fixed for its class:**
+  - D1: the Screener's `flow-kinds.json` and `screener-overlay.json` name items by id but were not filtered by stage, so
+    a page test read the filtered registries beside them whole ("flow-kinds.json: FL53 is not an indicator of
+    flowRegistry.json"). Both are in `shared/release-filter.mjs` REGISTRIES now (a new spec shape, `keyedParts`: objects
+    keyed by id, each with the kinds its ids may be of; the overlay's `bars` is a Screener metric), and
+    `terminal/tests/lab/coverage.test.mjs` fails on any JSON file under a page's src that names an item and no spec
+    covers. The earlier per-instance patch of the overlay test (the indicator dry run) is back to its general form.
+  - D2: the look-ahead gate passed a Flow indicator without a formula (`computeFlow` answers `{}` for an unknown id;
+    the mechanism of M549 LLA-F1). `apps/backtest-worker/tests/lookahead.test.ts` now requires a formula and an output
+    for every registry Flow indicator; red with FL53's registration moved to another id, naming FL53.
+  - D3: the screener-worker's catalog test pinned 50 flow entries; derived from the generated registry now.
+  - D4: `scripts/build_flow_registry.py` put a spreadsheet row added after FL48 before FL49-FL52 (built in the script);
+    it sorts by number now (the registry is unchanged).
+  - D5: the release-text guard read only the last entry of an item, so an overlay entry without a name took the item's
+    display name away; it reads every entry of the item. The guard's parser of REGISTRIES reads `keyedParts`.
+  - D6: the tab catalog tests took the last Flow entry as the released admin-marked one; a released one now.
+- **Found on the way (step 2's, M550):** `SCREENER_ONBOARDING.md` pointed at `app/screener.py` lines that moved with the
+  preview change (`latest`, `validated`); the screener-worker's pointer test was red. Fixed.
+- **Verified (2026-11-23):** the repository: Terminal lab, calc tests (136), Screener core registry tests, screener-worker
+  flow and pointer tests, backtest-worker look-ahead, pit, flow-grammar and grammar (30), `test_releases.py` and
+  `test_3f_tab_catalogs.py` (41), the generator `--check`, the tripwire (recorded with the user's words: the engine
+  version moves with `calc/flow.ts`; the Screener registry's entries are identical, only its source hash moved). The copy
+  with FL53: the Terminal suite (1087), Screener core (412), screener-worker (139 + the derived catalog test),
+  backtest-worker gates (30), every page built with FL53 in no public file and in both lab builds; the edge-bff release
+  and proof-build tests (134) and the generator checks (9). The screener-worker's two heap tests fail in this
+  container on `origin/main` too (not this change; green on CI).
+- **Not checked:** a browser drawing a lab Flow indicator on the lab Terminal (the lab bundle holds its registration;
+  the workers compute it). **Carried:** a lab Flow indicator that needs a per-id row in shipped code (`SINGLE_SECURITY`,
+  a point-in-time version, a special plot) cannot be lab yet (EXEC-MU-ACCOUNTS, Carried open parts).
+- **Not tested out by another agent yet:** step 8 (the ledger).
+- **Lesson:** a file that names items by id is part of the release filter from its first commit; a gate that may skip a
+  missing formula must first prove each one exists.
+
+### M550 — The preview release stage: an item on the live site for the admin only (2026-11-23; built in `1894adfc`, on the beta since 2026-11-23 (`fb4a5c3c`))
+
+- **Request (the user 2026-11-23):** "apakah versi indikator yang released dari main ke live bisa dibedakan antara user
+  paid dan admin? misalkan ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya admin
+  saja yang bisa lihat, user paid tidak bisa lihat"; then "B. Coba inspect code dulu dan siapkan implementation plan"
+  and the sequence of 2026-11-23 ("Oke, mulai"; EXEC-MU-ACCOUNTS "A preview release stage").
+- **What was missing (code read 2026-11-23):** two stages only, `lab` (the beta only, the admin included off the live
+  site) and `released` (every plan of the released stage, paid included). No stage put an item on the live site for
+  the admin alone.
+- **Built:** a third item stage `preview` (`app/releases.py` `STAGES`, `held_back`; a tab stays lab or released,
+  `TAB_STAGES`). Held by `*`, an id, or a family value `{"all": true}` that no plan holds; a plan's `stages` take lab and
+  released only (`GRANT_STAGES`; the database's `capability_value_check` already refused `preview`), so paid, free and
+  guests never hold it; not beta-only. The catalogs (`/api/v1/catalog`, `catalog.tab_list`, `screener.catalog_for`)
+  and the stored examples hold it back as a lab item and mark a kept entry with its stage. The public page builds keep
+  its definition and formula, its entry marked `release: 'preview'` (`shared/release-filter.mjs`); the Terminal's menu
+  (`indMenu.ts` `heldBack`) and the Backtest's line choices (`reg.ts` `offered`) leave a marked entry out for an
+  account the catalog does not list it for. `scripts/live_diff.py` names what reaches the live site at preview. Docs:
+  LIVE_PROMOTION.md §3 "Preview", INDICATOR_BETA_TO_LIVE.md Part C, CONTRACT 8 "Preview", AGENTS.md.
+- **Found while building (the same mechanism, fixed with it):** `app/examples.py` `not_released` held back `lab` only,
+  against its docstring ("a stage other than released"); `app/screener.py` `catalog_for` kept its own copy of the
+  stage rule (`== lab`); `tests/test_releases.py` refused any non-released Flow item, not only a lab one. None was
+  reachable before (no third stage existed).
+- **Verified (targeted, 2026-11-23):** `tests/test_preview_stage.py` through the real principals of both sites (the
+  admin holds a preview item in the catalog, both workers' allow and the tab catalogs with its mark; a paid or free
+  account does not; every seeded plan read from the database; a grant naming `preview` refused by the database and
+  not held on read); `test_releases.py`, `test_examples_release_cut.py` (lab and preview), `test_3f_tab_catalogs.py`,
+  `test_allow.py`, `test_examples.py`: 94 passed. Mutation: with `held_back` reading lab only, the preview tests and the
+  three example cuts fail. Terminal `ind_menu.test.ts`, `lab/coverage.test.mjs`, `calc/public_formulas.test.ts`,
+  `calc/flow.test.ts`; Backtest `preview-lines.test.ts`; `scripts/tests/test_live_diff.py`.
+- **Not tested out by another agent yet:** goes to step 8 with the ledger (UD23).
+- **Lesson:** a stage rule written as `== 'lab'` in more than one place reads every new stage as released; the rule is
+  one predicate (`releases.held_back`) and `beta_only` alone keeps `== lab`.
+
+### M549 — The test-out of items 1-3 of 2026-11-23: the guide, the lab lift and the registration window (2026-11-23; found by the test-out `wf_4181198a-09f`; FIXED in `083dbc23`, on the beta since 2026-11-23 (`59712547`))
+
+- **The test-out (three fresh agents at xhigh, the user's "Untuk workflow, pengecekan menggunakan Opus 5,5 xhigh"):**
+  19 findings, 6 medium. The guide was followed cold from lab to released (CI's full edge-bff suite 1228 passed in the
+  copy); no lab item reached a principal without it by a bundle, a catalog or a worker; the window opens and closes as
+  planned.
+- **Fixed (the user: "Perbaiki dulu temuannya"):**
+  - GC-1: the guide said the beta and the screener-worker wait for CI (off since 2026-11-23); Part A step 11 and Part
+    B now read each commit's runs and report red; the backtest-worker upload reads its look-ahead run
+    (`apps/backtest-worker/README.md`); AGENTS "Deploys" names the files a Wait-for-CI change updates.
+  - LLA-F1: the look-ahead gate passed a lab indicator whose formula throws on every call (`safely`); now each registry
+    indicator's defaults run outside it and must give a finite value (`apps/backtest-worker/tests/lookahead.test.ts`;
+    red with one `DEFAULTS` entry removed, naming I01).
+  - LLA-F2: a lab candle pattern was opened without a dry run and would turn the gate red: candle patterns are held
+    (`LAB_KIND_HELD`), with a carried part.
+  - LLA-F3: the released-text guard read only `name`; it reads `label` and `short` too (`tests/test_releases.py`
+    `NAME_FIELDS`, a self-test per field; red with them removed).
+  - LLA-F4: the Backtest worker checked a stop line against the full registry before the plan's allow, so a lab id
+    answered INVALID_LINE and an unknown one UNKNOWN_INDICATOR; the allow is checked first (`src/validate.ts`
+    `checkRequest`; `tests/access.test.ts`, red before the fix).
+  - LLA-F5: `http_smoke.py` reads `LAB_PROBE` from `shared/release-filter.mjs`; the filter's comment names the .svg.
+  - LLA-F6: the CRIT-1 browser test's docstring.
+  - GC-2: stale "no lab item" texts (LIVE_PROMOTION section 3, FUTURE_PLAN, a test docstring).
+  - GC-3: the Backtest tripwire was red against `main`: its worker baseline recorded under EXEC-MU-ACCOUNTS with the
+    user's words (`scripts/screener/backtest_worker_baseline.json`; the tripwire OK); the guide names it.
+  - GC-4, GC-5, GC-6: the guide cites symbols, not line numbers; the missing facts (the need argument, the overlay's
+    format, the formula test and the oracle at release, the order, `Auth.lab_admin`, a lab-only fix's versions).
+  - F6: the window's other paths are tests (`apps/edge-bff/tests/test_step9_window_paths.py`, P1-P9; P1 and P7 hold
+    today's residuals for UD7 and UD22).
+  - F1, F2, F4, F7 (records): the step-9 plan now names UD7's exposure and the watch on the live logs, the close's
+    confirmation and its exact value, the residuals as open questions, and its line citations.
+- **Carried (EXEC-MU-ACCOUNTS, Carried open parts):** F3, a session masked at the close but not revoked; F5, the beta's
+  'Resend code' while the live site is closed; a lab candle pattern.
+- **Status:** FIXED on the branch, `083dbc23`; its test-out joins step 8 (EXEC UD23).
+
+### M548 — The lab item guard lifted; its dry run found the look-ahead gate passing a lab indicator without computing it (2026-11-23; found by the dry run; FIXED in `6ab63c15`, on the beta since 2026-11-23 (`59712547`))
+
+- **The user (2026-11-23):** "Cabut tes penjaga lab".
+- **Lifted per kind** (`apps/edge-bff/tests/test_releases.py`, `LAB_ITEM_HELD_UNTIL` replaced by `LAB_KIND_HELD`): an
+  indicator, a candle pattern, a Screener metric and a preset may be at the lab stage; a Flow indicator stays held (its
+  formula has no lab registration point: the `FLOW` map of `calc/flow.ts` is not exported). Tabs stay held
+  (`LAB_TAB_HELD_UNTIL`, the rail entry). Evidence the held conditions are met: screener-worker `4438dbb0` (`gateSent`,
+  `forAllow`, `@edge-lab`), backtest-worker `df495720` (`@edge-lab`), live `306c1190` on `ec739a06` (`restoreList`,
+  `released_view`); RAILWAY_CHANGELOG 2026-11-22 "The round's close".
+- **Found by the dry run** (a lab I54 planted in a copy, then released): the look-ahead gate passed a lab indicator
+  without computing it: the test processes did not register `@edge-lab`, and `safely` read the TypeError as a refused
+  setting. Fixed in `apps/backtest-worker/loader/register.mjs` and an assertion in `tests/lookahead.test.ts` (red with
+  the fix removed, naming I54). Also: count pins of 53 indicators derived, the Screener overlay test compared with the
+  filtered registry, goldens refused new cases, two tests used I54 as an unknown id; all derived now.
+- **L11 built:** the lab build carries `assets/lab-probe.svg` (`shared/release-filter.mjs` `LAB_PROBE`); the beta's
+  admin reads 200, a visitor and the live site 404 (`tests/test_3f_lab_pages.py`, `http_smoke.py` `lab_probe_file`).
+- **The guide:** `INDICATOR_BETA_TO_LIVE.md` (Part 0, A: lab on the beta, B: release to live), linked from AGENTS.md with
+  `SCREENER_ONBOARDING.md` §2.11 and §3.2 and `LIVE_PROMOTION.md` §3 and §4.
+- **Class and lesson:** a guard that silently skips a missing formula is not a gate; a test that names the next free id
+  breaks at the first new item. `terminal/src/lab/index.ts` is hashed into both engine versions, so they change at the
+  next worker deploy.
+- **Status:** FIXED on the branch, `6ab63c15`; the CRIT-1 round trip on the real sites runs at the first lab
+  indicator's beta deploy (INDICATOR_BETA_TO_LIVE.md Part A step 12); its test-out: the workflow of items 1-3, then
+  step 8.
+
+### M547 — The AI page's Sources: a part the user just opened closed again when the panel was drawn anew (2026-11-22; found by the agent from a flaky test; FIXED in `4f1e6d3e`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Found by:** the agent, from `tests/test_answer_view.py::test_sources_list_the_answers_tables_with_an_export_request`
   failing in the full local run (`assert '' == 'out.1'`) and in CI 45043526824 (passed on its rerun).
@@ -8905,7 +9095,7 @@ in its staleness check.
   test catches it only part of the time; step 8 to judge whether a deterministic probe is needed).
 - **Status:** FIXED on the branch, `4f1e6d3e`; its test-out joins step 8 (EXEC UD23).
 
-### M546 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; FIXED on the branch, `6b3edc6c`)
+### M546 — A flaky admin-page browser test: `/backtest-app/` answered 404 in about half the runs (2026-11-22; found by the agent; FIXED in `6b3edc6c`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Same defect as M541** (another session's entry of the same day, with the same root cause and the same proposed fix,
   written while this one was on the branch): the fix below is the one M541 proposes; M541's status follows it.
@@ -8926,7 +9116,10 @@ in its staleness check.
 - **Solution:** `tests/conftest.py` `built_pages` (autouse for tests that open a browser): every `main.*_APP` under
   `static/` without an index.html points at its built folder, derived from the Dockerfile's COPY lines; lab builds stay
   as they are on disk. `tests/test_built_pages.py` locks the derivation. The two sign-in tests passed 10 of 10 runs.
-- **Status:** FIXED on the branch, `6b3edc6c`.
+- **Status:** FIXED in `6b3edc6c`, on the live site since 2026-11-22 (`ec739a06`).
+- **Seen after the fix (step 7's full run, 2026-11-22):** the same test once timed out (30 s, Playwright) under the
+  full suite's load; 3 of 3 alone pass, and the 404 does not recur. Not a defect yet; the step-8 ledger carries it for a
+  repeat under load.
 
 ### M545 — The OpenRouter key expired on 2026-11-22: the beta's AI and the web governor refused since 03:55 UTC, and nobody was told (2026-11-22; found by the agent from the open-items report NC29; OPEN, the key is the user's)
 
@@ -8992,7 +9185,7 @@ in its staleness check.
 - **Lesson:** a tool that reads `$_` to find itself breaks under any wrapper; when a version check contradicts
   `--version`, look at how the check finds the program before upgrading anything.
 
-### M541 — CI edge-bff: the admin sign-in test from /backtest counts the backtest page's 404 (2026-11-22, cause verified; FIXED on the branch, `6b3edc6c`, M546)
+### M541 — CI edge-bff: the admin sign-in test from /backtest counts the backtest page's 404 (2026-11-22, cause verified; FIXED in `6b3edc6c` (M546), on the live site since 2026-11-22 (`ec739a06`))
 
 - **Symptom:** `tests/test_admin_page.py::test_a_sign_in_through_the_authenticator_code_keeps_the_page_it_was_shown_at`
   fails with `AssertionError: ([], [], [('GET', '/backtest-app/', 404)])`. Backend tests 45039209166 (`6cc859ee`):
@@ -9039,7 +9232,7 @@ in its staleness check.
   "Loaders (Top 3, Domestic · Regular, from …)", "Loaders (Top 5, Regular, …)".
 - **Status:** fixed on the branch; deploy beta menunggu konfirmasi user (AGENTS.md "Deploys").
 
-### M539 — CI edge-bff: "too many clients" di database uji; tes-tes yang sama gagal di `main` dua kali (2026-11-22, cause verified; FIXED on the branch, `4f1e6d3e`)
+### M539 — CI edge-bff: "too many clients" di database uji; tes-tes yang sama gagal di `main` dua kali (2026-11-22, cause verified; FIXED in `4f1e6d3e`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Gejala:** Backend tests (job edge-bff) run 45029226701 (`27e33943`, commit dokumen saja) dan 45039209166 (`6cc859ee`):
   `ERROR at setup of test_a_value_outside_its_capabilitys_domain_is_refused_when_written[terminal.tickers-…]`,
@@ -9125,7 +9318,7 @@ in its staleness check.
   layar atau sekecil satu titik; pekerjaan sebesar seluruh riwayat menunggu layar berhenti; format tanggal/angka Intl
   di jalur ini disimpan per nilai. Ukur drag dengan `drag_lag/drag_live.py` setelah menambah indikator yang mengikuti layar.
 
-### M536 — The Phase 4 checker's 18 confirmed findings: an admin page acting with no known actor, a sign-in through the authenticator code losing its page, support limits applied after the work, and guards judged only at the present moment (2026-11-22; FIXED, on the beta since `259972a8`, edge-bff `bd2c4a84`; the live site does not serve the admin page)
+### M536 — The Phase 4 checker's 18 confirmed findings: an admin page acting with no known actor, a sign-in through the authenticator code losing its page, support limits applied after the work, and guards judged only at the present moment (2026-11-22; FIXED in `259972a8`, on the live site since 2026-11-22 (`ec739a06`); the live site does not serve the admin page)
 
 - **Found by:** the ultracode checker at xhigh over Phase 4 (workflow `wf_9a01b336-48e`: five lenses, one skeptic
   each): 18 confirmed (3 medium, 15 low), 1 refuted (a test of "no account deletion", not a defect).
@@ -9210,7 +9403,7 @@ in its staleness check.
   capability the user did not ask for, above all one that deletes, is named to the user as the agent's own proposal
   before it enters a plan.
 
-### M534 — The two-user route walk watched only the rows kept by an owner key: an account's rows kept by its user id (its support tickets) were outside it, and the admin routes had no ids (2026-11-22; on the beta)
+### M534 — The two-user route walk watched only the rows kept by an owner key: an account's rows kept by its user id (its support tickets) were outside it, and the admin routes had no ids (2026-11-22; on the live site since 2026-11-22 (`ec739a06`))
 
 - **Seen:** the full local edge-bff run of slice 4a: `tests/test_two_users_every_route.py::test_b_reaches_nothing_of_a_on_any_route`
   refused the seven admin routes with path parameters ("add A's value for ['user_id'] to `ids` ..."), its own guard. A
@@ -9230,7 +9423,7 @@ in its staleness check.
 - **Lesson:** derive what an isolation test watches from every ownership column the schema has, and give each write the
   body that would act; an empty request proves nothing about the route.
 
-### M533 — The session branch's CI red on the contact-support panel's first commit: a hand count of the capabilities and the Screener document's pointers into main.py (2026-11-22; on the beta)
+### M533 — The session branch's CI red on the contact-support panel's first commit: a hand count of the capabilities and the Screener document's pointers into main.py (2026-11-22; on the live site since 2026-11-22 (`ec739a06`))
 
 - **Seen:** `1e77efe8` on `claude/pensive-feynman-4ahfe3`: Backend tests run 44985088213, edge-bff job: `1 failed, 1118
   passed, 1 rerun` (`tests/test_plan_catalog.py::test_every_seed_capability_has_a_plain_meaning`: 49 capabilities, the
@@ -9250,7 +9443,7 @@ in its staleness check.
 - **Lesson:** M528's again: before any push that touches `apps/edge-bff/app/main.py`, run
   `apps/screener-worker/tests/onboarding_pointers.test.ts` (and every suite of the two workflows), not only the app's own.
 
-### M532 — An account without chart drawings is told "Chart drawings is not part of your EDGE plan" as soon as it opens the Terminal, before it draws anything (2026-11-22; found by the contact-support panel's screenshots; older than Phase 4; FIXED with the user's go "3A" in `135f8051`, on the beta)
+### M532 — An account without chart drawings is told "Chart drawings is not part of your EDGE plan" as soon as it opens the Terminal, before it draws anything (2026-11-22; found by the contact-support panel's screenshots; older than Phase 4; FIXED with the user's go "3A" in `135f8051`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Seen:** a new free account (`register()` of the browser tests, the beta's switch-on test server) opens `/terminal`:
   the red toast "Chart drawings is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in."
@@ -9352,7 +9545,7 @@ in its staleness check.
   suite before pushing. A pointer whose symbol is dotted is checked by its last part only, so a common last part
   (`routes`) can hide a wrong line: cite such a line by a name that occurs on it alone.
 
-### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT for the five data pages and written on dev, the example-mode checker's findings FIXED, the Watchlist's list SETTLED by the user and its example on the latest data `a30815c1`, on the live site since 2026-11-21, `4b35b5ed`; the Watchlist members' upcoming corporate actions, the user's "B" of 2026-11-22, in `1c972f22`, on the beta; the stored examples held to their release file, 2026-11-22, in `4d7d1a22`, on the branch, not deployed)
+### M527 — The free plan's `<tab>.example` grants did nothing and a visitor met locked pages: the example mode was not built (2026-11-21; BUILT for the five data pages and written on dev, the example-mode checker's findings FIXED, the Watchlist's list SETTLED by the user and its example on the latest data `a30815c1`, on the live site since 2026-11-21, `4b35b5ed`; the Watchlist members' upcoming corporate actions, the user's "B" of 2026-11-22, in `1c972f22`, on the live site since 2026-11-22 (`ec739a06`); the stored examples held to their release file, 2026-11-22, in `4d7d1a22`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Symptom:** since 20261117_003 the free plan holds `overview.example`, `radar.example`, `watchlist.example`,
   `screener.example` and `backtest.example`, yet no code read them: a free account and a visitor who is not signed in got
@@ -9592,7 +9785,7 @@ in its staleness check.
   nothing about that date: the capture stops rather than infer it from later rows, and a trim or a check names its
   fields at every depth (a block copied whole, or a check of a field the data does not carry, checks nothing).
 
-### M526 — Saved screens kept a validation made under a wider context when only the rights differed; the live site lists and can cancel the admin's own beta Backtest jobs (2026-11-21; the review FIXED in `9723caf7`, on the live site; the job history, the user's "pisahkan per situs ... OK fix it" of 2026-11-22, FIXED in `97740c79` on the branch, not deployed: until then the live site lists the beta's jobs; predates 3f)
+### M526 — Saved screens kept a validation made under a wider context when only the rights differed; the live site lists and can cancel the admin's own beta Backtest jobs (2026-11-21; the review FIXED in `9723caf7`, on the live site; the job history, the user's "pisahkan per situs ... OK fix it" of 2026-11-22, FIXED in `97740c79`, on the live site since 2026-11-22 (`ec739a06`); predates 3f)
 
 - **Found by:** 3f's checker, round 2 (W4, unverified), then verified by its skeptic (`wf_d4d13dbc-fff`, xhigh) with
   local probes. No live row was read.
@@ -9838,6 +10031,9 @@ in its staleness check.
     its build lacks through load, change and reload (red on the mutation). The lab half of the round trip cannot be
     built while no item may be lab; `restoreList`'s unit test covers it. A corrupt `ml.ind.v1` is still overwritten at
     start, as before.
+- **2026-11-23:** L11 built (`shared/release-filter.mjs` `LAB_PROBE`, `tests/test_3f_lab_pages.py`, `http_smoke.py`
+  `lab_probe_file`); CRIT-1's lab to public to lab round trip is `INDICATOR_BETA_TO_LIVE.md` Part A step 12, run at the
+  first lab indicator's beta deploy (ERRORS M548).
 
 ### M522 — On the live site the admin and an account without screener.preset could share one copy of the Screener catalog (2026-11-21; FIXED in `33c84c1f`, on the live site; predates 3f)
 
@@ -10906,7 +11102,7 @@ in its staleness check.
 - **Lesson:** a verifier names its cost so the cost can change; CPU-heavy work reachable without a session gets its
   own bounded pool; a security parameter "as today" is decided again when real accounts arrive.
 
-### M494 — Authentication limits keyed or counted wrongly: answers that told whether an account exists, limits anyone could hold at their cap, shared counter scopes, sends that held back the reset code (2026-11-18/19, re-check R1-8, R1-9, R1-10, R1-12, R1-13, R1-16, R2-10; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-16 changed by the user ("4A", 2026-11-22), the beta's 100-failure lock, fixed in `24d35f1b` on the branch, not deployed)
+### M494 — Authentication limits keyed or counted wrongly: answers that told whether an account exists, limits anyone could hold at their cap, shared counter scopes, sends that held back the reset code (2026-11-18/19, re-check R1-8, R1-9, R1-10, R1-12, R1-13, R1-16, R2-10; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-16 changed by the user ("4A", 2026-11-22), the beta's 100-failure lock, fixed in `24d35f1b`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Symptom:**
   - the reset answered 429 `LIMIT_REACHED` after 20 wrong codes only for an address with an account (R1-8);
@@ -11119,7 +11315,7 @@ in its staleness check.
 - **Lesson:** a store that is not a tab's own route but carries a tab's data needs that tab's capability, declared
   per key where the key is registered (the M481 lesson for routes, applied to stores).
 
-### M488 — Gates placed on one path while the same values reach the person by another: a seeded capability no route reads, gated conditions on values every row shows, Terminal limits that bind the Terminal path only, page files behind shared caches (2026-11-18, re-check R1-5, R1-31, R1-32, R1-35, R1-36, R1-37, with R2-41 item 4; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-37 accepted; R1-5 changed by the user ("A1 ok", 2026-11-22), each reader counted once an hour, fixed in `5d2b8ba4` on the branch, not deployed)
+### M488 — Gates placed on one path while the same values reach the person by another: a seeded capability no route reads, gated conditions on values every row shows, Terminal limits that bind the Terminal path only, page files behind shared caches (2026-11-18, re-check R1-5, R1-31, R1-32, R1-35, R1-36, R1-37, with R2-41 item 4; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-37 accepted; R1-5 changed by the user ("A1 ok", 2026-11-22), each reader counted once an hour, fixed in `5d2b8ba4`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Symptom:**
   - no route read `screener.preset`, so the Screener catalog listed presets, with their match counts, that the plan
@@ -11253,7 +11449,7 @@ in its staleness check.
   entitlement sent to a separately deployed service needs proof it was applied; an unknown entry on an allow-list is
   "not granted", never a failure of the whole request; a default handed to many principals is immutable.
 
-### M485 — One plan-limit concept answered with different codes and numbers: caps 422, the queue 429, `PLAN_EXPIRED` never for a list or limit, `access.limits` the raw value (2026-11-18/19, re-check R1-23, R1-29, R2-39; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-23's remainder, the 0-day window judged against the ended plan, fixed in `39e301f2` on the branch, not deployed)
+### M485 — One plan-limit concept answered with different codes and numbers: caps 422, the queue 429, `PLAN_EXPIRED` never for a list or limit, `access.limits` the raw value (2026-11-18/19, re-check R1-23, R1-29, R2-39; fixed on fix-int2 `613c3925`, on the live site since 2026-11-20; R1-23's remainder, the 0-day window judged against the ended plan, fixed in `39e301f2`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Symptom:** the saved-item caps answered 422 `LIMIT_EXCEEDED` while the backtest queue cap answered 429
   `LIMIT_REACHED`, so the shared module treated only one as a plan refusal; an ended plan that set no ticker list or

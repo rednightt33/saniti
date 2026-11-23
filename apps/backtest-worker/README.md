@@ -343,6 +343,8 @@ cd apps/backtest-worker && npm start
 The worker is not connected to GitHub: it is uploaded with the Railway CLI from a clean tree of the commit to deploy
 (`git archive`, as `RAILWAY_CHANGELOG.md` records each upload). No Railway setting can hold a CLI upload back, so the CI
 gate is a manual step (EXEC-BACKTEST-REVAMP K10 a, ERRORS M458):
+(still so after the user turned Wait for CI off for the GitHub-connected services on 2026-11-23: the upload reads its
+run first; AGENTS.md "Deploys")
 
 1. the workflow `Backtest look-ahead gate` (`.github/workflows/backtest-lookahead.yml`) has a green run on exactly the
    commit uploaded (the worker suite, the Screener worker's suite, the Screener and page suites);

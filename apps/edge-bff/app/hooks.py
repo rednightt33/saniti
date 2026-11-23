@@ -20,9 +20,13 @@ HOOK_PREFIX = '/api/v1/hooks/'
 
 from .mailer import svix_verify  # noqa: E402
 
+from .payments.adapters import VERIFIERS as PAYMENT_VERIFIERS  # noqa: E402
+
 # Phase 1: the Resend webhook (bounces and complaints), verified by its Svix signature with RESEND_WEBHOOK_SECRET
-# (verify(headers, raw_body, secret))
-HOOK_ROUTES = {'/api/v1/hooks/email/resend': svix_verify}
+# (verify(headers, raw_body, secret)); step 7, the payment shell: one route per provider that sends notifications
+# (app/payments/routes.py), each verified by its own provider's signature with EDGE_PAYMENTS_SECRET
+HOOK_ROUTES = {'/api/v1/hooks/email/resend': svix_verify,
+               **{f'/api/v1/hooks/payments/{name}': verify for name, verify in PAYMENT_VERIFIERS.items()}}
 
 
 def is_hook_path(path):

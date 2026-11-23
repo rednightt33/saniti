@@ -16639,6 +16639,38 @@ Order of the services (CONTRACT 17, rollback floors):
     And: "Keputusan yang masih terbuka seperti UD7 dan GA2, kunci open router yang kadaluarsa, harap di drop dan tidak
     perlu di repeat lagi. Saya udah aware itu." → UD7, GA-2 and NC29 stay in the register, marked acknowledged, and are
     not shown again at the end of a phase.
+  - The next work, queued (2026-11-23), the user: "Next to do tapi jangan jalankan dulu: 1 Ok untuk indicator beta to
+    live MD, masukan ke agents md beserta 2 docs sebelumnya agar AI bisa refer that. 2 Cabut tes penjaga lab 3 Sekarang
+    akan masuk labgkah 9 instead of langkah 8. Sialkah implementation plan, inspeksi code bff live. Setelah
+    Implementation plan jadi, segera execute beserta 2 item di atas. Setelah selesai di execute, assign workflow to test
+    it out. Dan apabila error, feel free untuk dibenarkan dan masukkan yang sudah dibenarkan tersebut untuk dites nanti
+    bersama di langkah 8." → queued, not started: (1) `INDICATOR_BETA_TO_LIVE.md` with AGENTS.md pointing at it and at
+    `SCREENER_ONBOARDING.md` §2.11 and `LIVE_PROMOTION.md` §3; (2) the lab guards lifted (`LAB_ITEM_HELD_UNTIL`); (3) step 9
+    (the registration test window) before step 8: its implementation plan from the live edge-bff's code, then executed
+    with (1) and (2), tested out by a workflow, fixes carried to step 8. Deploys within it still wait for the user's
+    confirmation (AGENTS.md "Deploys").
+  - Wait for CI (2026-11-23): "Iyee maksudnya pada saat deploy. Deploy nunggu 30 menit. INi yang lama . Untuk live dan
+    beta matikan wait for CI. Kamu tetap lihat hasil CI dan alpor kalau merah. Akan kita buat wait for CI ini aktif untuk
+    live ketika dekat2 launch." and "Done matikan CI untuk ketiganya." → the user turned Wait for CI off on edge-bff,
+    edge-bff-live and screener-worker; `.railway/railway.ts` follows (`railway config plan`: up to date); AGENTS.md
+    "Deploys" and "The live site", LIVE_PROMOTION.md. This changes the decisions of 2026-11-15 (decision 3, K10 a) and
+    2026-11-19/20 (live only on green CI) for deploys; the gate still runs on every push.
+  - Step 9 opened (2026-11-23): "Buka jendela sekarang, 24 jam kedepan, UD6 setuju" → the registration window opened on
+    the live site 03:24 UTC (`EDGE_PRELAUNCH=false` on edge-bff-live, deployment `87ef1cba` of `ec739a06`); it closes
+    2026-11-24 03:24 UTC (a scheduled message to this session); UD6 answered: the window runs without Privacy and Terms
+    texts (R1-2's condition met for the window, not for the launch).
+  - The next beta deploy (2026-11-23): "3. hasil workflow selesai --> fix it --> push to main." → after the test-out of
+    items 1-3 and its fixes, `main` moves to the branch (the confirmation of that beta deploy): migration
+    `20261123_001` applied first (expand-only), the backtest-worker uploaded by CLI, then `main`; the live site does not
+    move. Anything outside the list given to the user that day (step 7, the lab lift and L11, the look-ahead loader fix,
+    the step 9 test, the records) is named and asked again.
+  - The sequence after the test-out fixes (2026-11-23): "Catat sequence berikut. Yang pertama saya izinkan. Setelah kamu
+    push ke main, kamu akan mengerjakan bagian preview. Saya minta juga bagian ini dikerjakan uuga setelah bagian
+    preview. [...] indikator Flow (FL) baru belum bisa dijadikan lab, karena titik pendaftaran rumusnya belum dibangun
+    [...] konfirmasi dulu." → (1) the APPLY of migration `20261123_001` (permitted), the backtest-worker upload, `main`
+    to the branch, the beta checked; (2) the "preview" stage (its plan above); (3) the lab Flow indicator's
+    registration point (the carried part "A lab Flow indicator's registration point"), after (2). Each deploy within
+    (2) and (3) is asked as AGENTS.md "Deploys" says.
 - **The user's go for the rest of the round (2026-11-22): "Lanjutkan sisa pekerjaan, kemudian penutup putaran ya.. then
   proceed ke langkah 7. Aman?"** The rest (R1-5 A1, lab gap 3 and L11, the status test of rule 9), then the close (the
   re-check by five agents with the older fixes, the beta deploy with the shared workers' check against the live site's
@@ -16656,7 +16688,6 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD2 | Written permission per data source (TradingView, Stockbit, IDX/KSEI) and for the logos the public site shows | not yet asked with context (a row of the 2026-11-22 report) | the public examples, launch | before step 9 |
   | UD4 | A backup schedule of the shared Postgres and one restore test | not yet asked with context (a row of the 2026-11-22 report; excluded by the user 2026-11-19 with UD1) | real accounts, payments | before step 9 |
   | UD5 | The Resend webhook and its secret on edge-bff-live (bounces and complaints) | 2026-11-20 | email standing | before step 9 |
-  | UD6 | Privacy and terms texts (or an explicit acceptance that the window runs without them); R1-2's condition | 2026-11-20 | registration | before step 9 |
   | UD7 | (acknowledged by the user 2026-11-22, not shown again) Enforce the per-client-address sign-in and send limits (SIGNIN_IP, SEND_IP) or a daily mail ceiling, now that the probe ran; the numbers | 2026-11-22 with context (group A's design questions, Q1) | R2-37, registration | this round |
   | UD8 | M517's residual, part 1 (CONTRACT 6 "Residual"): strangers on three or more networks can spend an address's 10 code emails a day; a browser the account never signed in on then waits for the day; accept, or a challenge | 2026-11-21 | registration | before step 9 |
   | UD21 | M517's residual, part 2 (test-out 2026-11-22, ATK-1; held by `apps/edge-bff/tests/test_m517_residuals.py`): a stranger on the owner's own network (an office, a café, a mobile carrier's shared address) who knows the login fills, for a browser the account never signed in on there, the per-login limit (15 minutes) and that network's 4 code emails a day; reachable on the live site today for the admin's login (sign-in is open there), the owner's known browsers are not affected; accept, or a challenge | not yet asked with context (found by the test-out 2026-11-22) | registration, the admin's new devices | before step 9 |
@@ -16670,16 +16701,147 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD16 | Remove `EDGE_INITIAL_PASSWORD` from the beta | not yet asked with context (a row of the 2026-11-22 report) | security | any time |
   | UD17 | The old data defects (sector swap, Feature 04 bloat, five tickers, candle flags, M335, M426, M157) | each its own date | the data's accuracy | before paid launch |
   | UD18 | The Terminal defects and proposals only the user opens (M454, M447, M333) | each its own date | paying accounts' pages | before paid launch |
+  | UD24 | (acknowledged by the user 2026-11-23, "Dicatat dulu saja"; not shown again) Mass downloads of the Terminal's data (the user 2026-11-23: "Goalnya adalah kita mau deteksi kode yang mencegah user untuk mendownload data via penarikan masal"): today only per-account quotas (paid: 60 tickers an hour, 200 a day, 300 files an hour, 500 MB a day), presigned URLs of 120 s and the audit log `terminal.access_log` (90 days); no detector tells a browser from a script; which detection or prevention to build | 2026-11-23 with context | protection of the data | before step 9 (registration) |
   | UD20 | A valid Railway token for telegram-trigger (the Telegram Run Now buttons fail) | 2026-11-03 | the manual restart button | any time |
+  | UD25 | Step 9 window, test-out F1: while registration is open any client can make the live site send code emails to any address (per-address and per-hour limits only): (a) keep it open the 24 hours and the agent watches `email_sent` and closes early on a burst, or (b) close it as soon as the user has finished testing | 2026-11-23 (twice, with context; 0 code emails sent 03:24-06:20 UTC) | the window's spam exposure | while the window is open (until 2026-11-24 03:24 UTC) |
+  | UD26 | Step 9 window, F2: is the close at 2026-11-24 10:24 WIB confirmed in advance (a variable change that redeploys edge-bff-live), so the agent runs it on time, or asked again then | 2026-11-23 (twice, with context) | the window's close | 2026-11-24 03:24 UTC |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
   | Part | What remains | Owner | Trigger |
   |---|---|---|---|
   | Lab tab rail entry (checker SERVE-3, TR-13; FUTURE_PLAN "The shell") | edge-bff hands each lab tab's rail entry (label, path, its own `<tab>-app`) only to principals holding it, and the shell draws and routes it | the lab-gap owner of this execution | before the first tab is set to `lab` in `catalog/releases.json`, held by `LAB_TAB_HELD_UNTIL` in `apps/edge-bff/tests/test_live_switch.py` |
-  | Live smoke lab probe (checker L11; FUTURE_PLAN "Optional") | a fixed-name probe file in the lab build, so the live smoke proves the lab file is absent by name rather than by the builds differing | the live-promotion owner (LIVE_PROMOTION.md) | before the first lab item or tab, the gate of `LAB_ITEM_HELD_UNTIL` and `LAB_TAB_HELD_UNTIL` |
+  | CRIT-1's round trip on the real sites (ERRORS M548) | the admin's lab indicator survives the beta, the live Terminal with the same account, and the beta again | the lab-indicator builder | the first lab indicator's beta deploy (`INDICATOR_BETA_TO_LIVE.md` Part A step 12) |
+  | A lab Flow indicator that needs a per-id row in shipped code (ERRORS M551, guide "A lab Flow indicator" step 6) | three tables in public or worker code are keyed by FL id: `terminal/src/app/flowIndicators.ts` `SINGLE_SECURITY` (an indicator on lots or a per-share price, hidden on an index page), the Backtest's point-in-time versions (`apps/backtest-worker/src/pit/`: an indicator that reads later data needs one, and the look-ahead gate refuses it without), and the special plots (`flowIndicators.ts`: FL23, FL49, FL51). A lab one needing a row is refused by `test_an_item_the_shipped_code_names_is_never_lab`; without its row it would show on an index page or fail the gate. The fix would derive each table from the registry entry (its unit, a `hindsight` field); not built, not asked | the lab-gap owner of this execution | the user asks for a beta-only Flow indicator of one of these kinds |
+  | The stored examples match by kind (ERRORS M552 PV-5) | `app/examples.py` `not_released` and `_names` match bare ids across kinds; three ids are both a Screener metric and a preset. Held by `test_an_id_two_kinds_share_is_held_back_in_both_or_in_neither` (such an id is held back in both kinds or in neither) | the lab-gap owner of this execution | the user wants one of the shared ids at another stage in one kind |
+  | Items named by value in covered files (ERRORS M552 P4) | `screener-metrics.json` operators and transforms and the preset definitions reference items by a field the filter does not read; no public page entry reaches them (`coverage.test.mjs`) | the lab-gap owner of this execution | a page entry starts importing one of them, or one of those items goes lab or preview |
+  | Wait for CI back on edge-bff-live (the user 2026-11-23) | the live site deploys without waiting for CI until then | the launch's owner, through this execution | near the launch: before registration opens for good (after step 9's window and step 8), asked with the launch's go |
+  | A masked session revoked at the pre-launch mode's close (ERRORS M549, test-out F3) | `principal.resolve` returns no principal for a window session after the close but leaves its row, so it returns on a reopen or a test mark | the step-9 owner | before the next registration window or the launch |
+  | The beta's 'Resend code' while the live site is in its pre-launch mode (ERRORS M549, F5) | the admin page offers and sends a code the live site's verify then refuses | the admin page's owner | before the next registration window or the launch |
+  | A lab candle pattern (ERRORS M549, LLA-F2) | `LAB_KIND_HELD` holds candle patterns: a dry run like the indicator's, its pair and mirror, a `CASES` entry, the count pins made derived | the lab-gap owner | the user asks for a beta-only candle pattern |
   | The five failing Screener smoke steps (ERRORS M417) | run `node apps/edge-bff/screener/tests/smoke/smoke.mjs`; diagnose or retire each failing step | the Screener owner | the next Screener change, or step 8 (the deep checker), whichever comes first |
+  | terminal-publisher's upload (test-out fix round 1, guest-exposure-2) | the publisher is a CLI upload and still runs the `examples.py` before the Radar cut by name (`c9aef344`); the same bytes today, so nothing leaks now | the publisher's owner, through this execution | its next upload, or step 8 |
   | The other readers of `TELEGRAM_NOTIFY_URL` (test-out deploy-3) | market-sql-governor, market-audit-store and market-python-sandbox (`app/queue_alarm.py`), idx-price-cron (`price_update.py`, `intraday_update.py`), fixed-income-price-cron, stockbit-updater, terminal-publisher, feature-04-worker and `scripts/restart_postgres.py` read the address with no start check: a wrong value starts the service and only its alerts fail; one shared check like edge-bff's `notify_url_problem` (`app/config.py`) at each start | ops, through this execution | the next change of telegram-monitor's address or port, the next change of each service, or step 8, whichever comes first |
+
+- **The round's close (2026-11-22, the user's go):** the full edge-bff suite 1214 passed after ERRORS M539 and M547 were
+  fixed; CI green; the beta (`e594bba8`) and the live site (`306c1190`) on `ec739a06`, the workers with it
+  (backtest-worker `df495720` by CLI, screener-worker `4438dbb0`), the live smoke green (RAILWAY_CHANGELOG.md 2026-11-22).
+  Next: step 7, the payment shell's infrastructure only (the user's words above).
+
+- **Step 7, the payment shell (built on the branch 2026-11-22, infrastructure only, the user's words above; code in
+  `d6f5b18a`):** `apps/edge-bff/app/payments/` (the adapter with `manual`, `test` and a `midtrans` skeleton that makes no
+  call: its signature check, status mapping and rupiah parsing only), the order state machine in one transaction
+  (`PaymentStore.apply_event`: a duplicate or older event changes nothing, a settled order never goes back, a wrong
+  amount or currency changes nothing, a payment while another plan is live or after the order ended is held for the
+  admin, a refund is held for review), `reconcile()` (called by nothing yet), `POST /api/v1/hooks/payments/{test,midtrans}`
+  registered with `signed` and off (404) unless `EDGE_PAYMENTS_PROVIDER` names the provider; `config.validate` refuses
+  `midtrans` until its phase and `test` on the live site. Migration `20261123_001_edge_bff_payments.sql`
+  (`payment_orders`, `payment_events`, `subscriptions.provider` widened to `midtrans`; expand-only) applied on dev
+  2026-11-23 05:32 UTC with the step-7 deploy (the user's "Yang pertama saya izinkan"; the beta on `59712547`);
+  `EDGE_PAYMENTS_PROVIDER` stays unset. Tests `tests/test_payments.py` (12; two mutations red); the full edge-bff suite
+  1226 passed. CONTRACT.md section 11 lists what waits.
+  - Carried open part: **the Midtrans phase** (the Sandbox keys as Railway variables the user enters, Snap
+    `create_checkout` for QRIS and the VAs, Get Status before applying and the loop that calls `reconcile()`, the
+    dashboard's notification URL, the `/pay` and return pages, and the user's plans, prices, periods, grace period,
+    buyers and the admin's handling of held orders). Owner: step 7's builder. Trigger: the user's Midtrans account is
+    ready (the user, 2026-11-22: "akun Mitrans belum siap").
+  - Its check joins step 8 (the user's "Pengecekan perbaikan tersebut dilakukan di langkah 8"; EXEC UD23).
+
+- **Step 9, the registration test window: implementation plan (2026-11-23, from the live site's code at `ec739a06`; the
+  user: "Sekarang akan masuk langkah 9 instead of langkah 8 ... segera execute").**
+  - What the switch does (code read at `ec739a06`; the lines cited are the branch head's, at `ec739a06` `config.py:217-219` and
+    `main.py:994`): `EDGE_PRELAUNCH` is unset on edge-bff-live, so `Settings.prelaunch`
+    holds (`app/config.py:223-225`, the live site's default). `EDGE_PRELAUNCH=false` opens registration and its code step
+    (`app/auth_flows.py:739-745`, `/api/v1/auth/config` `registration` true, the sign-in page's "Create account") and
+    sign-in for every account (`app/main.py:997`); unsetting it again closes both, ends the session of every account that
+    is neither the admin nor a test account at its next request (`app/principal.py:558`), refuses a pending
+    registration's code (REGISTRATION_CLOSED) and leaves the accounts made as they are (status active).
+  - Rehearsed: `apps/edge-bff/tests/test_step9_window.py` (open: register, the code mail queued, verify signs in, sign out
+    and in again; close: registration and a pending code 403 REGISTRATION_CLOSED, the window session 401, sign-in 403
+    SIGN_IN_CLOSED, the account kept), green on the branch and on `ec739a06` (a worktree of the live commit, with
+    `test_guest.py`: 18 passed).
+  - Mail: the live site sends through Resend (`EDGE_EMAIL_MODE=resend`, sender at mail.edgefinance.id, the key set). No
+    send by the live site is on record (its logs hold no `email_sent`; the live database is not readable from the agent's
+    environment), so the window's code mail is the first real send: the address must be one the user reads (a "+alias"
+    of the user's own mailbox).
+  - The register before step 9, for a short window with the user's own addresses: UD1, UD2, UD4, UD5, UD10, UD11 and
+    UD12 do not hold it (they hold the launch); UD24 acknowledged; UD8 and UD21 are open questions for the launch, not
+    accepted (corrected after the test-out, F4); **UD22 becomes reachable while the window is open** (anyone may
+    register then; named in the go question of 2026-11-23); **UD7 too: while open one client can make edge-bff queue a
+    code mail to any number of addresses** (no per-client send limit, no Resend webhook, UD5; test-out F1, 25 of 25 in
+    the probe), so the window is watched in the live logs (`email_sent`) and closed early on a burst; **UD6 needs the
+    user's explicit acceptance** that the window runs without Privacy and Terms texts (R1-2's condition).
+  - Steps, each flip a deploy that needs the user's confirmation (AGENTS.md "Deploys"), the user present to register:
+    1. M340 check (no active run); `EDGE_PRELAUNCH=false` on edge-bff-live (a redeploy of `ec739a06`; no `main` move:
+       the branch head carries step 7 and its unapplied migration); read back `/ready` 200 and `/api/v1/auth/config`
+       `registration` true.
+    2. The user registers on app.edgefinance.id with a "+alias" address, enters the code, lands signed in, signs out and
+       in again; the agent reads the logs (`email_sent`, no `email_send_failed`).
+    3. Close within the agreed time: `EDGE_PRELAUNCH` removed, or set to exactly `true` (any other value stops the
+       start, `config.py`); a redeploy; read back `registration` false and the smoke (registration 403
+       REGISTRATION_CLOSED). The close is a deploy (AGENTS.md "Deploys"): its confirmation is asked before the scheduled
+       time (test-out F2).
+    4. The accounts made in the window are listed on the beta's admin page (Accounts, newest first); the user disables
+       or keeps each (no account is deleted, ERRORS M535; a kept one signs in only once marked a test account). At the
+       close, 'End sessions' (or disable) on each window account: the pre-launch mode masks a window session without
+       revoking it, so it would come back on a reopen or a test mark (test-out F3, ERRORS M549). Do not use 'Resend
+       code' on a pending window registration after the close: it mails a code the live site refuses (F5); pending rows
+       go by the 24 h purge.
+    5. Records: RAILWAY_CHANGELOG (both flips, the deployments, the read-backs), EXEC, ERRORS for anything found.
+  - Executed so far (2026-11-23): the plan, the rehearsal test, the register review. The open-close flips wait for the
+    user's confirmation and presence. Its test-out: the workflow of items 1-3; fixes go to step 8.
+
+- **UD28 answered (the user 2026-11-23: "Ok A - jangan lupa update juga MD promosi table agar AI lain tahu kalau ada
+  indikator di beta mau ditaruh ke live admin preview."):** a family value `{"all": true}` holds every lab and released
+  item but no preview one (`principal.holds`; `allow.allow_of` and `catalog.holds_every` give '*' only while the kind
+  has no preview item); LIVE_PROMOTION.md §4 opens with a table of the three paths (beta only, live for the admin only,
+  released) and §7 notes the preview stage and the lab Flow point as beta-only code. Built on the branch (ERRORS M552
+  PV-2); its deploy is asked of the user.
+- **A "preview" release stage: an item released on the live site to the admin only (the user 2026-11-23: "B. Coba inspect
+  code dulu dan siapkan implementation plan. Akan dijalankan setelah perbaikan dari checker selesai dan pushed to main
+  terakhir sudah dilakukan."; asked: "ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya
+  admin saja yang bisa lihat, user paid tidak bisa lihat"). Built 2026-11-23 (step 2 of the user's
+  sequence, "Oke, mulai"; ERRORS M550, its check M552); on the beta since 2026-11-23 (`fb4a5c3c`, the user's go UD27).**
+  - Built beyond the nine parts below (the same mechanism, found while building; advisor review): the Screener's second
+    copy of the stage rule (`app/screener.py` `catalog_for`: its entries and presets marked with their real stage); the
+    stored examples (`app/examples.py` `not_released` read `== lab` against its own docstring, and its preset line);
+    the Backtest's stop and trailing line choices, built from the page's own registry (`backtest/src/reg.ts`
+    `LEVEL_LINES`, `offered`); `scripts/live_diff.py` names the items at preview on the beta's side; the grantable
+    stages (`releases.GRANT_STAGES`, as the database's `capability_value_check`) and the tab stages
+    (`releases.TAB_STAGES`) kept at lab and released; `catalog.holds_entry` gives an ungated item at preview to its
+    holders only; a public-formula test (`terminal/tests/calc/public_formulas.test.ts`: the admin on the live site gets
+    the public build, so a preview formula must not be lab-only). No migration: the database already refuses
+    `preview` in a plan's stages.
+  - Today (code read 2026-11-23): stages are `lab` and `released` (`app/releases.py:33`). The paid plan holds every
+    released item (`{"stages": ["released"]}`, migration `20261117_003` lines 223-225); the admin holds `*`, every
+    item at any stage (`app/principal.py:19-22, 176`); on the live site a lab item is refused to everyone, the admin
+    included (`principal.beta_only`, `:101-114`, `live_view` `:306-316`). Public page builds keep released entries only
+    (`shared/release-filter.mjs:68`); the Terminal marks an item the catalog does not list for the principal as locked
+    (`terminal/src/app/indMenu.ts:259-261`); the Screener and Backtest tab catalogs keep a released item a principal does
+    not hold (shown locked) and leave out a lab one (`app/catalog.py:93-121`).
+  - The plan: a third stage `preview` = on both sites, held only by a principal whose grants name it (the admin's `*`, or
+    an id list); no plan holds it by stage, so paid and free never see it, and it is not beta-only.
+    1. `app/releases.py`: `STAGES = ('lab', 'preview', 'released')`, `PREVIEW`; tab stages stay lab/released.
+    2. `app/principal.py`: no change to `beta_only` (lab only); a test that the admin on the live site holds a preview
+       item, paid and free do not, a guest never.
+    3. `app/catalog.py`: `tab_hidden`/`tab_list` treat preview as lab (left out unless held, the kept entry carries
+       `release: 'preview'`); `holds_entry`'s ungated rule: an item no worker gates by id is never preview.
+    4. `app/allow.py`: nothing (the worker allow is the held entries); a test that paid's allow has no preview id.
+    5. `shared/release-filter.mjs`: the public build keeps released and preview entries and marks preview ones
+       `release: 'preview'`; a preview formula lives in the public calc files (`calc/indicators.ts`, `calc/flow.ts`), so
+       a Flow indicator may be preview (unlike lab).
+    6. Terminal `indMenu.ts` (and the Watchlist's indicator list if it lists items): a preview item the catalog does not
+       list for the principal is hidden, not locked.
+    7. `app/examples.py` `released_view`: a preview item is withheld from the stored examples like a lab one; released
+       entry texts must not name a preview item (`tests/test_releases.py`).
+    8. Tests: `test_releases` (stage values, LAB_KIND_HELD unchanged, preview allowed for every kind including flow),
+       `test_3f_public_bundles` (preview ids allowed in public bundles, lab still refused), catalog, allow, principal,
+       Terminal menu (vitest), examples; targeted runs, CI for the full suites.
+    9. Docs: `LIVE_PROMOTION.md` section 3 (the stage table), `INDICATOR_BETA_TO_LIVE.md` (a Part C: lab, then preview
+       on live, then released), CONTRACT 8.
+  - The trade-off the user accepted with "B": a preview item's definition and formula are in the public page files
+    (anyone reading the code can see them); only its use and its place in the menus are held to the admin. A secret
+    formula stays `lab` (beta only).
 
 - **The step-8 ledger (UD23's answer):** `verification/records/step8_ledger.json` (workflow `wf_877859a9-d28`, 2026-11-22):
   376 rows: 111 fixed and tested out, 168 fixed and not tested out, 23 open with an owner row, 65 open without one, 4

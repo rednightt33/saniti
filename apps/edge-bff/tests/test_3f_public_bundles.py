@@ -6,11 +6,13 @@
   and are not scanned.
 - The proof builds (round 2 of the checker, 2026-11-21: the fixtures had entered through the filter they tested, so a
   bundle built without it lost them and passed): on a copy of apps/edge-bff, terminal/tests/lab/plant.mjs writes fixture
-  items into every registry the filter knows, on disk, one released, one lab and one the release file does not list, each
-  with a marker of its own, imports every registry from every page and Web Worker entry, and gives the lab module a
-  formula marker. Every page is then built there with its own configuration, unchanged. Each bundle file of a public
-  build carries every released marker (the plant reached it) and no other; each one of a lab build carries every marker;
-  the lab formula is in the lab builds only; and each build names only its own files, under its own base.
+  items into every registry the filter knows, on disk, one released, one lab, one the release file does not list and one
+  at the preview stage, each with a marker of its own, imports every registry from every page and Web Worker entry, and
+  gives the lab module a formula marker. Every page is then built there with its own configuration, unchanged. Each
+  bundle file of a public build carries every released and preview marker (the plant reached it) and no other, each
+  preview list entry with its mark release 'preview' (EXEC-MU-ACCOUNTS "A preview release stage"); each one of a lab
+  build carries every marker; the lab formula is in the lab builds only; and each build names only its own files,
+  under its own base.
 - With EDGE_TEST_REQUIRE_NODE=1 (CI's edge-bff job builds every page first) a page that is not built, or node and the
   pages' packages missing, fails instead of skipping, so the scan can never pass by having nothing to read (checker B2).
 """
@@ -159,8 +161,11 @@ def test_the_proof_builds_keep_each_planted_item_where_it_belongs(tmp_path):
     r = subprocess.run(['node', str(PLANT), str(edge)], capture_output=True, text=True, timeout=120)    # the repository's script, on the copy
     assert r.returncode == 0, r.stderr[-3000:]
     plant = json.loads(r.stdout)
-    released = sorted(m['R'] for m in plant['markers'].values())
+    released = sorted(m[s] for m in plant['markers'].values() for s in ('R', 'P'))
     others = sorted(m[s] for m in plant['markers'].values() for s in ('L', 'U'))
+    # a preview entry of a list carries its mark next to its marker (the JSON may be inlined as an object or a string)
+    marked = sorted(m['P'] for part, m in plant['markers'].items() if part not in plant['keyed'])
+    assert marked and len(plant['keyed']) >= 1, plant
     assert len(plant['markers']) == len({part for part in plant['markers']}) >= 10 and plant['entries'], plant
     labs = []
     for page in pages():
@@ -178,6 +183,8 @@ def test_the_proof_builds_keep_each_planted_item_where_it_belongs(tmp_path):
                 text = f.read_text(encoding='utf-8', errors='replace')
                 where = f'{page} {kind} {f.name}'
                 assert [m for m in released if m not in text] == [], f'{where}: the plant did not reach this bundle'
+                assert [m for m in marked if not re.search(re.escape(m) + r'.{0,16}release.{0,8}preview', text)] == [], (
+                    f'{where}: a preview entry without its release mark')
                 if kind == 'public':
                     assert [m for _, m in leaks([f], others + [plant['formula']])] == [], f'{where} carries a lab item'
                 else:

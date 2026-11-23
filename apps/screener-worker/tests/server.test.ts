@@ -8,6 +8,7 @@ import { after, before, test } from 'node:test';
 import { countsAnswer, restrict } from '../src/run.ts';
 import { POINT_IN_TIME_RIGHT, flowAdminOnly } from '../../edge-bff/screener/src/core/catalog.ts';
 import { FLOW_BY_ID } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import { SCREENER_REGISTRY } from '../../edge-bff/screener/src/core/registry.ts';
 import { createApp } from '../src/server.ts';
 import type { WorkerApp } from '../src/server.ts';
 import { brokerRowsOf, startFakeTerminal, universe, walk } from './fake-terminal.mjs';
@@ -219,7 +220,7 @@ test('the catalog: versions and data first, every worker limit with its rule and
     for (const k of ['rule', 'example_ok', 'example_refused']) assert.ok(typeof l[k] === 'string' && l[k].length > 10, `${name}.${k}`);
     assert.ok(l.rule.includes(String(l.value)), `${name}: the rule names the value`);
   }
-  assert.equal(c.body.indicators.length, 53);
+  assert.equal(c.body.indicators.length, SCREENER_REGISTRY.indicators.length);      // the 53, plus any at the lab stage
   assert.ok(c.body.indicators.every((i: any) => typeof i.description === 'string' && i.description.length >= 20 && 'short' in i), 'description and short (page O1, O5)');
   assert.deepEqual(c.body.presets.find((p: any) => p.id === 'oversold').view, { sort: { key: 'c:b', dir: 'asc' } }, 'a preset\'s default sort (page O2)');
   assert.equal(c.body.presets.find((p: any) => p.id === 'golden').view, undefined);

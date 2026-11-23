@@ -1,5 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
-import { labAlias, releaseFilter } from '../shared/release-filter.mjs';
+import { labAlias, labProbe, releaseFilter } from '../shared/release-filter.mjs';
 
 /* The reference (backtest.html) runs its script as a classic script at the end of <body>, while the page is still
    being parsed (after the head's style sheet). A module script runs later and meets the web font at another moment
@@ -46,7 +46,8 @@ function testEntry(mode: string): Plugin {
 
 /* Served by edge-bff at /backtest-app/ (CONTRACT.md section 10; the EDGE tab "Backtest" shows it in an iframe).
    3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): the production page is built twice by `npm run build`. dist/
-   keeps only the released items of the registries (shared/release-filter.mjs) and has no lab formula ('@edge-lab' is
+   keeps only the released and preview items of the registries (shared/release-filter.mjs; a preview entry marked
+   release 'preview') and has no lab formula ('@edge-lab' is
    the Terminal's src/lab/none.ts); --mode lab keeps every item and the lab formulas, into dist-lab/, which edge-bff
    serves at /backtest-app/lab/ only to the admin on the beta. The test builds are public builds. */
 /** The build's configuration (tests/test_3f_public_bundles.py builds it as it is, on a copy whose registries hold fixture
@@ -55,7 +56,7 @@ export function backtestConfig(mode: string) {
   const lab = mode === 'lab';
   return {
     base: lab ? '/backtest-app/lab/' : '/backtest-app/',
-    plugins: [releaseFilter({ lab }), ...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd()],
+    plugins: [releaseFilter({ lab }), ...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd(), labProbe({ lab })],
     // the load worker's bundle takes only these (checker L1): the same filter
     worker: { plugins: () => [releaseFilter({ lab })] },
     resolve: { alias: labAlias({ lab }) },

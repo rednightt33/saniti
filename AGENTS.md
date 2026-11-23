@@ -6,6 +6,13 @@ Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `
 
 `ERRORS_AND_SOLUTIONS.md` lists every error found so far, with its root cause, solution and status. Check it before diagnosing a failure: the error may already be known. Its Part A is the data-format standard. Before adding a new data source or table (for example cross-asset or macro data), confirm that it meets every item of Part A, and settle any gap with the user before loading. To expose a table or Feature to the AI (onboarding), follow `NEW_TABLE_ONBOARDING_PLAN.md` end to end, Feature 04 being the benchmark; its index acceptance (section 3) is part of every onboarding.
 
+To add an indicator (the Terminal, the Screener and the Backtest) on the beta only, or to release one to the live site,
+follow `INDICATOR_BETA_TO_LIVE.md` literally (user 2026-11-23: "Ok untuk indicator beta to live MD, masukan ke agents md
+beserta 2 docs sebelumnya agar AI bisa refer that"), with `SCREENER_ONBOARDING.md` §2.11 (the worked example of an
+indicator end to end) and §3.2 (its one-page checklist) and `LIVE_PROMOTION.md` §3 (the lab, preview and released
+switches) and §4 (the steps of a promotion). An item on the live site for the admin only follows its Part C (the
+`preview` stage, user 2026-11-23).
+
 Before changing the backtest (`apps/edge-bff/backtest`, `apps/backtest-worker`, `apps/edge-bff/app/backtest.py`, or the
 publisher files and terminal-api routes it reads), read `BACKTEST_END_TO_END.md` (the flow from PostgreSQL to the page)
 and `apps/edge-bff/backtest/CONTRACT.md` (its rules).
@@ -21,8 +28,8 @@ Flow FL01-FL52 with every option and the engine as a whole on data cut at t, wit
 caught; `pit.test.ts`, `flow-grammar.test.ts`, `grammar.test.ts`: the point-in-time indicators, the Flow indicators and
 the grammar through the worker's own path) and the Screener and page suites. A new indicator, Flow indicator, transform,
 pattern or condition kind enters the gate by the registries it is derived from; a test is never skipped to pass it
-(edge-bff and screener-worker are to deploy only on green checks, K10 a, applied with the deploy after Gate 3; until then
-`checkSuites` is off and a push to `main` deploys them, ERRORS M459). Before a release that changes what the Backtest
+(edge-bff and screener-worker deployed only on green checks, K10 a, until the user turned Wait for CI off on 2026-11-23,
+section "Deploys"; the gate still runs on every push and its red is reported). Before a release that changes what the Backtest
 reads, run the real-data check too (`verification/backtest/lookahead/README.md`). The Terminal (`apps/edge-bff/terminal`)
 keeps its own hindsight indicators (user: "Terminal jangan disentuh"); the Backtest reads their point-in-time versions
 (`apps/backtest-worker/src/pit/`, worker-only, admins only).
@@ -126,6 +133,10 @@ A question that only makes sense to someone who has read the earlier turns or EX
 2. Inspect current Railway and database state before mutation. Use explicit project, environment, and service IDs from `PROJECT_CONTEXT.md`.
 3. Preserve unrelated services, tables, rows, files, and user changes.
 4. Apply the smallest safe change and verify it from the live system.
+   - Tests (user decision 2026-11-23: "tes yang dijalankan bukan wajib full suite, tapi tes yg memang relevant
+     (targeted) dan full suite wajib dijalankan apabila memang diperlukan"): run the tests relevant to the change; CI runs
+     the full suites on every push. Run a full suite locally only when it is needed, for example a change to a test
+     fixture or helper every test uses.
 5. Record the change in GitHub during the same task:
    - Schema: add a forward SQL migration, refresh `DATABASE_SCHEMA.md`, and append `DATABASE_CHANGELOG.md`.
    - Metadata: update `Table_Catalog` for every new/changed public data table, `Column_Catalog` for every new/changed column in those tables, and `Feature_Catalog` for new/changed Feature definitions. Every active Feature definition must include a formula, plain-language analytical interpretation, recommended use, misuse warning, semantic review status, and validation-evidence paths; run `scripts/audit_feature_catalog_semantics.py` after a Feature change. Register safe Feature joins in `Feature_Relationship_Catalog` and generic AI tools/limits in `Tool_Catalog`. The only initial exclusions are `Database_Table_Status`, `Table_Catalog`, and `Column_Catalog` themselves. Register new/changed PostgreSQL routines in related `Table_Catalog.related_functions`; see `DATABASE_CATALOG.md`. Do not mark inferred meanings VERIFIED.
@@ -259,24 +270,39 @@ Before asking, read what is already waiting: a deployment of another session in 
 when its CI turns green (`railway deployment list`), and is named in the question. The session branch is pushed
 freely: no service deploys from it. A scheduled cron run and the user's own Telegram buttons are not deploys.
 
+Wait for CI (user decision 2026-11-23: "Untuk live dan beta matikan wait for CI. Kamu tetap lihat hasil CI dan lapor kalau
+merah. Akan kita buat wait for CI ini aktif untuk live ketika dekat2 launch."): edge-bff, edge-bff-live and screener-worker
+deploy without waiting for GitHub Actions (`.railway/railway.ts` `checkSuites: false`; the user switched it in the
+dashboard, ERRORS M514). CI still runs on every push. After every push to `main` or `live` the agent reads that commit's
+runs to their end and tells the user at once when one is red, with what failed and a proposal (a fix, or a rollback to
+the deployment RAILWAY_CHANGELOG names). Wait for CI comes back on edge-bff-live near the launch (EXEC-MU-ACCOUNTS,
+Carried open parts). A change of Wait for CI updates this paragraph, `LIVE_PROMOTION.md` and
+`INDICATOR_BETA_TO_LIVE.md` (Part A step 11) in the same commit.
+
 ## The live site
 
 User decisions 2026-11-19 and 2026-11-20 (EXEC.md option A): the beta (`edge-bff`, edge-bff-dev.up.railway.app, the
 admin only, every feature first) and the live site (`edge-bff-live`, app.edgefinance.id).
-- `edge-bff-live` deploys only from branch `live`, with Wait for CI. Never `railway up` to it: a CLI upload skips both
+- `edge-bff-live` deploys only from branch `live` (Wait for CI off since 2026-11-23, section "Deploys"). Never `railway up` to it: a CLI upload skips both
   `live` and CI, and the next push to `live` silently replaces it (live checker after the switch-on, F6).
-- `live` moves only to a commit the beta already runs (its latest SUCCESS deployment), whose CI is green, with the
+- `live` moves only to a commit the beta already runs (its latest SUCCESS deployment), with the
   user's go; record it in RAILWAY_CHANGELOG.md. Rollback: EXEC.md option A.
 - Beta work reaches the live site only on the user's request, never on a schedule (user, 2026-11-20: "Tidak bisa
   pengembangan di beta dibawa live on schedule basis. Semuanya harus on request basis."). Before moving `live`, read
   `LIVE_PROMOTION.md` and run `python3 scripts/live_diff.py --sites`, then tell the user everything that moves with
   the commit (whole commits move, not one feature).
 - Every tab, page and catalog item has its stage in `apps/edge-bff/catalog/releases.json` (`tabs`, `items`; unlisted
-  is lab). Lab stays off on the live site for everyone, the admin's `*` included, and stays on the beta.
-  3f built the lab builds and filters, but no item or tab may be lab yet: `tests/test_releases.py` and
-  `tests/test_live_switch.py` refuse one and name what must be closed first (FUTURE_PLAN.md "Before the first lab item
-  or tab"; LIVE_PROMOTION.md section 3). Until then a new one enters as `released` only with the user's go, or stays off
-  `main`; an item no worker gates by id is never lab. A new tab is its own `<tab>-app`.
+  is lab). Lab stays off on the live site for everyone, the admin's `*` included, and stays on the beta. A catalog item
+  at `preview` (user 2026-11-23: "promote ke live hanya admin saja yang bisa lihat, user paid tidak bisa lihat") is on
+  both sites for the admin only; no plan holds it by stage, nor by `{"all": true}` (UD28, "Ok A"); its definition and
+  formula are public (LIVE_PROMOTION.md §3 "Preview"; `INDICATOR_BETA_TO_LIVE.md` Part C). Which path a request takes
+  (beta only, live for the admin only, released): LIVE_PROMOTION.md §4, its first table. A tab is lab or released only.
+  Since 2026-11-23 (the user: "Cabut tes penjaga lab") a new catalog item may enter at `lab` (the beta only):
+  indicators by `INDICATOR_BETA_TO_LIVE.md` (a Flow indicator by its section "A lab Flow indicator", since 2026-11-23);
+  Screener metrics and presets as data. A candle pattern may not be lab yet (`tests/test_releases.py` `LAB_KIND_HELD`:
+  not dry-run), nor a tab (`tests/test_live_switch.py` `LAB_TAB_HELD_UNTIL`: its rail entry is not served by the
+  server yet); those enter as `released` only with the user's go, or stay off `main`. An item no worker gates by id, or one the shipped code names,
+  is never lab. A new tab is its own `<tab>-app`.
   `tests/test_live_switch.py` fails when a capability tab or a page of the shell has no entry. Migrations stay
   expand-only while the live site runs older code on the shared database.
 - Connecting a repository or changing a deploy trigger is an account action the session's project token may not do

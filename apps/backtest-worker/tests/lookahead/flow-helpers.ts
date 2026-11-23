@@ -8,11 +8,19 @@ import { FLOWS as SCREENER_FLOWS, resolveFlowParams, seriesKeyOf } from '../../.
 import { flowDefaults } from '../../../edge-bff/terminal/src/calc/flow.ts';
 
 const opt = (o: unknown) => Array.isArray(o) ? o[0] : o;
+function numbers(q: { kind: string; default?: unknown; min?: number; max?: number }): number[] {
+  const d = Number(q.default), lo = q.min ?? (q.kind === 'int' ? 1 : d / 4), hi = Math.min(q.max ?? (Number.isFinite(d) ? d * 10 : 400), 400);
+  const vs = [lo, Number.isFinite(d) ? Math.min(hi, d * 3) : hi, hi].filter(v => Number.isFinite(v));
+  return [...new Set(vs.map(v => q.kind === 'int' ? Math.round(v) : v))].filter(v => v !== d);
+}
 export const FLOWS = SCREENER_FLOWS.filter(e => e.compute === 'terminal' && !e.requires && /^FL\d+$/.test(e.id)).map(e => {
   const variants: Record<string, unknown>[] = [{}];
   for (const p of e.params.filter(q => q.condition)) {
     const vs = p.kind === 'select' ? (p.options ?? []).map(opt) : p.kind === 'bool' ? [true, false] : p.kind === 'multi' ? (p.options ?? []).map(o => [opt(o)])
-      : p.kind === 'brokers' ? [['AA'], ['AA', 'BK'], ['LATE'], ['AA', 'LATE'], ['GONE']] : [];
+      : p.kind === 'brokers' ? [['AA'], ['AA', 'BK'], ['LATE'], ['AA', 'LATE'], ['GONE']]
+      // check of steps 2-3 (2026-11-23, F3): numbers other than the default (minimum, three times the default, maximum,
+      // capped at 400 sessions), as the technical part of the gate varies them
+      : p.kind === 'int' || p.kind === 'num' ? numbers(p as { kind: string; default?: unknown; min?: number; max?: number }) : [];
     for (const v of vs) variants.push({ [p.key]: v });
     // a broker list is read only where its scope selects it (Stage C F3: the lists were never in use in the gate)
     const scope = p.kind === 'brokers' && p.key.endsWith('brokers') ? e.params.find(q => q.key === `${p.key.slice(0, -'brokers'.length)}scope`) : undefined;

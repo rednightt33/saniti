@@ -112,6 +112,8 @@ def database():
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261121_002_edge_bff_guest_examples.sql').read_text())
             # Phase 4, the contact-support panel: support.send, the tickets and their images
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261122_001_edge_bff_support.sql').read_text())
+            # step 7, the payment shell: the orders, their events and subscriptions.provider 'midtrans'
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261123_001_edge_bff_payments.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:
@@ -122,7 +124,7 @@ def database():
 def store(database):
     # EXEC-SCREENER (migration 20261028_001): with the saved screener items and the watchlist; EXEC-MU-ACCOUNTS: and the
     # sign-in throttle, so one test's wrong passwords never limit another's sign-in
-    with psycopg.connect(database) as c:c.execute('TRUNCATE edge_bff.sessions,edge_bff.jobs,edge_bff.conversation_ui,edge_bff.screener_items,edge_bff.watchlist_items,edge_bff.watchlist_lists,edge_bff.terminal_layouts,edge_bff.indicator_presets,edge_bff.terminal_drawings,edge_bff.auth_throttle,edge_bff.users,edge_bff.user_preferences,edge_bff.email_outbox,edge_bff.email_suppression,edge_bff.email_hook_events,edge_bff.admin_audit CASCADE')  # admin_audit by name: 20261119_040 dropped its foreign keys to users, so the cascade no longer reaches it
+    with psycopg.connect(database) as c:c.execute('TRUNCATE edge_bff.sessions,edge_bff.jobs,edge_bff.conversation_ui,edge_bff.screener_items,edge_bff.watchlist_items,edge_bff.watchlist_lists,edge_bff.terminal_layouts,edge_bff.indicator_presets,edge_bff.terminal_drawings,edge_bff.auth_throttle,edge_bff.users,edge_bff.user_preferences,edge_bff.email_outbox,edge_bff.email_suppression,edge_bff.email_hook_events,edge_bff.admin_audit,edge_bff.payment_events,edge_bff.payment_orders CASCADE')  # admin_audit by name: 20261119_040 dropped its foreign keys to users, so the cascade no longer reaches it
     s = RoleStore(database, APP_ROLE) if APP_ROLE else Store(database)
     # ERRORS M539: the store's pool is closed after each test; left to the garbage collector, idle connections piled up
     # (68 idle after 116 tests, a peak of 98 of 100) until a later test failed 'too many clients already'

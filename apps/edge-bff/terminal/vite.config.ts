@@ -1,5 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
-import { labAlias, releaseFilter } from '../shared/release-filter.mjs';
+import { labAlias, labProbe, releaseFilter } from '../shared/release-filter.mjs';
 
 /* The reference page inlines lightweight-charts-drawing 0.6.2 with one change: its accent colour "#1e53e5" is "#171717"
    (selection handles and default ink follow the terminal's black). The same one-constant patch is applied to the npm
@@ -37,7 +37,8 @@ function classicScriptAtEnd(): Plugin {
 
 /* Built into ../static/terminal-app and served by edge-bff at /terminal-app/ (FRONTEND_ARCHITECTURE.md section 2).
    3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): `npm run build` makes two builds. The public one keeps only the
-   released items of the registries (shared/release-filter.mjs) and has no lab formula ('@edge-lab' is src/lab/none.ts).
+   released and preview items of the registries (shared/release-filter.mjs; a preview entry marked release 'preview') and has
+   no lab formula ('@edge-lab' is src/lab/none.ts).
    The lab one (--mode lab) keeps every item and the lab formulas (src/lab/index.ts), into ../static/terminal-app-lab;
    edge-bff serves it at /terminal-app/lab/ only to the admin on the beta. */
 /** The build's configuration (tests/test_3f_public_bundles.py builds it as it is, on a copy whose registries hold fixture
@@ -45,7 +46,7 @@ function classicScriptAtEnd(): Plugin {
 export function terminalConfig({ lab = false } = {}) {
   return {
     base: lab ? '/terminal-app/lab/' : '/terminal-app/',
-    plugins: [releaseFilter({ lab }), drawingInk(), classicScriptAtEnd()],
+    plugins: [releaseFilter({ lab }), drawingInk(), classicScriptAtEnd(), labProbe({ lab })],
     // the Web Worker's bundle takes only these (checker L1): the same filter, so the worker carries no lab item either
     worker: { plugins: () => [releaseFilter({ lab })] },
     resolve: { alias: labAlias({ lab }) },

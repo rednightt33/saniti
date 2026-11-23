@@ -8,13 +8,14 @@
    registries (indRegistry.json, flowRegistry.json). */
 import type { Ctx } from './context';
 import type { Preset } from '../data/presetsApi';
+import type { Locks } from '../data/types';
 import { $, store } from './context';
 import { draggable, fitInView, shiftOf } from './draggable';
 import { FLOW_REG, SINGLE_SECURITY } from './flowIndicators';
 import { ALL_INPUTS, fits, inputsOf, needsOf, type Input } from '../data/inputs';
 import { askLocked, lockMark } from './locked';
 
-export interface MenuItem { id: string; name: string; group: string; kind: 'Technical' | 'Flow' | 'Base'; place: string; unit: string; tip: string; short?: string }
+export interface MenuItem { id: string; name: string; group: string; kind: 'Technical' | 'Flow' | 'Base'; place: string; unit: string; tip: string; short?: string; release?: string }
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
 const FAV_KEY = 'ml.ind.favs', SIZE_KEY = 'ml.ind.box', NAV_KEY = 'ml.ind.navw';
@@ -35,14 +36,26 @@ export const MENU_HIDDEN: ReadonlySet<string> = new Set(['I37', 'I41', 'FL07', '
 export function menuItems(indReg: any[], flowReg: { families: string[]; indicators: any[] }, have: ReadonlySet<Input> = ALL_INPUTS): MenuItem[] {
   const group = (cat: string) => cat === 'PriceVolume' ? 'Price & Volume' : cat.replace(/([a-z])([A-Z])/g, '$1 & $2');
   const out: MenuItem[] = indReg.filter(r => !MENU_HIDDEN.has(r.id) && fits(needsOf({ reg:r }), have)).map(r => ({ id:r.id, name:r.name, group:group(r.cat), kind:'Technical', place:r.zone === 'overlay' ? 'Overlay' : 'Panel',
-    unit:r.unit || '', tip:r.tip || '', short:r.short || '' }));
+    unit:r.unit || '', tip:r.tip || '', short:r.short || '', ...(r.release ? { release:r.release } : {}) }));
   const vol = out.findIndex(i => i.group === 'Volume');
   if (have.has('V')) out.splice(vol < 0 ? out.length : vol, 0, { id:'VOL', name:'Volume', group:'Volume', kind:'Base', place:'Panel', unit:'shares',
     tip:'Batang volume transaksi harian di bagian bawah chart harga.' });
   if (have.has('flow')) for (const f of flowReg.families) for (const r of flowReg.indicators.filter(x => x.family === f))
-    if (!MENU_HIDDEN.has(r.id) && fits(needsOf({ flow:true, single:SINGLE_SECURITY.has(r.id) }), have)) out.push({ id:r.id, name:r.name, group:f, kind:'Flow', place:flowPlace(r.place), unit:r.unit || '', tip:r.tip || '' });
+    if (!MENU_HIDDEN.has(r.id) && fits(needsOf({ flow:true, single:SINGLE_SECURITY.has(r.id) }), have)) out.push({ id:r.id, name:r.name, group:f, kind:'Flow', place:flowPlace(r.place), unit:r.unit || '', tip:r.tip || '', ...(r.release ? { release:r.release } : {}) });
   return out;
 }
+
+/** EXEC-MU-ACCOUNTS "A preview release stage" (the user 2026-11-23: a new indicator on the live site for the admin only,
+    "user paid tidak bisa lihat"): an entry the page build marks `release` (shared/release-filter.mjs marks a preview
+    item, in both builds; a lab entry carries no mark) that the catalog does not list for the principal (live.ts lockRules) is left
+    out of the menu, its search included, rather than shown locked as a released item outside the plan is. A catalog
+    that cannot be read locks its kind, so the entry stays out (fail closed). */
+export const heldBack = (i: MenuItem, locks: Locks | undefined) =>
+  !!i.release && i.kind !== 'Base' && !!locks?.item(i.kind === 'Flow' ? 'flow_indicator' : 'indicator', i.id);
+/** the menu's rows for a principal: menuItems without the entries held back for it (heldBack); the one list the menu,
+    its search, its favourites and its lock box read (check of steps 2-3, P1: the filter is tested through this) */
+export const menuRows = (indReg: any[], flowReg: { families: string[]; indicators: any[] }, have: ReadonlySet<Input>, locks: Locks | undefined): MenuItem[] =>
+  menuItems(indReg, flowReg, have).filter(i => !heldBack(i, locks));
 
 /** the rows a group (or a search) shows: a search looks at the name, code, group and kind of every row */
 export type KindFilter = 'all' | 'Technical' | 'Flow';
@@ -108,7 +121,7 @@ const CHECK = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentC
    All indicators, then Technical and Flow; a click on a row or Add always adds and shows "<name> added" */
 export function initIndMenu(ctx: Ctx) {
   const { IND_REG, Ind, volCtl } = ctx;
-  const items = menuItems(IND_REG as any[], FLOW_REG as any, inputsOf(ctx.M));
+  const items = menuRows(IND_REG as any[], FLOW_REG as any, inputsOf(ctx.M), ctx.M.locks);
   const groupsOf = (kind: 'Technical' | 'Flow') => [...new Set(items.filter(i => kind === 'Flow' ? i.kind === 'Flow' : i.kind !== 'Flow').map(i => i.group))];
   let favs = new Set<string>();
   try { favs = new Set(JSON.parse(store.get(FAV_KEY) || '[]')) } catch { /* none saved */ }

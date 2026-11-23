@@ -66,6 +66,9 @@ describe('generated file', () => {
 
 describe('overlay', () => {
   const overlay = structuredClone(overlayDoc) as any, base = baseDoc as any;
+  // this suite runs through the page's release filter (vite.config.ts), which filters the registry and the overlay alike
+  // (shared/release-filter.mjs REGISTRIES, since the lab Flow dry run of 2026-11-23): both hold the same items, a lab one
+  // in neither; the generator reads both whole and checks them with its --check (INDICATOR_BETA_TO_LIVE.md)
   it('has one entry per base id and vice versa, and every entry keeps its rules', () => {
     expect(Object.keys(overlay.indicators).sort()).toEqual(base.indicators.map((r: { id: string }) => r.id).sort());
     expect(G.overlayProblems(overlay, base)).toEqual([]);
@@ -240,7 +243,7 @@ describe('registry.ts parameters (report 6.8 narrowing, I7)', () => {
     const f = refusal(() => resolveScreenerParams(ind('I33'), { annualization_periods: 252.5 }, 'p', OPTS));
     expect([f.code, f.details?.integer]).toEqual(['PARAM_OUT_OF_RANGE', true]);
     const u = refusal(() => screenerIndicator('I99', 'x.indicator'));
-    expect([u.code, u.field, (u.details?.allowed as string[]).length]).toEqual(['UNKNOWN_INDICATOR', 'x.indicator', 53]);
+    expect([u.code, u.field, (u.details?.allowed as string[]).length]).toEqual(['UNKNOWN_INDICATOR', 'x.indicator', INDICATORS.length]);
   });
   it('accepts a valid minimum, the defaults and whole numbers', () => {
     expect(resolveScreenerParams(ind('I23'), { weight_fast: 0 }, 'p', OPTS).weight_fast).toBe(0);
