@@ -272,8 +272,8 @@ export function initAssets(ctx: Ctx) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'idlg-cbtn'; b.setAttribute('aria-label', 'Line colour'); b.style.setProperty('--c', o.color);
       b.onclick = (e: any) => {
         e.preventDefault(); e.stopPropagation();
-        // the colours in use: the compare lines' (checker S-6 and its re-check: only colours on the chart)
-        cbox.toggle(b, { label:'Line', color:() => o.color, used:assets.map(x => x.opts.color),
+        // the colours on the chart: the compare lines' and the indicators' (checker S-6 and its re-checks)
+        cbox.toggle(b, { label:'Line', color:() => o.color, used:[...assets.map(x => x.opts.color), ...(ctx.indicatorColors?.() || [])],
           setColor:c => { o.color = c; b.style.setProperty('--c', c) }, onChange:() => live() });
       };
       return b;
@@ -358,6 +358,7 @@ export function initAssets(ctx: Ctx) {
   /* a pane's crosshair on session i (none while it has no broker data: a series of empty points has no value to sit on) */
   const crossAt = (q: FlowPane, i: number | undefined) => i === undefined || !q.combos.length ? q.chart.clearCrosshairPosition()
     : q.chart.setCrosshairPosition(q.net[i] || 0, dates[i] as any, q.bars);
+  ctx.assetColors = () => assets.map(x => x.opts.color);            // the colour boxes offer them (checker S-6)
   ctx.extraFlowCharts = () => panes().map(p => p.chart);
   ctx.extraFlowHeight = () => panes().reduce((s, p) => s + p.el.getBoundingClientRect().height, 0);
   const paneH = () => Math.round(Math.max(130, Math.min(200, (mainCol.clientHeight - 46) * .18)));

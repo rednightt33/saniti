@@ -147,6 +147,10 @@ export interface Ctx {
   volCtl: VolCtl;
   Ind: IndSurface;
   IND_REG: any[];
+  /** the compare lines' colours (app/assets.ts), offered beside the indicators' in a colour box */
+  assetColors?: () => string[];
+  /** the indicators' colours on the chart (app/indicators.ts), offered beside the compare lines' in a colour box */
+  indicatorColors?: () => string[];
   Hist: { push(e: HistEntry): void };
   /* flow timeline (flow.ts) */
   flowChart: LWC.IChartApi;

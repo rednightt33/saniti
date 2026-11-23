@@ -21,7 +21,7 @@ import { esc } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { canonical, ctx, entryOf, S, ui } from './state.ts';
 import { defaultParams, depthHint, flowBudget, flowSessions, GHEAD, GORD, isFlowType, matches, optionText, paramError, rangeText, type Entry, type EntryParam, type Opt } from './entries.ts';
-import { cardErrors, displayUnit, fromWire, newCard, newCardId, optOf, toWire, type Card } from './forms.ts';
+import { cardErrors, displayUnit, fromWire, newCard, newCardId, optOf, syncMetric, toWire, type Card } from './forms.ts';
 import { closeDialog, dialog, toast, toastAction } from './dialogs.ts';
 import { defaultOp, fieldHint, fieldMax, isSignal, measureOf, measuresFor, offersOperators, OP_WORDS, opFieldUnit, operatorTitle, opsFor, opText, plainOffered, secondOptions, seriesList, signalText, testOf, testsFor, withCmp, withMeasure, withTest, type OpState } from './operators.ts';
 import { sideOf } from './texts.ts';
@@ -733,7 +733,7 @@ function writeCard() {
      card's, never the rule's: it stays (re-check round 1, NEW-1 of the Screener/Backtest checker) */
   const { c, e, rule } = H, { id: _id, on: _on, entry: _entry, metric: _metric, ...f } = cardOfRule(e, rule);
   for (const k of ['op', 'pick'] as const) if (!(k in f)) delete (c as Partial<Card>)[k];
-  Object.assign(c, f);
+  Object.assign(c, f); syncMetric(c);           // the link holds while the parameters are the metric's (as the builder)
   checkCard(c); ui.markDirty(); ui.refresh('conds');
 }
 let hostDrawing = false;

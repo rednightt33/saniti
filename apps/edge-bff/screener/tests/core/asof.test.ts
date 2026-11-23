@@ -83,7 +83,9 @@ describe('every series a condition reads is causal: its value at a bar never rea
     }
     try {
       expect(coded, 'an output coded in categories (the registry\'s or the test\'s own)').toBeTruthy();
-      refs.push({ kind: 'transform', fn: 'in_categories', of: coded!.of, args: { categories: coded!.keys.join(',') } },
+      // one category of several: every category chosen is 1 wherever the input has a value and would hide a read of a
+      // later bar (re-check recheck2/NEW-1)
+      refs.push({ kind: 'transform', fn: 'in_categories', of: coded!.of, args: { categories: coded!.keys[0] } },
         { kind: 'transform', fn: 'category_change', of: coded!.of, args: { changes: coded!.keys.flatMap(a => coded!.keys.filter(b => b !== a).map(b => `${a}>${b}`)).join(',') } });
       expect(new Set(refs.map(x => x.fn))).toEqual(new Set(METRICS_CATALOG.transforms.map(x => x.fn)));     // every transform of the catalog
       const bad = refs.map(x => causal(resolveSeries(x as unknown as MetricRef, 'x', ctx), ctx)).filter(Boolean);

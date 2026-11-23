@@ -16734,6 +16734,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | All seven lab indicators at once (ERRORS M558 P-1, L-2) | about 2x a drag's cost and 3-10x a crosshair move with all seven on at 4x CPU throttle (offline, software raster); the legend rows and two extra panes carry it | the lab-indicator builder | re-measured on a real device before any of them leaves lab |
   | DOM tests of the category pick (ERRORS M558 SC-4) | the model-level page tests cover the pick (tests/fixture/coded.ts); the add-condition window, builder and the Backtest window's DOM are not driven by a test | the lab-indicator builder | before the lab indicators leave lab |
   | The phone's legend rows (ERRORS M558 V2-5) | with several overlays on, the legend rows cover the price pane of a phone (main clips the same) | the Terminal's owner | before the lab indicators leave lab |
+  | The round 2 close of ERRORS M558, tested out by its author only | one category in both look-ahead gates (a planted leak caught), `syncMetric` in the Customize panel, the shared used colours, the label boxes' x and y ratios | the next checker workflow | its first run after this deploy |
 
 - **The round's close (2026-11-22, the user's go):** the full edge-bff suite 1214 passed after ERRORS M539 and M547 were
   fixed; CI green; the beta (`e594bba8`) and the live site (`306c1190`) on `ec739a06`, the workers with it

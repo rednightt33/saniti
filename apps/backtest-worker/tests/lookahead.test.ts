@@ -126,13 +126,14 @@ test('the shared grammar: every transform function and every pattern type it imp
   const close = { kind: 'price', field: 'close' }, volume = { kind: 'price', field: 'volume' }, open = { kind: 'price', field: 'open' };
   const ofFor: Record<string, unknown> = { pct_distance: outputWith('value_pct_distance'), band_position: outputWith('value_band_position'),
     in_categories: outputWith('state_category'), category_change: outputWith('event_category_change') };
-  // the category transforms (EXEC-PINE-INDICATORS): every category, every change between two, of the output's own
-  // categories in the registry
+  // the category transforms (EXEC-PINE-INDICATORS): one category of several (every category chosen is 1 wherever the
+  // input has a value and would hide a read of a later bar: the re-check of 2026-11-23, recheck2/NEW-1), every change
+  // between two, of the output's own categories in the registry
   const catsOf = (r: unknown) => { const x = r as { indicator: string; output: string } | null;
     const o = x && SCREENER_REGISTRY.indicators.find(i => i.id === x.indicator)?.outputs.find(q => q.key === x.output) as { categories?: { key: string }[] } | undefined;
     return (o?.categories ?? []).map(c => c.key) };
   const catArgs = (fn: string): Record<string, unknown> => { const k = catsOf(ofFor[fn]);
-    return fn === 'in_categories' ? { categories: k.join(',') } : { changes: k.flatMap(a => k.filter(b => b !== a).map(b => `${a}>${b}`)).join(',') } };
+    return fn === 'in_categories' ? { categories: k[0] } : { changes: k.flatMap(a => k.filter(b => b !== a).map(b => `${a}>${b}`)).join(',') } };
   const leaks: string[] = [], ran = new Set<string>();
   for (const fn of IMPLEMENTED_TRANSFORMS) {
     const ref: Record<string, unknown> = { kind: 'transform', fn, of: ofFor[fn] ?? close,

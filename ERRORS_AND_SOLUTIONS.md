@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M558 — Checker round of the lab Pine indicators before their beta release: 60 findings, two fix rounds (2026-11-23; fixed on the branch in `12863820` and `9afa833f`, parts open below)
+### M558 — Checker round of the lab Pine indicators before their beta release: 60 findings, two fix rounds (2026-11-23; fixed on the branch in `12863820`, `9afa833f` and the round 2 close, parts open below)
 
 - **Found by:** the user's "All at once ... jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading
   time, dll dengan 10 agent subsonnet high. Bereskan temuan. Deploy." Ten Sonnet checkers at effort high, one per area
@@ -8944,8 +8944,19 @@ in its staleness check.
 - **Lesson for new data:** a Pine port is checked against the Pine's drawing (label styles and sizes, plot styles), not
   only its numbers; a control's position is checked against the window, not its button; a new field of a card is
   carried by building the card, never by a list of fields.
-- **Status:** fixed on the branch (`12863820`, `9afa833f`); the re-check round 1 found 31 fixed and the rest open or
-  kept as above, its new defects fixed in round 2; deploys with the lab indicators.
+- **Round 2 of the test-out (`wf_c2fe2424-bf4`, two Opus agents):** every item of round 2 fixed but the used colours
+  (S-6, partly: the two boxes did not share them) and the look-ahead page test of the category transforms (C-6,
+  partly). It found that both look-ahead gates (the worker's `tests/lookahead.test.ts` and the Screener's
+  `tests/core/asof.test.ts`) tested `in_categories` with every category chosen, which is 1 wherever the input has a
+  value, so a read of a later bar there passed (older than this round), and that the Customize panel of a flow card
+  kept a My metric link the builder drops (older too). Closed after it: one category of several in both gates (a
+  planted read of 20 bars ahead now fails the page test and the worker gate: 1 failed each, restored), the panel and
+  the builder share `syncMetric` (`screener/src/forms.ts`), both colour boxes offer every colour on the chart
+  (`ctx.indicatorColors`, `ctx.assetColors`), the label boxes snap x and y each on its own pixel ratio. These last
+  fixes were tested out by their author only (the mutation run above): the next checker workflow tests them out
+  (EXEC.md carried part).
+- **Status:** fixed on the branch (`12863820`, `9afa833f`, the round 2 close); the re-check round 1 found 31 fixed and
+  the rest open or kept as above, its new defects fixed in round 2 and tested out; deploys with the lab indicators.
 
 ### M557 — The Terminal broke a Pine line at a bar without a value, where TradingView runs it on (2026-11-23; fixed on the branch in `2ebbf6b5`)
 

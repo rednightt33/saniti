@@ -44,6 +44,10 @@ export function newCardId(taken: Iterable<string>): string {
   return id;
 }
 
+/** A card keeps its My metric link only while its parameters are the metric's (the builder and the Customize panel; the
+    re-check of 2026-11-23, recheck2/NEW-2: the panel kept a link the builder drops). */
+export const syncMetric = (c: Card) => { if (c.metric && JSON.stringify(c.metric.params) !== JSON.stringify(c.params)) delete c.metric };
+
 /** A new card on an entry, at its default test (the overlay's default_test) and default parameters. */
 export function newCard(e: Entry, taken: Iterable<string>, over: Partial<Card> = {}): Card {
   const opt = e.opts.find(o => o.key === (over.opt ?? e.def.opt)) || e.opts.find(o => !o.disabled) || e.opts[0];

@@ -27,6 +27,8 @@ export function initIndicators(ctx: Ctx) {
   const NF = numberFormat('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
   const PALETTE = ['#171717', '#f5a623', '#7928ca', '#12a594', '#d6409f', '#0070f3', '#f23645', '#8f8f8f', '#089981'];
   const LINE_STYLES = { Solid:L.LineStyle.Solid, Dashed:L.LineStyle.Dashed, Dotted:L.LineStyle.Dotted };
+  /* the indicators' colours on the chart, for every colour box (the compare lines' box reads them too: checker S-6) */
+  ctx.indicatorColors = () => list.flatMap(i => [i.style?.color, ...Object.values(i.style?.out || {}).flatMap((o: any) => [o?.color, o?.color2])]).filter(Boolean);
   /* an output's stored opacity (0-100) and line style, a value the box does not offer read as the default (checker S-8) */
   const opacityOf = (s: any) => { const v = Number(s?.opacity ?? 100); return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 100 };
   const lineStyleOf = (s: any): LineStyleKey => (LINE_STYLE_KEYS as readonly string[]).includes(s?.lineStyle) ? s.lineStyle : 'Solid';
@@ -143,21 +145,21 @@ export function initIndicators(ctx: Ctx) {
     return m;
   };
   /** the chart canvas's own pixel ratio (bitmap over media size) */
-  const labelRatio = (t: any) => { let r = 1; t.useBitmapCoordinateSpace(({ horizontalPixelRatio }) => { r = horizontalPixelRatio || 1 }); return r };
+  const labelRatio = (t: any) => { let r = { h:1, v:1 }; t.useBitmapCoordinateSpace(({ horizontalPixelRatio, verticalPixelRatio }) => { r = { h:horizontalPixelRatio || 1, v:verticalPixelRatio || 1 } }); return r };
   /** the first label at or after bar `from` (labels sorted by bar) */
   const labelFrom = (labels: any[], from: number) => { let lo = 0, hi = labels.length; while(lo < hi) { const mid = (lo + hi) >> 1; if(labels[mid].i < from) lo = mid + 1; else hi = mid } return lo };
   const sortLabels = (labels: any[]) => (labels || []).slice().sort((x, y) => x.i - y.i);
-  function paintLabels(c, labels, ts, series, paneH: number, ratio = 1) {
+  function paintLabels(c, labels, ts, series, paneH: number, ratio = { h:1, v:1 }) {
     if(!labels || !labels.length) return;
     const vr = ts.getVisibleLogicalRange(), from = vr ? Math.floor(vr.from) - 2 : -Infinity, to = vr ? Math.ceil(vr.to) + 2 : Infinity;
     // re-check V1-7: whole pixels of the chart's own canvas (its bitmap ratio), not the window's devicePixelRatio
-    const px = (v: number) => Math.round(v * ratio) / ratio, P = LABEL_P;
+    const px = (v: number) => Math.round(v * ratio.h) / ratio.h, py = (v: number) => Math.round(v * ratio.v) / ratio.v, P = LABEL_P;   // x and y each on their own ratio (re-check 2 NEW-1)
     for(let k = labelFrom(labels, from); k < labels.length && labels[k].i <= to; k++) {
       const l = labels[k], x = ts.logicalToCoordinate(l.i), y0 = series.priceToCoordinate(l.price);
       if(x === null || y0 === null) continue;
       const y = y0 + (l.gap ? (l.dir === 'down' ? -l.gap : l.gap) : 0);     // a label on a candle stands clear of its wick
       const [fs, H] = labelSize(l), font = labelFont(fs), m = measureLabel(c, font, l.text), w = px(m.w + 12), up = l.dir !== 'down';
-      const want = up ? y + P : y - P - H, top = px(Math.max(0, Math.min(paneH - H, want))), left = px(x - w / 2), joined = top === px(want);
+      const want = up ? y + P : y - P - H, top = py(Math.max(0, Math.min(paneH - H, want))), left = px(x - w / 2), joined = top === py(want);
       c.fillStyle = l.bg; c.beginPath();
       (c as any).roundRect ? (c as any).roundRect(left, top, w, H, 3) : c.rect(left, top, w, H);
       // the pointer in the box's own winding, so the two overlap as one shape (nonzero fill: one coat of a see-through colour)
@@ -1285,13 +1287,15 @@ export function initIndicators(ctx: Ctx) {
     /* the colour box (app/colorPicker.ts ColorBoxHost): one open at a time, placed inside the window, focus back on its
        button when it closes */
     const cbox = new ColorBoxHost(dlg), closeCpop = () => cbox.close();
+    /* every colour on the chart, the indicators' and the compare lines' (checker S-6 and its re-checks: one list for both boxes) */
+    const usedColors = () => [...(ctx.indicatorColors?.() || []), ...(ctx.assetColors?.() || [])];
     const palSwatch = (pal: string[]) => `linear-gradient(90deg, ${pal.join(', ')})`;
     function colorBtn(get, set, label, lines?: { s: any; style: boolean }, after: () => void = () => refresh(inst), palette?: string[]) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'idlg-cbtn'; b.title = label; b.setAttribute('aria-label', label + (palette ? ' line' : ' colour'));
       if(palette) b.style.setProperty('--c', palSwatch(palette)); else b.style.setProperty('--c', get());
       b.onclick = (e: any) => {
         e.preventDefault(); e.stopPropagation();
-        const used = list.flatMap(i => [i.style?.color, ...Object.values(i.style?.out || {}).flatMap((o: any) => [o?.color, o?.color2])]).filter(Boolean);
+        const used = usedColors();
         const s = lines?.s;
         /* checker S-2/C-2: an output coloured by its indicator (a palette: Alpha KAMA's line) offers no colour of its own,
            only its line options; the opacity applies to the palette (refreshMulti, tint) */

@@ -10,7 +10,7 @@ import { COLORS, IC, ico } from './icons.ts';
 import { activeCards, ctx, entryOf, S, ui } from './state.ts';
 import { defaultParams, depthHint, flowBudget, flowSessions, isDefP, isFlowType, optionText, paramError, rangeText, type Entry } from './entries.ts';
 import { flowControlHtml, paramFieldValue, paramTitle } from './param-fields.ts';
-import { cardErrors, cardName, condText, defaultOffered, displayUnit, isCustom, optOf, paramSummary, type Card } from './forms.ts';
+import { cardErrors, cardName, condText, defaultOffered, displayUnit, isCustom, optOf, paramSummary, type Card, syncMetric } from './forms.ts';
 import { confirmDialog, openSaveMetric, toast, toastAction } from './dialogs.ts';
 import { MY, OP_OPT, openAddCondition, openOperatorFor } from './add-condition.ts';
 import { offersOperators, operatorTitle } from './operators.ts';
@@ -202,7 +202,7 @@ const resetParams = (c: Card) => {
   const e = entryOf(c)!; c.params = defaultParams(e); syncMetric(c); delete S.errors[c.id];
   ui.markDirty(); ui.refresh('conds'); toast(`${e.label} back to default (${e.params.map(p => optionText(p, p.default)).join(', ')})`);
 };
-const syncMetric = (c: Card) => { if (c.metric && JSON.stringify(c.metric.params) !== JSON.stringify(c.params)) delete c.metric };
+
 
 /** the card's errors after an edit (report 9.2: refused in place) */
 export function checkCard(c: Card) {
