@@ -26,7 +26,7 @@
    registerFlow refuses an id that already has a formula. Releasing it (or putting it at preview) moves the formula into
    calc/flow.ts FLOW (terminal/tests/calc/public_formulas.test.ts and calc/flow.test.ts "registry" compute every entry
    of the public build). */
-import { DEFAULTS, F, def, ema, rma, sma, stdev, wma, type Seg } from '../calc/indicators';
+import { DEFAULTS, DRAWINGS, F, def, ema, rma, sma, stdev, wma, type Drawing, type Seg } from '../calc/indicators';
 
 /* ---- Alpha Volatile (EXEC-PINE-INDICATORS; the user's Pine "Nic - Tail Move Indicator V2 (RAW Distance)", 2026-11-23,
    defaults from the user's screenshot: EMA 26, lookback 100, decile 9, Z 2). Causal: every value at bar t reads bars up
@@ -294,3 +294,104 @@ F.alpha_extract = def('alpha_extract', AE_OUTS, () => 'OHLC', (B: Seg, p) => {
   return { bdo, signal, upper, upper_extreme, lower, lower_extreme, bull: flag(true, lower, lower_extreme), bear: flag(false, upper, upper_extreme),
     positive: bdo.map(v => v === null ? null : v >= 0 ? 1 : 0) };
 });
+
+/* ---- Alpha Divergence (EXEC-PINE-INDICATORS; the user's Pine v6 "Nic - Divergence Detector - Swing Comparison", named
+   Alpha Divergence by the user, 2026-11-23). As the Pine, bar by bar:
+   - SMI = 200 x EMA(EMA(close - (highest(high, 10) + lowest(low, 10)) / 2, 3), 3) / EMA(EMA(highest - lowest, 3), 3);
+     missing where the range average is 0;
+   - a swing low is tracked from the bar SMI goes below -40 and confirmed on the bar SMI crosses above 0; Original mode
+     (default): its price and SMI are those of the candle with the lowest SMI while SMI is below -40; Proposed mode: the
+     lowest low and, apart, the lowest SMI until the confirmation. A swing high mirrors it (+40, crosses below 0);
+   - BULL DIV, on the confirmation of a swing low: its low below the previous swing low's and its SMI above the previous
+     one's; BEAR DIV mirrors it on a swing high's confirmation;
+   - BUY A: after a BULL DIV, the level is the last confirmed swing high; once, on the first close above it (the
+     confirmation bar included); armed again by the next BULL DIV.
+   Causal outputs (the Screener and the Backtest; the user's "1-4 OK": dated on the confirmation, the one causal date):
+   bull_div, bear_div, buy_a (1 on the bar, else 0; missing before SMI exists); swing_high, swing_low = the price of the
+   last swing confirmed up to the bar (the user's "harga above or below swing high / swing low"; before a confirmation
+   the earlier one). The Terminal's drawing (DRAWINGS, never an output) places the SH, SL, BULL DIV and BEAR DIV labels on
+   the swing candles as TradingView does, the divergence lines, the active BUY A level and, as an option the user asked
+   for, a green or red background over each divergence (from the earlier swing to the later one). */
+DEFAULTS.alpha_divergence = { swing_mode: 'Original (SMI extreme)' };
+function divergenceRun(B: { H: ArrayLike<number>; L: ArrayLike<number>; C: ArrayLike<number> }, n: number, priceMode: boolean) {
+  const win = (x: ArrayLike<number>, i: number, hi: boolean) => { if (i < 9) return null; let m = x[i]; for (let j = i - 9; j <= i; j++) m = hi ? Math.max(m, x[j]) : Math.min(m, x[j]); return m };
+  const hh = Array.from({ length: n }, (_, i) => win(B.H, i, true)), ll = Array.from({ length: n }, (_, i) => win(B.L, i, false));
+  const rel = hh.map((h, i) => h === null || ll[i] === null ? null : B.C[i] - (h + (ll[i] as number)) / 2), rng = hh.map((h, i) => h === null || ll[i] === null ? null : h - (ll[i] as number));
+  const a = ema(ema(rel, 3), 3), b = ema(ema(rng, 3), 3);
+  const smi: Nn[] = a.map((v, i) => v === null || b[i] === null || b[i] === 0 ? null : 200 * (v / (b[i] as number)));
+  const out = { bull_div: new Array<Nn>(n).fill(null), bear_div: new Array<Nn>(n).fill(null), buy_a: new Array<Nn>(n).fill(null),
+    swing_high: new Array<Nn>(n).fill(null), swing_low: new Array<Nn>(n).fill(null) };
+  const ev = { highs: [] as { bar: number; price: number }[], lows: [] as { bar: number; price: number }[],
+    bears: [] as { t: number; b0: number; p0: number; b1: number; p1: number }[], bulls: [] as { t: number; b0: number; p0: number; b1: number; p1: number }[],
+    buys: [] as number[], line: null as null | { from: number; level: number } };
+  let tL = false, tH = false, cLP = NaN, cLS = NaN, cLB = -1, cHP = NaN, cHS = NaN, cHB = -1;
+  let lLP: Nn = null, lLS: Nn = null, lLB = -1, lHP: Nn = null, lHS: Nn = null, lHB = -1;
+  let armed = false, level: Nn = null, triggered = false;
+  for (let t = 0; t < n; t++) {
+    const s = smi[t], s1 = t > 0 ? smi[t - 1] : null;
+    const up0 = s !== null && s1 !== null && s > 0 && s1 <= 0, dn0 = s !== null && s1 !== null && s < 0 && s1 >= 0;
+    if (s !== null && s < -40 && !tL) { tL = true; cLP = B.L[t]; cLS = s; cLB = t }
+    if (s !== null && s > 40 && !tH) { tH = true; cHP = B.H[t]; cHS = s; cHB = t }
+    if (tL) {
+      if (priceMode) { if (B.L[t] < cLP) { cLP = B.L[t]; cLB = t } if (s !== null && s < cLS) cLS = s }
+      else if (s !== null && s < -40 && s < cLS) { cLP = B.L[t]; cLS = s; cLB = t }
+    }
+    if (tH) {
+      if (priceMode) { if (B.H[t] > cHP) { cHP = B.H[t]; cHB = t } if (s !== null && s > cHS) cHS = s }
+      else if (s !== null && s > 40 && s > cHS) { cHP = B.H[t]; cHS = s; cHB = t }
+    }
+    let bull = 0, bear = 0, buy = 0;
+    if (tH && dn0) {
+      const pP = lHP, pS = lHS, pB = lHB;
+      lHP = cHP; lHS = cHS; lHB = cHB; tH = false; ev.highs.push({ bar: lHB, price: lHP });
+      if (pP !== null && lHP > pP && lHS < (pS as number)) { bear = 1; ev.bears.push({ t, b0: pB, p0: pP, b1: lHB, p1: lHP }) }
+    }
+    if (tL && up0) {
+      const pP = lLP, pS = lLS, pB = lLB;
+      lLP = cLP; lLS = cLS; lLB = cLB; tL = false; ev.lows.push({ bar: lLB, price: lLP });
+      if (pP !== null && lLP < pP && lLS > (pS as number)) {
+        bull = 1; ev.bulls.push({ t, b0: pB, p0: pP, b1: lLB, p1: lLP });
+        armed = true; level = lHP; triggered = false; ev.line = level !== null ? { from: lLB, level } : null;
+      }
+    }
+    if (armed && !triggered && level !== null && B.C[t] > level) { triggered = true; buy = 1; ev.buys.push(t); ev.line = null }
+    if (triggered) armed = false;
+    if (s !== null) { out.bull_div[t] = bull; out.bear_div[t] = bear; out.buy_a[t] = buy }
+    out.swing_high[t] = lHP; out.swing_low[t] = lLP;
+  }
+  return { out, ev };
+}
+const isPriceMode = (p: Record<string, unknown>) => p.swing_mode === 'Proposed (Price extreme)';
+F.alpha_divergence = def('alpha_divergence', ['bull_div', 'bear_div', 'buy_a', 'swing_high', 'swing_low'], () => 'HLC',
+  (B: Seg, p) => divergenceRun(B, B.N, isPriceMode(p)).out);
+/* The Terminal's drawing: TradingView's colours (color.red, color.lime, color.green) */
+DRAWINGS.alpha_divergence = (B, p0) => {
+  const p = { ...DEFAULTS.alpha_divergence, ...p0 }, n = B.C.length, ok = (i: number) => [B.H, B.L, B.C].every(x => Number.isFinite(x[i] as number));
+  const d: Drawing = { marks: [], segments: [], shades: [] };
+  // the drawing runs on each stretch of bars with prices, as F does (def's segments)
+  for (let s = 0; s < n;) {
+    while (s < n && !ok(s)) s++;
+    let e = s; while (e < n && ok(e)) e++;
+    if (e > s) {
+      const cut = (x: ArrayLike<number | null | undefined>) => Array.from({ length: e - s }, (_, i) => x[s + i] as number);
+      const { ev } = divergenceRun({ H: cut(B.H), L: cut(B.L), C: cut(B.C) }, e - s, isPriceMode(p));
+      for (const h of ev.highs) d.marks!.push({ i: s + h.bar, layer: 'swings', position: 'aboveBar', shape: 'arrowDown', color: '#ff5252', text: 'SH' });
+      for (const l of ev.lows) d.marks!.push({ i: s + l.bar, layer: 'swings', position: 'belowBar', shape: 'arrowUp', color: '#00e676', text: 'SL' });
+      for (const x of ev.bears) {
+        d.marks!.push({ i: s + x.b1, layer: 'divergences', position: 'aboveBar', shape: 'arrowDown', color: '#ff5252', text: 'BEAR DIV' });
+        d.segments!.push({ i0: s + x.b0, v0: x.p0, i1: s + x.b1, v1: x.p1, layer: 'divergences', color: '#ff5252', width: 2 });
+        d.shades!.push({ i0: s + x.b0, i1: s + x.b1, layer: 'shading', color: '#ff5252' });
+      }
+      for (const x of ev.bulls) {
+        d.marks!.push({ i: s + x.b1, layer: 'divergences', position: 'belowBar', shape: 'arrowUp', color: '#00e676', text: 'BULL DIV' });
+        d.segments!.push({ i0: s + x.b0, v0: x.p0, i1: s + x.b1, v1: x.p1, layer: 'divergences', color: '#00e676', width: 2 });
+        d.shades!.push({ i0: s + x.b0, i1: s + x.b1, layer: 'shading', color: '#00e676' });
+      }
+      for (const t of ev.buys) d.marks!.push({ i: s + t, layer: 'buy_a', position: 'belowBar', shape: 'arrowUp', color: '#4caf50', text: 'BUY A' });
+      // the BUY A level still waiting at the end of the stretch (TradingView deletes it when it triggers or a new one comes)
+      if (ev.line) d.segments!.push({ i0: s + ev.line.from, v0: ev.line.level, i1: e - 1, v1: ev.line.level, layer: 'buy_a', color: '#4caf50', width: 1, dash: true, ray: e === n });
+    }
+    s = e;
+  }
+  return d;
+};

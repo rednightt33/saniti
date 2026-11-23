@@ -582,7 +582,7 @@ test('price lines are the price levels of the overlay indicators (the page\'s LE
   assert.deepEqual(LEVEL_LINES, [...ids('I01', ['sma']), ...ids('I02', ['ema']), ...ids('I03', ['wma']), ...ids('I04', ['hma']), ...ids('I05', ['kama']),
     ...ids('I09', ['supertrend']), ...ids('I10', ['upper', 'basis', 'lower']), ...ids('I11', ['upper', 'basis', 'lower']), ...ids('I12', ['sar']),
     ...ids('I27', ['upper', 'basis', 'lower']), ...ids('I42', ['vwma']), ...ids('I43', ['vwap', 'upper1', 'lower1']),
-    ...ids('I56', ['level_1', 'level_a', 'level_b']), ...ids('I57', ['level_1', 'level_a', 'level_b']), ...ids('I58', ['kama', 'ema_x'])]);
+    ...ids('I56', ['level_1', 'level_a', 'level_b']), ...ids('I57', ['level_1', 'level_a', 'level_b']), ...ids('I58', ['kama', 'ema_x']), ...ids('I60', ['swing_high', 'swing_low'])]);
   // derived, not named: every line is an output the unit probe marks as a price, of an indicator drawn on the price
   for (const l of LEVEL_LINES) assert.ok(priceLevels(l.indicator).includes(l.output), `${l.indicator}.${l.output}`);
   const m = market({ AAA: { bars: put(flat(10), 3, { v: 2000 }) } });

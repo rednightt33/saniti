@@ -5,7 +5,7 @@
      2. Flow indicators (Net Buy Flow, Net Buy Flow (Line)): hand-written schema (inputs[], style[], compute, title).
    Backend: window.marketLabIndicators.export() / import() carry the saved list as JSON.
    Ported line for line; closure values the reference reassigns are read from ctx. */
-import { DEFAULTS, F, isN } from '../calc/indicators';
+import { DEFAULTS, DRAWINGS, F, isN } from '../calc/indicators';
 import { initFlowIndicators } from './flowIndicators';
 import type { Ctx } from './context';
 import { draggable } from './draggable';
@@ -76,6 +76,9 @@ export function initIndicators(ctx: Ctx) {
          opacity}), each in its own colour, two colours where `color2` is given (a >= b in color, else color2: Alpha
          Extract's cloud between BDO and Signal); they follow the indicator's fill switch */
       fills:Array.isArray(r.fills) && r.fills.length ? r.fills : null,
+      /* EXEC-PINE-INDICATORS: a drawing on the price chart beside the outputs (calc/indicators.ts DRAWINGS: labels on
+         earlier candles, segments, a level ray, background ranges), in the layers the registry names (`layers`) */
+      drawing:DRAWINGS[r.key] ? (p => DRAWINGS[r.key](BARS, p)) : null, layers:Array.isArray(r.layers) && r.layers.length ? r.layers : null,
       pane:r.zone === 'panel' ? 'sub' : r.zone,              // 'overlay' (candle pane, price axis) | 'volume' (volume axis) | 'sub' (own pane)
       format:u.fmt, minMove:u.minMove,
       compute:p => DAY && dailyOnly(r) ? onTheCandles(F[r.key](DAILY_BARS, p)) : F[r.key](BARS, p),
@@ -113,7 +116,43 @@ export function initIndicators(ctx: Ctx) {
       if(Array.isArray(o.colors) && o.colors[0]) { s.color = o.colors[0]; if(o.colors[1]) s.color2 = o.colors[1] }
       out[o.k] = s;
     });
-    return { out, guides:{ on:r.guides.length > 0, levels:r.guides.join(', ') }, fill:{ on:!!r.fill || !!(r.fills && r.fills.length), opacity:10 }, opacity:100, offset:0 };
+    return { out, guides:{ on:r.guides.length > 0, levels:r.guides.join(', ') }, fill:{ on:!!r.fill || !!(r.fills && r.fills.length), opacity:10 }, opacity:100, offset:0,
+      ...(Array.isArray(r.layers) && r.layers.length ? { layers:Object.fromEntries(r.layers.map(l => [l.k, l.on !== false])) } : {}) };
+  }
+  /* EXEC-PINE-INDICATORS: an indicator's drawing on the price chart (DRAWINGS): segments between two candles (a ray runs
+     to the right edge; dashed where the source dashes it) and background ranges over whole candles */
+  class DrawingPrim {
+    d: any; views: any[]; chart: any; series: any; req: any;
+    constructor() {
+      this.d = null; const self = this;
+      // the ranges under the candles (as BandFill), the segments over them
+      this.views = [{ zOrder:() => 'bottom', renderer:() => ({ draw:() => {}, drawBackground:t => self.paint(t, true) }) }, { zOrder:() => 'normal', renderer:() => ({ draw:t => self.paint(t, false) }) }];
+    }
+    attached(p) { this.chart = p.chart; this.series = p.series; this.req = p.requestUpdate }
+    detached() { this.chart = null }
+    set(d) { this.d = d; if(this.req) this.req() }
+    updateAllViews() {}
+    paneViews() { return this.views }
+    paint(target, bg) {
+      const d = this.d; if(!d || !this.chart) return;
+      const ts = this.chart.timeScale();
+      target.useBitmapCoordinateSpace(({ context:ctx, horizontalPixelRatio:hx, verticalPixelRatio:vy, bitmapSize }) => {
+        if(bg) {
+          // whole candles: half a bar's spacing beyond each end (logicalToCoordinate takes whole bars only)
+          const half = (ts.options().barSpacing || 6) / 2;
+          for(const sh of d.shades) { const x0 = ts.logicalToCoordinate(sh.i0), x1 = ts.logicalToCoordinate(sh.i1); if(x0 === null || x1 === null) continue;
+            ctx.fillStyle = sh.color; ctx.fillRect((Math.min(x0, x1) - half) * hx, 0, (Math.abs(x1 - x0) + 2 * half) * hx, bitmapSize.height) }
+          return;
+        }
+        for(const sg of d.segments) {
+          const x0 = ts.logicalToCoordinate(sg.i0), x1 = sg.ray ? bitmapSize.width / hx : ts.logicalToCoordinate(sg.i1), y0 = this.series.priceToCoordinate(sg.v0), y1 = this.series.priceToCoordinate(sg.v1);
+          if(x0 === null || x1 === null || y0 === null || y1 === null) continue;
+          ctx.strokeStyle = sg.color; ctx.lineWidth = Math.max(1, (sg.width || 1) * hx); ctx.setLineDash(sg.dash ? [4 * hx, 3 * hx] : []);
+          ctx.beginPath(); ctx.moveTo(x0 * hx, y0 * vy); ctx.lineTo(x1 * hx, y1 * vy); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      });
+    }
   }
   const merge = (a, b) => { if(!b || typeof b !== 'object') return a; const o = Array.isArray(a) ? [...a] : { ...a }; for(const k in b) o[k] = a && typeof a[k] === 'object' && a[k] !== null && !Array.isArray(a[k]) ? merge(a[k], b[k]) : b[k]; return o };
 
@@ -691,6 +730,19 @@ export function initIndicators(ctx: Ctx) {
       guideLevels(inst).forEach(lv =>
         inst.guideLines.push([host, host.createPriceLine({ price:lv, color:gs.color || '#a3a3a3', lineWidth:gs.width || 1, lineStyle:gStyle, axisLabelVisible:false, title:'' })]));
     }
+    if(inst.def.drawing) {
+      const host = ctx.chartStyle === 'line' || ctx.displayMode === 'return' ? ctx.mainLine : ctx.candle;
+      if(inst.drawHost !== host) {
+        if(inst.drawPrim) { try { inst.drawHost.detachPrimitive(inst.drawPrim) } catch(e) {} }
+        if(inst.drawMarks) inst.drawMarks.detach();
+        inst.drawPrim = new DrawingPrim(); host.attachPrimitive(inst.drawPrim); inst.drawMarks = L.createSeriesMarkers(host, []); inst.drawHost = host;
+      }
+      const D = drawn(inst) ? inst.drawingData : null, on = (k: string) => !!D && (st.layers?.[k] ?? true);
+      inst.drawMarks.setMarkers(keyedMarkers(D ? (D.marks || []).filter(m => on(m.layer) && m.i >= 0 && m.i < ohlc.length).sort((x, y) => x.i - y.i)
+        .map(m => ({ time:ohlc[m.i].time, position:m.position, shape:m.shape, color:alpha(m.color, op), size:1, ...(m.text ? { text:m.text } : {}) })) : []));
+      inst.drawPrim.set(D ? { segments:(D.segments || []).filter(g => on(g.layer)).map(g => ({ ...g, v0:conv(g.v0), v1:conv(g.v1), color:alpha(g.color, op) })),
+        shades:(D.shades || []).filter(h => on(h.layer)).map(h => ({ ...h, color:alpha(h.color, .12 * op) })) } : null);
+    }
     (inst.fillPrims || []).forEach(({ f, prim }) => {
       const pa = inst.parts.find(x => x.o.k === f.a), pb = inst.parts.find(x => x.o.k === f.b), A = inst.disp[f.a], Bv = inst.disp[f.b];
       const on = st.fill.on && pa && pb && A && Bv && shown(pa) && shown(pb), o = (f.opacity ?? .12) * op;
@@ -916,7 +968,7 @@ export function initIndicators(ctx: Ctx) {
   const recompute = inst => {
     freezeTokens(inst);
     if(inst.def.outsOf && inst.parts && plotKeyOf(inst.def.outsOf(inst.params)) !== inst.plotKey) rebuildParts(inst);
-    inst.raw = inst.def.compute(inst.params); refresh(inst);
+    inst.raw = inst.def.compute(inst.params); inst.drawingData = inst.def.drawing ? inst.def.drawing(inst.params) : null; refresh(inst);
     (inst.flt || []).forEach(f => f.sync && f.sync());
   };
   // live: the broker files arrive after the first draw; the flow indicators are computed again then (EXEC-TERMINAL-UI-1026 U5)
@@ -1083,6 +1135,8 @@ export function initIndicators(ctx: Ctx) {
     if(inst.foldBtn) inst.foldBtn.remove();
     if(inst.moveBox) inst.moveBox.remove();
     if(inst.box) inst.box.remove();
+    if(inst.drawPrim) { try { inst.drawHost.detachPrimitive(inst.drawPrim) } catch(e) {} }       // a drawing sits on the price series, which stays
+    if(inst.drawMarks) inst.drawMarks.detach();
     if(inst.def.multi) inst.parts.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     else if(inst.def.lines) (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series)); else chart.removeSeries(inst.series);
     inst.row.remove(); paintLg();
@@ -1239,6 +1293,8 @@ export function initIndicators(ctx: Ctx) {
         sel([5, 10, 15, 20, 30], st.fill.opacity, v => { st.fill.opacity = +v; refresh(inst) }, v => v + '%'));
       /* the source's own areas (registry `fills`) keep their colours: a switch only */
       else if(def.fills) extra([checkbox(st.fill.on, v => { st.fill.on = v; refresh(inst) }, 'Fills'), document.createTextNode('Fills')], document.createElement('span'));
+      /* a drawing's layers (registry `layers`): one switch each */
+      (def.layers || []).forEach(l => extra([checkbox(st.layers?.[l.k] !== false, v => { st.layers = { ...(st.layers || {}), [l.k]:v }; refresh(inst) }, l.label), document.createTextNode(l.label)], document.createElement('span')));
       if(r.guides.length || r.levelsParam) {                            // levelsParam: offered with no default (Flow FL08, FL21, FL37)
         const t = document.createElement('input'); t.type = 'text'; t.className = 'idlg-in'; t.value = st.guides.levels; t.setAttribute('aria-label', 'Reference levels');
         t.oninput = () => { st.guides.levels = t.value; refresh(inst) };

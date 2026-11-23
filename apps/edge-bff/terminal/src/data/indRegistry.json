@@ -4460,5 +4460,117 @@
 "info": "Alpha Extract (Baseline Deviation Oscillator): garis dasar = median 4 nilai EMA 23 harga; BDO = EMA 5 dari (close - garis dasar) / ATR 14; Signal = EMA BDO. Batas atas/bawah = EMA 10 dari BDO tertinggi/terendah 120 sesi (0 sebelum ada), ekstrem 1,2 kalinya. BULL saat BDO menembus ke atas batas bawah atau ekstrem bawah; BEAR saat menembus ke bawah batas atas atau ekstrem atas.",
 "display": "Garis BDO dua warna, Signal, batas dan zona dinamis, awan BDO-Signal dan label BULL/BEAR di panel terpisah",
 "position": "Separate indicator pane"
+},
+{
+"id": "I60",
+"cat": "Momentum",
+"name": "Alpha Divergence",
+"key": "alpha_divergence",
+"short": "Alpha Divergence",
+"req": "HLC",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "bull_div",
+"label": "BULL DIV",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session a swing low is confirmed (SMI crosses above 0) with a lower low and a higher SMI than the swing low before."
+},
+{
+"k": "bear_div",
+"label": "BEAR DIV",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session a swing high is confirmed (SMI crosses below 0) with a higher high and a lower SMI than the swing high before."
+},
+{
+"k": "buy_a",
+"label": "BUY A",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the first close above the last swing high after a BULL DIV."
+},
+{
+"k": "swing_high",
+"label": "Last swing high",
+"r": "line",
+"role": "numeric_line",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "The price of the last swing high confirmed up to the session.",
+"colors": [
+"#ff5252"
+],
+"step": true
+},
+{
+"k": "swing_low",
+"label": "Last swing low",
+"r": "line",
+"role": "numeric_line",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "The price of the last swing low confirmed up to the session.",
+"colors": [
+"#00e676"
+],
+"step": true
+}
+],
+"params": [
+{
+"k": "swing_mode",
+"label": "Swing Detection Mode",
+"type": "enum",
+"def": "Original (SMI extreme)",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"Original (SMI extreme)",
+"Proposed (Price extreme)"
+]
+}
+],
+"layers": [
+{
+"k": "swings",
+"label": "Swing labels (SH, SL)",
+"on": true
+},
+{
+"k": "divergences",
+"label": "BULL DIV and BEAR DIV labels and lines",
+"on": true
+},
+{
+"k": "buy_a",
+"label": "BUY A label and level",
+"on": true
+},
+{
+"k": "shading",
+"label": "Background over each divergence (green BULL, red BEAR)",
+"on": false
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Divergensi harga dan SMI di swing high/low, dengan label BULL DIV, BEAR DIV dan BUY A.",
+"info": "Swing low dilacak saat SMI (K 10, D 3) di bawah -40 dan dikonfirmasi saat SMI menembus 0 ke atas; swing high sebaliknya. BULL DIV: low swing terakhir lebih rendah dari sebelumnya sementara SMI-nya lebih tinggi; BEAR DIV kebalikannya. BUY A: close pertama di atas swing high terakhir sesudah BULL DIV. Label SH/SL/DIV digambar di candle swing seperti TradingView (diketahui saat konfirmasi); Screener dan Backtest memakai hari konfirmasi.",
+"display": "Label swing dan divergensi, garis divergensi, level BUY A dan arsiran latar opsional di chart harga",
+"position": "Price chart overlay (candle pane)"
 }
 ]

@@ -273,6 +273,19 @@ export function def(key: string, outs: string[], need: (p: Params) => string, ca
 }
 export const SRC = (p: Params) => needSrc(p.source);
 
+/* EXEC-PINE-INDICATORS: a drawing an indicator shows on the Terminal only, beside its outputs (Alpha Divergence: the
+   labels at the swing candles, which TradingView places in hindsight, the divergence lines, the BUY A level, the
+   background ranges). Never an output of F: the Screener, the Backtest and the look-ahead gate read F alone, so a
+   drawing may place a mark on an earlier bar than the day it became known. Keyed by the registry entry's `key`; each mark,
+   segment and shade names its layer (registry `layers`, the switches of the style tab). Empty in the public build: the
+   lab module registers its own. */
+export interface Drawing {
+  marks?: { i: number; layer: string; position: 'aboveBar' | 'belowBar'; shape: 'arrowUp' | 'arrowDown' | 'circle' | 'square'; color: string; text?: string }[];
+  segments?: { i0: number; v0: number; i1: number; v1: number; layer: string; color: string; width?: number; dash?: boolean; ray?: boolean }[];
+  shades?: { i0: number; i1: number; layer: string; color: string }[];
+}
+export const DRAWINGS: Record<string, (B: Bars, p: Params) => Drawing> = {};
+
 /* ---- the 53 indicators ---- */
 export const F: Record<string, IndicatorFn> = {
   /* I01 SMA: FEATURE_04 (TA-Lib SMA) */

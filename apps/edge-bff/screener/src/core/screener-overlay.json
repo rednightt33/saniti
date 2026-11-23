@@ -3757,6 +3757,171 @@
           "tests": []
         }
       }
+    },
+    "I60": {
+      "shape": "line",
+      "synonyms": [
+        "Alpha Divergence",
+        "divergence",
+        "SMI",
+        "swing high",
+        "swing low",
+        "BUY A"
+      ],
+      "description": "Price and SMI divergences at confirmed swing highs and lows, the BUY A breakout after a bullish divergence, and the last swing levels.",
+      "default_test": {
+        "form": "event_value",
+        "output": "bull_div",
+        "op": "crosses_above",
+        "value": 0.5,
+        "within": 5
+      },
+      "outputs": {
+        "bull_div": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "BULL DIV on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "BULL DIV"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "bear_div": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "BEAR DIV on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "BEAR DIV"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "buy_a": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "BUY A on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "BUY A"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "swing_high": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above the last swing high",
+                "lt": "Close below the last swing high"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "swing_low": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above the last swing low",
+                "lt": "Close below the last swing low"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        }
+      }
     }
   }
 }

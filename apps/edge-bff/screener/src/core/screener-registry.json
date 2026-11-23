@@ -1,28 +1,28 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "acc938a82c597dd9",
-  "registry_version": "894bf3610c25e498",
+  "screener_registry_version": "763971c1e640fbbc",
+  "registry_version": "269e5febcc9cb8f2",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
     {
       "role": "base",
       "file": "apps/edge-bff/backtest/src/core/backtest-registry.json",
-      "sha256": "0d5c74ef7daec8ddb92712750b839fd301ffffb1fcb535336f88a354f16f4ecc"
+      "sha256": "b52e52800904319982bb8f109151e16b384723efc8a68725b1eccdea8ec61638"
     },
     {
       "role": "terminal",
       "file": "apps/edge-bff/terminal/src/data/indRegistry.json",
-      "sha256": "e32159ab67fba87cb673201d408f58f5a0522d49c6ff27605d06cdf979e8f824"
+      "sha256": "a7861120710e8a3709c47c6d7d92a27c181764a57c8de4607649958d0f8c3d2b"
     },
     {
       "role": "calc",
       "file": "apps/edge-bff/terminal/src/calc/indicators.ts",
-      "sha256": "0a1970687081686145ffc68a6aee2401f6d53d2bcbf351fc44eea1f4b2d99a7a"
+      "sha256": "6cc9f8bbfb07e98c2cd2c6ea203f254fc54d96d309cb9fdffedfc892d76dd705"
     },
     {
       "role": "overlay",
       "file": "apps/edge-bff/screener/src/core/screener-overlay.json",
-      "sha256": "948afa06e317974903d0a1f2c36ba58d09110f331f4e3cb058ed577ffa393c0b"
+      "sha256": "680ee122b92f34f7580db900b5e74baa8cb69e535e31355886142aed5febcf86"
     },
     {
       "role": "oracle",
@@ -116,7 +116,7 @@
       "name": "Simple Moving Average",
       "category": "Trend",
       "short": "SMA",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -318,7 +318,7 @@
       "name": "Exponential Moving Average",
       "category": "Trend",
       "short": "EMA",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -538,7 +538,7 @@
       "name": "Weighted Moving Average",
       "category": "Trend",
       "short": "WMA",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -698,7 +698,7 @@
       "name": "Hull Moving Average",
       "category": "Trend",
       "short": "HMA",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -858,7 +858,7 @@
       "name": "Kaufman Adaptive Moving Average",
       "category": "Trend",
       "short": "KAMA",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -1044,7 +1044,7 @@
       "name": "MACD",
       "category": "Trend",
       "short": "MACD",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "fast_length",
@@ -1375,7 +1375,7 @@
       "name": "Average Directional Index",
       "category": "Trend",
       "short": "DMI",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "di_length",
@@ -1552,7 +1552,7 @@
       "name": "Aroon Indicator",
       "category": "Trend",
       "short": "Aroon",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -1680,7 +1680,7 @@
       "name": "Supertrend",
       "category": "Trend",
       "short": "Supertrend",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "atr_length",
@@ -1827,7 +1827,7 @@
       "name": "Donchian Channels",
       "category": "Trend",
       "short": "DC",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -1995,7 +1995,7 @@
       "name": "Keltner Channels",
       "category": "Trend",
       "short": "KC",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -2411,7 +2411,7 @@
       "name": "Parabolic SAR",
       "category": "Trend",
       "short": "SAR",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "start",
@@ -2561,7 +2561,7 @@
       "name": "Relative Strength Index",
       "category": "Momentum",
       "short": "RSI",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -2707,7 +2707,7 @@
       "name": "Stochastic RSI",
       "category": "Momentum",
       "short": "Stoch RSI",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "rsi_length",
@@ -2959,7 +2959,7 @@
       "name": "Stochastic Oscillator",
       "category": "Momentum",
       "short": "Stoch",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "k_length",
@@ -3117,7 +3117,7 @@
       "name": "Williams %R",
       "category": "Momentum",
       "short": "%R",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -3260,7 +3260,7 @@
       "name": "Rate of Change",
       "category": "Momentum",
       "short": "ROC",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -3423,7 +3423,7 @@
       "name": "Momentum",
       "category": "Momentum",
       "short": "Mom",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -3557,7 +3557,7 @@
       "name": "Commodity Channel Index",
       "category": "Momentum",
       "short": "CCI",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -3669,7 +3669,7 @@
       "name": "Chande Momentum Oscillator",
       "category": "Momentum",
       "short": "CMO",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -3804,7 +3804,7 @@
       "name": "True Strength Index",
       "category": "Momentum",
       "short": "TSI",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "long_length",
@@ -4035,7 +4035,7 @@
       "name": "TRIX",
       "category": "Momentum",
       "short": "TRIX",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -4169,7 +4169,7 @@
       "name": "Ultimate Oscillator",
       "category": "Momentum",
       "short": "UO",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "fast_length",
@@ -4319,7 +4319,7 @@
       "name": "Awesome Oscillator",
       "category": "Momentum",
       "short": "AO",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "fast_length",
@@ -4418,7 +4418,7 @@
       "name": "Percentage Price Oscillator",
       "category": "Momentum",
       "short": "PPO",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "fast_length",
@@ -4721,7 +4721,7 @@
       "name": "Balance of Power",
       "category": "Momentum",
       "short": "BOP",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -4801,7 +4801,7 @@
       "name": "Bollinger Bands",
       "category": "Volatility",
       "short": "BB",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -5199,7 +5199,7 @@
       "name": "Bollinger %B",
       "category": "Volatility",
       "short": "%B",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -5400,7 +5400,7 @@
       "name": "Bollinger Bandwidth",
       "category": "Volatility",
       "short": "BBW",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -5602,7 +5602,7 @@
       "name": "Average True Range",
       "category": "Volatility",
       "short": "ATR",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -5738,7 +5738,7 @@
       "name": "Normalized ATR",
       "category": "Volatility",
       "short": "NATR",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -5879,7 +5879,7 @@
       "name": "Standard Deviation",
       "category": "Volatility",
       "short": "StdDev",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -6056,7 +6056,7 @@
       "name": "Historical Volatility",
       "category": "Volatility",
       "short": "HV",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -6237,7 +6237,7 @@
       "name": "Average Daily Range",
       "category": "Volatility",
       "short": "ADR",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -6328,7 +6328,7 @@
       "name": "Volume SMA",
       "category": "Volume",
       "short": "Vol SMA",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -6432,7 +6432,7 @@
       "name": "Volume EMA",
       "category": "Volume",
       "short": "Vol EMA",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -6527,7 +6527,7 @@
       "name": "Relative Volume",
       "category": "Volume",
       "short": "RVOL",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -6637,7 +6637,7 @@
       "name": "Percentage Volume Oscillator",
       "category": "Volume",
       "short": "PVO",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "fast_length",
@@ -6815,7 +6815,7 @@
       "name": "Volume Rate of Change",
       "category": "Volume",
       "short": "VROC",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -6901,7 +6901,7 @@
       "name": "On-Balance Volume",
       "category": "PriceVolume",
       "short": "OBV",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -7005,7 +7005,7 @@
       "name": "Price Volume Trend",
       "category": "PriceVolume",
       "short": "PVT",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -7109,7 +7109,7 @@
       "name": "Volume Weighted Moving Average",
       "category": "PriceVolume",
       "short": "VWMA",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -7277,7 +7277,7 @@
       "name": "Volume Weighted Average Price",
       "category": "PriceVolume",
       "short": "VWAP",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "anchor",
@@ -7759,7 +7759,7 @@
       "name": "Accumulation/Distribution Line",
       "category": "PriceVolume",
       "short": "ADL",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -7865,7 +7865,7 @@
       "name": "Chaikin Money Flow",
       "category": "PriceVolume",
       "short": "CMF",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -7954,7 +7954,7 @@
       "name": "Chaikin Oscillator",
       "category": "PriceVolume",
       "short": "Chaikin Osc",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "fast_length",
@@ -8055,7 +8055,7 @@
       "name": "Money Flow Index",
       "category": "PriceVolume",
       "short": "MFI",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -8144,7 +8144,7 @@
       "name": "Elder's Force Index",
       "category": "PriceVolume",
       "short": "EFI",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -8230,7 +8230,7 @@
       "name": "Ease of Movement",
       "category": "PriceVolume",
       "short": "EOM",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "length",
@@ -8335,7 +8335,7 @@
       "name": "Negative Volume Index",
       "category": "PriceVolume",
       "short": "NVI",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "initial_value",
@@ -8453,7 +8453,7 @@
       "name": "Positive Volume Index",
       "category": "PriceVolume",
       "short": "PVI",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "initial_value",
@@ -8571,7 +8571,7 @@
       "name": "Klinger Volume Oscillator",
       "category": "PriceVolume",
       "short": "KVO",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "fast_length",
@@ -8729,7 +8729,7 @@
       "name": "Market Facilitation Index",
       "category": "PriceVolume",
       "short": "MFI (BW)",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "volume_scale",
@@ -8821,7 +8821,7 @@
       "name": "Alpha Volatile",
       "category": "Volatility",
       "short": "Alpha Volatile",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "ma_type",
@@ -9458,7 +9458,7 @@
       "name": "Inside Bar Detection",
       "category": "Trend",
       "short": "Inside Bar",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -9642,7 +9642,7 @@
       "name": "Alpha Price Action BUY",
       "category": "Trend",
       "short": "Price Action BUY",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "lookback_length",
@@ -10075,7 +10075,7 @@
       "name": "Alpha Price Action SELL",
       "category": "Trend",
       "short": "Price Action SELL",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "lookback_length",
@@ -10508,7 +10508,7 @@
       "name": "Alpha KAMA",
       "category": "Trend",
       "short": "Alpha KAMA",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "kama_length",
@@ -11072,7 +11072,7 @@
       "name": "Alpha Extract",
       "category": "Momentum",
       "short": "Alpha Extract",
-      "formula_version": "894bf3610c25e498",
+      "formula_version": "269e5febcc9cb8f2",
       "params": [
         {
           "key": "ma_type",
@@ -12138,6 +12138,365 @@
         "default_test": {
           "form": "event_value",
           "output": "bull",
+          "op": "crosses_above",
+          "value": 0.5,
+          "within": 5
+        }
+      },
+      "probe_params": null,
+      "oracle": [],
+      "oracle_note": null
+    },
+    {
+      "id": "I60",
+      "key": "alpha_divergence",
+      "name": "Alpha Divergence",
+      "category": "Momentum",
+      "short": "Alpha Divergence",
+      "formula_version": "269e5febcc9cb8f2",
+      "params": [
+        {
+          "key": "swing_mode",
+          "type": "enum",
+          "label": "Swing Detection Mode",
+          "default": "Original (SMI extreme)",
+          "options": [
+            "Original (SMI extreme)",
+            "Proposed (Price extreme)"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "narrowing": []
+        }
+      ],
+      "start_params": {
+        "swing_mode": "Original (SMI extreme)"
+      },
+      "default_offered": true,
+      "hidden_params": [],
+      "fixed_params": [],
+      "outputs": [
+        {
+          "key": "bull_div",
+          "label": "BULL DIV",
+          "display_unit": "price",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 13,
+          "inputs": [
+            "H",
+            "L",
+            "C"
+          ],
+          "inputs_by_source": {
+            "swing_mode": {
+              "Original (SMI extreme)": [
+                "H",
+                "L",
+                "C"
+              ],
+              "Proposed (Price extreme)": [
+                "H",
+                "L",
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "BULL DIV on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "BULL DIV"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "bear_div",
+          "label": "BEAR DIV",
+          "display_unit": "price",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 13,
+          "inputs": [
+            "H",
+            "L",
+            "C"
+          ],
+          "inputs_by_source": {
+            "swing_mode": {
+              "Original (SMI extreme)": [
+                "H",
+                "L",
+                "C"
+              ],
+              "Proposed (Price extreme)": [
+                "H",
+                "L",
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "BEAR DIV on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "BEAR DIV"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "buy_a",
+          "label": "BUY A",
+          "display_unit": "price",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 13,
+          "inputs": [
+            "H",
+            "L",
+            "C"
+          ],
+          "inputs_by_source": {
+            "swing_mode": {
+              "Original (SMI extreme)": [
+                "H",
+                "L",
+                "C"
+              ],
+              "Proposed (Price extreme)": [
+                "H",
+                "L",
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "BUY A on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "BUY A"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "swing_high",
+          "label": "Last swing high",
+          "display_unit": "price",
+          "unit": "price",
+          "level_comparable": true,
+          "comparable_with": "close",
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 73,
+          "inputs": [
+            "H",
+            "L",
+            "C"
+          ],
+          "inputs_by_source": {
+            "swing_mode": {
+              "Original (SMI extreme)": [
+                "H",
+                "L",
+                "C"
+              ],
+              "Proposed (Price extreme)": [
+                "H",
+                "L",
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above the last swing high",
+                "lt": "Close below the last swing high"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "swing_low",
+          "label": "Last swing low",
+          "display_unit": "price",
+          "unit": "price",
+          "level_comparable": true,
+          "comparable_with": "close",
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 46,
+          "inputs": [
+            "H",
+            "L",
+            "C"
+          ],
+          "inputs_by_source": {
+            "swing_mode": {
+              "Original (SMI extreme)": [
+                "H",
+                "L",
+                "C"
+              ],
+              "Proposed (Price extreme)": [
+                "H",
+                "L",
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above the last swing low",
+                "lt": "Close below the last swing low"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ],
+          "disabled_tests": []
+        }
+      ],
+      "history_class": "window",
+      "cost_class": "O(N)",
+      "description": "Price and SMI divergences at confirmed swing highs and lows, the BUY A breakout after a bullish divergence, and the last swing levels.",
+      "overlay": {
+        "shape": "line",
+        "synonyms": [
+          "Alpha Divergence",
+          "divergence",
+          "SMI",
+          "swing high",
+          "swing low",
+          "BUY A"
+        ],
+        "default_test": {
+          "form": "event_value",
+          "output": "bull_div",
           "op": "crosses_above",
           "value": 0.5,
           "within": 5

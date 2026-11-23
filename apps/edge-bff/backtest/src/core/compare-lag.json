@@ -74,6 +74,10 @@
     "I58": [
       "kama",
       "ema_x"
+    ],
+    "I60": [
+      "swing_high",
+      "swing_low"
     ]
   }
 }

@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "registry_version": "894bf3610c25e498",
+  "registry_version": "269e5febcc9cb8f2",
   "generated_by": "apps/backtest-worker/scripts/build-registry.mjs",
   "sources": [
     {
       "file": "apps/edge-bff/terminal/src/data/indRegistry.json",
-      "sha256": "e32159ab67fba87cb673201d408f58f5a0522d49c6ff27605d06cdf979e8f824"
+      "sha256": "a7861120710e8a3709c47c6d7d92a27c181764a57c8de4607649958d0f8c3d2b"
     },
     {
       "file": "apps/edge-bff/terminal/src/calc/indicators.ts",
-      "sha256": "0a1970687081686145ffc68a6aee2401f6d53d2bcbf351fc44eea1f4b2d99a7a"
+      "sha256": "6cc9f8bbfb07e98c2cd2c6ea203f254fc54d96d309cb9fdffedfc892d76dd705"
     }
   ],
   "indicators": [
@@ -2498,6 +2498,39 @@
           "min": 1,
           "max": 3,
           "step": 0.1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I60",
+      "key": "alpha_divergence",
+      "name": "Alpha Divergence",
+      "category": "Momentum",
+      "function": "F.alpha_divergence",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "bull_div",
+        "bear_div",
+        "buy_a",
+        "swing_high",
+        "swing_low"
+      ],
+      "params": [
+        {
+          "key": "swing_mode",
+          "type": "enum",
+          "default": "Original (SMI extreme)",
+          "options": [
+            "Original (SMI extreme)",
+            "Proposed (Price extreme)"
+          ]
         }
       ],
       "not_accepted": [],
