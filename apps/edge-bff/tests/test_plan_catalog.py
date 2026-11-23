@@ -434,5 +434,9 @@ def test_the_catalog_route_filters_by_the_resolved_plan(on, store, monkeypatch):
         assert c.get('/api/v1/catalog/indicator').json()['entries'] == []              # the default plan: {"ids": []}
         sign_in(c, 'paul', 'paul-password')
         got = [e['id'] for e in c.get('/api/v1/catalog/indicator').json()['entries']]
-        assert got == [i for i in indicators if i != lab] and lab not in got           # released held, lab refused
+        # released held, lab refused: the one this test marks and every one the release file holds at lab (EXEC-PINE-
+        # INDICATORS put I54-I58 there; the expected list is derived from the stages, never "all but the last")
+        held = [i for i in indicators if i != lab and releases.stage_of('indicator', i) == 'released']
+        assert got == held and lab not in got and len(held) >= 53
+        assert not {i for i in indicators if releases.stage_of('indicator', i) == 'lab'} & set(got)
         assert c.get('/api/v1/catalog/nothing').status_code == 404

@@ -8886,6 +8886,20 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M556 — A plan catalog test assumed one lab indicator, so the branch's Backend tests turned red with I55-I58 (2026-11-23; fixed on the branch, see the commit after `0f74f931`)
+
+- **Found by:** CI "Backend tests", job edge-bff, on the session branch at `0613006c` and `4111a5c3`:
+  `tests/test_plan_catalog.py::test_the_catalog_route_filters_by_the_resolved_plan` (1 failed, 1256 passed).
+- **Verified root cause:** the test marks the last indicator of the release file as lab and expected every other one in
+  a "released" plan's catalog (`[i for i in indicators if i != lab]`, line 437). With the pilot I54 alone at lab that held;
+  with I54-I58 at lab the route rightly leaves I54-I57 out too, and the expectation was wrong, not the route.
+- **Class:** a test expectation written from the data of its day ("every item but this one is released") instead of the
+  rule it checks; every new lab or preview item meets it. The other catalog tests derive the expectation from the stages
+  (`test_beta_live_site.py`, `test_preview_stage.py`, checked: 52 passed).
+- **Solution:** the expectation is the indicators the release file holds at `released`, the marked one aside, and no
+  indicator at `lab` is in the answer.
+- **Status:** fixed on the branch; local run 16 passed (the file) and 52 passed (the tests that read the release file).
+
 ### M555 — The Screener's unit probe judged a series by its start, so a Pine recursion from 0 was not a price level (2026-11-23; fixed on the branch in `7f193584`)
 
 - **Found by:** the lab indicator Alpha KAMA (I58, EXEC-PINE-INDICATORS): `npm run registry` in `apps/edge-bff/screener`
