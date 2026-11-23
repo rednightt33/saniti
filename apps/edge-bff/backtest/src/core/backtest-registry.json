@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "registry_version": "514dc3df60a25aff",
+  "registry_version": "8d000db5ddcd354e",
   "generated_by": "apps/backtest-worker/scripts/build-registry.mjs",
   "sources": [
     {
       "file": "apps/edge-bff/terminal/src/data/indRegistry.json",
-      "sha256": "6a9bc397d8572629c764997c616bd06e0317c1a8fb343016c35803c523c7d924"
+      "sha256": "2f428f6bdd24628edfb4c5a9993b11cb32f94c08b570768ec956ea1e1c1be105"
     },
     {
       "file": "apps/edge-bff/terminal/src/calc/indicators.ts",
-      "sha256": "88977c1b8d0f399d9bd2b08d6a9c42d427cd450ed18c831f0fffad8b9aec3da5"
+      "sha256": "0a1970687081686145ffc68a6aee2401f6d53d2bcbf351fc44eea1f4b2d99a7a"
     }
   ],
   "indicators": [
@@ -2110,6 +2110,72 @@
           "default": 1,
           "min": 0,
           "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I54",
+      "key": "alpha_volatile",
+      "name": "Alpha Volatile",
+      "category": "Volatility",
+      "function": "F.alpha_volatile",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "distance",
+        "decile",
+        "upper_z",
+        "lower_z",
+        "direction",
+        "outside_up",
+        "outside_down",
+        "outside_any",
+        "back_in_up",
+        "back_in_down",
+        "back_in_any"
+      ],
+      "params": [
+        {
+          "key": "ma_type",
+          "type": "enum",
+          "default": "EMA",
+          "options": [
+            "SMA",
+            "EMA"
+          ]
+        },
+        {
+          "key": "ma_length",
+          "type": "integer",
+          "default": 26,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "lookback_length",
+          "type": "integer",
+          "default": 100,
+          "min": 2,
+          "step": 1
+        },
+        {
+          "key": "decile",
+          "type": "integer",
+          "default": 9,
+          "min": 1,
+          "max": 10,
+          "step": 1
+        },
+        {
+          "key": "z_multiplier",
+          "type": "number",
+          "default": 2,
+          "min": 0,
+          "step": 0.1
         }
       ],
       "not_accepted": [],

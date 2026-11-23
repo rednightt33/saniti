@@ -3366,5 +3366,206 @@
 "info": "Market Facilitation Index versi Bill Williams menghitung (High − Low) / Volume. Angka ini menggambarkan rentang harga per unit volume dan berbeda dari Money Flow Index (MFI).",
 "display": "Histogram Market Facilitation Index di panel terpisah",
 "position": "Separate indicator pane"
+},
+{
+"id": "I54",
+"cat": "Volatility",
+"name": "Alpha Volatile",
+"key": "alpha_volatile",
+"short": "Alpha Volatile",
+"req": "C",
+"zone": "panel",
+"unit": "price_difference",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "distance",
+"label": "Distance",
+"r": "dots",
+"role": "marker_dots",
+"vis": true,
+"w": 2,
+"rule": "trend_up_down",
+"cond": "Close minus the moving average; red outside the Z band, blue inside.",
+"colors": [
+"#2962ff",
+"#f23645"
+]
+},
+{
+"k": "decile",
+"label": "Decile",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#ff9800"
+]
+},
+{
+"k": "upper_z",
+"label": "Upper Z",
+"r": "line",
+"role": "boundary_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": "",
+"colors": [
+"#f23645"
+]
+},
+{
+"k": "lower_z",
+"label": "Lower Z",
+"r": "line",
+"role": "boundary_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": "",
+"colors": [
+"#4caf50"
+]
+},
+{
+"k": "direction",
+"label": "Inside the band",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "trend_up_down",
+"cond": "1 inside the Z band, -1 outside; drives the dot colours."
+},
+{
+"k": "outside_up",
+"label": "Outside above",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 when the distance is above the upper Z band."
+},
+{
+"k": "outside_down",
+"label": "Outside below",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 when the distance is below the lower Z band."
+},
+{
+"k": "outside_any",
+"label": "Outside the band",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 when the distance is outside the Z band."
+},
+{
+"k": "back_in_up",
+"label": "Back inside from above",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session the distance returns inside the band after being above it."
+},
+{
+"k": "back_in_down",
+"label": "Back inside from below",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session the distance returns inside the band after being below it."
+},
+{
+"k": "back_in_any",
+"label": "Back inside the band",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session the distance returns inside the band after being outside it."
+}
+],
+"params": [
+{
+"k": "ma_type",
+"label": "MA Type",
+"type": "enum",
+"def": "EMA",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"SMA",
+"EMA"
+]
+},
+{
+"k": "ma_length",
+"label": "MA Period",
+"type": "integer",
+"def": 26,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Moving average bar count"
+},
+{
+"k": "lookback_length",
+"label": "Rolling Lookback",
+"type": "integer",
+"def": 100,
+"ev": "PROPOSED_DEFAULT",
+"min": 2,
+"step": 1,
+"hint": "Window of the decile and the Z band"
+},
+{
+"k": "decile",
+"label": "Decile (1-10)",
+"type": "integer",
+"def": 9,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"max": 10,
+"step": 1
+},
+{
+"k": "z_multiplier",
+"label": "Z-Score Multiplier",
+"type": "number",
+"def": 2,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 0.1
+}
+],
+"guides": [
+0.0
+],
+"guideStyle": {
+"color": "#000000",
+"width": 3,
+"style": "solid"
+},
+"fill": null,
+"tip": "Jarak harga penutupan dari moving average, dengan pita Z dan desil dari riwayat jaraknya sendiri.",
+"info": "Alpha Volatile mengukur seberapa jauh close dari moving average-nya dalam rupiah. Titik merah berarti jarak itu keluar dari pita rata-rata plus minus Z kali standar deviasi jarak selama periode lookback.",
+"display": "Titik jarak, desil dan pita Z di panel terpisah",
+"position": "Separate indicator pane"
 }
 ]

@@ -104,6 +104,9 @@ export function initIndicators(ctx: Ctx) {
       else if(/(^|_)(minus|down|sell)(_|$)/.test(o.k)) s.color = DOWN;
       else if(o.role === 'boundary_line') s.color = base;
       else s.color = n++ === 0 ? base : PALETTE[(PALETTE.indexOf(base) + n) % 6];
+      /* EXEC-PINE-INDICATORS: colours an indicator brings from its source (Pine), registry `colors` [main, second], set
+         last so they win over the renderer's defaults (Alpha Volatile: blue dots, red outside the band) */
+      if(Array.isArray(o.colors) && o.colors[0]) { s.color = o.colors[0]; if(o.colors[1]) s.color2 = o.colors[1] }
       out[o.k] = s;
     });
     return { out, guides:{ on:r.guides.length > 0, levels:r.guides.join(', ') }, fill:{ on:!!r.fill, opacity:10 }, opacity:100, offset:0 };
@@ -660,8 +663,11 @@ export function initIndicators(ctx: Ctx) {
     });
     if(st.guides && st.guides.on && drawn(inst)) {
       const host = inst.parts[0].series;
+      /* EXEC-PINE-INDICATORS: a reference line drawn as its source draws it (registry `guideStyle` {color, width, style};
+         Alpha Volatile's thick black 0), else the light dashed default */
+      const gs = r.guideStyle || {}, gStyle = gs.style === 'solid' ? L.LineStyle.Solid : gs.style === 'dotted' ? L.LineStyle.Dotted : L.LineStyle.Dashed;
       guideLevels(inst).forEach(lv =>
-        inst.guideLines.push([host, host.createPriceLine({ price:lv, color:'#a3a3a3', lineWidth:1, lineStyle:L.LineStyle.Dashed, axisLabelVisible:false, title:'' })]));
+        inst.guideLines.push([host, host.createPriceLine({ price:lv, color:gs.color || '#a3a3a3', lineWidth:gs.width || 1, lineStyle:gStyle, axisLabelVisible:false, title:'' })]));
     }
     if(inst.fillPrim) {
       const [ka, kb] = inst.def.fill, pa = inst.parts.find(x => x.o.k === ka), pb = inst.parts.find(x => x.o.k === kb);

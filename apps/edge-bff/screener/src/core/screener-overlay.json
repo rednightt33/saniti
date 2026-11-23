@@ -2758,6 +2758,253 @@
           ]
         }
       }
+    },
+    "I54": {
+      "shape": "osc",
+      "synonyms": [
+        "Alpha Volatile",
+        "tail move",
+        "distance from moving average",
+        "Z band"
+      ],
+      "description": "Close minus its moving average against a Z band of that distance's own history; flags when it leaves and re-enters the band.",
+      "default_test": {
+        "form": "event_value",
+        "output": "back_in_any",
+        "op": "crosses_above",
+        "value": 0.5,
+        "within": 5
+      },
+      "outputs": {
+        "distance": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "gt"
+              ],
+              "with_output": "upper_z",
+              "labels": {
+                "gt": "Distance above the upper Z band"
+              }
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "lt"
+              ],
+              "with_output": "lower_z",
+              "labels": {
+                "lt": "Distance below the lower Z band"
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "defaults": {
+                "value": 0
+              }
+            }
+          ]
+        },
+        "decile": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "upper_z": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "lower_z": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "direction": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Inside the Z band",
+                "lt": "Outside the Z band"
+              },
+              "defaults": {
+                "value": 0
+              }
+            }
+          ]
+        },
+        "outside_up": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Outside above the Z band"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Left the band upward"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "outside_down": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Outside below the Z band"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Left the band downward"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "outside_any": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Outside the Z band"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Left the Z band"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "back_in_up": {
+          "tests": [
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Back inside from above"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "back_in_down": {
+          "tests": [
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Back inside from below"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "back_in_any": {
+          "tests": [
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Back inside the Z band"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        }
+      }
     }
   }
 }

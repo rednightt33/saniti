@@ -1,28 +1,28 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "d3fe0eed5f9abd79",
-  "registry_version": "514dc3df60a25aff",
+  "screener_registry_version": "a7ddff55befe4184",
+  "registry_version": "8d000db5ddcd354e",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
     {
       "role": "base",
       "file": "apps/edge-bff/backtest/src/core/backtest-registry.json",
-      "sha256": "8bf2d7597bc87d4e9ddd8f2394d0943abe1b9a6a1a35d3e1ad11f2448054d035"
+      "sha256": "6f7df5d1fdd776ca89ee42e4cc22d8df82cec7897b653a17b990e4e3d4301d54"
     },
     {
       "role": "terminal",
       "file": "apps/edge-bff/terminal/src/data/indRegistry.json",
-      "sha256": "6a9bc397d8572629c764997c616bd06e0317c1a8fb343016c35803c523c7d924"
+      "sha256": "2f428f6bdd24628edfb4c5a9993b11cb32f94c08b570768ec956ea1e1c1be105"
     },
     {
       "role": "calc",
       "file": "apps/edge-bff/terminal/src/calc/indicators.ts",
-      "sha256": "88977c1b8d0f399d9bd2b08d6a9c42d427cd450ed18c831f0fffad8b9aec3da5"
+      "sha256": "0a1970687081686145ffc68a6aee2401f6d53d2bcbf351fc44eea1f4b2d99a7a"
     },
     {
       "role": "overlay",
       "file": "apps/edge-bff/screener/src/core/screener-overlay.json",
-      "sha256": "b5c56826281b5e8d3a6692219dc9433e031069b3849666728ba949ec93404832"
+      "sha256": "bac18a88ebfd0e53526923c24a3bbde5ecc9de953af9b716572507bc118eba68"
     },
     {
       "role": "oracle",
@@ -115,7 +115,7 @@
       "name": "Simple Moving Average",
       "category": "Trend",
       "short": "SMA",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -317,7 +317,7 @@
       "name": "Exponential Moving Average",
       "category": "Trend",
       "short": "EMA",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -537,7 +537,7 @@
       "name": "Weighted Moving Average",
       "category": "Trend",
       "short": "WMA",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -697,7 +697,7 @@
       "name": "Hull Moving Average",
       "category": "Trend",
       "short": "HMA",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -857,7 +857,7 @@
       "name": "Kaufman Adaptive Moving Average",
       "category": "Trend",
       "short": "KAMA",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -1043,7 +1043,7 @@
       "name": "MACD",
       "category": "Trend",
       "short": "MACD",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "fast_length",
@@ -1374,7 +1374,7 @@
       "name": "Average Directional Index",
       "category": "Trend",
       "short": "DMI",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "di_length",
@@ -1551,7 +1551,7 @@
       "name": "Aroon Indicator",
       "category": "Trend",
       "short": "Aroon",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -1679,7 +1679,7 @@
       "name": "Supertrend",
       "category": "Trend",
       "short": "Supertrend",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "atr_length",
@@ -1826,7 +1826,7 @@
       "name": "Donchian Channels",
       "category": "Trend",
       "short": "DC",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -1994,7 +1994,7 @@
       "name": "Keltner Channels",
       "category": "Trend",
       "short": "KC",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -2410,7 +2410,7 @@
       "name": "Parabolic SAR",
       "category": "Trend",
       "short": "SAR",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "start",
@@ -2560,7 +2560,7 @@
       "name": "Relative Strength Index",
       "category": "Momentum",
       "short": "RSI",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -2706,7 +2706,7 @@
       "name": "Stochastic RSI",
       "category": "Momentum",
       "short": "Stoch RSI",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "rsi_length",
@@ -2958,7 +2958,7 @@
       "name": "Stochastic Oscillator",
       "category": "Momentum",
       "short": "Stoch",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "k_length",
@@ -3116,7 +3116,7 @@
       "name": "Williams %R",
       "category": "Momentum",
       "short": "%R",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -3259,7 +3259,7 @@
       "name": "Rate of Change",
       "category": "Momentum",
       "short": "ROC",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -3422,7 +3422,7 @@
       "name": "Momentum",
       "category": "Momentum",
       "short": "Mom",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -3556,7 +3556,7 @@
       "name": "Commodity Channel Index",
       "category": "Momentum",
       "short": "CCI",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -3668,7 +3668,7 @@
       "name": "Chande Momentum Oscillator",
       "category": "Momentum",
       "short": "CMO",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -3803,7 +3803,7 @@
       "name": "True Strength Index",
       "category": "Momentum",
       "short": "TSI",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "long_length",
@@ -4034,7 +4034,7 @@
       "name": "TRIX",
       "category": "Momentum",
       "short": "TRIX",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -4168,7 +4168,7 @@
       "name": "Ultimate Oscillator",
       "category": "Momentum",
       "short": "UO",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "fast_length",
@@ -4318,7 +4318,7 @@
       "name": "Awesome Oscillator",
       "category": "Momentum",
       "short": "AO",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "fast_length",
@@ -4417,7 +4417,7 @@
       "name": "Percentage Price Oscillator",
       "category": "Momentum",
       "short": "PPO",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "fast_length",
@@ -4720,7 +4720,7 @@
       "name": "Balance of Power",
       "category": "Momentum",
       "short": "BOP",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -4800,7 +4800,7 @@
       "name": "Bollinger Bands",
       "category": "Volatility",
       "short": "BB",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -5198,7 +5198,7 @@
       "name": "Bollinger %B",
       "category": "Volatility",
       "short": "%B",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -5399,7 +5399,7 @@
       "name": "Bollinger Bandwidth",
       "category": "Volatility",
       "short": "BBW",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -5601,7 +5601,7 @@
       "name": "Average True Range",
       "category": "Volatility",
       "short": "ATR",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -5737,7 +5737,7 @@
       "name": "Normalized ATR",
       "category": "Volatility",
       "short": "NATR",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -5878,7 +5878,7 @@
       "name": "Standard Deviation",
       "category": "Volatility",
       "short": "StdDev",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -6055,7 +6055,7 @@
       "name": "Historical Volatility",
       "category": "Volatility",
       "short": "HV",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -6236,7 +6236,7 @@
       "name": "Average Daily Range",
       "category": "Volatility",
       "short": "ADR",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -6327,7 +6327,7 @@
       "name": "Volume SMA",
       "category": "Volume",
       "short": "Vol SMA",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -6431,7 +6431,7 @@
       "name": "Volume EMA",
       "category": "Volume",
       "short": "Vol EMA",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -6526,7 +6526,7 @@
       "name": "Relative Volume",
       "category": "Volume",
       "short": "RVOL",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -6636,7 +6636,7 @@
       "name": "Percentage Volume Oscillator",
       "category": "Volume",
       "short": "PVO",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "fast_length",
@@ -6814,7 +6814,7 @@
       "name": "Volume Rate of Change",
       "category": "Volume",
       "short": "VROC",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -6900,7 +6900,7 @@
       "name": "On-Balance Volume",
       "category": "PriceVolume",
       "short": "OBV",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -7004,7 +7004,7 @@
       "name": "Price Volume Trend",
       "category": "PriceVolume",
       "short": "PVT",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -7108,7 +7108,7 @@
       "name": "Volume Weighted Moving Average",
       "category": "PriceVolume",
       "short": "VWMA",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -7276,7 +7276,7 @@
       "name": "Volume Weighted Average Price",
       "category": "PriceVolume",
       "short": "VWAP",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "anchor",
@@ -7758,7 +7758,7 @@
       "name": "Accumulation/Distribution Line",
       "category": "PriceVolume",
       "short": "ADL",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -7864,7 +7864,7 @@
       "name": "Chaikin Money Flow",
       "category": "PriceVolume",
       "short": "CMF",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -7953,7 +7953,7 @@
       "name": "Chaikin Oscillator",
       "category": "PriceVolume",
       "short": "Chaikin Osc",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "fast_length",
@@ -8054,7 +8054,7 @@
       "name": "Money Flow Index",
       "category": "PriceVolume",
       "short": "MFI",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -8143,7 +8143,7 @@
       "name": "Elder's Force Index",
       "category": "PriceVolume",
       "short": "EFI",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -8229,7 +8229,7 @@
       "name": "Ease of Movement",
       "category": "PriceVolume",
       "short": "EOM",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "length",
@@ -8334,7 +8334,7 @@
       "name": "Negative Volume Index",
       "category": "PriceVolume",
       "short": "NVI",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "initial_value",
@@ -8452,7 +8452,7 @@
       "name": "Positive Volume Index",
       "category": "PriceVolume",
       "short": "PVI",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "initial_value",
@@ -8570,7 +8570,7 @@
       "name": "Klinger Volume Oscillator",
       "category": "PriceVolume",
       "short": "KVO",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "fast_length",
@@ -8728,7 +8728,7 @@
       "name": "Market Facilitation Index",
       "category": "PriceVolume",
       "short": "MFI (BW)",
-      "formula_version": "514dc3df60a25aff",
+      "formula_version": "8d000db5ddcd354e",
       "params": [
         {
           "key": "volume_scale",
@@ -8807,6 +8807,643 @@
           "output": "market_fi",
           "op": "gt",
           "value": 0,
+          "within": 5
+        }
+      },
+      "probe_params": null,
+      "oracle": [],
+      "oracle_note": null
+    },
+    {
+      "id": "I54",
+      "key": "alpha_volatile",
+      "name": "Alpha Volatile",
+      "category": "Volatility",
+      "short": "Alpha Volatile",
+      "formula_version": "8d000db5ddcd354e",
+      "params": [
+        {
+          "key": "ma_type",
+          "type": "enum",
+          "label": "MA Type",
+          "default": "EMA",
+          "options": [
+            "SMA",
+            "EMA"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "narrowing": []
+        },
+        {
+          "key": "ma_length",
+          "type": "integer",
+          "label": "MA Period",
+          "default": 26,
+          "min": 1,
+          "step": 1,
+          "exclusive_min": true,
+          "integer": true,
+          "narrowing": [
+            {
+              "rule": "exclusive_min",
+              "source": "degeneracy_probe",
+              "evidence": "at ma_length = 1: distance is constant (0)"
+            }
+          ],
+          "cost_class": "O(N)"
+        },
+        {
+          "key": "lookback_length",
+          "type": "integer",
+          "label": "Rolling Lookback",
+          "default": 100,
+          "min": 2,
+          "step": 1,
+          "exclusive_min": true,
+          "integer": true,
+          "narrowing": [
+            {
+              "rule": "exclusive_min",
+              "source": "degeneracy_probe",
+              "evidence": "at lookback_length = 2: direction is constant (1)"
+            }
+          ],
+          "cost_class": "O(N·n)"
+        },
+        {
+          "key": "decile",
+          "type": "integer",
+          "label": "Decile (1-10)",
+          "default": 9,
+          "min": 1,
+          "max": 10,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "narrowing": [],
+          "cost_class": "O(N)"
+        },
+        {
+          "key": "z_multiplier",
+          "type": "number",
+          "label": "Z-Score Multiplier",
+          "default": 2,
+          "min": 0,
+          "step": 0.1,
+          "exclusive_min": true,
+          "integer": false,
+          "narrowing": [
+            {
+              "rule": "exclusive_min",
+              "source": "degeneracy_probe",
+              "evidence": "at z_multiplier = 0: direction is constant (-1)"
+            }
+          ]
+        }
+      ],
+      "start_params": {
+        "ma_type": "EMA",
+        "ma_length": 26,
+        "lookback_length": 100,
+        "decile": 9,
+        "z_multiplier": 2
+      },
+      "default_offered": true,
+      "hidden_params": [],
+      "fixed_params": [],
+      "outputs": [
+        {
+          "key": "distance",
+          "label": "Distance",
+          "display_unit": "price_difference",
+          "unit": "price_change",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "recursive",
+          "first_valid_bar": 25,
+          "inputs": [
+            "C"
+          ],
+          "inputs_by_source": {
+            "ma_type": {
+              "SMA": [
+                "C"
+              ],
+              "EMA": [
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "gt"
+              ],
+              "with_output": "upper_z",
+              "labels": {
+                "gt": "Distance above the upper Z band"
+              }
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "lt"
+              ],
+              "with_output": "lower_z",
+              "labels": {
+                "lt": "Distance below the lower Z band"
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "defaults": {
+                "value": 0
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "decile",
+          "label": "Decile",
+          "display_unit": "price_difference",
+          "unit": "price_change",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "recursive",
+          "first_valid_bar": 124,
+          "inputs": [
+            "C"
+          ],
+          "inputs_by_source": {
+            "ma_type": {
+              "SMA": [
+                "C"
+              ],
+              "EMA": [
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "upper_z",
+          "label": "Upper Z",
+          "display_unit": "price_difference",
+          "unit": "price_change",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "recursive",
+          "first_valid_bar": 124,
+          "inputs": [
+            "C"
+          ],
+          "inputs_by_source": {
+            "ma_type": {
+              "SMA": [
+                "C"
+              ],
+              "EMA": [
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "lower_z",
+          "label": "Lower Z",
+          "display_unit": "price_difference",
+          "unit": "price_change",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "recursive",
+          "first_valid_bar": 124,
+          "inputs": [
+            "C"
+          ],
+          "inputs_by_source": {
+            "ma_type": {
+              "SMA": [
+                "C"
+              ],
+              "EMA": [
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "direction",
+          "label": "Inside the band",
+          "display_unit": "price_difference",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 124,
+          "inputs": [
+            "C"
+          ],
+          "inputs_by_source": {
+            "ma_type": {
+              "SMA": [
+                "C"
+              ],
+              "EMA": [
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Inside the Z band",
+                "lt": "Outside the Z band"
+              },
+              "defaults": {
+                "value": 0
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "outside_up",
+          "label": "Outside above",
+          "display_unit": "price_difference",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 124,
+          "inputs": [
+            "C"
+          ],
+          "inputs_by_source": {
+            "ma_type": {
+              "SMA": [
+                "C"
+              ],
+              "EMA": [
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Outside above the Z band"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Left the band upward"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "outside_down",
+          "label": "Outside below",
+          "display_unit": "price_difference",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 124,
+          "inputs": [
+            "C"
+          ],
+          "inputs_by_source": {
+            "ma_type": {
+              "SMA": [
+                "C"
+              ],
+              "EMA": [
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Outside below the Z band"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Left the band downward"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "outside_any",
+          "label": "Outside the band",
+          "display_unit": "price_difference",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 124,
+          "inputs": [
+            "C"
+          ],
+          "inputs_by_source": {
+            "ma_type": {
+              "SMA": [
+                "C"
+              ],
+              "EMA": [
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Outside the Z band"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Left the Z band"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "back_in_up",
+          "label": "Back inside from above",
+          "display_unit": "price_difference",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 124,
+          "inputs": [
+            "C"
+          ],
+          "inputs_by_source": {
+            "ma_type": {
+              "SMA": [
+                "C"
+              ],
+              "EMA": [
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Back inside from above"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "back_in_down",
+          "label": "Back inside from below",
+          "display_unit": "price_difference",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 124,
+          "inputs": [
+            "C"
+          ],
+          "inputs_by_source": {
+            "ma_type": {
+              "SMA": [
+                "C"
+              ],
+              "EMA": [
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Back inside from below"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "back_in_any",
+          "label": "Back inside the band",
+          "display_unit": "price_difference",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 124,
+          "inputs": [
+            "C"
+          ],
+          "inputs_by_source": {
+            "ma_type": {
+              "SMA": [
+                "C"
+              ],
+              "EMA": [
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Back inside the Z band"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ],
+          "disabled_tests": []
+        }
+      ],
+      "history_class": "recursive",
+      "cost_class": "O(N·n)",
+      "description": "Close minus its moving average against a Z band of that distance's own history; flags when it leaves and re-enters the band.",
+      "overlay": {
+        "shape": "osc",
+        "synonyms": [
+          "Alpha Volatile",
+          "tail move",
+          "distance from moving average",
+          "Z band"
+        ],
+        "default_test": {
+          "form": "event_value",
+          "output": "back_in_any",
+          "op": "crosses_above",
+          "value": 0.5,
           "within": 5
         }
       },

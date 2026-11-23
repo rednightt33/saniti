@@ -55,6 +55,7 @@
     {"kind": "indicator", "id": "I51", "stage": "released"},
     {"kind": "indicator", "id": "I52", "stage": "released"},
     {"kind": "indicator", "id": "I53", "stage": "released"},
+    {"kind": "indicator", "id": "I54", "stage": "lab"},
     {"kind": "flow_indicator", "id": "FL01", "stage": "released"},
     {"kind": "flow_indicator", "id": "FL02", "stage": "released"},
     {"kind": "flow_indicator", "id": "FL03", "stage": "released"},

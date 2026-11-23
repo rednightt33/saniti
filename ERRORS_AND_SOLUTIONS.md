@@ -8886,6 +8886,26 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23, open, asked of the user)
+
+- **Found by:** the pilot lab indicator Alpha Volatile (EXEC-PINE-INDICATORS, id I54), Part A "The tripwire in Part A".
+- **Symptom:** `npm run tripwire -- --record-core --exec EXEC-PINE-INDICATORS ...` (and `--record`) in `apps/edge-bff/screener`
+  answer "NOT recorded: formula or Feature 04 paths differ from origin/main (no record approves these):
+  apps/edge-bff/terminal/src/calc/indicators.ts, apps/edge-bff/terminal/src/data/indRegistry.json".
+- **Verified root cause:** `scripts/screener/check_backtest_untouched.mjs` `ALWAYS` holds `calc/indicators.ts` and
+  `data/indRegistry.json`, and "no record can approve" a difference there (its header; the record modes refuse while ALWAYS
+  differs). Part A of the guide changes both by design: step 3 appends the registry row, step 1 (the first lab indicator)
+  exports the wrapper. The guide's dry run of 2026-11-23 did not run the record step.
+- **Class:** a guard written for one build (the Screener never changes the formulas, report 7.1) applied unchanged to a
+  later path whose purpose is to change them (a registry release, Part A and Part B); the same refusal meets every lab and
+  released indicator.
+- **Effect today:** none on CI (the tripwire is not in CI). Against `origin/main` the tripwire passes again once `main`
+  holds the change (the base then equals the tree).
+- **Proposal (asked of the user):** the tripwire's ALWAYS rule accepts a registry release that an EXEC section records
+  (the record names the indicator ids and the user's words), and Part A's step names the exact command; or the guide
+  drops the record step for Part A and keeps the post-merge check.
+- **Status:** open.
+
 ### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed in `61fb22c4`, on the beta since 2026-11-23 (`fb4a5c3c`))
 
 - **The check (the user 2026-11-23: "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error =

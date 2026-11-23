@@ -17184,6 +17184,21 @@ registry final diberikan saat dibangun, berurutan sesudah baris terakhir `indReg
 Part 0): pilot Alpha Volatile mendapat id bebas pertama; label I54–I60 di bawah adalah label kerja. Deploy beta tetap
 dengan konfirmasi user per deploy.
 
+#### Pilot: Alpha Volatile (id registry I54), 2026-11-23
+
+- Dibangun di branch (Part A langkah 1–9): pembungkus rumus diekspor (`calc/indicators.ts` `def`, `srcOf`, `SRC`, `Seg`);
+  rumus di `terminal/src/lab/index.ts` (`alpha_volatile`); baris registry I54 (`indRegistry.json`, warna dari Pine lewat
+  field baru `colors` per output dan `guideStyle` untuk garis 0 hitam tebal; `terminal/src/app/indicators.ts` membacanya);
+  `releases.json` I54 `lab`; overlay Screener (keadaan dan kejadian keluar pita, masuk kembali, jarak vs pita); registry
+  Backtest dan Screener dibuat ulang (`registry:check` hijau).
+- Uji: `terminal/tests/calc/alpha_volatile.test.ts` 7/7 terhadap implementasi terpisah bersemantik Pine (gagal pada dua
+  varian rumus salah); Terminal 1.106, Screener 1.358, halaman Backtest 99 lulus; backtest-worker 284/285 dan
+  screener-worker 141/143 (yang gagal adalah tes batas memori heap, gagal sama pada `main` tanpa perubahan di mesin ini);
+  edge-bff lab/release 103 lulus; `check_image_imports` kedua worker; `look_check11` PASS. Gambar di beta dengan build lab
+  lokal (BBRI): titik biru/merah, desil oranye, pita merah/hijau, garis 0 hitam tebal, tanpa error.
+- Tripwire Backtest: rekaman ditolak (ERRORS M553), ditanyakan ke user.
+- Deploy beta: menunggu konfirmasi user.
+
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
 - Rumus (dibaca dari Pine, kausal): baseline = median 4 bar dari MA(source, 23) (EMA; pilihan RMA/SMA/WMA/HMA/TEMA);

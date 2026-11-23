@@ -197,8 +197,8 @@ function kDmi(H: number[], L: number[], C: number[], d: number, a: number) {
 
 /* ---- sources, bar segments and parameter handling ---- */
 const SOURCE_NEED: Record<string, string> = { open:'O', high:'H', low:'L', close:'C', hl2:'HL', hlc3:'HLC', ohlc4:'OHLC' };
-interface Seg { O: number[]; H: number[]; L: number[]; C: number[]; V: number[]; T: string[]; N: number }
-const srcOf = (B: Seg, s: string): number[] => {
+export interface Seg { O: number[]; H: number[]; L: number[]; C: number[]; V: number[]; T: string[]; N: number }
+export const srcOf = (B: Seg, s: string): number[] => {
   const n = B.N;
   switch(s){
     case 'open': return B.O; case 'high': return B.H; case 'low': return B.L;
@@ -241,7 +241,7 @@ const LENGTH_KEYS = /(^|_)(length|smoothing|smooth_k|smooth_d|periods)$/;
  * Wraps an indicator: merges defaults, checks lengths (integers >= 1, floored) and numeric
  * parameters, then runs `calc` on each segment of bars whose `need` inputs are finite.
  */
-function def(key: string, outs: string[], need: (p: Params) => string, calc: (B: Seg, p: Params) => Out): IndicatorFn {
+export function def(key: string, outs: string[], need: (p: Params) => string, calc: (B: Seg, p: Params) => Out): IndicatorFn {
   return (B, p0 = {}) => {
     const p: Params = { ...DEFAULTS[key], ...p0 }, N = B.C.length, res: Out = {};
     for(const k of outs) res[k] = nul(N);
@@ -271,7 +271,7 @@ function def(key: string, outs: string[], need: (p: Params) => string, calc: (B:
     return res;
   };
 }
-const SRC = (p: Params) => needSrc(p.source);
+export const SRC = (p: Params) => needSrc(p.source);
 
 /* ---- the 53 indicators ---- */
 export const F: Record<string, IndicatorFn> = {
