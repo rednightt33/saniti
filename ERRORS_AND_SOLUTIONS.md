@@ -8886,6 +8886,22 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M557 — The Terminal broke a Pine line at a bar without a value, where TradingView runs it on (2026-11-23; fixed on the branch in `2ebbf6b5`)
+
+- **Found by:** the user, comparing the Alpha Price Action BUY / SELL screenshots with TradingView (2026-11-23: "untuk
+  candle A, buy dan sell, sepertinya ada line chart yang putus-putus").
+- **Verified root cause:** the values are the same (BBCA's last bar: Candle 1 / A / B High 5,200 / 5,825 / 6,125 in both).
+  A level is missing while no Candle A or B is found within N candles (BBCA: A on 304 bars in 99 stretches, B on 490 in
+  68). Pine draws these levels with `plot.style_stepline`, which, like `style_line`, bridges a missing value (the
+  breaking styles are `style_steplinebr` and `style_linebr`); `terminal/src/app/indicators.ts` drew every line with a
+  whitespace point there, so it broke (a rule made for our own lines: "a gap, not a bridge", agent 5 F1).
+- **Class:** an output translated from a Pine plot drawn with a joining style and holding missing values: the Price
+  Action levels, Alpha KAMA's line (missing on its first bars), and any later Pine line of that kind.
+- **Solution:** per output `join: true` (indRegistry) draws no point on a missing bar, so the line holds its last value
+  to the next one; set on I56 / I57 level_1, level_a, level_b and I58 kama. Every other line keeps the gap.
+- **Lesson for new data:** read each Pine `plot`'s style when translating: a joining style is `join: true`.
+- **Status:** fixed on the branch (`2ebbf6b5`); look_check11 PASS; deploys with the lab indicators.
+
 ### M556 — A plan catalog test assumed one lab indicator, so the branch's Backend tests turned red with I55-I58 (2026-11-23; fixed on the branch in `a52b07bf`)
 
 - **Found by:** CI "Backend tests", job edge-bff, on the session branch at `0613006c` and `4111a5c3`:

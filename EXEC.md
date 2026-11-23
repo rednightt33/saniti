@@ -16706,6 +16706,8 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD25 | Step 9 window, test-out F1: while registration is open any client can make the live site send code emails to any address (per-address and per-hour limits only): (a) keep it open the 24 hours and the agent watches `email_sent` and closes early on a burst, or (b) close it as soon as the user has finished testing | 2026-11-23 (twice, with context; 0 code emails sent 03:24-06:20 UTC) | the window's spam exposure | while the window is open (until 2026-11-24 03:24 UTC) |
   | UD26 | Step 9 window, F2: is the close at 2026-11-24 10:24 WIB confirmed in advance (a variable change that redeploys edge-bff-live), so the agent runs it on time, or asked again then | 2026-11-23 (twice, with context) | the window's close | 2026-11-24 03:24 UTC |
   | UD29 | ERRORS M553, the Backtest tripwire for indicator releases (EXEC-TRIPWIRE-LAB): (a) the tool takes a release record (the ALWAYS paths' content hash, the ids, the user's words), or (b) the guide drops the record step and the release is evidenced by CI, the formula tests and EXEC | 2026-11-23 with context (the user: "Ok untuk M553 -- masukan exec dulu"; the choice asked again with the options) | the guide's record step; a content-hash record of the Backtest core changes of EXEC-PINE-INDICATORS (M554, M555) | before the next indicator release to the live site or the next Backtest core change |
+  | UD30 | EXEC-PINE-INDICATORS: the TradingView label boxes for Alpha Extract (BULL, BEAR) and Alpha Divergence (SH, SL, BULL DIV, BEAR DIV, BUY A): build them in this batch, before the beta deploy, or after it | 2026-11-23 with context (the user: "Tolong catat ... tampilannya bisa seperti terlampir") | the labels' look on the beta | before the beta deploy of the lab indicators |
+  | UD31 | EXEC-PINE-INDICATORS: line style (solid, dashed, dotted) and opacity per output in the Terminal's Style tab: for the seven lab indicators only, or for every Terminal indicator (the released ones change on the beta, then on the live site when it moves) | 2026-11-23 with context | the Style tab change | before the Style tab is changed |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17286,6 +17288,30 @@ dengan konfirmasi user per deploy.
   Divergence BUY A dari high. Yang tidak tertangkap, karena setara di data uji: persilangan tidak inklusif (BDO tidak pernah
   persis sama dengan levelnya), syarat SMI < -40 saat memperbarui swing (selalu benar), low swing yang persis sama.
 - Ketujuh indikator kini di branch (lab); berikutnya satu push ke `main` dengan konfirmasi deploy.
+
+#### Perbandingan dengan TradingView dari user, 2026-11-23
+
+- **Validasi angka** (CSV ekspor TradingView dari user: BBCA 2024-02-15 s.d. 2026-11-23, 658 baris; BBRI 2023-01-17 s.d.
+  2026-11-23, 915 baris; parameter bawaan). Rumus kita dijalankan pada harga database kita (riwayat sejak 2018-01-02):
+  - harga OHLC sama di setiap baris (658/658, 915/915);
+  - Alpha Volatile (distance, decile, upper Z, lower Z), Alpha Extract (BDO, Signal, +Upper, +Extreme, -Upper, -Extreme)
+    dan Alpha KAMA sama di setiap baris; selisih terbesar sekitar 10⁻¹¹, yaitu sisa pembulatan komputer;
+  - ENTER LONG / ENTER SHORT di tanggal yang sama (BBCA 6 dan 5, BBRI 7 dan 6);
+  - pada harga TradingView saja (tanpa riwayat sebelum awal ekspor) hasilnya juga sama, kecuali KAMA BBCA di awal (paling
+    jauh 1,7 poin), karena KAMA mulai dari 0 dan butuh riwayat panjang.
+  - Alpha Price Action BUY BBCA di bar terakhir: 5.200 / 5.825 / 6.125, sama dengan legenda TradingView user.
+- **Garis putus-putus Candle A** (user: "sepertinya ada line chart yang putus-putus"): ERRORS M557, diperbaiki di
+  `2ebbf6b5` (garis menyambung di bar tanpa Candle A/B, seperti `plot.style_stepline`; juga garis awal KAMA).
+- **Tampilan label Alpha Extract dan Alpha Divergence** (user: "Tolong catat untuk indikator BDO dan divergence
+  tampilannya bisa seperti terlampir"): label TradingView berupa kotak berwarna berisi teks dengan penunjuk (Pine
+  `label.style_label_up` / `style_label_down`): BULL hijau teks hitam di bawah BDO dan BEAR merah teks putih di atasnya;
+  SH merah, SL hijau, BULL DIV hijau teks hitam, BEAR DIV merah, BUY A hijau tua. Penanda kita sekarang panah dengan teks
+  di bawahnya (penanda bawaan chart), jadi butuh primitive gambar label kotak yang umum (field penanda `style: "label"`).
+  Dicatat; kapan dibangun ditanyakan (UD30).
+- **Gaya garis seperti TradingView** (user: "kita bisa display line style-nya mau seperti apa. Thickness-nya juga"):
+  sekarang tab Style tiap output punya warna, tampil/sembunyi dan tebal 1-4 px, plus opacity satu untuk seluruh
+  indikator; belum ada jenis garis (penuh, putus-putus, titik) dan opacity per output. Cakupan ditanyakan (UD31): untuk
+  ketujuh indikator lab saja, atau untuk semua indikator Terminal (yang sudah rilis ikut berubah di beta, lalu live).
 
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
