@@ -3494,6 +3494,157 @@
           ]
         }
       }
+    },
+    "I58": {
+      "shape": "line",
+      "synonyms": [
+        "Alpha KAMA",
+        "KAMA",
+        "adaptive moving average",
+        "VHF",
+        "ENTER LONG",
+        "ENTER SHORT"
+      ],
+      "description": "An adaptive KAMA of the previous day's prices, coloured red to green by its angle, with ENTER LONG and ENTER SHORT signals.",
+      "default_test": {
+        "form": "event_value",
+        "output": "long",
+        "op": "crosses_above",
+        "value": 0.5,
+        "within": 5
+      },
+      "outputs": {
+        "kama": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above KAMA",
+                "lt": "Close below KAMA"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "ema_x": {
+          "tests": [
+            {
+              "form": "state_output",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "with_output": "kama",
+              "labels": {
+                "gt": "EMA X above KAMA",
+                "lt": "EMA X below KAMA"
+              }
+            },
+            {
+              "form": "event_output",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "with_output": "kama",
+              "labels": {
+                "crosses_above": "EMA X crosses above KAMA",
+                "crosses_below": "EMA X crosses below KAMA"
+              }
+            }
+          ]
+        },
+        "color_index": {
+          "tests": []
+        },
+        "color_state": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "between"
+              ],
+              "labels": {
+                "between": "Colour state between (0 red ... 4 green)"
+              }
+            }
+          ]
+        },
+        "long": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "ENTER LONG on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "ENTER LONG"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "short": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "ENTER SHORT on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "ENTER SHORT"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        }
+      }
     }
   }
 }

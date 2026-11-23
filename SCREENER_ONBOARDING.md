@@ -207,7 +207,7 @@ Live facts every onboarding meets (FACT unless marked):
   (ERRORS M238, OPEN): a cell's `bars_ago` counts the ticker's own bars and `market_sessions_ago` the IHSG calendar, so
   the two differ there.
 - Prices are stored as received: back-adjusted for splits before 2026-09-12, raw after it (`ADJUSTED_HISTORY_BOUNDARY`,
-  `apps/edge-bff/backtest/src/core/engine.ts:162`; ERRORS D22, OPEN). Eight tickers had a price-affecting action between
+  `apps/edge-bff/backtest/src/core/engine.ts:165`; ERRORS D22, OPEN). Eight tickers had a price-affecting action between
   that date and 2026-10-27 (live L6, report 6.12; the local end-to-end found the same 8 price-break rows).
 - Broker data trails prices until a new Stockbit token starts a round (ERRORS M243).
 - The DIRE funds XCID, XCIS and XSPI are typed `stock/common` with sector `Undefined` (ERRORS D30, OPEN; Part A A1.4).

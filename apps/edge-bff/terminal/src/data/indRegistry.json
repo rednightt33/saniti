@@ -3912,5 +3912,224 @@
 "info": "Candle 1 adalah candle dengan high tertinggi di N candle sebelumnya; Candle A candle lebih lama pertama yang low-nya di bawah low Candle 1; Candle B candle lebih lama dari A yang low-nya di bawah low A. Garis bertingkat menunjukkan level low ketiganya setiap hari.",
 "display": "Garis bertingkat level Candle 1, A, B di chart harga",
 "position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I58",
+"cat": "Trend",
+"name": "Alpha KAMA",
+"key": "alpha_kama",
+"short": "Alpha KAMA",
+"req": "HLC",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "kama",
+"label": "KAMA",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#97dd00"
+],
+"palette": [
+"#ff0000",
+"#ff2c00",
+"#fe4200",
+"#fc5300",
+"#f96200",
+"#f57000",
+"#f07e00",
+"#ea8a00",
+"#e39600",
+"#dca100",
+"#d3ac00",
+"#c9b600",
+"#bfc000",
+"#b3ca00",
+"#a6d400",
+"#97dd00",
+"#86e600",
+"#71ee00",
+"#54f700",
+"#1eff00"
+],
+"paletteFrom": "color_index"
+},
+{
+"k": "ema_x",
+"label": "EMA X",
+"r": "line",
+"role": "numeric_line",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#2962ff"
+]
+},
+{
+"k": "color_index",
+"label": "Colour index",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "0 (red) to 19 (green): the angle of KAMA from -20 to +20 degrees, the colour drawn on the line."
+},
+{
+"k": "color_state",
+"label": "Colour state",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "The colour index in groups of 4: 0 red, 1 orange, 2 yellow, 3 yellow-green, 4 green."
+},
+{
+"k": "long",
+"label": "ENTER LONG",
+"r": "marker",
+"role": "marker_dots",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session it happens.",
+"colors": [
+"#abedc6"
+],
+"marker": {
+"shape": "arrowUp",
+"position": "belowBar"
+}
+},
+{
+"k": "short",
+"label": "ENTER SHORT",
+"r": "marker",
+"role": "marker_dots",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session it happens.",
+"colors": [
+"#f2a654"
+],
+"marker": {
+"shape": "arrowDown",
+"position": "aboveBar"
+}
+}
+],
+"params": [
+{
+"k": "kama_length",
+"label": "KAMA Length",
+"type": "integer",
+"def": 89,
+"ev": "PROPOSED_DEFAULT",
+"min": 6,
+"max": 1000,
+"step": 1,
+"hint": "The VHF window and the base of the adaptive KAMA length"
+},
+{
+"k": "kama_factor_1",
+"label": "KAMA Factor 1",
+"type": "number",
+"def": 0.66,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"max": 1,
+"step": 0.01,
+"hint": "The fast end of the smoothing constant"
+},
+{
+"k": "kama_factor_2",
+"label": "KAMA Factor 2",
+"type": "number",
+"def": 0.0645,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"max": 1,
+"step": 0.001,
+"hint": "The slow end of the smoothing constant"
+},
+{
+"k": "smoothing_method",
+"label": "Smoothing Method",
+"type": "enum",
+"def": "T3",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"Hann Window",
+"T3",
+"None"
+],
+"hint": "Smoothing of the previous bar's prices"
+},
+{
+"k": "smoothing_length",
+"label": "Smoothing Length",
+"type": "integer",
+"def": 3,
+"ev": "PROPOSED_DEFAULT",
+"min": 2,
+"max": 50,
+"step": 1,
+"hint": "Length of the smoothing"
+},
+{
+"k": "vhf_adaptive",
+"label": "Enable VHF Adaptiveness",
+"type": "boolean",
+"def": true,
+"ev": "PROPOSED_DEFAULT",
+"hint": "The KAMA length follows the vertical horizontal filter"
+},
+{
+"k": "linear_regression",
+"label": "Enable Linear Regression",
+"type": "boolean",
+"def": false,
+"ev": "PROPOSED_DEFAULT",
+"hint": "KAMA read from the regression line of its last 5 values"
+},
+{
+"k": "gradient_lookback",
+"label": "Gradient Lookback",
+"type": "integer",
+"def": 14,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"max": 500,
+"step": 1,
+"hint": "Length of the average and the ATR behind the angle and the colour"
+},
+{
+"k": "ema_length",
+"label": "EMA X Length",
+"type": "integer",
+"def": 20,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"max": 1000,
+"step": 1,
+"hint": "Length of EMA X (Screener and Backtest), hidden on the chart"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "KAMA adaptif dari harga kemarin, berwarna dari merah ke hijau mengikuti sudutnya, dengan segitiga ENTER LONG dan ENTER SHORT.",
+"info": "Garis KAMA (Kaufman) yang panjangnya menyesuaikan VHF: cepat saat harga trending, lambat saat choppy. Dihitung dari close, high dan low hari sebelumnya yang dihaluskan T3. Warna mengikuti sudut KAMA terhadap rata-ratanya sendiri (-20 sampai +20 derajat, 20 warna); ENTER LONG muncul saat close kemarin menembus KAMA ke atas, KAMA berbalik naik dan sudutnya di atas 0,5 derajat. Terjemahan skrip TradingView 'VHF Adaptive Linear Regression KAMA' (c) simwai, MPL 2.0.",
+"display": "Garis KAMA 20 warna dengan segitiga sinyal di chart harga",
+"position": "Price chart overlay (candle pane)"
 }
 ]

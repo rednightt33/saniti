@@ -576,12 +576,13 @@ test('initial levels: ATR stop and target, R target, reward:risk stop, line stop
 
 test('price lines are the price levels of the overlay indicators (the page\'s LEVEL_LINES; ERRORS M554)', () => {
   const ids = (id: string, outs: string[]) => outs.map(output => ({ indicator: id, output }));
-  // the released lines are the ones the rule by name gave; the lab Price Action levels join them, Inside Bar's flags
-  // (I55 ib, break_up, break_down) and the Price Action breaks (0/1) do not
+  // the released lines are the ones the rule by name gave; the lab Price Action levels and Alpha KAMA's KAMA and EMA X
+  // join them, Inside Bar's flags (I55 ib, break_up, break_down), the Price Action breaks (0/1) and Alpha KAMA's colour
+  // and signals do not
   assert.deepEqual(LEVEL_LINES, [...ids('I01', ['sma']), ...ids('I02', ['ema']), ...ids('I03', ['wma']), ...ids('I04', ['hma']), ...ids('I05', ['kama']),
     ...ids('I09', ['supertrend']), ...ids('I10', ['upper', 'basis', 'lower']), ...ids('I11', ['upper', 'basis', 'lower']), ...ids('I12', ['sar']),
     ...ids('I27', ['upper', 'basis', 'lower']), ...ids('I42', ['vwma']), ...ids('I43', ['vwap', 'upper1', 'lower1']),
-    ...ids('I56', ['level_1', 'level_a', 'level_b']), ...ids('I57', ['level_1', 'level_a', 'level_b'])]);
+    ...ids('I56', ['level_1', 'level_a', 'level_b']), ...ids('I57', ['level_1', 'level_a', 'level_b']), ...ids('I58', ['kama', 'ema_x'])]);
   // derived, not named: every line is an output the unit probe marks as a price, of an indicator drawn on the price
   for (const l of LEVEL_LINES) assert.ok(priceLevels(l.indicator).includes(l.output), `${l.indicator}.${l.output}`);
   const m = market({ AAA: { bars: put(flat(10), 3, { v: 2000 }) } });
@@ -589,6 +590,7 @@ test('price lines are the price levels of the overlay indicators (the page\'s LE
   assert.deepEqual(no({ indicator: 'I55', output: 'ib' }), ['UNKNOWN_OUTPUT', 'exit.stop.line.output']);
   assert.deepEqual(no({ indicator: 'I56', output: 'break_a' }), ['UNKNOWN_OUTPUT', 'exit.stop.line.output']);
   assert.deepEqual(no({ indicator: 'I09', output: 'direction' }), ['UNKNOWN_OUTPUT', 'exit.stop.line.output']);
+  assert.deepEqual(no({ indicator: 'I58', output: 'color_state' }), ['UNKNOWN_OUTPUT', 'exit.stop.line.output']);
 });
 
 test('requests outside the page controls are refused with the field that is wrong', () => {

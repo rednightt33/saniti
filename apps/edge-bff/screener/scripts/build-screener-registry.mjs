@@ -99,7 +99,7 @@ const MA_TYPES = ['SMA', 'EMA'];
 export const PROBE = Object.freeze({
   seed: 20261028, bars: 4000, start: '2016-01-04', cut_at: 1000,
   scale_price: 3.7, scale_volume: 5.3, shift_price_of_median: 0.5, shift_volume_of_median: 0.5,
-  tolerance: 1e-9, unit_tolerance: 1e-6, min_common_bars: 100, converged_ratio: 1e-3,
+  tolerance: 1e-9, unit_tolerance: 1e-6, unit_from: 2000, min_common_bars: 100, converged_ratio: 1e-3,
   cost_bars: 10000, cost_long_length: 1000, cost_measure: 'v8_block_coverage_executed_source_chars', cost_tier: '--max-opt=1',
   cost_growth: 2, cost_margin: 2,
 });
@@ -136,8 +136,13 @@ const finite = s => s.filter(isN);
 const firstValid = s => { const i = s.findIndex(isN); return i < 0 ? null : i };
 /** A series' magnitude for tolerances: its 99th percentile absolute value (1 when it has none). */
 function scaleOf(s) { const v = finite(s).map(Math.abs).sort((a, b) => a - b); return v.length ? Math.max(v[Math.floor((v.length - 1) * 0.99)], 1e-12) : 1 }
-/** other[i] equals f(base[i]) on every bar where both are finite, the two have the same finite bars, and there are at
-    least min_common_bars of them; equality within unit_tolerance x the larger magnitude. The scaled and shifted inputs
+/** other[i] equals f(base[i]) on every bar from unit_from on where both are finite, the two have the same finite bars
+    (on every bar), and there are at least min_common_bars such bars; equality within unit_tolerance x the larger
+    magnitude. A unit is a property of the series once its start has decayed (ERRORS M555): a recursion that starts
+    from 0 rather than from the first price (the Pine `nz(x[1])` start, Alpha KAMA I58) is a price level that only reaches
+    the shifted level after some hundred bars, so its values are compared on the second half of the fixture (bar 2000 of
+    4000), where such a start has decayed below the tolerance. Every released output's unit is the same either way (the
+    registry check of 2026-11-23). The scaled and shifted inputs
     differ from the base by factors (3.7, 5.3) or offsets (half the median) far above it, while running sums and the
     E[x²] - E[x]² of a band leave residue up to about the square root of the double precision (2e-8 relative, measured
     on I43 upper1 at a period's first bar), so 1e-6 separates the cases with room on both sides. */
@@ -146,7 +151,7 @@ function related(base, other, f) {
   let n = 0;
   for (let i = 0; i < b.length; i++) {
     if (isN(b[i]) !== isN(other[i])) return false;
-    if (!isN(b[i])) continue;
+    if (!isN(b[i]) || i < PROBE.unit_from) continue;
     if (Math.abs(b[i] - other[i]) > tol) return false;
     n++;
   }

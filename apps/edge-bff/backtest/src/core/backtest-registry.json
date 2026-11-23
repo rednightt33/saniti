@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "registry_version": "1cea3dc93ee46054",
+  "registry_version": "ba4685288fa5bd70",
   "generated_by": "apps/backtest-worker/scripts/build-registry.mjs",
   "sources": [
     {
       "file": "apps/edge-bff/terminal/src/data/indRegistry.json",
-      "sha256": "23db0e8bc54cf35990e1d2192154b9145f15f3f8308eb0435add8b0aed8d0ea8"
+      "sha256": "23c1d230035ffd187f774ffb6fa61f630d5fa3008442d4d836ecea4a5bb1706d"
     },
     {
       "file": "apps/edge-bff/terminal/src/calc/indicators.ts",
@@ -2287,6 +2287,99 @@
             "Low (wick)",
             "Close"
           ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I58",
+      "key": "alpha_kama",
+      "name": "Alpha KAMA",
+      "category": "Trend",
+      "function": "F.alpha_kama",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "kama",
+        "ema_x",
+        "color_index",
+        "color_state",
+        "long",
+        "short"
+      ],
+      "params": [
+        {
+          "key": "kama_length",
+          "type": "integer",
+          "default": 89,
+          "min": 6,
+          "max": 1000,
+          "step": 1
+        },
+        {
+          "key": "kama_factor_1",
+          "type": "number",
+          "default": 0.66,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        {
+          "key": "kama_factor_2",
+          "type": "number",
+          "default": 0.0645,
+          "min": 0,
+          "max": 1,
+          "step": 0.001
+        },
+        {
+          "key": "smoothing_method",
+          "type": "enum",
+          "default": "T3",
+          "options": [
+            "Hann Window",
+            "T3",
+            "None"
+          ]
+        },
+        {
+          "key": "smoothing_length",
+          "type": "integer",
+          "default": 3,
+          "min": 2,
+          "max": 50,
+          "step": 1
+        },
+        {
+          "key": "vhf_adaptive",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "linear_regression",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "gradient_lookback",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "key": "ema_length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "step": 1
         }
       ],
       "not_accepted": [],

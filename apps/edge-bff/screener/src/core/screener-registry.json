@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "d7755791112c6a54",
-  "registry_version": "1cea3dc93ee46054",
+  "screener_registry_version": "8457258d1cfe5464",
+  "registry_version": "ba4685288fa5bd70",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
     {
       "role": "base",
       "file": "apps/edge-bff/backtest/src/core/backtest-registry.json",
-      "sha256": "99de136a95bbbdfdb0c2e4d6cf408b5f8b02428b45cd40991489646d75b0b926"
+      "sha256": "0320646cecfc44636151da1ee7a33961e71455006c1997405cd4c8a3881ec77f"
     },
     {
       "role": "terminal",
       "file": "apps/edge-bff/terminal/src/data/indRegistry.json",
-      "sha256": "23db0e8bc54cf35990e1d2192154b9145f15f3f8308eb0435add8b0aed8d0ea8"
+      "sha256": "23c1d230035ffd187f774ffb6fa61f630d5fa3008442d4d836ecea4a5bb1706d"
     },
     {
       "role": "calc",
@@ -22,7 +22,7 @@
     {
       "role": "overlay",
       "file": "apps/edge-bff/screener/src/core/screener-overlay.json",
-      "sha256": "9c8465274b0361c9b6eb7b7ac87f79dd70b83864780d8175bc6b201762e59f6e"
+      "sha256": "31504b7d55ed407877727faf45a074e294269590ecae7322d83b0eb84bfef8fa"
     },
     {
       "role": "oracle",
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "1c66e736c91abe2d241bcac560b1867306e2cca66d52c023c01bdf7cd2f49838"
+      "sha256": "2e65171f7b1656146ef6f277a2f19dae527411f25f653694a8d2bb5694faea4b"
     },
     {
       "role": "flow_registry",
@@ -76,6 +76,7 @@
     "shift_volume_of_median": 0.5,
     "tolerance": 1e-9,
     "unit_tolerance": 0.000001,
+    "unit_from": 2000,
     "min_common_bars": 100,
     "converged_ratio": 0.001,
     "cost_bars": 10000,
@@ -115,7 +116,7 @@
       "name": "Simple Moving Average",
       "category": "Trend",
       "short": "SMA",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -317,7 +318,7 @@
       "name": "Exponential Moving Average",
       "category": "Trend",
       "short": "EMA",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -537,7 +538,7 @@
       "name": "Weighted Moving Average",
       "category": "Trend",
       "short": "WMA",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -697,7 +698,7 @@
       "name": "Hull Moving Average",
       "category": "Trend",
       "short": "HMA",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -857,7 +858,7 @@
       "name": "Kaufman Adaptive Moving Average",
       "category": "Trend",
       "short": "KAMA",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -1043,7 +1044,7 @@
       "name": "MACD",
       "category": "Trend",
       "short": "MACD",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "fast_length",
@@ -1374,7 +1375,7 @@
       "name": "Average Directional Index",
       "category": "Trend",
       "short": "DMI",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "di_length",
@@ -1551,7 +1552,7 @@
       "name": "Aroon Indicator",
       "category": "Trend",
       "short": "Aroon",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -1679,7 +1680,7 @@
       "name": "Supertrend",
       "category": "Trend",
       "short": "Supertrend",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "atr_length",
@@ -1826,7 +1827,7 @@
       "name": "Donchian Channels",
       "category": "Trend",
       "short": "DC",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -1994,7 +1995,7 @@
       "name": "Keltner Channels",
       "category": "Trend",
       "short": "KC",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -2410,7 +2411,7 @@
       "name": "Parabolic SAR",
       "category": "Trend",
       "short": "SAR",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "start",
@@ -2560,7 +2561,7 @@
       "name": "Relative Strength Index",
       "category": "Momentum",
       "short": "RSI",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -2706,7 +2707,7 @@
       "name": "Stochastic RSI",
       "category": "Momentum",
       "short": "Stoch RSI",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "rsi_length",
@@ -2958,7 +2959,7 @@
       "name": "Stochastic Oscillator",
       "category": "Momentum",
       "short": "Stoch",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "k_length",
@@ -3116,7 +3117,7 @@
       "name": "Williams %R",
       "category": "Momentum",
       "short": "%R",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -3259,7 +3260,7 @@
       "name": "Rate of Change",
       "category": "Momentum",
       "short": "ROC",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -3422,7 +3423,7 @@
       "name": "Momentum",
       "category": "Momentum",
       "short": "Mom",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -3556,7 +3557,7 @@
       "name": "Commodity Channel Index",
       "category": "Momentum",
       "short": "CCI",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -3668,7 +3669,7 @@
       "name": "Chande Momentum Oscillator",
       "category": "Momentum",
       "short": "CMO",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -3803,7 +3804,7 @@
       "name": "True Strength Index",
       "category": "Momentum",
       "short": "TSI",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "long_length",
@@ -4034,7 +4035,7 @@
       "name": "TRIX",
       "category": "Momentum",
       "short": "TRIX",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -4168,7 +4169,7 @@
       "name": "Ultimate Oscillator",
       "category": "Momentum",
       "short": "UO",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "fast_length",
@@ -4318,7 +4319,7 @@
       "name": "Awesome Oscillator",
       "category": "Momentum",
       "short": "AO",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "fast_length",
@@ -4417,7 +4418,7 @@
       "name": "Percentage Price Oscillator",
       "category": "Momentum",
       "short": "PPO",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "fast_length",
@@ -4720,7 +4721,7 @@
       "name": "Balance of Power",
       "category": "Momentum",
       "short": "BOP",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -4800,7 +4801,7 @@
       "name": "Bollinger Bands",
       "category": "Volatility",
       "short": "BB",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -5198,7 +5199,7 @@
       "name": "Bollinger %B",
       "category": "Volatility",
       "short": "%B",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -5399,7 +5400,7 @@
       "name": "Bollinger Bandwidth",
       "category": "Volatility",
       "short": "BBW",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -5601,7 +5602,7 @@
       "name": "Average True Range",
       "category": "Volatility",
       "short": "ATR",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -5737,7 +5738,7 @@
       "name": "Normalized ATR",
       "category": "Volatility",
       "short": "NATR",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -5878,7 +5879,7 @@
       "name": "Standard Deviation",
       "category": "Volatility",
       "short": "StdDev",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -6055,7 +6056,7 @@
       "name": "Historical Volatility",
       "category": "Volatility",
       "short": "HV",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -6236,7 +6237,7 @@
       "name": "Average Daily Range",
       "category": "Volatility",
       "short": "ADR",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -6327,7 +6328,7 @@
       "name": "Volume SMA",
       "category": "Volume",
       "short": "Vol SMA",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -6431,7 +6432,7 @@
       "name": "Volume EMA",
       "category": "Volume",
       "short": "Vol EMA",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -6526,7 +6527,7 @@
       "name": "Relative Volume",
       "category": "Volume",
       "short": "RVOL",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -6636,7 +6637,7 @@
       "name": "Percentage Volume Oscillator",
       "category": "Volume",
       "short": "PVO",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "fast_length",
@@ -6814,7 +6815,7 @@
       "name": "Volume Rate of Change",
       "category": "Volume",
       "short": "VROC",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -6900,7 +6901,7 @@
       "name": "On-Balance Volume",
       "category": "PriceVolume",
       "short": "OBV",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -7004,7 +7005,7 @@
       "name": "Price Volume Trend",
       "category": "PriceVolume",
       "short": "PVT",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -7108,7 +7109,7 @@
       "name": "Volume Weighted Moving Average",
       "category": "PriceVolume",
       "short": "VWMA",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -7276,7 +7277,7 @@
       "name": "Volume Weighted Average Price",
       "category": "PriceVolume",
       "short": "VWAP",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "anchor",
@@ -7758,7 +7759,7 @@
       "name": "Accumulation/Distribution Line",
       "category": "PriceVolume",
       "short": "ADL",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -7864,7 +7865,7 @@
       "name": "Chaikin Money Flow",
       "category": "PriceVolume",
       "short": "CMF",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -7953,7 +7954,7 @@
       "name": "Chaikin Oscillator",
       "category": "PriceVolume",
       "short": "Chaikin Osc",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "fast_length",
@@ -8054,7 +8055,7 @@
       "name": "Money Flow Index",
       "category": "PriceVolume",
       "short": "MFI",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -8143,7 +8144,7 @@
       "name": "Elder's Force Index",
       "category": "PriceVolume",
       "short": "EFI",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -8229,7 +8230,7 @@
       "name": "Ease of Movement",
       "category": "PriceVolume",
       "short": "EOM",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "length",
@@ -8334,7 +8335,7 @@
       "name": "Negative Volume Index",
       "category": "PriceVolume",
       "short": "NVI",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "initial_value",
@@ -8452,7 +8453,7 @@
       "name": "Positive Volume Index",
       "category": "PriceVolume",
       "short": "PVI",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "initial_value",
@@ -8570,7 +8571,7 @@
       "name": "Klinger Volume Oscillator",
       "category": "PriceVolume",
       "short": "KVO",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "fast_length",
@@ -8728,7 +8729,7 @@
       "name": "Market Facilitation Index",
       "category": "PriceVolume",
       "short": "MFI (BW)",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "volume_scale",
@@ -8820,7 +8821,7 @@
       "name": "Alpha Volatile",
       "category": "Volatility",
       "short": "Alpha Volatile",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "ma_type",
@@ -9457,7 +9458,7 @@
       "name": "Inside Bar Detection",
       "category": "Trend",
       "short": "Inside Bar",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -9641,7 +9642,7 @@
       "name": "Alpha Price Action BUY",
       "category": "Trend",
       "short": "Price Action BUY",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "lookback_length",
@@ -10074,7 +10075,7 @@
       "name": "Alpha Price Action SELL",
       "category": "Trend",
       "short": "Price Action SELL",
-      "formula_version": "1cea3dc93ee46054",
+      "formula_version": "ba4685288fa5bd70",
       "params": [
         {
           "key": "lookback_length",
@@ -10492,6 +10493,528 @@
         "default_test": {
           "form": "event_value",
           "output": "break_a",
+          "op": "crosses_above",
+          "value": 0.5,
+          "within": 5
+        }
+      },
+      "probe_params": null,
+      "oracle": [],
+      "oracle_note": null
+    },
+    {
+      "id": "I58",
+      "key": "alpha_kama",
+      "name": "Alpha KAMA",
+      "category": "Trend",
+      "short": "Alpha KAMA",
+      "formula_version": "ba4685288fa5bd70",
+      "params": [
+        {
+          "key": "kama_length",
+          "type": "integer",
+          "label": "KAMA Length",
+          "default": 89,
+          "min": 6,
+          "max": 1000,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "narrowing": [],
+          "cost_class": "O(N·n)"
+        },
+        {
+          "key": "kama_factor_1",
+          "type": "number",
+          "label": "KAMA Factor 1",
+          "default": 0.66,
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "exclusive_min": true,
+          "integer": false,
+          "narrowing": [
+            {
+              "rule": "exclusive_min",
+              "source": "degeneracy_probe",
+              "evidence": "at kama_factor_1 = 0: short is constant (0)"
+            }
+          ]
+        },
+        {
+          "key": "kama_factor_2",
+          "type": "number",
+          "label": "KAMA Factor 2",
+          "default": 0.0645,
+          "min": 0,
+          "max": 1,
+          "step": 0.001,
+          "exclusive_min": false,
+          "integer": false,
+          "narrowing": []
+        },
+        {
+          "key": "smoothing_method",
+          "type": "enum",
+          "label": "Smoothing Method",
+          "default": "T3",
+          "options": [
+            "Hann Window",
+            "T3",
+            "None"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "narrowing": []
+        },
+        {
+          "key": "smoothing_length",
+          "type": "integer",
+          "label": "Smoothing Length",
+          "default": 3,
+          "min": 2,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "narrowing": [],
+          "cost_class": "O(N·n)"
+        },
+        {
+          "key": "vhf_adaptive",
+          "type": "boolean",
+          "label": "Enable VHF Adaptiveness",
+          "default": true,
+          "exclusive_min": false,
+          "integer": false,
+          "narrowing": []
+        },
+        {
+          "key": "linear_regression",
+          "type": "boolean",
+          "label": "Enable Linear Regression",
+          "default": false,
+          "exclusive_min": false,
+          "integer": false,
+          "narrowing": []
+        },
+        {
+          "key": "gradient_lookback",
+          "type": "integer",
+          "label": "Gradient Lookback",
+          "default": 14,
+          "min": 1,
+          "max": 500,
+          "step": 1,
+          "exclusive_min": true,
+          "integer": true,
+          "narrowing": [
+            {
+              "rule": "exclusive_min",
+              "source": "degeneracy_probe",
+              "evidence": "at gradient_lookback = 1: color_index is constant (9)"
+            }
+          ],
+          "cost_class": "O(N·n)"
+        },
+        {
+          "key": "ema_length",
+          "type": "integer",
+          "label": "EMA X Length",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "narrowing": [],
+          "cost_class": "O(N)"
+        }
+      ],
+      "start_params": {
+        "kama_length": 89,
+        "kama_factor_1": 0.66,
+        "kama_factor_2": 0.0645,
+        "smoothing_method": "T3",
+        "smoothing_length": 3,
+        "vhf_adaptive": true,
+        "linear_regression": false,
+        "gradient_lookback": 14,
+        "ema_length": 20
+      },
+      "default_offered": true,
+      "hidden_params": [],
+      "fixed_params": [],
+      "outputs": [
+        {
+          "key": "kama",
+          "label": "KAMA",
+          "display_unit": "price",
+          "unit": "price",
+          "level_comparable": true,
+          "comparable_with": "close",
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "recursive",
+          "first_valid_bar": 88,
+          "inputs": [
+            "H",
+            "L",
+            "C"
+          ],
+          "inputs_by_source": {
+            "smoothing_method": {
+              "Hann Window": [
+                "H",
+                "L",
+                "C"
+              ],
+              "T3": [
+                "H",
+                "L",
+                "C"
+              ],
+              "None": [
+                "H",
+                "L",
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above KAMA",
+                "lt": "Close below KAMA"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "ema_x",
+          "label": "EMA X",
+          "display_unit": "price",
+          "unit": "price",
+          "level_comparable": true,
+          "comparable_with": "close",
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "recursive",
+          "first_valid_bar": 19,
+          "inputs": [
+            "H",
+            "L",
+            "C"
+          ],
+          "inputs_by_source": {
+            "smoothing_method": {
+              "Hann Window": [
+                "H",
+                "L",
+                "C"
+              ],
+              "T3": [
+                "H",
+                "L",
+                "C"
+              ],
+              "None": [
+                "H",
+                "L",
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_output",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "with_output": "kama",
+              "labels": {
+                "gt": "EMA X above KAMA",
+                "lt": "EMA X below KAMA"
+              }
+            },
+            {
+              "form": "event_output",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "with_output": "kama",
+              "labels": {
+                "crosses_above": "EMA X crosses above KAMA",
+                "crosses_below": "EMA X crosses below KAMA"
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "color_index",
+          "label": "Colour index",
+          "display_unit": "price",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "recursive",
+          "first_valid_bar": 101,
+          "inputs": [
+            "H",
+            "L",
+            "C"
+          ],
+          "inputs_by_source": {
+            "smoothing_method": {
+              "Hann Window": [
+                "H",
+                "L",
+                "C"
+              ],
+              "T3": [
+                "H",
+                "L",
+                "C"
+              ],
+              "None": [
+                "H",
+                "L",
+                "C"
+              ]
+            }
+          },
+          "tests": [],
+          "disabled_tests": []
+        },
+        {
+          "key": "color_state",
+          "label": "Colour state",
+          "display_unit": "price",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "recursive",
+          "first_valid_bar": 101,
+          "inputs": [
+            "H",
+            "L",
+            "C"
+          ],
+          "inputs_by_source": {
+            "smoothing_method": {
+              "Hann Window": [
+                "H",
+                "L",
+                "C"
+              ],
+              "T3": [
+                "H",
+                "L",
+                "C"
+              ],
+              "None": [
+                "H",
+                "L",
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "between"
+              ],
+              "labels": {
+                "between": "Colour state between (0 red ... 4 green)"
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "long",
+          "label": "ENTER LONG",
+          "display_unit": "price",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "recursive",
+          "first_valid_bar": 101,
+          "inputs": [
+            "H",
+            "L",
+            "C"
+          ],
+          "inputs_by_source": {
+            "smoothing_method": {
+              "Hann Window": [
+                "H",
+                "L",
+                "C"
+              ],
+              "T3": [
+                "H",
+                "L",
+                "C"
+              ],
+              "None": [
+                "H",
+                "L",
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "ENTER LONG on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "ENTER LONG"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ],
+          "disabled_tests": []
+        },
+        {
+          "key": "short",
+          "label": "ENTER SHORT",
+          "display_unit": "price",
+          "unit": "dimensionless",
+          "level_comparable": false,
+          "comparable_with": null,
+          "price_compare_lag": {
+            "gt": 0,
+            "lt": 0
+          },
+          "history_class": "window",
+          "first_valid_bar": 101,
+          "inputs": [
+            "H",
+            "L",
+            "C"
+          ],
+          "inputs_by_source": {
+            "smoothing_method": {
+              "Hann Window": [
+                "H",
+                "L",
+                "C"
+              ],
+              "T3": [
+                "H",
+                "L",
+                "C"
+              ],
+              "None": [
+                "H",
+                "L",
+                "C"
+              ]
+            }
+          },
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "ENTER SHORT on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "ENTER SHORT"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ],
+          "disabled_tests": []
+        }
+      ],
+      "history_class": "recursive",
+      "cost_class": "O(N·n)",
+      "description": "An adaptive KAMA of the previous day's prices, coloured red to green by its angle, with ENTER LONG and ENTER SHORT signals.",
+      "overlay": {
+        "shape": "line",
+        "synonyms": [
+          "Alpha KAMA",
+          "KAMA",
+          "adaptive moving average",
+          "VHF",
+          "ENTER LONG",
+          "ENTER SHORT"
+        ],
+        "default_test": {
+          "form": "event_value",
+          "output": "long",
           "op": "crosses_above",
           "value": 0.5,
           "within": 5
