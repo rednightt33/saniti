@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M556 — A plan catalog test assumed one lab indicator, so the branch's Backend tests turned red with I55-I58 (2026-11-23; fixed on the branch, see the commit after `0f74f931`)
+### M556 — A plan catalog test assumed one lab indicator, so the branch's Backend tests turned red with I55-I58 (2026-11-23; fixed on the branch in `a52b07bf`)
 
 - **Found by:** CI "Backend tests", job edge-bff, on the session branch at `0613006c` and `4111a5c3`:
   `tests/test_plan_catalog.py::test_the_catalog_route_filters_by_the_resolved_plan` (1 failed, 1256 passed).

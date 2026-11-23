@@ -17262,6 +17262,30 @@ dengan konfirmasi user per deploy.
   per hari (2 kasus baru, 9/9); Screener 1.358, halaman Backtest 102, Terminal 1.121; lab/release dan 3f 67 lulus.
   Tampilan kartu dicek di beta sesudah deploy (katalog datang dari screener-worker).
 
+#### Alpha Extract (id registry I59) dan Alpha Divergence (id registry I60), 2026-11-23
+
+- Alpha Extract (`88063bc8`): rumus `alpha_extract` (garis dasar median 4 dari MA pilihan, skala ATR, BDO, Signal, batas
+  dinamis 0 sampai tersedia seperti TradingView, BULL/BEAR tanpa tembusan nol); baris I59 (BDO satu garis yang berganti
+  warna per bar, Signal, empat batas dengan transparansi Pine, garis 0, label BULL/BEAR di BDO, zona atas/bawah dan awan
+  BDO-Signal dua warna); overlay Screener: BULL/BEAR pada sesi itu atau dalam N sesi. Mesin gambar Terminal membaca field
+  umum baru `fills` (beberapa arsiran, dua warna) dan `alpha` per output.
+- Alpha Divergence (`c913feef`): rumus `alpha_divergence` (SMI, pelacakan swing dua mode, BULL/BEAR DIV pada hari
+  konfirmasi, BUY A, level swing high/low terkonfirmasi terakhir); gambar khusus Terminal (`DRAWINGS`, bukan output rumus,
+  jadi Screener, Backtest dan gerbang look-ahead tidak pernah membacanya): label SH/SL/BULL DIV/BEAR DIV di candle swing
+  seperti TradingView, garis divergensi, level BUY A putus-putus yang masih menunggu, label BUY A, dan arsiran latar hijau
+  (BULL DIV) atau merah (BEAR DIV) dari swing sebelumnya ke swing terakhir. Arsiran latar adalah pilihan tampilan, mati
+  secara bawaan; nyalakan di tab Style indikator (empat sakelar lapisan). Overlay Screener: BULL DIV, BEAR DIV, BUY A pada
+  sesi itu atau dalam N sesi; close di atas/bawah/menembus swing high/low terakhir dan jarak %. Level swing juga menjadi
+  pilihan garis stop di Backtest (probe satuan: level harga).
+- Uji: `alpha_extract.test.ts` 5/5 dan `alpha_divergence.test.ts` 5/5 terhadap implementasi Pine bar per bar (pengaturan
+  bawaan dan lainnya, kedua mode swing), kausal; Terminal 1.131, Screener 1.358, halaman Backtest 102; backtest-worker
+  284/285, screener-worker 147/149 (tes heap, sama dengan `main`); lab/release, 3f dan katalog paket 84 lulus;
+  `look_check11` PASS; gambar di beta dengan build lab lokal (BBCA, BBRI) tanpa error.
+- Varian rumus sengaja salah yang tertangkap: sinyal Alpha Extract dengan pembulatan ke bawah, median salah; Alpha
+  Divergence BUY A dari high. Yang tidak tertangkap, karena setara di data uji: persilangan tidak inklusif (BDO tidak pernah
+  persis sama dengan levelnya), syarat SMI < -40 saat memperbarui swing (selalu benar), low swing yang persis sama.
+- Ketujuh indikator kini di branch (lab); berikutnya satu push ke `main` dengan konfirmasi deploy.
+
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
 - Rumus (dibaca dari Pine, kausal): baseline = median 4 bar dari MA(source, 23) (EMA; pilihan RMA/SMA/WMA/HMA/TEMA);
