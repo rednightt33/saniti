@@ -17179,6 +17179,11 @@ Fase:
 Urutan yang diusulkan: pilot satu indikator ujung ke ujung (I58 Alpha Volatile: paling sedikit kebutuhan gambar baru),
 lalu yang lain per kelompok kebutuhan gambar.
 
+Go user 2026-11-23: "Ok" (atas pertanyaan "Mulai dengan pilot Alpha Volatile, lalu enam lainnya per kelompok?"). Id
+registry final diberikan saat dibangun, berurutan sesudah baris terakhir `indRegistry.json` (INDICATOR_BETA_TO_LIVE.md
+Part 0): pilot Alpha Volatile mendapat id bebas pertama; label I54–I60 di bawah adalah label kerja. Deploy beta tetap
+dengan konfirmasi user per deploy.
+
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
 - Rumus (dibaca dari Pine, kausal): baseline = median 4 bar dari MA(source, 23) (EMA; pilihan RMA/SMA/WMA/HMA/TEMA);
