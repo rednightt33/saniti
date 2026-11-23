@@ -17067,3 +17067,21 @@ menunggu), "jika sudah jelas masukan exec. Saya lanjut indikator selanjutnya." P
   atau dari bawah; arah dipilih, bawaan salah satu). Backtest: masuk kembali setelah keluar dalam N sesi terakhir (arah
   sama). User 2026-11-23: "2. OK".
 - Nama di EDGE: "Alpha Volatile".
+
+### I59 / I60 — Alpha Price Action BUY / SELL (Pine v6 "Nic - Candle A BUY" / "Nic - Candle A SELL"; dari user 2026-11-23)
+
+- Terminal: apa adanya ("terminal as is"): garis bertingkat level Candle 1, A, B (bawaan tampil); penanda struktur terbaru
+  dan segitiga break A/B (bawaan mati, seperti Pine); sumber break wick (bawaan) atau close.
+- Rumus (dibaca dari Pine, kausal; hanya N = 30 candle selesai sebelumnya, offset 1..N):
+  - BUY: Candle 1 = low terendah (seri: yang paling baru); A = candle lebih lama pertama dengan high > high Candle 1; B =
+    candle lebih lama dari A pertama dengan high > high A; level = high 1 / A / B. Break = sumber > level dan sumber
+    kemarin ≤ level (level hari ini).
+  - SELL: Candle 1 = high tertinggi; A = candle lebih lama pertama dengan low < low Candle 1; B = lebih lama dari A dengan
+    low < low A; level = low 1 / A / B. Break = sumber < level dan sumber kemarin ≥ level.
+  - A atau B kosong bila tidak ditemukan dalam N candle (tanpa garis dan tanpa break hari itu).
+- Screener dan Backtest (user 2026-11-23: "levelnya bisa dipilih di screener dan backtest", titik 1, A dan B; "yes,
+  close"):
+  - break dalam N sesi terakhir terhadap level yang dipilih (1, A atau B; break level 1 ditambahkan dengan aturan yang
+    sama): BUY tembus ke atas, SELL tembus ke bawah; sumber break wick (bawaan, seperti skrip) atau close;
+  - keadaan sekarang: close di atas atau di bawah level yang dipilih.
+- Nama di EDGE ("3. ok"): "Alpha Price Action BUY" (Candle A BUY), "Alpha Price Action SELL" (Candle A SELL).
