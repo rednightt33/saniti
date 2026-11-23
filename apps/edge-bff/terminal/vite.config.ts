@@ -37,7 +37,8 @@ function classicScriptAtEnd(): Plugin {
 
 /* Built into ../static/terminal-app and served by edge-bff at /terminal-app/ (FRONTEND_ARCHITECTURE.md section 2).
    3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): `npm run build` makes two builds. The public one keeps only the
-   released items of the registries (shared/release-filter.mjs) and has no lab formula ('@edge-lab' is src/lab/none.ts).
+   released and preview items of the registries (shared/release-filter.mjs; a preview entry marked release 'preview') and has
+   no lab formula ('@edge-lab' is src/lab/none.ts).
    The lab one (--mode lab) keeps every item and the lab formulas (src/lab/index.ts), into ../static/terminal-app-lab;
    edge-bff serves it at /terminal-app/lab/ only to the admin on the beta. */
 /** The build's configuration (tests/test_3f_public_bundles.py builds it as it is, on a copy whose registries hold fixture

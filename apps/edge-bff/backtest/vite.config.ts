@@ -46,7 +46,8 @@ function testEntry(mode: string): Plugin {
 
 /* Served by edge-bff at /backtest-app/ (CONTRACT.md section 10; the EDGE tab "Backtest" shows it in an iframe).
    3f (EXEC option A item 4; CONTRACT.md 8 "Lab code"): the production page is built twice by `npm run build`. dist/
-   keeps only the released items of the registries (shared/release-filter.mjs) and has no lab formula ('@edge-lab' is
+   keeps only the released and preview items of the registries (shared/release-filter.mjs; a preview entry marked
+   release 'preview') and has no lab formula ('@edge-lab' is
    the Terminal's src/lab/none.ts); --mode lab keeps every item and the lab formulas, into dist-lab/, which edge-bff
    serves at /backtest-app/lab/ only to the admin on the beta. The test builds are public builds. */
 /** The build's configuration (tests/test_3f_public_bundles.py builds it as it is, on a copy whose registries hold fixture

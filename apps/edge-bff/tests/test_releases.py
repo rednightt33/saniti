@@ -130,12 +130,18 @@ LAB_KIND_HELD = {
 }
 
 
+def held_lab(current):
+    """The (kind, id) pairs at the lab stage in a kind LAB_KIND_HELD names."""
+    return [(kind, e['id']) for kind in KINDS for e in current.entries(kind)
+            if e['stage'] == releases.LAB and kind in LAB_KIND_HELD]
+
+
 def test_an_item_is_at_the_lab_stage_only_in_a_kind_that_has_a_lab_path():
     """User decision 2026-11-17: every item that existed then is released. Since 2026-11-23 (the user's "Cabut tes
-    penjaga lab") a new item may enter at the lab stage (the beta only) in every kind but those LAB_KIND_HELD names."""
+    penjaga lab") a new item may enter at the lab stage (the beta only) in every kind but those LAB_KIND_HELD names. The
+    preview stage (EXEC-MU-ACCOUNTS "A preview release stage") is open to every kind: its formula is public."""
     current = releases.load(FILE)
-    held = [(kind, e['id']) for kind in KINDS for e in current.entries(kind)
-            if e['stage'] != 'released' and kind in LAB_KIND_HELD]
+    held = held_lab(current)
     assert not held, (f'{held} at the lab stage, in a kind that has no lab path yet: '
                       + '; '.join(f'{kind}: {why}' for kind, why in LAB_KIND_HELD.items())
                       + '. List it as "released" with the user\'s go, or keep it off main.')
@@ -143,14 +149,18 @@ def test_an_item_is_at_the_lab_stage_only_in_a_kind_that_has_a_lab_path():
 
 
 def test_the_lab_kind_guard_refuses_a_held_kind_and_lets_the_others_be_lab(tmp_path):
-    """Self-test of the guard above on a planted release file."""
-    entries = [{'kind': kind, 'id': f'X_{kind}', 'stage': 'lab'} for kind in KINDS]
+    """Self-test of the guard above on a planted release file: a lab item of every kind, and a preview one of every
+    kind, which the guard lets through (a preview Flow indicator included)."""
+    entries = ([{'kind': kind, 'id': f'X_{kind}', 'stage': 'lab'} for kind in KINDS]
+               + [{'kind': kind, 'id': f'P_{kind}', 'stage': 'preview'} for kind in KINDS])
     planted = tmp_path / 'releases.json'
     planted.write_text(json.dumps({'schema_version': releases.SCHEMA_VERSION, 'tabs': [], 'items': entries}), encoding='utf-8')
     current = releases.load(planted)
-    lab = {kind for kind in KINDS for e in current.entries(kind) if e['stage'] != 'released'}
+    lab = {kind for kind in KINDS for e in current.entries(kind) if e['stage'] == 'lab'}
     assert lab == set(KINDS)
-    assert {kind for kind in lab if kind in LAB_KIND_HELD} == {'flow_indicator', 'candle_pattern'}
+    assert {kind for kind, _ in held_lab(current)} == {'flow_indicator', 'candle_pattern'}
+    assert not [i for _, i in held_lab(current) if i.startswith('P_')]
+    assert {kind for kind in KINDS for e in current.entries(kind) if e['stage'] == 'preview'} == set(KINDS)
 
 
 def not_gated_by_id():
@@ -426,6 +436,8 @@ def item(kind='indicator', id='I01', stage='released'):
     ({'schema_version': 1, 'items': [item(), item()]}, 'repeats indicator'),
     ({'schema_version': 1, 'items': [item(kind='widget')]}, "unknown kind 'widget'"),
     ({'schema_version': 1, 'items': [item(stage='beta')]}, "unknown stage 'beta'"),
+    # EXEC-MU-ACCOUNTS "A preview release stage": a tab is lab or released only
+    ({'schema_version': 1, 'items': [], 'tabs': [{'id': 'terminal', 'stage': 'preview'}]}, 'a tab has no preview stage'),
     ({'schema_version': 1, 'items': [item(id='')]}, 'non-empty id'),
     ({'schema_version': 1, 'items': [item(id=' I01')]}, 'non-empty id'),
     ({'schema_version': 1, 'items': [{'kind': 'indicator', 'id': 'I01'}]}, 'exactly kind, id and stage'),
@@ -451,6 +463,15 @@ def test_a_file_that_is_not_json_or_missing_fails_at_load(tmp_path):
         releases.load(path)
     with pytest.raises(ReleaseFileError, match='missing'):
         releases.load(tmp_path / 'absent.json')
+
+
+def test_a_preview_item_is_preview_and_held_back_with_lab():
+    r = Releases({'schema_version': 1, 'items': [item(id='I01', stage='preview'), item(id='I02')], 'tabs': []})
+    assert r.stage_of('indicator', 'I01') == 'preview' and r.entries('indicator')[0] == {'id': 'I01', 'stage': 'preview'}
+    assert [releases.held_back(st) for st in ('lab', 'preview', 'released', 'beta')] == [True, True, False, True]
+    assert releases.STAGES == ('lab', 'preview', 'released') and releases.TAB_STAGES == ('lab', 'released')
+    assert releases.GRANT_STAGES == ('lab', 'released')
+    assert Releases({'schema_version': 1, 'items': [], 'tabs': []}).digest != r.digest
 
 
 def test_a_lab_item_is_lab_and_entries_keep_file_order():
@@ -540,6 +561,22 @@ def test_released_stage_on_one_family_holds_only_released_entries_of_that_kind(s
         assert entries_of(c, 'indicator') == [{'id': 'I01', 'stage': 'released'}, {'id': 'I03', 'stage': 'released'}]
         for kind in ('flow_indicator', 'screener_metric', 'screener_preset', 'candle_pattern'):
             assert entries_of(c, kind) == []
+
+
+def test_a_preview_entry_is_held_by_everything_or_its_id_and_never_by_the_released_stage(settings, store, monkeypatch):
+    """EXEC-MU-ACCOUNTS "A preview release stage": the route lists a preview entry with its stage to `*` and to a grant of
+    its id; a plan of the released stage (paid) does not hold it, and no grant can name the preview stage."""
+    monkeypatch.setattr(releases, 'CURRENT', Releases({'schema_version': 1, 'items': [
+        item(id='I01'), item(id='I02', stage='preview'), item('flow_indicator', 'FL24', 'preview')], 'tabs': []}))
+    with TestClient(app_as(settings, store, StubPrincipal({'*': True}))) as c:
+        assert entries_of(c, 'indicator') == [{'id': 'I01', 'stage': 'released'}, {'id': 'I02', 'stage': 'preview'}]
+        assert entries_of(c, 'flow_indicator') == [{'id': 'FL24', 'stage': 'preview'}]
+    p = StubPrincipal({'terminal.indicator': {'stages': ['released']}, 'terminal.flow_indicator': {'stages': ['released']}})
+    with TestClient(app_as(settings, store, p)) as c:
+        assert entries_of(c, 'indicator') == [{'id': 'I01', 'stage': 'released'}]
+        assert entries_of(c, 'flow_indicator') == []
+    with TestClient(app_as(settings, store, StubPrincipal({'terminal.indicator': {'ids': ['I02']}}))) as c:
+        assert entries_of(c, 'indicator') == [{'id': 'I02', 'stage': 'preview'}]
 
 
 def test_ids_grant_holds_exactly_those_ids_and_any_family_of_the_kind_counts(settings, store, lab_file):

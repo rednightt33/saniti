@@ -3,8 +3,10 @@
    way a real item is written, so the pages are then built there with their own configurations, unchanged:
 
    - every registry the release filter knows (shared/release-filter.mjs REGISTRIES; each list of a file with several,
-     and an object keyed by id) gets three fixture entries, each with a marker of its own: one released in the copy's
-     release file (R), one at the lab stage (L) and one the release file does not list (U, so lab too);
+     and an object keyed by id) gets four fixture entries, each with a marker of its own: one released in the copy's
+     release file (R), one at the lab stage (L), one the release file does not list (U, so lab too) and one at the
+     preview stage (P: kept in the public build like R, its list entry marked release 'preview', EXEC-MU-ACCOUNTS
+     "A preview release stage");
    - shared/proof-plant.ts imports every one of those files, and every entry of every page imports it first (each
      page's index.html script and each Web Worker it starts: shared/import-walk.mjs pageEntries), so each bundle a page
      build makes carries every registry: a bundle built without the filter carries the L and U markers, and the R
@@ -12,7 +14,8 @@
    - the lab module (terminal/src/lab/index.ts, which only the alias '@edge-lab' of a lab build reaches) gets a formula
      marker.
 
-   Prints {markers: {<part>: {R, L, U}}, formula, entries} as JSON. */
+   Prints {markers: {<part>: {R, L, U, P}}, keyed: [<part>], formula, entries} as JSON (keyed: the parts that are an
+   object keyed by id, whose values carry no mark). */
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -24,8 +27,8 @@ const { pages, pageEntries } = await import(path.join(edge, 'shared', 'import-wa
 const { labAlias } = await import(path.join(edge, 'shared', 'release-filter.mjs'));
 
 const PREFIX = { indicator: 'I', flow_indicator: 'FL', candle_pattern: 'CP', screener_metric: 'M', screener_preset: 'P' };
-const STAGE = { R: 'released', L: 'lab' };                         // U: not in the release file
-const markers = {}, items = new Map();
+const STAGE = { R: 'released', L: 'lab', P: 'preview' };          // U: not in the release file
+const markers = {}, items = new Map(), keyed = [];
 const idOf = (kind, s) => {
   if (!PREFIX[kind]) throw new Error(`plant.mjs: no fixture id for the kind ${kind}; add one to PREFIX`);
   return `${PREFIX[kind]}_PROOF_${s}`;
@@ -38,7 +41,8 @@ for (const spec of REGISTRIES) {
   for (const [key, kind] of parts) {
     const part = `${path.basename(spec.file, '.json')}${key ? `.${key}` : ''}`;
     markers[part] = {};
-    for (const s of ['R', 'L', 'U']) {
+    if (spec.keyed) keyed.push(part);
+    for (const s of ['R', 'L', 'U', 'P']) {
       const id = idOf(kind, s), marker = `PROOF7F3A-${part}-${s}`;
       markers[part][s] = marker;
       if (spec.keyed) doc[spec.keyed] = { ...doc[spec.keyed], [id]: { proof: marker } };
@@ -72,4 +76,4 @@ const formula = 'PROOF7F3A-FORMULA';
 const lab = labAlias({ lab: true })['@edge-lab'];
 fs.appendFileSync(lab, `\n(globalThis as any).__edge_lab_proof_7f3a__ = '${formula}';\n`);
 
-process.stdout.write(JSON.stringify({ markers, formula, entries }));
+process.stdout.write(JSON.stringify({ markers, keyed, formula, entries }));

@@ -9,8 +9,9 @@ Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `
 To add an indicator (the Terminal, the Screener and the Backtest) on the beta only, or to release one to the live site,
 follow `INDICATOR_BETA_TO_LIVE.md` literally (user 2026-11-23: "Ok untuk indicator beta to live MD, masukan ke agents md
 beserta 2 docs sebelumnya agar AI bisa refer that"), with `SCREENER_ONBOARDING.md` §2.11 (the worked example of an
-indicator end to end) and §3.2 (its one-page checklist) and `LIVE_PROMOTION.md` §3 (the lab and released switches) and
-§4 (the steps of a promotion).
+indicator end to end) and §3.2 (its one-page checklist) and `LIVE_PROMOTION.md` §3 (the lab, preview and released
+switches) and §4 (the steps of a promotion). An item on the live site for the admin only follows its Part C (the
+`preview` stage, user 2026-11-23).
 
 Before changing the backtest (`apps/edge-bff/backtest`, `apps/backtest-worker`, `apps/edge-bff/app/backtest.py`, or the
 publisher files and terminal-api routes it reads), read `BACKTEST_END_TO_END.md` (the flow from PostgreSQL to the page)
@@ -291,7 +292,10 @@ admin only, every feature first) and the live site (`edge-bff-live`, app.edgefin
   `LIVE_PROMOTION.md` and run `python3 scripts/live_diff.py --sites`, then tell the user everything that moves with
   the commit (whole commits move, not one feature).
 - Every tab, page and catalog item has its stage in `apps/edge-bff/catalog/releases.json` (`tabs`, `items`; unlisted
-  is lab). Lab stays off on the live site for everyone, the admin's `*` included, and stays on the beta.
+  is lab). Lab stays off on the live site for everyone, the admin's `*` included, and stays on the beta. A catalog item
+  at `preview` (user 2026-11-23: "promote ke live hanya admin saja yang bisa lihat, user paid tidak bisa lihat") is on
+  both sites for the admin only; no plan holds it by stage; its definition and formula are public (LIVE_PROMOTION.md §3
+  "Preview"; `INDICATOR_BETA_TO_LIVE.md` Part C). A tab is lab or released only.
   Since 2026-11-23 (the user: "Cabut tes penjaga lab") a new catalog item may enter at `lab` (the beta only):
   indicators by `INDICATOR_BETA_TO_LIVE.md`; candle patterns, Screener metrics and presets as data. A Flow indicator
   may not be lab yet (`tests/test_releases.py` `LAB_KIND_HELD`: its formula has no lab registration point), nor a tab

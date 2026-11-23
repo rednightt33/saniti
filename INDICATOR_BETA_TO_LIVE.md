@@ -2,7 +2,9 @@
 
 A checklist an agent follows literally, step by step, for a new technical indicator of the Terminal (the `I` series of
 `apps/edge-bff/terminal/src/data/indRegistry.json`) that the Terminal draws, the Screener screens and the Backtest tests.
-Part A puts it on the beta only (the `lab` stage); Part B releases it to the live site when the user says so.
+Part A puts it on the beta only (the `lab` stage); Part B releases it to the live site when the user says so; Part C,
+when the user asks for it, puts it on the live site for the admin only first (the `preview` stage), and Part B then
+releases it from there.
 
 The user, 2026-11-23: "Ok untuk indicator beta to live MD, masukan ke agents md beserta 2 docs sebelumnya agar AI bisa
 refer that" and "Cabut tes penjaga lab". The plan behind it (the user, 2026-11-22): 10 to 20 new indicators built and
@@ -19,8 +21,8 @@ run showed that the page tests never see a lab formula. The files and lines it c
 - `SCREENER_ONBOARDING.md` §2.11 (the worked example of a released indicator, end to end: formula, registry, parity,
   overlay, tests, deploy order, records) and §3.2 (the one-page checklist). They predate the lab stage; this file says
   where the lab differs.
-- `LIVE_PROMOTION.md` §3 (the lab and released switches, what keeps a lab item off the live site) and §4 (the steps of
-  every promotion).
+- `LIVE_PROMOTION.md` §3 (the lab, preview and released switches, what keeps a lab item off the live site and a
+  preview item from everyone but the admin) and §4 (the steps of every promotion).
 - `BACKTEST_END_TO_END.md` and `apps/edge-bff/backtest/CONTRACT.md` before any change the Backtest reads; AGENTS.md
   "Backtest look-ahead gate".
 - AGENTS.md "Deploys" (every deploy waits for the user's confirmation) and "The live site".
@@ -191,6 +193,33 @@ Only when the user names the indicator ("I54 boleh ke live"); never on a schedul
 8. **Records:** RAILWAY_CHANGELOG.md (both deploys), `deployed_commits.json` (both sites), ERRORS statuses (rule 9),
    LIVE_PROMOTION.md §7 (the feature notes), EXEC.md (the request done).
 
+## Part C: on the live site for the admin only (preview), on the user's OK
+
+The user, 2026-11-23: "ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya admin saja
+yang bisa lihat, user paid tidak bisa lihat" (EXEC-MU-ACCOUNTS "A preview release stage"; LIVE_PROMOTION.md §3
+"Preview"). Only when the user names the indicator for it ("I54 preview ke live"). What preview holds and what it does
+not: the admin (`*`, or an account given its id) sees and runs it on both sites; paid, free and guest accounts never see
+it (the menus leave it out, the catalogs do not list it, the workers refuse it); its definition and formula are in the
+public page files, so anyone reading those files can see them. A formula that must stay private stays lab.
+
+1. **Record the user's words** in `EXEC.md`.
+2. **One commit that moves it to preview:** every line of Part B step 2 (the formula into `calc/indicators.ts` and out
+   of `src/lab/index.ts`, the registries, the release pins, the golden, the pointers, the oracle, the tripwire record),
+   with its `releases.json` stage `preview` instead of `released`. The public builds now hold it, marked `release:
+   'preview'`; `terminal/tests/calc/public_formulas.test.ts` fails if its formula is still lab-only.
+3. **The tests of Part A step 9**, `tests/test_preview_stage.py` and `tests/test_3f_public_bundles.py`.
+4. **Commit and push; read its CI runs** (Part A step 10).
+5. **The beta deploy, with the user's confirmation** (Part A step 11).
+6. **The promotion** (Part B step 7): `scripts/live_diff.py --sites` names it under "preview (on the live site for the
+   admin only, ...)"; tell the user that, and everything else that moves. After the move, as the admin on the live
+   site: the indicator is in the Terminal's menu and computes; as a paid test account (step 9's window accounts, or
+   one the admin gives Paid on the beta's admin page): it is neither in the menu nor in the Screener's or Backtest's
+   lists, and `/api/v1/catalog/indicator` does not list it.
+7. **Records** (Part B step 8).
+
+**From preview to released** (Part B, when the user says so): the formula is already public, so Part B step 2 is only
+its `releases.json` stage `released` and the tripwire record; then Part B steps 3-8.
+
 ## Notes
 
 - This guide's order (the backtest-worker first, then `main`) replaces SCREENER_ONBOARDING §2.11 Step 6.1-6.2.
@@ -201,6 +230,7 @@ Only when the user names the indicator ("I54 boleh ke live"); never on a schedul
   whole); a candle pattern and a Flow indicator may not yet: a lab candle needs its pair and mirror (`candles.ts`), a
   `CASES` entry and the count pins of `lookahead.test.ts`, `candles.test.ts` and `operators.test.ts` made derived, and a
   dry run like the indicator's (EXEC-MU-ACCOUNTS, Carried open parts); a Flow indicator has no lab registration point.
+  Any kind may be preview (Part C), a Flow indicator included: its formula is public at that stage.
 
 ## Many indicators at once
 

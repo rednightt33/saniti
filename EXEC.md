@@ -16790,8 +16790,18 @@ Order of the services (CONTRACT 17, rollback floors):
 - **A "preview" release stage: an item released on the live site to the admin only (the user 2026-11-23: "B. Coba inspect
   code dulu dan siapkan implementation plan. Akan dijalankan setelah perbaikan dari checker selesai dan pushed to main
   terakhir sudah dilakukan."; asked: "ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya
-  admin saja yang bisa lihat, user paid tidak bisa lihat"). Planned, not built; trigger: the test-out fixes of items 1-3
-  on `main`.**
+  admin saja yang bisa lihat, user paid tidak bisa lihat"). Built 2026-11-23 on the branch (step 2 of the user's
+  sequence, "Oke, mulai"; ERRORS M550), not deployed: the beta deploy waits for the user's confirmation.**
+  - Built beyond the nine parts below (the same mechanism, found while building; advisor review): the Screener's second
+    copy of the stage rule (`app/screener.py` `catalog_for`: its entries and presets marked with their real stage); the
+    stored examples (`app/examples.py` `not_released` read `== lab` against its own docstring, and its preset line);
+    the Backtest's stop and trailing line choices, built from the page's own registry (`backtest/src/reg.ts`
+    `LEVEL_LINES`, `offered`); `scripts/live_diff.py` names the items at preview on the beta's side; the grantable
+    stages (`releases.GRANT_STAGES`, as the database's `capability_value_check`) and the tab stages
+    (`releases.TAB_STAGES`) kept at lab and released; `catalog.holds_entry` gives an ungated item at preview to its
+    holders only; a public-formula test (`terminal/tests/calc/public_formulas.test.ts`: the admin on the live site gets
+    the public build, so a preview formula must not be lab-only). No migration: the database already refuses
+    `preview` in a plan's stages.
   - Today (code read 2026-11-23): stages are `lab` and `released` (`app/releases.py:33`). The paid plan holds every
     released item (`{"stages": ["released"]}`, migration `20261117_003` lines 223-225); the admin holds `*`, every
     item at any stage (`app/principal.py:19-22, 176`); on the live site a lab item is refused to everyone, the admin

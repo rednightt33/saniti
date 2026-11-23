@@ -461,7 +461,8 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 ## 8. Catalog and release (Phase 2)
 
 - **Release stage per item** lives in the repository, because it decides which code chunk an item ships in:
-  `apps/edge-bff/catalog/releases.json` with `{kind, id, stage: "lab"|"released"}`.
+  `apps/edge-bff/catalog/releases.json` with `{kind, id, stage: "lab"|"preview"|"released"}` (a tab: `lab` or
+  `released` only).
   - Kinds (`app/releases.py` KINDS): `indicator`, `flow_indicator`, `candle_pattern`, `screener_metric`,
     `screener_preset`.
   - A test fails when a registry id has no entry; an unlisted id is `lab`.
@@ -491,6 +492,26 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
     A new one is staged in the lab with an id the workers gate.
   - The released definitions and formulas stay in the public bundles for speed: a released item's name shows locked to
     a plan without it (3e), so serving its definition per principal would hide nothing.
+- **Preview (the user 2026-11-23, EXEC-MU-ACCOUNTS "A preview release stage": "ada indikator baru di main --> promote ke
+  live, tapi saya mau promote ke live hanya admin saja yang bisa lihat, user paid tidak bisa lihat"; plan "B"):** an
+  item at `preview` is on both sites and held only by a principal whose grants name the item: `*`, its id, or a family
+  value `{"all": true}`, which no plan holds (`tests/test_preview_stage.py`, derived over every seeded plan).
+  - No grant can name the stage: `{"stages": [...]}` takes `lab` and `released` only (`releases.GRANT_STAGES`; the
+    database's `capability_value_check` refuses `preview` at write time, `principal.valid_value` on read). A paid, free
+    or guest principal never holds a preview item.
+  - It is not beta-only (`principal.beta_only` is the lab stage alone), so the admin holds it on the live site, where
+    `allow.allow_of` names it by its id.
+  - The public build keeps its definition and formula (the admin on the live site is served the public build), its
+    list entry marked `release: 'preview'` (`shared/release-filter.mjs`). A page that lists entries from its registry
+    leaves a marked one out for a principal the catalog does not list it for, instead of showing it locked (the
+    Terminal's menu, `indMenu.ts` `heldBack`; the Backtest's stop and trailing lines, `reg.ts` `offered`).
+  - The catalogs list it to its holders only, with its stage (`/api/v1/catalog/{kind}`; the tab catalogs' entries and
+    presets carry `release: 'preview'`, `catalog.tab_list`, `screener.catalog_for`); the stored examples hold it back
+    as a lab item (`examples.not_released`, `releases.held_back`).
+  - The trade-off the user accepted with "B": anyone reading the public page files can see a preview item's definition
+    and formula; only its use and its place in the menus are held. A formula that must stay out of the files a visitor
+    downloads stays `lab`. An item no worker gates by id, or one the shipped code names, is never preview either
+    (`tests/test_releases.py`).
   - `GET /api/v1/catalog/{kind}` answers the ids and stages the principal holds; the tab catalogs follow its rule
     (8a "Tab catalogs").
 

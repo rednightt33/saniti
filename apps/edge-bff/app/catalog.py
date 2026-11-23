@@ -4,9 +4,11 @@ Answers {"kind", "entries": [{"id", "stage"}]} with the release file's entries o
 principal holds in any capability family of that kind: an entry is held when p.can("<family>:<id>") for one of the
 kind's families (KIND_OF_FAMILY), so `*` holds every entry at any stage and a plan holding {"stages": ["released"]} on
 terminal.indicator holds the released indicators only. An unknown kind answers 404 NOT_FOUND, with the known kinds in
-details.known_kinds. The definitions of released items stay in the page bundles; a lab item's definition and formula
-are never in a public bundle (3f, CONTRACT 8 "Lab code": the page build filters the registries by stage, and the
-admin's page loads them from its app's lab route). The tab catalogs list items with the same rule (tab_list).
+details.known_kinds. The definitions of released and preview items stay in the page bundles (a preview one marked
+`release: 'preview'`); a lab item's definition and formula are never in a public bundle (3f, CONTRACT 8 "Lab code": the
+page build filters the registries by stage, and the admin's page loads them from its app's lab route). The tab catalogs
+list items with the same rule (tab_list): an item held back (releases.held_back: lab or preview) is listed only to a
+principal who holds it, with its stage as `release`.
 """
 import json
 from pathlib import Path
@@ -50,8 +52,11 @@ def holds_entry(p, kind, item_id):
     """Whether the principal holds an item of a kind in any capability family of that kind: the one rule of every answer
     that lists items (this route, and the tab catalogs that list them: the Screener's presets, re-check R1-32). An item
     that is part of its tab (ungated) is held by everyone, except a lab-stage one on the live site (principal.live_view
-    never holds a lab item)."""
-    if ungated(kind, item_id) and not (getattr(p, 'live', False) and releases.stage_of(kind, item_id) == releases.LAB):
+    never holds a lab item) and a preview one, which only a principal holding it by its id or `*` holds (an ungated item
+    is never lab or preview, tests/test_releases.py; this keeps the rule closed if one were)."""
+    stage = releases.stage_of(kind, item_id)
+    if ungated(kind, item_id) and stage != releases.PREVIEW \
+            and not (getattr(p, 'live', False) and stage == releases.LAB):
         return True
     return any(p.can(f'{family}:{item_id}') for family in releases.FAMILIES_OF_KIND[kind])
 
@@ -83,7 +88,8 @@ def held(p, kind):
 # 3f (EXEC option A item 4; CONTRACT 8a "Tab catalogs"; ERRORS M520): the tab catalogs the workers answer (the Screener's,
 # the Backtest's) list items too. edge-bff decides each entry itself with the rule of this route: its release stage from
 # the release file and the principal's hold from holds_entry. The workers' own mark access 'admin' (the point-in-time
-# Flow versions) needs the right flow_point_in_time (rights.py), as before. A kept lab entry carries release 'lab'.
+# Flow versions) needs the right flow_point_in_time (rights.py), as before. A kept entry held back (lab or preview)
+# carries its stage as `release`.
 def tab_kind(item_id, kinds, fallback):
     """The release kind of a tab catalog's entry: the one of `kinds` listing the id (releases.kind_of), else `fallback`
     (an unlisted id is lab in every kind)."""
@@ -92,29 +98,31 @@ def tab_kind(item_id, kinds, fallback):
 
 def tab_hidden(p, kind, entry, point_in_time):
     """Whether a tab catalog's entry is left out for a principal: marked access 'admin' without the right
-    flow_point_in_time (point_in_time: the principal's rights hold it), or a lab item the principal does not hold (an id
-    the release file does not list is lab; without a principal, p None, no lab item is held)."""
+    flow_point_in_time (point_in_time: the principal's rights hold it), or an item held back (lab or preview,
+    releases.held_back) that the principal does not hold (an id the release file does not list is lab; without a
+    principal, p None, no held-back item is held)."""
     if entry.get('access') == 'admin' and not point_in_time:
         return True
-    if releases.stage_of(kind, entry['id']) == releases.LAB:
+    if releases.held_back(releases.stage_of(kind, entry['id'])):
         return p is None or not holds_entry(p, kind, entry['id'])
     return False
 
 
 def tab_list(p, entries, kinds, fallback, point_in_time):
     """(the entries a principal sees, the ids left out): a tab catalog's list of items decided entry by entry
-    (tab_hidden); an entry without a string id is not an item and stays as it is; a kept lab entry carries release
-    'lab'."""
+    (tab_hidden); an entry without a string id is not an item and stays as it is; a kept entry held back carries its
+    stage as `release` ('lab' or 'preview')."""
     kept, out = [], set()
     for e in entries:
         if not (isinstance(e, dict) and isinstance(e.get('id'), str)):
             kept.append(e)
             continue
         kind = tab_kind(e['id'], kinds, fallback(e))
+        stage = releases.stage_of(kind, e['id'])
         if tab_hidden(p, kind, e, point_in_time):
             out.add(e['id'])
-        elif releases.stage_of(kind, e['id']) == releases.LAB:
-            kept.append({**e, 'release': releases.LAB})
+        elif releases.held_back(stage):
+            kept.append({**e, 'release': stage})
         else:
             kept.append(e)
     return kept, out

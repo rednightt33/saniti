@@ -55,15 +55,17 @@ What is shared and what is not:
    through an audited step, not a deploy. A plan can only grant what the live site holds: a lab tab or item stays off
    for everyone there, the admin's `*` included.
 
-## 3. The switches: lab or released
+## 3. The switches: lab, preview or released
 
 `apps/edge-bff/catalog/releases.json` is kept by hand; no script writes it. The live site holds nothing at the lab
-stage. The beta (switch off) shows everything to the admin.
+stage. The beta (switch off) shows everything to the admin. A catalog item may also be at `preview` (the user
+2026-11-23, EXEC-MU-ACCOUNTS "A preview release stage"): on both sites for the admin only (below).
 
 | What | Where | Unlisted means | Effect of `lab` on the live site |
 |---|---|---|---|
 | A tab: the first part of a capability key, e.g. `screener` in `screener.view`, or a page of the shell | `tabs` | lab | `principal.beta_only` refuses its keys to everyone, the admin's `*` included; `auth/config` `hidden_tabs` hides it from the rail |
 | A catalog item: an indicator, Flow indicator, candle pattern, Screener metric or preset | `items` | lab | its key `<family>:<id>` is refused (`releases.KIND_OF_FAMILY`) |
+| A catalog item at `preview` (not a tab: a tab is lab or released) | `items` | — | held by the admin (`*`, or an account given its id); no plan holds it by stage, so paid, free and guests never see it; listed to its holders only, left out of the menus for the others |
 | A tab that never goes live | `principal.BETA_ONLY_TABS` (`admin`, `monitor`) | — | its keys are refused and its routes answer 404 before any session |
 
 **3f (EXEC option A item 4, CONTRACT.md 8 "Lab code") built what keeps a lab item out of the public page builds and the
@@ -80,13 +82,29 @@ release file), and the user lifted the item guard on 2026-11-23 ("Cabut tes penj
   public shell, so no tab may be lab until the server hands the rail entry to the principals holding it.
 
 A lab indicator follows `INDICATOR_BETA_TO_LIVE.md` (Part A: the beta only; Part B: the release), proven end to end by
-its dry run of 2026-11-23.
+its dry run of 2026-11-23; Part C puts it on the live site for the admin only (preview) before its release.
+
+**Preview** (the user 2026-11-23: "ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya
+admin saja yang bisa lihat, user paid tidak bisa lihat"; plan "B"; CONTRACT 8 "Preview"):
+- who holds it: the admin's `*` on both sites, or an account given its id. A plan's `{"stages": [...]}` takes `lab`
+  and `released` only (the database refuses `preview`), and no plan gives an item family `{"all": true}`
+  (`tests/test_preview_stage.py` reads every seeded plan);
+- what the pages do: the public build keeps its definition and formula, its entry marked `release: 'preview'`; the
+  Terminal's indicator menu and the Backtest's stop and trailing lines leave it out for an account the catalog does not
+  list it for (not shown locked); the Screener's and Backtest's catalogs, `/api/v1/catalog` and the stored examples list
+  it to its holders only;
+- what it does not hide: anyone reading the public page files can see its definition and formula. A formula that must
+  stay private stays `lab`;
+- every kind may be preview, a Flow indicator included (its formula is public); an item no worker gates by id, or one
+  the shipped code names, may not (as for lab);
+- `scripts/live_diff.py` names the items at preview on the beta's side ("preview (on the live site for the admin only,
+  paid and free accounts do not see it)"), so a promotion says what reaches the live site that way.
 
 What is built:
 
 - **Page builds.** Every page build applies the filter (`apps/edge-bff/shared/release-filter.mjs`, in `plugins` and
-  in `worker.plugins`, so the Web Worker files too): the public build keeps only the released entries of every file
-  that names items. An unlisted id is lab, a missing release file or a part of a registry that is missing stops the
+  in `worker.plugins`, so the Web Worker files too): the public build keeps only the released and preview entries of
+  every file that names items (a preview list entry marked `release: 'preview'`). An unlisted id is lab, a missing release file or a part of a registry that is missing stops the
   build.
   - `npm run build` of the Terminal and the Backtest page also makes a lab build (`static/terminal-app-lab`,
     `backtest/dist-lab`), which keeps every entry and the lab formulas. The other pages have no lab build.
@@ -94,8 +112,9 @@ What is built:
     admin.access and the second factor passed; on today's beta, with the switch off, the owner's signed-in session) who
     holds every item of every kind (`catalog.holds_every_item`: the build carries them all). Its files answer under
     `/<app>/lab/assets/` and 404 to everyone else and on the live site.
-- **Tab catalogs.** The Screener's and the Backtest's catalogs list a lab item only to a principal that holds it
-  (`catalog.tab_list`, the rule of `/api/v1/catalog`), and a preset that reads an entry left out is left out too.
+- **Tab catalogs.** The Screener's and the Backtest's catalogs list a lab or preview item only to a principal that
+  holds it, marked with its stage (`catalog.tab_list`, the rule of `/api/v1/catalog`), and a preset that reads an entry
+  left out is left out too.
 - **Lab tabs.** A tab with its own page app (`<tab>-app`) at the lab stage is served, page and assets, to the admin on the
   beta who holds the tab's own `<tab>.view`. A new tab must be its own `<tab>-app`: a tab that is a page of the shell
   ships its whole code in the shell.
@@ -112,12 +131,18 @@ These tests enforce the switches:
   must be listed as lab or released, or belong to `BETA_ONLY_TABS`. The same file shows that a lab tab is refused on
   the live site, the admin's `*` included, is hidden from the live rail, and stays on the beta. It refuses any lab tab
   for now (above).
-- `apps/edge-bff/tests/test_releases.py`: every registry id has an entry; an item is at the lab stage only in a kind `LAB_KIND_HELD` does not hold (a candle pattern and a Flow indicator held).
+- `apps/edge-bff/tests/test_releases.py`: every registry id has an entry; an item is at the lab stage only in a kind `LAB_KIND_HELD` does not hold (a candle pattern and a Flow indicator held); a tab has no preview stage.
+- `apps/edge-bff/tests/test_preview_stage.py`: through the real principals of both sites, the admin holds a preview
+  item (catalog, both workers' allow, the tab catalogs with its mark) and a paid or free account does not; no seeded
+  plan but one holding `*` holds it; no grant can name the stage. The Terminal's `tests/data/ind_menu.test.ts` and the
+  Backtest's `tests/preview-lines.test.ts` show the pages leave a marked entry out; `terminal/tests/calc/
+  public_formulas.test.ts` shows every indicator of the public build computes without the lab module.
 - `apps/edge-bff/tests/test_3f_public_bundles.py` scans every file served without the admin check (each page's build,
   its Web Worker files and the shell) for every lab item's id and formula key. Its proof builds (round 2 of the
   checker) copy apps/edge-bff, write fixture items on disk into every registry the filter knows (one released, one lab,
-  one unlisted, each with a marker; `terminal/tests/lab/plant.mjs`), import them from every page and Web Worker entry,
-  and build every page there with its own configuration: each public bundle file carries the released ones only, each
+  one unlisted, one preview, each with a marker; `terminal/tests/lab/plant.mjs`), import them from every page and Web
+  Worker entry, and build every page there with its own configuration: each public bundle file carries the released
+  and preview ones only (a preview list entry with its mark), each
   lab one all of them, the lab formula only the lab builds, and each build names only its own files. With
   `EDGE_TEST_REQUIRE_NODE=1` (CI) a page not built fails the test instead of skipping it.
 - `apps/edge-bff/terminal/tests/lab/public-entries.test.mjs` walks every page and Web Worker entry, derived from each

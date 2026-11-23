@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ROOT, pageEntries, pages, reachable } from '../../../shared/import-walk.mjs';
-import { EDGE_BFF, REGISTRIES, RELEASES, filtered, labAlias } from '../../../shared/release-filter.mjs';
+import { EDGE_BFF, REGISTRIES, RELEASES, filtered, labAlias, readStages } from '../../../shared/release-filter.mjs';
 
 /** JSON files a public entry reaches that are not registries, each with why it names no item (none today). */
 const NAMES_NO_ITEM = {};
@@ -93,6 +93,25 @@ describe('3f: the release filter covers every file a public entry reaches that c
     expect([two.a.map(e => e.id), two.b]).toEqual([['R1'], []]);             // R1 is released as an indicator only
     const keyed = { file: 'z.json', kind: 'indicator', keyed: 'lag' };
     expect(Object.keys(filtered(keyed, { lag: { R1: 1, L1: 2, U1: 3 } }, { lab: false, stages }).lag)).toEqual(['R1']);
+  });
+  it('the filter keeps a preview id in both builds, marked release preview, and readStages refuses an unknown stage', () => {
+    // EXEC-MU-ACCOUNTS "A preview release stage": on both sites for the admin only, its definition public
+    const spec = { file: 'x.json', kind: 'indicator', list: d => d.indicators, put: (d, l) => ({ ...d, indicators: l }) };
+    const doc = { indicators: [{ id: 'R1' }, { id: 'P1', name: 'Preview one' }, { id: 'L1' }] };
+    const stages = new Map([['indicator\tR1', 'released'], ['indicator\tP1', 'preview'], ['indicator\tL1', 'lab']]);
+    expect(filtered(spec, doc, { lab: false, stages }).indicators).toEqual([{ id: 'R1' }, { id: 'P1', name: 'Preview one', release: 'preview' }]);
+    expect(filtered(spec, doc, { lab: true, stages }).indicators).toEqual([{ id: 'R1' }, { id: 'P1', name: 'Preview one', release: 'preview' }, { id: 'L1' }]);
+    expect(doc.indicators[1]).toEqual({ id: 'P1', name: 'Preview one' });            // the source document is not changed
+    const lists = { file: 'y.json', lists: [['a', 'indicator'], ['b', 'flow_indicator']] };
+    expect(filtered(lists, { a: [{ id: 'P1' }], b: [{ id: 'P1' }] }, { lab: false, stages })).toEqual({ a: [{ id: 'P1', release: 'preview' }], b: [] });
+    const keyed = { file: 'z.json', kind: 'indicator', keyed: 'lag' };
+    expect(filtered(keyed, { lag: { R1: 1, P1: 2, L1: 3 } }, { lab: false, stages }).lag).toEqual({ R1: 1, P1: 2 });
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-stages-'));
+    const file = path.join(dir, 'releases.json');
+    fs.writeFileSync(file, JSON.stringify({ items: [{ kind: 'indicator', id: 'P1', stage: 'preview' }] }));
+    expect(readStages(file).get('indicator\tP1')).toBe('preview');
+    fs.writeFileSync(file, JSON.stringify({ items: [{ kind: 'indicator', id: 'B1', stage: 'beta' }] }));
+    expect(() => readStages(file)).toThrow(/lab\|preview\|released/);
   });
 
   it('a part a spec names that is missing or of another shape stops the build (round 2 BUN2-4, CS-4)', () => {

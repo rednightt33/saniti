@@ -8886,6 +8886,39 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M550 — The preview release stage: an item on the live site for the admin only (2026-11-23; built on the branch, not deployed)
+
+- **Request (the user 2026-11-23):** "apakah versi indikator yang released dari main ke live bisa dibedakan antara user
+  paid dan admin? misalkan ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya admin
+  saja yang bisa lihat, user paid tidak bisa lihat"; then "B. Coba inspect code dulu dan siapkan implementation plan"
+  and the sequence of 2026-11-23 ("Oke, mulai"; EXEC-MU-ACCOUNTS "A preview release stage").
+- **What was missing (code read 2026-11-23):** two stages only, `lab` (the beta only, the admin included off the live
+  site) and `released` (every plan of the released stage, paid included). No stage put an item on the live site for
+  the admin alone.
+- **Built:** a third item stage `preview` (`app/releases.py` `STAGES`, `held_back`; a tab stays lab or released,
+  `TAB_STAGES`). Held by `*`, an id, or a family value `{"all": true}` that no plan holds; a plan's `stages` take lab and
+  released only (`GRANT_STAGES`; the database's `capability_value_check` already refused `preview`), so paid, free and
+  guests never hold it; not beta-only. The catalogs (`/api/v1/catalog`, `catalog.tab_list`, `screener.catalog_for`)
+  and the stored examples hold it back as a lab item and mark a kept entry with its stage. The public page builds keep
+  its definition and formula, its entry marked `release: 'preview'` (`shared/release-filter.mjs`); the Terminal's menu
+  (`indMenu.ts` `heldBack`) and the Backtest's line choices (`reg.ts` `offered`) leave a marked entry out for an
+  account the catalog does not list it for. `scripts/live_diff.py` names what reaches the live site at preview. Docs:
+  LIVE_PROMOTION.md §3 "Preview", INDICATOR_BETA_TO_LIVE.md Part C, CONTRACT 8 "Preview", AGENTS.md.
+- **Found while building (the same mechanism, fixed with it):** `app/examples.py` `not_released` held back `lab` only,
+  against its docstring ("a stage other than released"); `app/screener.py` `catalog_for` kept its own copy of the
+  stage rule (`== lab`); `tests/test_releases.py` refused any non-released Flow item, not only a lab one. None was
+  reachable before (no third stage existed).
+- **Verified (targeted, 2026-11-23):** `tests/test_preview_stage.py` through the real principals of both sites (the
+  admin holds a preview item in the catalog, both workers' allow and the tab catalogs with its mark; a paid or free
+  account does not; every seeded plan read from the database; a grant naming `preview` refused by the database and
+  not held on read); `test_releases.py`, `test_examples_release_cut.py` (lab and preview), `test_3f_tab_catalogs.py`,
+  `test_allow.py`, `test_examples.py`: 94 passed. Mutation: with `held_back` reading lab only, the preview tests and the
+  three example cuts fail. Terminal `ind_menu.test.ts`, `lab/coverage.test.mjs`, `calc/public_formulas.test.ts`,
+  `calc/flow.test.ts`; Backtest `preview-lines.test.ts`; `scripts/tests/test_live_diff.py`.
+- **Not tested out by another agent yet:** goes to step 8 with the ledger (UD23).
+- **Lesson:** a stage rule written as `== 'lab'` in more than one place reads every new stage as released; the rule is
+  one predicate (`releases.held_back`) and `beta_only` alone keeps `== lab`.
+
 ### M549 — The test-out of items 1-3 of 2026-11-23: the guide, the lab lift and the registration window (2026-11-23; found by the test-out `wf_4181198a-09f`; FIXED in `083dbc23`, on the beta since 2026-11-23 (`59712547`))
 
 - **The test-out (three fresh agents at xhigh, the user's "Untuk workflow, pengecekan menggunakan Opus 5,5 xhigh"):**

@@ -884,29 +884,33 @@ class Screeners:
         so a session never gets another one's ETag or a 304 for it):
         - 3f (ERRORS M520; catalog.tab_list, the rule of /api/v1/catalog): an entry of the item lists (ITEM_LISTS) is
           left out when it is marked access 'admin' (the Screener's point-in-time Flow versions) and the session lacks
-          the right flow_point_in_time, or when it is a lab item the principal `p` does not hold (an id the release file
-          does not list is lab; without `p` none is held); a kept lab entry carries release 'lab';
+          the right flow_point_in_time, or when it is an item held back (lab or preview) the principal `p` does not
+          hold (an id the release file does not list is lab; without `p` none is held); a kept held-back entry carries
+          its stage as `release`;
         - a preset that reads an entry left out would be refused when run, so it is left out too (Stage C F6, M458;
           preset_reads: its definition or the worker's `items`);
         - EXEC-MU-ACCOUNTS Phase 3b (C2 F1): with an allow that does not hold every item, a preset reading an item
           outside it is left out (its counts were computed with every item); a preset without the worker's `items` (an
           older worker) keeps no counts;
         - re-check R1-32: a preset `p` does not hold itself (its screener.preset grant, catalog.holds_entry) is left out;
-          without `p`, a lab preset is (3f checker CAT-6). A kept lab preset carries release 'lab'.
+          without `p`, a held-back (lab or preview) preset is (3f checker CAT-6). A kept held-back preset carries its
+          stage as `release`.
         Kept per what decides the answer: the document, the entries left out and the lab ones kept, the allow, and the
         presets held (their ids, so two principals share a copy only when they hold the same presets: 3f checker CAT-4,
         on the live site the admin's grants matched those of an account without screener.preset)."""
         everything = allow is None or all(v == '*' for v in allow.values())
         point_in_time = POINT_IN_TIME in rights
         index = self.items_of(doc)
-        out, lab_kept = set(), set()
+        out, lab_kept = set(), {}
         for name, kinds, fallback, entry in index['items']:
             kind = tab_kind(entry['id'], kinds, fallback(entry))
+            stage = releases.stage_of(kind, entry['id'])
             if tab_hidden(p, kind, entry, point_in_time):
                 out.add((name, entry['id']))
-            elif releases.stage_of(kind, entry['id']) == releases.LAB:
-                lab_kept.add((name, entry['id']))
-        lab_presets = {i for i in index['presets'] if releases.stage_of(PRESET_KIND, i) == releases.LAB}
+            elif releases.held_back(stage):
+                lab_kept[(name, entry['id'])] = stage          # lab or preview, kept for a principal who holds it
+        lab_presets = {i: st for i in index['presets']
+                       if releases.held_back(st := releases.stage_of(PRESET_KIND, i))}
         if p is None:
             held = frozenset(i for i in index['presets'] if i not in lab_presets)
         elif holds_every(p, PRESET_KIND):
@@ -916,20 +920,22 @@ class Screeners:
         lab_presets_kept = frozenset(i for i in lab_presets if held is None or i in held)
         if not out and not lab_kept and everything and held is None and not lab_presets_kept:
             return doc
-        key = (doc.etag, frozenset(out), frozenset(lab_kept), None if everything else dumps(allow), held, lab_presets_kept)
+        key = (doc.etag, frozenset(out), frozenset(lab_kept.items()), None if everything else dumps(allow), held,
+               lab_presets_kept)
         hit = self.restricted.get(key)
         if hit is None:
             data = loads(doc.raw)
             if isinstance(data, dict):
                 for name, _, _ in ITEM_LISTS:
                     if isinstance(data.get(name), list):
-                        data[name] = [({**e, 'release': releases.LAB} if item_key(name, e) in lab_kept else e)
+                        data[name] = [({**e, 'release': lab_kept[item_key(name, e)]} if item_key(name, e) in lab_kept
+                                       else e)
                                       for e in data[name] if item_key(name, e) not in out]
             if not everything and isinstance(data, dict) and isinstance(data.get('presets'), list):
                 data = {**data, 'presets': presets_held(data['presets'], allow)}
             if isinstance(data, dict) and isinstance(data.get('presets'), list):
                 gone = {i for _, i in out}
-                data['presets'] = [({**x, 'release': releases.LAB} if x['id'] in lab_presets_kept else x)
+                data['presets'] = [({**x, 'release': lab_presets[x['id']]} if x['id'] in lab_presets_kept else x)
                                    for x in data['presets'] if item_id(x) is not None
                                    and (held is None or x['id'] in held)
                                    # Stage C F6 (ERRORS M458): a preset that reads an entry left out would be refused

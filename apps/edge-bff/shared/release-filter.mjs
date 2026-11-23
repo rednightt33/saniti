@@ -2,9 +2,14 @@
    is meant for.
 
    - The public build (the one every visitor downloads, served without a session) keeps, in each registry below, the
-     entries whose item is `released` in the release file, apps/edge-bff/catalog/releases.json.
+     entries whose item is `released` or `preview` in the release file, apps/edge-bff/catalog/releases.json. A preview
+     entry carries `release: 'preview'` (the user 2026-11-23, EXEC-MU-ACCOUNTS "A preview release stage": on both sites,
+     held only by the principals whose grants name it, the admin's `*`), so a page that lists entries from its registry
+     leaves one out for a principal the catalog does not list it for, rather than show it locked (the Terminal's menu,
+     the Backtest's line choices). Its definition and formula are public; a formula that must stay out of the files a
+     visitor downloads stays lab.
    - The lab build (the admin's, which edge-bff serves only to the admin on the beta, under /<app>-app/lab/) keeps every
-     entry.
+     entry, a preview one with the same mark.
    - An item the release file does not list is lab. A release file that is missing or cannot be read stops the build
      (fail closed), so a public bundle is never built from a guess.
 
@@ -40,8 +45,15 @@ export const REGISTRIES = [
   { file: 'backtest/src/core/compare-lag.json', kind: 'indicator', keyed: 'price_compare_lag' },
 ];
 
-/** The release stages: a Map of `${kind}\t${id}` -> 'lab' | 'released', read from the release file (or `file`). Throws
-    when the file is missing, is not JSON or has no items list: the build stops. */
+/** The release stages of an item (app/releases.py STAGES). */
+export const STAGES = ['lab', 'preview', 'released'];
+/** The stages a public build keeps: every other (lab, or an id the release file does not list) is left out. */
+export const PUBLIC_STAGES = ['preview', 'released'];
+export const PREVIEW = 'preview';
+
+/** The release stages: a Map of `${kind}\t${id}` -> 'lab' | 'preview' | 'released', read from the release file (or
+    `file`). Throws when the file is missing, is not JSON, has no items list or an entry of another stage: the build
+    stops. */
 export function readStages(file = RELEASES) {
   let data;
   try {
@@ -52,20 +64,23 @@ export function readStages(file = RELEASES) {
   if (!data || !Array.isArray(data.items)) throw new Error(`release filter: ${file} has no "items" list`);
   const stages = new Map();
   for (const it of data.items) {
-    if (!it || typeof it.kind !== 'string' || typeof it.id !== 'string' || !['lab', 'released'].includes(it.stage))
-      throw new Error(`release filter: ${file} has an entry without kind, id or a stage lab|released: ${JSON.stringify(it)}`);
+    if (!it || typeof it.kind !== 'string' || typeof it.id !== 'string' || !STAGES.includes(it.stage))
+      throw new Error(`release filter: ${file} has an entry without kind, id or a stage ${STAGES.join('|')}: ${JSON.stringify(it)}`);
     stages.set(`${it.kind}\t${it.id}`, it.stage);
   }
   return stages;
 }
 
-/** The registry document as the build keeps it: every entry for the lab build, the released ones for the public build
-    (an unlisted id is lab). Each part the spec names must be there in its shape, a list (`list`, each of `lists`) or an
-    object keyed by id (`keyed`), else the build stops: a part renamed or rewritten would pass through unfiltered
-    (3f checker B4, BUN2-4, CS-4). terminal/tests/lab/coverage.test.mjs checks that no other part of a registry file
-    names an item. */
+/** The registry document as the build keeps it: every entry for the lab build, the released and preview ones for the
+    public build (an unlisted id is lab); an entry of a list whose item is at preview carries `release: 'preview'` in
+    both builds (an object keyed by id keeps its values as they are). Each part the spec names must be there in its
+    shape, a list (`list`, each of `lists`) or an object keyed by id (`keyed`), else the build stops: a part renamed or
+    rewritten would pass through unfiltered (3f checker B4, BUN2-4, CS-4). terminal/tests/lab/coverage.test.mjs checks
+    that no other part of a registry file names an item. */
 export function filtered(spec, doc, { lab, stages }) {
-  const keep = kind => e => lab || (e && typeof e.id === 'string' && stages.get(`${kind}\t${e.id}`) === 'released');
+  const stage = (kind, e) => e && typeof e.id === 'string' ? stages.get(`${kind}\t${e.id}`) : undefined;
+  const keep = kind => e => lab || PUBLIC_STAGES.includes(stage(kind, e));
+  const mark = kind => e => stage(kind, e) === PREVIEW ? { ...e, release: PREVIEW } : e;
   if (spec.keyed) {
     const by = doc[spec.keyed];
     if (!by || typeof by !== 'object' || Array.isArray(by)) throw new Error(`release filter: ${spec.file} has no object "${spec.keyed}"`);
@@ -75,16 +90,17 @@ export function filtered(spec, doc, { lab, stages }) {
     let out = doc;
     for (const [key, kind] of spec.lists) {
       if (!Array.isArray(out?.[key])) throw new Error(`release filter: ${spec.file} has no list "${key}" (the entries of kind ${kind})`);
-      out = { ...out, [key]: out[key].filter(keep(kind)) };
+      out = { ...out, [key]: out[key].filter(keep(kind)).map(mark(kind)) };
     }
     return out;
   }
   const list = spec.list(doc);
   if (!Array.isArray(list)) throw new Error(`release filter: ${spec.file} has no list of entries where it is expected`);
-  return spec.put(doc, list.filter(keep(spec.kind)));
+  return spec.put(doc, list.filter(keep(spec.kind)).map(mark(spec.kind)));
 }
 
-/** The Vite plugin: it loads each registry filtered for the build (lab: every entry; else the released ones). Every page
+/** The Vite plugin: it loads each registry filtered for the build (lab: every entry; else the released and preview
+    ones). Every page
     build puts it in `plugins` and in `worker.plugins` alike: Vite builds a Web Worker's bundle with the worker's plugins
     only (checker L1, 2026-11-21: the Terminal's worker had the whole Flow registry). tests/test_3f_public_bundles.py
     builds every page with its own configuration on a copy of apps/edge-bff whose registries hold fixture items, and

@@ -19,7 +19,8 @@ What a principal holds (`grants`, key -> value, each checked against its capabil
 - `capabilities`: the flag keys whose value is true ('*' = every capability, every item at any release stage);
 - `limits`: the limits (non-negative integers) and lists (arrays of strings), read with `p.limit(key)`;
 - item families (`items` values {ids, stages, all}): `p.can('<family>:<id>')` holds the item when its id is listed,
-  its release stage (releases.py stage_of) is listed, or all is true. Unknown keys are not held.
+  its release stage (releases.py stage_of) is listed, or all is true (a value may name the stages lab and released only,
+  releases.GRANT_STAGES: a preview item is held by its id or `*`). Unknown keys are not held.
 
 Dependencies (`Auth`, handed to every router as `routes(app, auth)`):
 - `auth.principal`: the Principal (401 UNAUTHENTICATED otherwise); sets request.state.owner and request.state.principal;
@@ -126,7 +127,7 @@ def valid_value(kind, value):
     if kind == 'items':
         return isinstance(value, dict) and set(value) <= ITEM_KEYS \
             and all(isinstance(value.get(k, []), list) and all(isinstance(x, str) for x in value.get(k, []))
-                    for k in ('ids', 'stages')) and set(value.get('stages', ())) <= set(releases.STAGES) \
+                    for k in ('ids', 'stages')) and set(value.get('stages', ())) <= set(releases.GRANT_STAGES) \
             and isinstance(value.get('all', False), bool)
     return False
 

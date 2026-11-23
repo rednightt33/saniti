@@ -295,7 +295,7 @@ def _item_lists():
 
 def not_released():
     """Every id the release file holds at a stage other than released, of every kind."""
-    return frozenset(e['id'] for kind in releases.KINDS for e in releases.entries(kind) if e.get('stage') == releases.LAB)
+    return frozenset(e['id'] for kind in releases.KINDS for e in releases.entries(kind) if releases.held_back(e.get('stage')))
 
 
 def _names(value, ids, found):
@@ -330,7 +330,7 @@ def released_doc(doc, lab):
                 out, gone = {**out, name: kept}, gone | left
     if isinstance(doc.get('presets'), list):
         presets = [x for x in doc['presets'] if not (isinstance(x, dict) and isinstance(x.get('id'), str)) or (
-            releases.stage_of(PRESET_KIND, x['id']) != releases.LAB and not preset_reads(x, gone | lab))]
+            not releases.held_back(releases.stage_of(PRESET_KIND, x['id'])) and not preset_reads(x, gone | lab))]
         if len(presets) != len(doc['presets']):
             out = {**out, 'presets': presets}
     return out, _names(out, lab, set())

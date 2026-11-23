@@ -10,6 +10,8 @@ release files (apps/edge-bff/catalog/releases.json), so a session without the ea
 - the release file's changes: tabs and catalog items whose stage differs or that are new (an unlisted tab or item is
   'lab', on the beta only);
 - what is at the lab stage on the beta's side (it stays off on the live site when `live` moves);
+- what is at the preview stage on the beta's side (it reaches the live site for the admin only when `live` moves:
+  EXEC-MU-ACCOUNTS "A preview release stage");
 - with --sites, the commits both sites run (GET /version): `live` may move only to a commit the beta runs.
 
 Usage (repository root):
@@ -64,7 +66,8 @@ def stages(doc):
 
 def release_changes(live_doc, beta_doc):
     """What moving `live` would change in the release file: entries new on the beta's side (with their stage), stages
-    that differ, entries gone; and everything at the lab stage on the beta's side (it stays off on the live site)."""
+    that differ, entries gone; everything at the lab stage on the beta's side (it stays off on the live site); and, for
+    items, everything at the preview stage there (on the live site for the admin only once `live` moves)."""
     out = {}
     for name, (old, new) in (('items', (stages(live_doc)[0], stages(beta_doc)[0])),
                              ('tabs', (stages(live_doc)[1], stages(beta_doc)[1]))):
@@ -75,6 +78,8 @@ def release_changes(live_doc, beta_doc):
             'gone': sorted(key(k) for k in old if k not in new),
             'lab_on_beta': sorted(key(k) for k, v in new.items() if v == 'lab'),
         }
+        if name == 'items':
+            out[name]['preview_admin_only'] = sorted(key(k) for k, v in new.items() if v == 'preview')
     return out
 
 
@@ -123,7 +128,9 @@ def text(r) -> str:
     for name in ('tabs', 'items'):
         rc = r['releases'][name]
         lines.append(f'release file, {name}: new {rc["new"] or "none"}; changed {rc["changed"] or "none"}; '
-                     f'gone {rc["gone"] or "none"}; lab on the beta (stays off on the live site) {rc["lab_on_beta"] or "none"}')
+                     f'gone {rc["gone"] or "none"}; lab on the beta (stays off on the live site) {rc["lab_on_beta"] or "none"}'
+                     + (f'; preview (on the live site for the admin only, paid and free accounts do not see it) '
+                        f'{rc["preview_admin_only"] or "none"}' if 'preview_admin_only' in rc else ''))
     if 'running' in r:
         lines.append(f"running: beta {r['running'].get('beta')}, live {r['running'].get('live')}; the beta runs the "
                      f"beta ref: {r['beta_runs_beta_ref']} (live may move only to a commit the beta runs)")

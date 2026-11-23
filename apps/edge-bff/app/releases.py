@@ -12,12 +12,21 @@ message naming the problem rather than refusing items at run time.
   test's, the stages the file's.
 - `KIND_OF_FAMILY`: the capability family of an item (`<tab>.<item kind>`, the part before ':' of
   `terminal.indicator:I01`) mapped to its kind; the id space of a kind is shared by every tab.
-- `stage_of(kind, item_id)`: 'released' or 'lab'; an id the file does not list reads 'lab' at run time (fail closed). That
-  is no way in: no item may be at the lab stage yet (tests/test_releases.py refuses an unlisted one and names what must
-  be closed first, FUTURE_PLAN.md "Before the first lab item or tab"), so a new item enters the file as "released" with
-  the user's go, or stays off main.
+- `stage_of(kind, item_id)`: 'released', 'preview' or 'lab'; an id the file does not list reads 'lab' at run time (fail
+  closed). tests/test_releases.py refuses an unlisted id, so a new item enters the file at a stage with the user's go:
+  - 'lab': on the beta only, held by the principals whose grants name it (the admin's `*`); its definition and formula
+    stay out of the public page builds (INDICATOR_BETA_TO_LIVE.md part A; LAB_KIND_HELD names the kinds that may not be
+    lab yet);
+  - 'preview' (the user 2026-11-23, EXEC-MU-ACCOUNTS "A preview release stage"): on both sites, held only by a principal
+    whose grants name the item itself (the admin's `*`, or an id list): no plan holds it by stage (GRANT_STAGES, the
+    database's capability_value_check), so a paid or free account never holds it, and it is not beta-only. Its
+    definition and formula are in the public page builds (marked `release: 'preview'`, shared/release-filter.mjs), so
+    the pages leave it out for a principal who does not hold it rather than show it locked;
+  - 'released': held by every plan that holds the released stage.
+  `held_back(stage)`: lab or preview, an item listed only to a principal who holds it (catalog.tab_list, the stored
+  examples); `beta_only` (principal.py) is the lab stage alone.
 - `entries(kind)`: the file's entries of a kind, in file order, as [{"id", "stage"}].
-- `tab_stage(tab)`: the live switch of a tab (the first part of a capability key, `terminal` of `terminal.view`; the
+- `tab_stage(tab)`: the live switch of a tab ('lab' or 'released' only, TAB_STAGES: a tab has no preview stage) (the first part of a capability key, `terminal` of `terminal.view`; the
   user, 2026-11-20, EXEC option A: development happens on the beta and reaches the live site only on request). The file's
   optional `tabs` list holds [{"id", "stage"}]; a tab it does not list is 'lab' too, so a new tab is on the beta only
   until it is marked released (principal.beta_only, auth/config hidden_tabs), whatever plan grants it.
@@ -30,8 +39,12 @@ from pathlib import Path
 
 PATH = Path(__file__).resolve().parent.parent / 'catalog' / 'releases.json'
 SCHEMA_VERSION = 1
-STAGES = ('lab', 'released')
-LAB = 'lab'
+LAB, PREVIEW, RELEASED = 'lab', 'preview', 'released'
+STAGES = (LAB, PREVIEW, RELEASED)
+# a tab is on the beta only or on both sites; the stages a plan's items value may name ({"stages": [...]}; the database's
+# edge_bff.capability_value_check refuses any other, migration 20261117_003), so 'preview' is held only by its id or `*`
+TAB_STAGES = (LAB, RELEASED)
+GRANT_STAGES = (LAB, RELEASED)
 KINDS = ('indicator', 'flow_indicator', 'candle_pattern', 'screener_metric', 'screener_preset')
 KIND_OF_FAMILY = {
     # the indicator and Flow items of every tab are granted by the Terminal's families (3b follow-up, user decision
@@ -76,7 +89,8 @@ class Releases:
             if not isinstance(item_id, str) or not item_id or item_id != item_id.strip():
                 fail(f'{where} needs a non-empty id without surrounding spaces, found {item_id!r}')
             if stage not in STAGES:
-                fail(f'{where} ({kind} {item_id}) has the unknown stage {stage!r}; a stage is "lab" or "released"')
+                fail(f'{where} ({kind} {item_id}) has the unknown stage {stage!r}; a stage is "lab", "preview" or '
+                     '"released"')
             if (kind, item_id) in self._stage:
                 fail(f'{where} repeats {kind} {item_id!r}; keep one entry per kind and id')
             self._stage[(kind, item_id)] = stage
@@ -95,8 +109,9 @@ class Releases:
                 fail(f'{where} must be an object with exactly id and stage, found {tab!r}')
             if not isinstance(tab['id'], str) or not TAB.fullmatch(tab['id']):
                 fail(f'{where} needs a tab name (lowercase letters, digits, _), found {tab["id"]!r}')
-            if tab['stage'] not in STAGES:
-                fail(f'{where} ({tab["id"]}) has the unknown stage {tab["stage"]!r}; a stage is "lab" or "released"')
+            if tab['stage'] not in TAB_STAGES:
+                fail(f'{where} ({tab["id"]}) has the unknown stage {tab["stage"]!r}; a tab\'s stage is "lab" or '
+                     '"released" (a tab has no preview stage: a new tab is lab until it is released)')
             if tab['id'] in self._tabs:
                 fail(f'{where} repeats the tab {tab["id"]!r}; keep one entry per tab')
             self._tabs[tab['id']] = tab['stage']
@@ -144,8 +159,14 @@ CURRENT = load()
 
 
 def stage_of(kind: str, item_id: str) -> str:
-    """'released' or 'lab' of an item; an id (or kind) the file does not list is 'lab'."""
+    """'released', 'preview' or 'lab' of an item; an id (or kind) the file does not list is 'lab'."""
     return CURRENT.stage_of(kind, item_id)
+
+
+def held_back(stage) -> bool:
+    """Whether an item at this stage is listed only to a principal who holds it (lab or preview; anything but
+    released, so an unknown stage is held back too)."""
+    return stage != RELEASED
 
 
 def entries(kind):
