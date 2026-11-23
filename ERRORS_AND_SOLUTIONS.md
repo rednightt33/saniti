@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M550 — The preview release stage: an item on the live site for the admin only (2026-11-23; built on the branch, not deployed)
+### M550 — The preview release stage: an item on the live site for the admin only (2026-11-23; built in `1894adfc` on the branch, not deployed)
 
 - **Request (the user 2026-11-23):** "apakah versi indikator yang released dari main ke live bisa dibedakan antara user
   paid dan admin? misalkan ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya admin
