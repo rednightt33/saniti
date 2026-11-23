@@ -9,9 +9,11 @@ refer that" and "Cabut tes penjaga lab". The plan behind it (the user, 2026-11-2
 tested on the beta only, in the Terminal, the Screener and the Backtest; each moves to the live site only when the user
 says so.
 
-Proven by a dry run on 2026-11-23: a lab indicator I54 (Price Z-Score) planted in a copy of the repository, every page
-built, the suites run, then released the same way (Part B). Every step below was needed by that run; the files and
-lines it changed are cited.
+Checked by a dry run on 2026-11-23 in a copy of the repository: a lab indicator I54 (Price Z-Score) planted by Part A
+steps 1-6, every page built, the suites run (green once the test fixes it found were made: the loader, the look-ahead
+gate, the derived counts, the Screener overlay test), then released by Part B step 2 and run again. The deploy and
+on-site steps (Part A 11-13, Part B 5-8) were not run (no deploy); the formula test of Part A step 7 is there because the
+run showed that the page tests never see a lab formula. The files and lines it changed are cited.
 
 **Read with it:**
 - `SCREENER_ONBOARDING.md` §2.11 (the worked example of a released indicator, end to end: formula, registry, parity,

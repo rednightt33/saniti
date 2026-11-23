@@ -67,23 +67,20 @@ stage. The beta (switch off) shows everything to the admin.
 | A tab that never goes live | `principal.BETA_ONLY_TABS` (`admin`, `monitor`) | — | its keys are refused and its routes answer 404 before any session |
 
 **3f (EXEC option A item 4, CONTRACT.md 8 "Lab code") built what keeps a lab item out of the public page builds and the
-tab catalogs. No item and no tab may be at the lab stage yet**, because a lab item or tab would still reach people who do
-not hold it in the ways its ultracode checker found (2026-11-21). Two tests hold this, and their failure messages name
-what must be closed first (FUTURE_PLAN.md, "Before the first lab item or tab"):
+tab catalogs.** What held back the first lab item after its checker (2026-11-21) is closed on both sites by the deploys
+of 2026-11-22 (RAILWAY_CHANGELOG.md "The round's close": the workers' refusals name nothing outside allow, both workers
+load the lab formulas, the live site's Terminal parks a saved entry its build lacks and cuts the stored examples to its
+release file), and the user lifted the item guard on 2026-11-23 ("Cabut tes penjaga lab"). The guards that stay:
 
-- `tests/test_releases.py` `LAB_ITEM_HELD_UNTIL`:
-  - the Screener worker's refusals list and name items outside the principal's allow;
-  - the workers and the registry generators do not load lab formulas;
-  - the live site's edge-bff predates 3f until `live` moves past it;
-  - the Terminal deletes a saved chart entry whose definition its build lacks, so one public-build session of the
-    admin's own account (the live site always serves that build, and the preferences are shared) deletes the admin's
-    lab indicators from the synced layout (round 2, CRIT-1);
-  - an existing item named in page code or computed by a built-in without its id cannot be put back at the lab stage
-    by the release file alone (round 2, CRIT-3; below, "Items written in code");
-  - the stored examples show their catalogs as the release file stood at their capture, so an item put at the lab
-    stage later stays in them until they are captured again (the example-mode checker, ERRORS M527).
+- `tests/test_releases.py` `LAB_KIND_HELD`: a Flow indicator may not be lab (its formula has no lab registration point:
+  `calc/flow.ts` keeps its map unexported and keys each formula by its id);
+- the standing rules: an item no worker gates by id is never lab, nor an item the shipped code names or computes by its
+  key (CRIT-3), and a released entry's text names no lab item;
 - `tests/test_live_switch.py` `LAB_TAB_HELD_UNTIL`: a lab tab's rail entry, route, frame wrapper and words are in the
-  public shell, and `auth/config` names it.
+  public shell, so no tab may be lab until the server hands the rail entry to the principals holding it.
+
+A lab indicator follows `INDICATOR_BETA_TO_LIVE.md` (Part A: the beta only; Part B: the release), proven end to end by
+its dry run of 2026-11-23.
 
 What is built:
 
@@ -135,16 +132,19 @@ How a new piece of work enters:
 - **A new tab or page.** Its own `<tab>-app`, listed in `tabs`. While the lab-tab guard holds, a new tab is added as
   `"released"` only when the user asks for it to be live, or kept off `main`. A tab you leave out is lab anyway, but
   `test_live_switch.py` fails until it is listed.
-- **A new catalog item.** Not as `"lab"` yet (the guard above). The recipe the mechanism is built for, once the guard is
-  lifted:
+- **A new catalog item.** May enter as `"lab"` (since 2026-11-23; a Flow indicator not yet). A technical indicator follows
+  `INDICATOR_BETA_TO_LIVE.md` literally; in short:
   - Its definition goes into its registry as usual. The public build leaves it out, and the lab build keeps it.
   - A lab technical indicator's formula goes into `apps/edge-bff/terminal/src/lab/index.ts`, registered into the
-    formula map `F` under its registry `key`. Never put it in `calc/indicators.ts` while it is lab: that file is in
-    every public build.
-  - The registry generators and both workers must load that module too, with `terminal/src/lab` in both engine
-    versions (not built). The workers' engine and registry versions then change when the item is added. The Screener
-    also needs its overlay entry (`screener-overlay.json`). Three page tests pin 53 indicators.
-  - Releasing it moves the formula into `calc/indicators.ts` and the stage to `"released"`, in one commit.
+    formula map `F` (and its defaults into `DEFAULTS`) under its registry `key`, with the released formulas' wrapper
+    `def`. Never put it in `calc/indicators.ts` while it is lab: that file is in every public build.
+  - The registry generators and both workers load that module (built, 3f TR-2: `@edge-lab`, `terminal/src/lab` in both
+    engine versions; every process the workers' loader starts registers it, the tests and the look-ahead gate
+    included). The workers' engine and registry versions change when the item is added. The Screener also needs its
+    overlay entry (`screener-overlay.json`). The page tests pin 53 indicators of the public registry: they change only
+    at the release.
+  - Releasing it moves the formula into `calc/indicators.ts` and the stage to `"released"`, in one commit, with the
+    page tests' pinned counts.
   - A lab Flow indicator's formula has no registration point (the `FLOW` map of `calc/flow.ts` is not exported). Its
     formula runs on the page's main thread, so that point is reached from `main.ts`.
   - A lab candle pattern, Screener metric or preset is data the workers read whole. The public page builds and the
@@ -156,10 +156,10 @@ How a new piece of work enters:
     read with `find(...)!`, so filtering it out would break the page), the page modules name about 30 more ids
     (`flowIndicators.ts` SINGLE_SECURITY, `indMenu.ts`, the Screener page's `builder.ts` and `extra-columns.ts`, the
     Backtest's `core/catalog.ts`), and built-ins compute some without their id (the Backtest's rank items for I07, I35
-    and I13, the ATR stops for I30, the transform `ma`). Held: `LAB_ITEM_HELD_UNTIL`.
+    and I13, the ATR stops for I30, the transform `ma`). Held: `test_an_item_the_shipped_code_names_is_never_lab`.
   - A released entry's text must not name a lab item.
 - **A change to a released tab.** This needs care: once `live` moves, the change is live. Either keep it off with its
-  own new item or tab at the lab stage (once the guards are lifted), or tell the user it will be live when `live` moves
+  own new item at the lab stage (a tab once its guard is lifted), or tell the user it will be live when `live` moves
   (section 4, step 3).
 
 Releasing means a commit that changes the stage from `lab` to `released`. It takes the normal path (session branch →
@@ -224,7 +224,8 @@ CI → `main` → the beta runs it), and then `live` moves to it. The user's req
    - registration 403 `REGISTRATION_CLOSED` while in pre-launch;
    - a foreign origin 403;
    - an unknown login 401;
-   - `lab build terminal-app` and `lab build backtest-app`: the public build, and the lab build's Web Worker file 404.
+   - `lab build terminal-app` and `lab build backtest-app`: the public build, and the lab build's Web Worker file and its
+     fixed-name probe (`lab_probe_file`, `shared/release-filter.mjs` `LAB_PROBE`) 404.
 
    The browser smoke expects the Terminal to open, the rail to have no Monitor or lab tab, and no model list to be
    asked for.

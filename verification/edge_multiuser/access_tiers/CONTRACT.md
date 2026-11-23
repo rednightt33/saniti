@@ -1249,8 +1249,10 @@ today.
     point (`terminal/src/lab/index.ts`, alias `@edge-lab` in `apps/backtest-worker/loader/resolve.mjs`; both images copy
     the lab folder). Not built: a lab Flow indicator's formula has no registration point (`calc/flow.ts` does not export
     its map; LIVE_PROMOTION.md section 3).
-- **The held gaps (no item or tab may be lab yet; `tests/test_releases.py` LAB_ITEM_HELD_UNTIL, `tests/test_live_switch.py`
-  LAB_TAB_HELD_UNTIL; FUTURE_PLAN.md "Before the first lab item or tab"), each with where it stands:**
+- **The held gaps (FUTURE_PLAN.md "Before the first lab item or tab"), each with where it stands. The item guard was lifted
+  on 2026-11-23 (the user: "Cabut tes penjaga lab"; every item gap below closed on both sites by the deploys of
+  2026-11-22): a new item may be lab but a Flow indicator (`tests/test_releases.py` `LAB_KIND_HELD`); no tab yet
+  (`tests/test_live_switch.py` LAB_TAB_HELD_UNTIL). A lab indicator: `INDICATOR_BETA_TO_LIVE.md`.**
   - the workers' refusals listed and named items outside the principal's allow before the plan check (checker L2):
     closed. Both workers check allow on the request as sent; a reference whose id is not a string or is missing is
     refused by its field only; every refusal to a principal whose allow is not everything leaves with its registry

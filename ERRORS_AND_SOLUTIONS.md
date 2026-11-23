@@ -8886,6 +8886,31 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M548 — The lab item guard lifted; its dry run found the look-ahead gate passing a lab indicator without computing it (2026-11-23; found by the dry run; FIXED on the branch, see Status)
+
+- **The user (2026-11-23):** "Cabut tes penjaga lab".
+- **Lifted per kind** (`apps/edge-bff/tests/test_releases.py`, `LAB_ITEM_HELD_UNTIL` replaced by `LAB_KIND_HELD`): an
+  indicator, a candle pattern, a Screener metric and a preset may be at the lab stage; a Flow indicator stays held (its
+  formula has no lab registration point: the `FLOW` map of `calc/flow.ts` is not exported). Tabs stay held
+  (`LAB_TAB_HELD_UNTIL`, the rail entry). Evidence the held conditions are met: screener-worker `4438dbb0` (`gateSent`,
+  `forAllow`, `@edge-lab`), backtest-worker `df495720` (`@edge-lab`), live `306c1190` on `ec739a06` (`restoreList`,
+  `released_view`); RAILWAY_CHANGELOG 2026-11-22 "The round's close".
+- **Found by the dry run** (a lab I54 planted in a copy, then released): the look-ahead gate passed a lab indicator
+  without computing it: the test processes did not register `@edge-lab`, and `safely` read the TypeError as a refused
+  setting. Fixed in `apps/backtest-worker/loader/register.mjs` and an assertion in `tests/lookahead.test.ts` (red with
+  the fix removed, naming I54). Also: count pins of 53 indicators derived, the Screener overlay test compared with the
+  filtered registry, goldens refused new cases, two tests used I54 as an unknown id; all derived now.
+- **L11 built:** the lab build carries `assets/lab-probe.svg` (`shared/release-filter.mjs` `LAB_PROBE`); the beta's
+  admin reads 200, a visitor and the live site 404 (`tests/test_3f_lab_pages.py`, `http_smoke.py` `lab_probe_file`).
+- **The guide:** `INDICATOR_BETA_TO_LIVE.md` (Part 0, A: lab on the beta, B: release to live), linked from AGENTS.md with
+  `SCREENER_ONBOARDING.md` §2.11 and §3.2 and `LIVE_PROMOTION.md` §3 and §4.
+- **Class and lesson:** a guard that silently skips a missing formula is not a gate; a test that names the next free id
+  breaks at the first new item. `terminal/src/lab/index.ts` is hashed into both engine versions, so they change at the
+  next worker deploy.
+- **Status:** FIXED on the branch (this entry's commit); the CRIT-1 round trip on the real sites runs at the first lab
+  indicator's beta deploy (INDICATOR_BETA_TO_LIVE.md Part A step 12); its test-out: the workflow of items 1-3, then
+  step 8.
+
 ### M547 — The AI page's Sources: a part the user just opened closed again when the panel was drawn anew (2026-11-22; found by the agent from a flaky test; FIXED in `4f1e6d3e`, on the live site since 2026-11-22 (`ec739a06`))
 
 - **Found by:** the agent, from `tests/test_answer_view.py::test_sources_list_the_answers_tables_with_an_export_request`
@@ -9835,6 +9860,9 @@ in its staleness check.
     its build lacks through load, change and reload (red on the mutation). The lab half of the round trip cannot be
     built while no item may be lab; `restoreList`'s unit test covers it. A corrupt `ml.ind.v1` is still overwritten at
     start, as before.
+- **2026-11-23:** L11 built (`shared/release-filter.mjs` `LAB_PROBE`, `tests/test_3f_lab_pages.py`, `http_smoke.py`
+  `lab_probe_file`); CRIT-1's lab to public to lab round trip is `INDICATOR_BETA_TO_LIVE.md` Part A step 12, run at the
+  first lab indicator's beta deploy (ERRORS M548).
 
 ### M522 — On the live site the admin and an account without screener.preset could share one copy of the Screener catalog (2026-11-21; FIXED in `33c84c1f`, on the live site; predates 3f)
 
