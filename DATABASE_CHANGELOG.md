@@ -1,11 +1,11 @@
 # Database changelog
 
-## 2026-11-23 — Step 7, the payment shell: payment orders and their events (edge_bff, migration 20261123_001; WRITTEN, NOT APPLIED)
+## 2026-11-23 — Step 7, the payment shell: payment orders and their events (edge_bff, migration 20261123_001; APPLIED on dev 2026-11-23 05:32 UTC)
 
 - **Why:** EXEC.md EXEC-MU-ACCOUNTS option A item 6; the user, 2026-11-22: "langkah 7 berkaitan dengan pembuatan
   kerangka pembayaran, harap disiapkan saja infrastrukturnya. Untuk tesnya nanti kita buat fase tersendiri karena akun
   Mitrans belum siap" (CONTRACT.md 11).
-- **Migration:** `20261123_001_edge_bff_payments.sql`, sha256 `3cbf7677…e7db7a1f` (as written; it changes until applied):
+- **Migration:** `20261123_001_edge_bff_payments.sql`, sha256 `3cbf7677…e7db7a1f`:
   `edge_bff.payment_orders` (one row per payment attempt: the opaque order number, the account, the plan, the period,
   the amount in whole rupiah, `IDR`, the provider, the status, the expiry, the last event's time, why it is held for the
   admin) and `edge_bff.payment_events` (every verified notification once, unique per provider and event key, with its
@@ -19,6 +19,13 @@
   it (`tests/conftest.py`).
 - **No data:** the tables stay empty until a provider is switched on (`EDGE_PAYMENTS_PROVIDER`; `midtrans` refused until
   its phase).
+- **Jobs (orc-test-runner, `scripts/onboarding/run_job.sh`, `DATABASE_URL` set and removed for each run, `VAR_REMOVED`;
+  the user's go 2026-11-23, "Yang pertama saya izinkan" and "Oke, mulai."):** DRYRUN (04:37 UTC, the body inside one
+  rolled-back transaction, OK), APPLY (05:32 UTC, committed, `JOB_DONE MIGRATION APPLY`, `JOB_EXIT 0`). Read back: the
+  two tables with their columns; `subscriptions_provider` CHECK `manual, test, midtrans`; `edge_bff_runtime` holds
+  SELECT, INSERT, UPDATE on `payment_orders` and SELECT, INSERT on `payment_events`, USAGE on its sequence; PUBLIC none;
+  0 orders, 0 events; the one active subscription (manual) unchanged. M340 before each: 0 EDGE jobs, 0 orc turns, 0
+  statements. Both sites `/ready` 200 after it. Not a large update; Postgres memory 0.10 GB.
 
 ## 2026-11-22 — Phase 4, the contact-support panel: the support tickets and their images (edge_bff, migration 20261122_001)
 
