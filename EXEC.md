@@ -16639,6 +16639,16 @@ Order of the services (CONTRACT 17, rollback floors):
     And: "Keputusan yang masih terbuka seperti UD7 dan GA2, kunci open router yang kadaluarsa, harap di drop dan tidak
     perlu di repeat lagi. Saya udah aware itu." → UD7, GA-2 and NC29 stay in the register, marked acknowledged, and are
     not shown again at the end of a phase.
+  - The next work, queued (2026-11-23), the user: "Next to do tapi jangan jalankan dulu: 1 Ok untuk indicator beta to
+    live MD, masukan ke agents md beserta 2 docs sebelumnya agar AI bisa refer that. 2 Cabut tes penjaga lab 3 Sekarang
+    akan masuk labgkah 9 instead of langkah 8. Sialkah implementation plan, inspeksi code bff live. Setelah
+    Implementation plan jadi, segera execute beserta 2 item di atas. Setelah selesai di execute, assign workflow to test
+    it out. Dan apabila error, feel free untuk dibenarkan dan masukkan yang sudah dibenarkan tersebut untuk dites nanti
+    bersama di langkah 8." → queued, not started: (1) `INDICATOR_BETA_TO_LIVE.md` with AGENTS.md pointing at it and at
+    `SCREENER_ONBOARDING.md` §2.11 and `LIVE_PROMOTION.md` §3; (2) the lab guards lifted (`LAB_ITEM_HELD_UNTIL`); (3) step 9
+    (the registration test window) before step 8: its implementation plan from the live edge-bff's code, then executed
+    with (1) and (2), tested out by a workflow, fixes carried to step 8. Deploys within it still wait for the user's
+    confirmation (AGENTS.md "Deploys").
 - **The user's go for the rest of the round (2026-11-22): "Lanjutkan sisa pekerjaan, kemudian penutup putaran ya.. then
   proceed ke langkah 7. Aman?"** The rest (R1-5 A1, lab gap 3 and L11, the status test of rule 9), then the close (the
   re-check by five agents with the older fixes, the beta deploy with the shared workers' check against the live site's
@@ -16670,6 +16680,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD16 | Remove `EDGE_INITIAL_PASSWORD` from the beta | not yet asked with context (a row of the 2026-11-22 report) | security | any time |
   | UD17 | The old data defects (sector swap, Feature 04 bloat, five tickers, candle flags, M335, M426, M157) | each its own date | the data's accuracy | before paid launch |
   | UD18 | The Terminal defects and proposals only the user opens (M454, M447, M333) | each its own date | paying accounts' pages | before paid launch |
+  | UD24 | Mass downloads of the Terminal's data (the user 2026-11-23: "Goalnya adalah kita mau deteksi kode yang mencegah user untuk mendownload data via penarikan masal"): today only per-account quotas (paid: 60 tickers an hour, 200 a day, 300 files an hour, 500 MB a day), presigned URLs of 120 s and the audit log `terminal.access_log` (90 days); no detector tells a browser from a script; which detection or prevention to build | 2026-11-23 with context | protection of the data | before step 9 (registration) |
   | UD20 | A valid Railway token for telegram-trigger (the Telegram Run Now buttons fail) | 2026-11-03 | the manual restart button | any time |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
