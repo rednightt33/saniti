@@ -16767,6 +16767,42 @@ Order of the services (CONTRACT 17, rollback floors):
   - Executed so far (2026-11-23): the plan, the rehearsal test, the register review. The open-close flips wait for the
     user's confirmation and presence. Its test-out: the workflow of items 1-3; fixes go to step 8.
 
+- **A "preview" release stage: an item released on the live site to the admin only (the user 2026-11-23: "B. Coba inspect
+  code dulu dan siapkan implementation plan. Akan dijalankan setelah perbaikan dari checker selesai dan pushed to main
+  terakhir sudah dilakukan."; asked: "ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya
+  admin saja yang bisa lihat, user paid tidak bisa lihat"). Planned, not built; trigger: the test-out fixes of items 1-3
+  on `main`.**
+  - Today (code read 2026-11-23): stages are `lab` and `released` (`app/releases.py:33`). The paid plan holds every
+    released item (`{"stages": ["released"]}`, migration `20261117_003` lines 223-225); the admin holds `*`, every
+    item at any stage (`app/principal.py:19-22, 176`); on the live site a lab item is refused to everyone, the admin
+    included (`principal.beta_only`, `:101-114`, `live_view` `:306-316`). Public page builds keep released entries only
+    (`shared/release-filter.mjs:68`); the Terminal marks an item the catalog does not list for the principal as locked
+    (`terminal/src/app/indMenu.ts:259-261`); the Screener and Backtest tab catalogs keep a released item a principal does
+    not hold (shown locked) and leave out a lab one (`app/catalog.py:93-121`).
+  - The plan: a third stage `preview` = on both sites, held only by a principal whose grants name it (the admin's `*`, or
+    an id list); no plan holds it by stage, so paid and free never see it, and it is not beta-only.
+    1. `app/releases.py`: `STAGES = ('lab', 'preview', 'released')`, `PREVIEW`; tab stages stay lab/released.
+    2. `app/principal.py`: no change to `beta_only` (lab only); a test that the admin on the live site holds a preview
+       item, paid and free do not, a guest never.
+    3. `app/catalog.py`: `tab_hidden`/`tab_list` treat preview as lab (left out unless held, the kept entry carries
+       `release: 'preview'`); `holds_entry`'s ungated rule: an item no worker gates by id is never preview.
+    4. `app/allow.py`: nothing (the worker allow is the held entries); a test that paid's allow has no preview id.
+    5. `shared/release-filter.mjs`: the public build keeps released and preview entries and marks preview ones
+       `release: 'preview'`; a preview formula lives in the public calc files (`calc/indicators.ts`, `calc/flow.ts`), so
+       a Flow indicator may be preview (unlike lab).
+    6. Terminal `indMenu.ts` (and the Watchlist's indicator list if it lists items): a preview item the catalog does not
+       list for the principal is hidden, not locked.
+    7. `app/examples.py` `released_view`: a preview item is withheld from the stored examples like a lab one; released
+       entry texts must not name a preview item (`tests/test_releases.py`).
+    8. Tests: `test_releases` (stage values, LAB_KIND_HELD unchanged, preview allowed for every kind including flow),
+       `test_3f_public_bundles` (preview ids allowed in public bundles, lab still refused), catalog, allow, principal,
+       Terminal menu (vitest), examples; targeted runs, CI for the full suites.
+    9. Docs: `LIVE_PROMOTION.md` section 3 (the stage table), `INDICATOR_BETA_TO_LIVE.md` (a Part C: lab, then preview
+       on live, then released), CONTRACT 8.
+  - The trade-off the user accepted with "B": a preview item's definition and formula are in the public page files
+    (anyone reading the code can see them); only its use and its place in the menus are held to the admin. A secret
+    formula stays `lab` (beta only).
+
 - **The step-8 ledger (UD23's answer):** `verification/records/step8_ledger.json` (workflow `wf_877859a9-d28`, 2026-11-22):
   376 rows: 111 fixed and tested out, 168 fixed and not tested out, 23 open with an owner row, 65 open without one, 4
   accepted by the user, 5 obsolete; its critic names the findings with no row yet (the unverified lows of the live
