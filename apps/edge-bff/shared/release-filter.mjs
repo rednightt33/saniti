@@ -10,7 +10,8 @@
 
    A lab item's formula lives in a module under apps/edge-bff/terminal/src/lab/ that only the alias '@edge-lab' reaches:
    the public build points the alias at src/lab/none.ts (labAlias below). LIVE_PROMOTION.md section 3 lists the tests
-   that hold this and what still holds back the first lab item (tests/test_releases.py, LAB_ITEM_HELD_UNTIL). */
+   that hold this; INDICATOR_BETA_TO_LIVE.md is the checklist of a lab indicator (tests/test_releases.py LAB_KIND_HELD
+   names the kinds that may not be lab yet). */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
