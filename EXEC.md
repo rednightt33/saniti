@@ -17248,6 +17248,20 @@ dengan konfirmasi user per deploy.
 - Temuan (ERRORS M555, `7f193584`): probe satuan generator Screener menilai KAMA "perubahan harga" karena awalnya dari 0;
   satuan kini dinilai pada paruh kedua fixture. Tidak ada field output dari 57 indikator lain yang berubah.
 
+#### Bentuk uji kategori (warna Alpha KAMA), 2026-11-23
+
+- Dibangun di branch (`0f74f931`), umum untuk output mana pun yang diberi kategori di registry (`outs[].categories`):
+  "Colour is one of" (pilih satu atau lebih dari Merah, Oranye, Kuning, Hijau kekuningan, Hijau; user "1a") dan "Colour
+  changed (from → to)" dengan beberapa pasangan digabung ATAU, dalam N sesi (user "2a": kemarin A, hari ini B langsung).
+  Di wire: transform `in_categories` / `category_change` di `screener-metrics.json`, argumennya dicek terhadap kategori
+  output itu (kunci yang tidak dikenal, kosong, atau A→A ditolak dengan nama field, kunci yang boleh, contoh benar dan
+  salah). Halaman Screener: kotak centang di kartu dan di "Add a condition"; Backtest: isian daftar di jendela kondisi.
+  Bentuk sementara "between a dan b" pada I58 diganti.
+- Uji: screener-worker `tests/category_forms.test.ts` 6/6 (seri vs rumus, argumen kanonik, penolakan, bentuk uji, kartu ke
+  wire dan kembali); gerbang look-ahead mencakup kedua transform; paritas grammar Backtest vs Screener pada data dipotong
+  per hari (2 kasus baru, 9/9); Screener 1.358, halaman Backtest 102, Terminal 1.121; lab/release dan 3f 67 lulus.
+  Tampilan kartu dicek di beta sesudah deploy (katalog datang dari screener-worker).
+
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
 - Rumus (dibaca dari Pine, kausal): baseline = median 4 bar dari MA(source, 23) (EMA; pilihan RMA/SMA/WMA/HMA/TEMA);
