@@ -16969,7 +16969,7 @@ menunggu), "jika sudah jelas masukan exec. Saya lanjut indikator selanjutnya." P
 (lab, hanya admin di beta); ke live hanya bila user menyebut indikatornya (Part B). Deploy: digabung dengan M540
 (EXEC-FL51-TITLE), user 2026-11-23: "Nanti. Deploy bareng indikator tambahan."; setiap deploy dengan konfirmasi user.
 
-### I54 — Baseline Deviation Oscillator [Alpha Extract] (Pine v6 dari user, 2026-11-23)
+### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
 - Rumus (dibaca dari Pine, kausal): baseline = median 4 bar dari MA(source, 23) (EMA; pilihan RMA/SMA/WMA/HMA/TEMA);
   osc mentah = (close − baseline) / ATR(14) (Wilder); BDO = EMA(osc mentah, 5); Signal = EMA(BDO, round(5 × 1,5) = 8);
@@ -16983,7 +16983,8 @@ menunggu), "jika sudah jelas masukan exec. Saya lanjut indikator selanjutnya." P
   - "3 tidak, hanya ketika label bull dan bear saja": tembusan nol (zeroUp/zeroDn) tidak menjadi kejadian.
   - "4 nilai bawaan": parameter dengan nilai bawaan Pine (MA EMA 23, source Close, median 4, ATR 14, smoothing 5, window
     120, dynamic smooth 10, expansion 0,2, signal ×1,5).
-  - "5 nama indikator Alpha Extract": nama di EDGE "Baseline Deviation Oscillator [Alpha Extract]".
+  - Nama di EDGE: "Alpha Extract" (user 2026-11-23: "Baseline Deviation Oscillator [Alpha Extract] --> ganti namanya
+    dengan Alpha Extract"; sebelumnya "5 nama indikator Alpha Extract").
 - Terbuka: nilai pembanding dari TradingView (BBCA harian, 2–3 tanggal, BDO/Signal/±Upper, tanggal label BULL/BEAR);
   sampai ada, rumus diuji terhadap implementasi pembanding independen yang mengikuti semantik Pine (ta.ema/ta.rma
   bertanam SMA, ta.atr, ta.highest/lowest termasuk bar ini, array median, nz).
