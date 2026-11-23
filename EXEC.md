@@ -17029,7 +17029,12 @@ menunggu), "jika sudah jelas masukan exec. Saya lanjut indikator selanjutnya." P
   - tanggal kejadian = hari konfirmasi (SMI melewati 0), satu-satunya yang kausal;
   - BULL DIV, BEAR DIV dan BUY A, masing-masing "terjadi dalam N sesi terakhir";
   - mode swing sebagai parameter dengan bawaan Original, di Terminal, Screener dan Backtest.
-- Nama di EDGE ("5 divergence"): "Divergence".
+- Nama di EDGE: "Alpha Divergence" (user 2026-11-23: "Nama indikatornya Alpha Divergence"; sebelumnya "5 divergence").
+- Tambahan Screener (user 2026-11-23: "boleh tambah juga screener apabila harga above or below swing high / swing low
+  berdasarkan indikator tersebut?"): close di atas/bawah level swing high terakhir dan close di atas/bawah level swing low
+  terakhir, keadaan hari itu. Level swing dihitung hanya dari swing yang sudah terkonfirmasi pada hari itu (sebelum
+  konfirmasi, yang dipakai swing sebelumnya), agar kausal. Terbuka: juga di Backtest, dan juga kejadian "menembus level
+  dalam N sesi" (ditanyakan ke user).
 - Terbuka: dukungan Terminal untuk segmen garis antara dua titik dan arsiran latar (dipastikan saat membangun; bila perlu
   tambahan di mesin gambar Terminal, dilaporkan dulu); nilai pembanding dari TradingView (tanggal SH/SL, BULL/BEAR DIV,
   BUY A di BBCA).
