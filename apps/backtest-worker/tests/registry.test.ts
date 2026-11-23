@@ -11,8 +11,8 @@ test('the committed registry is the one the sources build (npm run registry)', a
   assert.equal(fs.readFileSync(new URL('../../edge-bff/backtest/src/core/backtest-registry.json', import.meta.url), 'utf8'), serialize(await build()));
 });
 
-test('53 indicators, each mapped to a function of the calculation module with its outputs', () => {
-  assert.equal(REGISTRY.indicators.length, 53);
+test('every indicator of indRegistry.json (53 released, plus any at the lab stage), each mapped to a function of the calculation module with its outputs', () => {
+  assert.ok(REGISTRY.indicators.length >= 53 && REGISTRY.indicators.length === source.length, `${REGISTRY.indicators.length} indicators`);
   assert.deepEqual(REGISTRY.indicators.map(r => r.id), source.map((r: any) => r.id));
   const bars = { O: [1, 2, 3], H: [2, 3, 4], L: [0.5, 1, 2], C: [1.5, 2.5, 3.5], V: [10, 20, 30], T: ['2024-01-02', '2024-01-03', '2024-01-04'] };
   for (const r of REGISTRY.indicators) {
@@ -48,7 +48,7 @@ test('parameter validation refuses instead of rounding or clamping', () => {
   assert.equal(code(() => resolveParams(indicator('I37'), { include_current_bar: false })), 'PARAM_NOT_ACCEPTED');
   assert.equal(code(() => resolveParams(indicator('I30'), { smoothing_type: 'HMA' })), 'INVALID_PARAM');
   assert.equal(code(() => resolveParams(indicator('I43'), { anchor: 'Week', band_1_multiplier: 1.5 })), null);
-  assert.equal(code(() => indicator('I54')), 'UNKNOWN_INDICATOR');
+  assert.equal(code(() => indicator('I999')), 'UNKNOWN_INDICATOR');                // an id no registry holds (I54 is the next new one)
 });
 
 test('the registry version is the content hash of its sources', () => {

@@ -28,7 +28,7 @@ test('typed views: the bars read back from the shared columns equal priceSeries 
       for (const o of ind.outputs) { same(b[o.key], a[o.key], `${t} ${ind.id}.${o.key}`); compared++ }
     }
   }
-  assert.equal(compared, desc.tickers.length * 76);
+  assert.equal(compared, desc.tickers.length * INDICATORS.reduce((n, r) => n + r.outputs.length, 0));   // 76 outputs of the 53, plus a lab one's
   const ihsg = materialize(desc, desc.index);
   assert.ok(ihsg.bars.V.every(v => v === null), 'IHSG keeps a null volume, never 0 or NaN');
 });

@@ -137,8 +137,10 @@ test('every existing core condition gives the same result as before the candle p
   }
   const g = JSON.parse(fs.readFileSync(GOLDEN, 'utf8'));
   assert.equal(g.fixture_sha256, fixtureHash, 'the parity fixtures changed: the golden was recorded on other bars (record again only with the base core)');
-  assert.deepEqual(Object.keys(now).sort(), Object.keys(g.digests).sort(), 'the case list changed: a case of an existing condition was added or removed');
-  const changed = Object.keys(now).filter(id => now[id] !== g.digests[id]);
+  // every recorded case is still computed; a case the golden does not hold (a new indicator's, released or lab) is new,
+  // not a changed result (lab dry run, 2026-11-23)
+  assert.deepEqual(Object.keys(g.digests).filter(id => !(id in now)), [], 'a case of an existing condition was removed');
+  const changed = Object.keys(g.digests).filter(id => now[id] !== g.digests[id]);
   assert.deepEqual(changed, [], `${changed.length} existing conditions give another result than with the core ${g.recorded_with}: ${changed.slice(0, 12).join(', ')}`);
   assert.ok(Object.keys(now).length > 1600, `the golden covers ${Object.keys(now).length} cases`);
 });

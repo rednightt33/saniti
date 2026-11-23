@@ -196,7 +196,7 @@ def test_a_lab_item_is_never_held_on_the_live_site(settings, store, monkeypatch)
     with TestClient(live) as c:
         sign_in_admin(c, store)
         held = [e['id'] for e in c.get('/api/v1/catalog/indicator').json()['entries']]
-        assert lab not in held and len(held) == len(entries) - 1
+        assert held == [e['id'] for e in entries if e['stage'] == 'released' and e['id'] != lab]   # a lab one never
         assert lab not in allow_of(live.state.auth.owner_principal(settings.owner), 'backtest')['indicator']
         # an account whose family value is {"all": true} (every id, lab included) holds no lab item there either
         alice = paid_user(store, 'alice')

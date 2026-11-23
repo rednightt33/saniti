@@ -79,52 +79,72 @@ def test_every_registry_id_has_an_entry_and_every_entry_names_a_registry_id():
     listed = {kind: [e['id'] for e in current.entries(kind)] for kind in KINDS}
     missing = [(kind, i) for kind in KINDS for i in registries[kind] if i not in listed[kind]]
     assert not missing, (
-        'These registry items have no release stage in apps/edge-bff/catalog/releases.json (an unlisted item is lab, '
-        'and no item may be at the lab stage yet: test_no_item_is_at_the_lab_stage_yet). Add one line per item to '
-        '"items", released with the user\'s go to release it (LIVE_PROMOTION.md section 3), or keep the item off main '
-        'until LAB_ITEM_HELD_UNTIL is closed:\n'
-        + '\n'.join(f'    {{"kind": "{kind}", "id": "{i}", "stage": "released"}},' for kind, i in missing))
+        'These registry items have no release stage in apps/edge-bff/catalog/releases.json (an unlisted item is lab '
+        'at run time, but the file must name each one). Add one line per item to "items": "lab" for a beta-only item '
+        '(INDICATOR_BETA_TO_LIVE.md part A; not a Flow indicator, LAB_KIND_HELD), or "released" with the user\'s go '
+        '(part B; LIVE_PROMOTION.md section 3):\n'
+        + '\n'.join(f'    {{"kind": "{kind}", "id": "{i}", "stage": "lab"}},' for kind, i in missing))
     stale = [(kind, i) for kind in KINDS for i in listed[kind] if i not in registries[kind]]
     assert not stale, ('apps/edge-bff/catalog/releases.json names items no registry has; remove these entries or fix '
                        f'the id: {stale}')
 
 
-# What still lets a lab item reach a visitor or a principal that does not hold it, after 3f (its ultracode checker,
-# 2026-11-21; FUTURE_PLAN.md "Before the first lab item or tab"). A lab item waits until every one is closed.
-LAB_ITEM_HELD_UNTIL = (
-    # checker L2, CAT-3: built 2026-11-22 (screener-worker run.ts gateSent before the normalizer, the item by its id);
-    # the worker is shared and deploys from main, so it holds for both sites from that deploy
-    "the screener-worker that checks the allow before the normalizer is deployed (run.ts gateSent; until then the "
-    "running worker answers UNKNOWN_INDICATOR with every registry id and names items outside allow by their name)",
-    # checker TR-2, B3: built 2026-11-22 ('@edge-lab' in loader/resolve.mjs, imported by both workers, their threads and
-    # both generators; terminal/src/lab in both engine versions and both images). The workers are shared; the
-    # backtest-worker is uploaded by hand (its service is not GitHub-connected)
-    "the backtest-worker and the screener-worker that load the lab registration point are deployed (screener-worker "
-    "from main; backtest-worker by its CLI upload), and the screener-worker's watch patterns hold terminal/src/lab",
-    # checker L5 (the live site runs 3f's server part) closed 2026-11-21: `live` 4b35b5ed holds ec1bd29c
-    # 3f round 2 of the checker (ERRORS M523)
-    # round 2, CRIT-1: built 2026-11-22 (terminal data/inputs.ts restoreSaved, the user's go); it holds once the live
-    # site, whose public build deletes the entry today, runs it (AGENTS.md "Findings and fixes", rule 1)
-    "the live site runs the Terminal that parks a saved entry its build lacks (data/inputs.ts restoreSaved; until "
-    "`live` is past that commit, one public-build session of the admin deletes its lab indicators from ml.ind.v1)",
-    # round 2, CRIT-3 (an item the shipped code names) closed 2026-11-22: test_an_item_the_shipped_code_names_is_never_lab
-    # the example-mode checker (ERRORS M527, records-promotion-3); built 2026-11-22 (app/examples.py released_view, the
-    # user's go): it holds for the live site only once the live site runs it (AGENTS.md "Findings and fixes", rule 1)
-    "the live site runs the serve-time release cut of the stored examples (app/examples.py released_view; until `live` "
-    "is past the commit that adds it, the live site serves a stored example as captured, a later lab item in it)",
-)
+# The first lab item (the user, 2026-11-23: "Cabut tes penjaga lab"; EXEC-MU-ACCOUNTS). The four conditions that held
+# back every lab item after 3f's checker (ERRORS M523, FUTURE_PLAN.md "Before the first lab item or tab") are closed on
+# both sites, each by a deploy of RAILWAY_CHANGELOG.md 2026-11-22 "The round's close":
+# - checker L2, CAT-3: the screener-worker that runs the allow walk on the definition as sent (run.ts gateSent) and
+#   names nothing outside allow (forAllow): screener-worker 4438dbb0 from main ec739a06, shared by both sites;
+# - checker TR-2, B3: both workers load the lab registration point ('@edge-lab', backtest-worker loader/resolve.mjs):
+#   backtest-worker df495720 (CLI upload of ec739a06) and screener-worker 4438dbb0, whose watch patterns hold
+#   /apps/edge-bff/terminal/src/lab/** (railway config apply, the same record);
+# - round 2, CRIT-1: the live site's Terminal parks a saved entry its build lacks (terminal/src/data/inputs.ts
+#   restoreList): edge-bff-live 306c1190 runs ec739a06;
+# - the example-mode checker (M527): the live site cuts the stored examples to its release file at serve time
+#   (app/examples.py released_view): the same live deployment.
+# The standing rules stay: an item no worker gates by id is never lab (test_an_item_no_worker_gates_by_id_is_never_lab),
+# nor an item the shipped code names or computes (test_an_item_the_shipped_code_names_is_never_lab), and a released
+# entry's text names no lab item. The tabs keep their own guard (tests/test_live_switch.py LAB_TAB_HELD_UNTIL).
+#
+# Per kind (INDICATOR_BETA_TO_LIVE.md, LIVE_PROMOTION.md section 3):
+# - indicator: may be lab. Its formula goes into terminal/src/lab/index.ts, which only the lab page builds and the
+#   workers load; the public builds leave its registry entry out (shared/release-filter.mjs) and the workers refuse it
+#   to a principal whose allow lacks it.
+# - candle_pattern, screener_metric: may be lab. Both are data the workers read whole (backtest/src/core/
+#   candle-registry.json, screener/src/core/screener-metrics.json) and gate by id (screener-worker run.ts ITEM_REFS
+#   pattern, xsection and universe; backtest-worker src/access.ts); the public builds and the catalogs leave a lab one
+#   out. A new one that needs new code in the shared cores is named in code and stays released (the CRIT-3 guard).
+# - screener_preset: may be lab. No worker gates a preset by id, but a preset is a catalog row whose definition reads
+#   items that are gated by their own stages; the lab stage keeps the row off the live site's catalog
+#   (catalog.tab_list, app/screener.py PRESET_KIND), nothing more.
+# - flow_indicator: held (LAB_KIND_HELD).
+LAB_KIND_HELD = {
+    'flow_indicator': ("a lab Flow indicator's formula has no registration point: terminal/src/calc/flow.ts keeps its "
+                       "FLOW map unexported and keys every formula by its id, so the formula would be in a file every "
+                       "public build carries (LIVE_PROMOTION.md section 3; INDICATOR_BETA_TO_LIVE.md, Flow indicators)"),
+}
 
 
-def test_no_item_is_at_the_lab_stage_yet():
-    """User decision 2026-11-17: every item that existed then is released. 3f built what keeps a lab item out of the
-    public page builds and the tab catalogs, but a lab item would still reach principals that do not hold it in the ways
-    LAB_ITEM_HELD_UNTIL names, so none may be at the lab stage until they are closed."""
+def test_an_item_is_at_the_lab_stage_only_in_a_kind_that_has_a_lab_path():
+    """User decision 2026-11-17: every item that existed then is released. Since 2026-11-23 (the user's "Cabut tes
+    penjaga lab") a new item may enter at the lab stage (the beta only) in every kind but those LAB_KIND_HELD names."""
     current = releases.load(FILE)
-    lab = [(kind, e['id']) for kind in KINDS for e in current.entries(kind) if e['stage'] != 'released']
-    assert not lab, (f'{lab} at the lab stage: a lab item waits until ' + '; '.join(LAB_ITEM_HELD_UNTIL)
-                     + ' (FUTURE_PLAN.md, "Before the first lab item or tab")')
-    assert {kind: len(current.entries(kind)) for kind in KINDS} == {
-        'indicator': 53, 'flow_indicator': 56, 'candle_pattern': 20, 'screener_metric': 55, 'screener_preset': 26}
+    held = [(kind, e['id']) for kind in KINDS for e in current.entries(kind)
+            if e['stage'] != 'released' and kind in LAB_KIND_HELD]
+    assert not held, (f'{held} at the lab stage, in a kind that has no lab path yet: '
+                      + '; '.join(f'{kind}: {why}' for kind, why in LAB_KIND_HELD.items())
+                      + '. List it as "released" with the user\'s go, or keep it off main.')
+    assert set(LAB_KIND_HELD) <= set(KINDS)
+
+
+def test_the_lab_kind_guard_refuses_a_held_kind_and_lets_the_others_be_lab(tmp_path):
+    """Self-test of the guard above on a planted release file."""
+    entries = [{'kind': kind, 'id': f'X_{kind}', 'stage': 'lab'} for kind in KINDS]
+    planted = tmp_path / 'releases.json'
+    planted.write_text(json.dumps({'schema_version': releases.SCHEMA_VERSION, 'tabs': [], 'items': entries}), encoding='utf-8')
+    current = releases.load(planted)
+    lab = {kind for kind in KINDS for e in current.entries(kind) if e['stage'] != 'released'}
+    assert lab == set(KINDS)
+    assert {kind for kind in lab if kind in LAB_KIND_HELD} == {'flow_indicator'}
 
 
 def not_gated_by_id():
@@ -541,4 +561,4 @@ def test_switch_off_sign_in_through_the_real_principal(settings, store):
     with TestClient(create_app(admins, store, FakeOrc())) as c:
         login(c)
         assert entries_of(c, 'flow_indicator') == releases.entries('flow_indicator')
-        assert len(entries_of(c, 'indicator')) == 53
+        assert entries_of(c, 'indicator') == releases.entries('indicator')            # '*': every entry, a lab one too

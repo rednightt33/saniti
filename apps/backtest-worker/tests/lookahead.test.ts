@@ -57,8 +57,11 @@ test('self-test: a centred moving average (it reads the next bars) is caught', (
   assert.match(leak(centred) ?? '', /cut/);
 });
 
-test('the 53 registry indicators: defaults, short, long and extreme numbers, every option', () => {
+test('every registry indicator (53 released and any at the lab stage): defaults, short, long and extreme numbers, every option', () => {
   const leaks: string[] = []; let runs = 0;
+  // every registry indicator has its formula in this process (a lab one through loader/register.mjs): `safely` below
+  // reads a refused setting as no series, so a missing formula would pass the gate unseen (lab dry run, 2026-11-23)
+  assert.deepEqual(REGISTRY.indicators.filter(r => typeof F[r.key] !== 'function').map(r => r.id), []);
   for (const r of REGISTRY.indicators) {
     const variants: Record<string, unknown>[] = [{}];
     for (const p of r.params) {

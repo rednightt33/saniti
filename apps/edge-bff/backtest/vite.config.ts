@@ -1,5 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
-import { labAlias, releaseFilter } from '../shared/release-filter.mjs';
+import { labAlias, labProbe, releaseFilter } from '../shared/release-filter.mjs';
 
 /* The reference (backtest.html) runs its script as a classic script at the end of <body>, while the page is still
    being parsed (after the head's style sheet). A module script runs later and meets the web font at another moment
@@ -55,7 +55,7 @@ export function backtestConfig(mode: string) {
   const lab = mode === 'lab';
   return {
     base: lab ? '/backtest-app/lab/' : '/backtest-app/',
-    plugins: [releaseFilter({ lab }), ...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd()],
+    plugins: [releaseFilter({ lab }), ...(ENTRY[mode] ? [testEntry(mode)] : []), classicScriptAtEnd(), labProbe({ lab })],
     // the load worker's bundle takes only these (checker L1): the same filter
     worker: { plugins: () => [releaseFilter({ lab })] },
     resolve: { alias: labAlias({ lab }) },

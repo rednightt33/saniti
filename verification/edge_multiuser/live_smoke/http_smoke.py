@@ -86,8 +86,11 @@ for app, worker in (('terminal-app', r'worker-[\w-]+\.js'), ('backtest-app', r'l
     script = re.search(rf'/{app}/assets/(index-[\w-]+\.js)', (html or b'').decode('utf-8', 'replace'))
     st_js, _, js = call(v, 'GET', f'/{app}/assets/{script.group(1)}') if script else (None, None, b'')
     name = re.search(worker, (js or b'').decode('utf-8', 'replace'))
+    # L11 (shared/release-filter.mjs LAB_PROBE): a file of fixed name only the lab build holds; 404 here proves by name
+    # that the lab build is not served (the worker's name above stops being a lab file once the builds differ)
     out[f'lab build {app}'] = {'page': st, 'public_build': bool(script) and f'/{app}/lab/' not in (html or b'').decode('utf-8', 'replace'),
-                               'lab_worker_file': call(v, 'GET', f'/{app}/lab/assets/{name.group(0)}')[0] if name else 'no worker name found'}
+                               'lab_worker_file': call(v, 'GET', f'/{app}/lab/assets/{name.group(0)}')[0] if name else 'no worker name found',
+                               'lab_probe_file': call(v, 'GET', f'/{app}/lab/assets/lab-probe.svg')[0]}
 st, _, raw = call(v, 'GET', '/api/terminal/v1/manifest/BBCA')
 out['visitor BBCA manifest'] = st
 st, _, raw = call(v, 'GET', '/api/terminal/v1/manifest/TLKM')

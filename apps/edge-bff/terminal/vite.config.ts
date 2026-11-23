@@ -1,5 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
-import { labAlias, releaseFilter } from '../shared/release-filter.mjs';
+import { labAlias, labProbe, releaseFilter } from '../shared/release-filter.mjs';
 
 /* The reference page inlines lightweight-charts-drawing 0.6.2 with one change: its accent colour "#1e53e5" is "#171717"
    (selection handles and default ink follow the terminal's black). The same one-constant patch is applied to the npm
@@ -45,7 +45,7 @@ function classicScriptAtEnd(): Plugin {
 export function terminalConfig({ lab = false } = {}) {
   return {
     base: lab ? '/terminal-app/lab/' : '/terminal-app/',
-    plugins: [releaseFilter({ lab }), drawingInk(), classicScriptAtEnd()],
+    plugins: [releaseFilter({ lab }), drawingInk(), classicScriptAtEnd(), labProbe({ lab })],
     // the Web Worker's bundle takes only these (checker L1): the same filter, so the worker carries no lab item either
     worker: { plugins: () => [releaseFilter({ lab })] },
     resolve: { alias: labAlias({ lab }) },

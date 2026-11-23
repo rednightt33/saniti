@@ -14,6 +14,7 @@
 import dataclasses
 import json
 import re
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -233,6 +234,9 @@ def test_on_the_live_site_even_a_principal_holding_admin_access_gets_no_lab_code
 
 
 # the repository's builds (CI's edge-bff job builds every page first); the image puts the Backtest's under static/
+# L11: the fixed-name file only a lab build holds, read from shared/release-filter.mjs (LAB_PROBE), the one place it is named
+LAB_PROBE = re.search(r"export const LAB_PROBE = '([\w.-]+)';", (Path(main.__file__).parents[1] / 'shared' / 'release-filter.mjs')
+                      .read_text(encoding='utf-8')).group(1)
 REAL_BUILDS = {'TERMINAL_APP': (main.TERMINAL_APP,), 'TERMINAL_LAB_APP': (main.TERMINAL_LAB_APP,),
                'BACKTEST_APP': (main.BACKTEST_APP, main.STATIC.parent / 'backtest' / 'dist'),
                'BACKTEST_LAB_APP': (main.BACKTEST_LAB_APP, main.STATIC.parent / 'backtest' / 'dist-lab')}
@@ -271,12 +275,19 @@ def test_the_real_lab_builds_are_served_whole_to_the_owner_and_not_at_all_to_a_v
             assert files and all(f.startswith(f'/{prefix}/assets/') and c.get(f).status_code == 200 for f in files), files
             lab_files[prefix] = [f'/{prefix}/lab/assets/{p.name}' for p in (getattr(main, lab) / 'assets').iterdir()]
             assert lab_files[prefix] and all(c.get(f).status_code == 404 for f in lab_files[prefix]), prefix
+            # L11: the fixed-name probe only a lab build holds (shared/release-filter.mjs labProbe); the live smoke asks
+            # for exactly this name
+            assert (getattr(main, lab) / 'assets' / LAB_PROBE).is_file(), f'{prefix}: the lab build has no {LAB_PROBE}'
+            assert not (getattr(main, public) / 'assets' / LAB_PROBE).exists(), f'{prefix}: the public build has the probe'
+            assert c.get(f'/{prefix}/lab/assets/{LAB_PROBE}').status_code == 404, prefix
         login(c)
         for prefix, public, lab in pages:
             page = c.get(f'/{prefix}/')
             assert page.text == (getattr(main, lab) / 'index.html').read_text(), prefix         # the lab build
             files = named(c, prefix, page.text)
             assert any(f.endswith('.js') and 'worker' in f for f in files), files               # its Web Worker too
+            probe = c.get(f'/{prefix}/lab/assets/{LAB_PROBE}')                                  # L11: the owner's 200
+            assert probe.status_code == 200 and b'lab build probe' in probe.content, (prefix, probe.status_code)
             for f in files:
                 r = c.get(f)
                 assert f.startswith(f'/{prefix}/lab/assets/') and r.status_code == 200, (f, r.status_code)

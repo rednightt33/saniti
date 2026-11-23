@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import overlayDoc from '../../src/core/screener-overlay.json';
 import baseDoc from '../../../backtest/src/core/backtest-registry.json';
+import releasesDoc from '../../../catalog/releases.json';
 import engineSource from '../../../../../features/feature04/engine.py?raw';
 import schemaDoc from '../../../../../DATABASE_SCHEMA.md?raw';
 import { F, DEFAULTS } from '../../../terminal/src/calc/indicators.ts';
@@ -66,9 +67,14 @@ describe('generated file', () => {
 
 describe('overlay', () => {
   const overlay = structuredClone(overlayDoc) as any, base = baseDoc as any;
-  it('has one entry per base id and vice versa, and every entry keeps its rules', () => {
-    expect(Object.keys(overlay.indicators).sort()).toEqual(base.indicators.map((r: { id: string }) => r.id).sort());
-    expect(G.overlayProblems(overlay, base)).toEqual([]);
+  // this suite runs through the page's release filter (vite.config.ts): the imported registry holds the released
+  // indicators only, while the hand-kept overlay also holds each lab one's entry (the generator reads both whole and
+  // checks them with its --check; lab dry run, 2026-11-23, INDICATOR_BETA_TO_LIVE.md)
+  const lab = (releasesDoc as any).items.filter((i: any) => i.kind === 'indicator' && i.stage === 'lab').map((i: any) => i.id);
+  it('has one entry per base id and vice versa (a lab indicator included), and every entry keeps its rules', () => {
+    expect(Object.keys(overlay.indicators).sort()).toEqual([...base.indicators.map((r: { id: string }) => r.id), ...lab].sort());
+    const released = { ...overlay, indicators: Object.fromEntries(Object.entries(overlay.indicators).filter(([id]) => !lab.includes(id))) };
+    expect(G.overlayProblems(released, base)).toEqual([]);
   });
   it('refuses an unknown form, an operator outside the form, a label for another operator and a missing entry', () => {
     const broken = structuredClone(overlay);
