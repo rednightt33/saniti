@@ -3,8 +3,8 @@
  "built": "2026-11-22",
  "workflow": "wf_877859a9-d28",
  "counts": {
-  "fixed_not_tested_out": 188,
-  "open_with_row": 23,
+  "fixed_not_tested_out": 192,
+  "open_with_row": 25,
   "fixed_tested_out": 111,
   "accepted_by_user": 4,
   "open_without_row": 65,
@@ -38,8 +38,8 @@
   },
   {
    "group": "after the ledger (2026-11-23): fixes and builds since wf_877859a9-d28",
-   "rows": 20,
-   "notes": "Added by the main agent: M539, M546, M547, M548, the 13 fixed parts of M549 (wf_4181198a-09f), step 7 (never checked) and M550. Every row is fixed_not_tested_out: no agent other than its author tested it out. The titles of M549 parts not named in ERRORS are short; ERRORS M549 holds each part. M551 added after step 3 (2026-11-23)."
+   "rows": 26,
+   "notes": "Added by the main agent: M539, M546, M547, M548, the 13 fixed parts of M549 (wf_4181198a-09f), step 7 (never checked) and M550. Every row is fixed_not_tested_out: no agent other than its author tested it out. The titles of M549 parts not named in ERRORS are short; ERRORS M549 holds each part. M551 added after step 3 (2026-11-23). M549 completed to all 19 parts (F1, F2, F4, F7 fixed in the records; F3, F5 carried)."
   }
  ],
  "critic": {
@@ -4902,6 +4902,78 @@
    "open_row": "",
    "step8_action": "Follow INDICATOR_BETA_TO_LIVE \"A lab Flow indicator\" cold in a copy with a new lab FL: no public file holds its id; the lab builds and both workers compute it; remove its registerFlow line and the look-ahead gate names it; remove flow-kinds.json from REGISTRIES and the coverage test names the file.",
    "evidence": "ERRORS M551; apps/edge-bff/terminal/src/calc/flow.ts registerFlow, shared/release-filter.mjs keyedParts, apps/backtest-worker/tests/lookahead.test.ts"
+  },
+  {
+   "key": "wf_4181198a-09f/F1",
+   "finding_id": "wf_4181198a-09f F1",
+   "title": "the step-9 plan did not name UD7's exposure while the window is open, nor the watch on the live logs",
+   "fate": "fixed_not_tested_out",
+   "fix_commit": "083dbc23",
+   "tested_out_by": "none",
+   "runs_on": "not_code",
+   "open_row": "",
+   "step8_action": "Reproduce the original finding F1 as ERRORS M549 describes it, then check the fix or settle the open part.",
+   "evidence": "ERRORS M549 (\"Fixed\" F1, F2, F4, F7 records; \"Carried\" F3, F5); workflow wf_4181198a-09f journal"
+  },
+  {
+   "key": "wf_4181198a-09f/F2",
+   "finding_id": "wf_4181198a-09f F2",
+   "title": "the step-9 plan did not name the close's confirmation and its exact value",
+   "fate": "fixed_not_tested_out",
+   "fix_commit": "083dbc23",
+   "tested_out_by": "none",
+   "runs_on": "not_code",
+   "open_row": "",
+   "step8_action": "Reproduce the original finding F2 as ERRORS M549 describes it, then check the fix or settle the open part.",
+   "evidence": "ERRORS M549 (\"Fixed\" F1, F2, F4, F7 records; \"Carried\" F3, F5); workflow wf_4181198a-09f journal"
+  },
+  {
+   "key": "wf_4181198a-09f/F4",
+   "finding_id": "wf_4181198a-09f F4",
+   "title": "the step-9 plan held the residuals as facts, not as open questions to the user",
+   "fate": "fixed_not_tested_out",
+   "fix_commit": "083dbc23",
+   "tested_out_by": "none",
+   "runs_on": "not_code",
+   "open_row": "",
+   "step8_action": "Reproduce the original finding F4 as ERRORS M549 describes it, then check the fix or settle the open part.",
+   "evidence": "ERRORS M549 (\"Fixed\" F1, F2, F4, F7 records; \"Carried\" F3, F5); workflow wf_4181198a-09f journal"
+  },
+  {
+   "key": "wf_4181198a-09f/F7",
+   "finding_id": "wf_4181198a-09f F7",
+   "title": "the step-9 plan's line citations",
+   "fate": "fixed_not_tested_out",
+   "fix_commit": "083dbc23",
+   "tested_out_by": "none",
+   "runs_on": "not_code",
+   "open_row": "",
+   "step8_action": "Reproduce the original finding F7 as ERRORS M549 describes it, then check the fix or settle the open part.",
+   "evidence": "ERRORS M549 (\"Fixed\" F1, F2, F4, F7 records; \"Carried\" F3, F5); workflow wf_4181198a-09f journal"
+  },
+  {
+   "key": "wf_4181198a-09f/F3",
+   "finding_id": "wf_4181198a-09f F3",
+   "title": "a window session is masked at the close but not revoked",
+   "fate": "open_with_row",
+   "fix_commit": "",
+   "tested_out_by": "none",
+   "runs_on": "live",
+   "open_row": "EXEC-MU-ACCOUNTS Carried open parts, F3 masked session revoke",
+   "step8_action": "Reproduce the original finding F3 as ERRORS M549 describes it, then check the fix or settle the open part.",
+   "evidence": "ERRORS M549 (\"Fixed\" F1, F2, F4, F7 records; \"Carried\" F3, F5); workflow wf_4181198a-09f journal"
+  },
+  {
+   "key": "wf_4181198a-09f/F5",
+   "finding_id": "wf_4181198a-09f F5",
+   "title": "the beta's 'Resend code' while the live site is closed",
+   "fate": "open_with_row",
+   "fix_commit": "",
+   "tested_out_by": "none",
+   "runs_on": "live",
+   "open_row": "EXEC-MU-ACCOUNTS Carried open parts, F5 beta Resend code",
+   "step8_action": "Reproduce the original finding F5 as ERRORS M549 describes it, then check the fix or settle the open part.",
+   "evidence": "ERRORS M549 (\"Fixed\" F1, F2, F4, F7 records; \"Carried\" F3, F5); workflow wf_4181198a-09f journal"
   }
  ]
 }
