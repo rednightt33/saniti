@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-11-23 — Step 9: the registration window open on the live site for 24 hours (the user's go)
+
+- **The user's words:** "Buka jendela sekarang, 24 jam kedepan, UD6 setuju".
+- **Before:** M340 0 EDGE jobs, 0 orc turns (03:23 UTC); the live site `306c1190` on `ec739a06`.
+- **Change:** `EDGE_PRELAUNCH=false` on `edge-bff-live` (a redeploy of the running commit, no `main` or `live` move):
+  deployment `87ef1cba` SUCCESS 03:24 UTC; `/version` `ec739a06`; `/ready` 200; `/api/v1/auth/config` `registration`
+  true, `prelaunch` false. `.railway/railway.ts` preserves `EDGE_PRELAUNCH` (`railway config plan`: up to date).
+- **While open:** anyone may register and every account may sign in (UD22 reachable); the code mail is the live site's
+  first real Resend send.
+- **Close:** 2026-11-24 03:24 UTC (a scheduled message to the session): `EDGE_PRELAUNCH` back to the pre-launch mode,
+  read back `registration` false; the window's accounts listed on the beta's admin page.
+- **Rollback (close early):** remove `EDGE_PRELAUNCH` from `edge-bff-live` (the live site's default is the pre-launch
+  mode), or set it to `true`.
+
 ## 2026-11-22 — The round's close: the beta and the live site on `ec739a06` (the user's go: "langsung saja go untuk promosi live dan deploy")
 
 - **The user's words (2026-11-22):** "Oke, deploy beta dan promosi live go. Setelah itu lanjut ke langkah 7. Setelah

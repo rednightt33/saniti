@@ -16655,6 +16655,10 @@ Order of the services (CONTRACT 17, rollback floors):
     edge-bff-live and screener-worker; `.railway/railway.ts` follows (`railway config plan`: up to date); AGENTS.md
     "Deploys" and "The live site", LIVE_PROMOTION.md. This changes the decisions of 2026-11-15 (decision 3, K10 a) and
     2026-11-19/20 (live only on green CI) for deploys; the gate still runs on every push.
+  - Step 9 opened (2026-11-23): "Buka jendela sekarang, 24 jam kedepan, UD6 setuju" → the registration window opened on
+    the live site 03:24 UTC (`EDGE_PRELAUNCH=false` on edge-bff-live, deployment `87ef1cba` of `ec739a06`); it closes
+    2026-11-24 03:24 UTC (a scheduled message to this session); UD6 answered: the window runs without Privacy and Terms
+    texts (R1-2's condition met for the window, not for the launch).
 - **The user's go for the rest of the round (2026-11-22): "Lanjutkan sisa pekerjaan, kemudian penutup putaran ya.. then
   proceed ke langkah 7. Aman?"** The rest (R1-5 A1, lab gap 3 and L11, the status test of rule 9), then the close (the
   re-check by five agents with the older fixes, the beta deploy with the shared workers' check against the live site's
@@ -16672,7 +16676,6 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD2 | Written permission per data source (TradingView, Stockbit, IDX/KSEI) and for the logos the public site shows | not yet asked with context (a row of the 2026-11-22 report) | the public examples, launch | before step 9 |
   | UD4 | A backup schedule of the shared Postgres and one restore test | not yet asked with context (a row of the 2026-11-22 report; excluded by the user 2026-11-19 with UD1) | real accounts, payments | before step 9 |
   | UD5 | The Resend webhook and its secret on edge-bff-live (bounces and complaints) | 2026-11-20 | email standing | before step 9 |
-  | UD6 | Privacy and terms texts (or an explicit acceptance that the window runs without them); R1-2's condition | 2026-11-20 | registration | before step 9 |
   | UD7 | (acknowledged by the user 2026-11-22, not shown again) Enforce the per-client-address sign-in and send limits (SIGNIN_IP, SEND_IP) or a daily mail ceiling, now that the probe ran; the numbers | 2026-11-22 with context (group A's design questions, Q1) | R2-37, registration | this round |
   | UD8 | M517's residual, part 1 (CONTRACT 6 "Residual"): strangers on three or more networks can spend an address's 10 code emails a day; a browser the account never signed in on then waits for the day; accept, or a challenge | 2026-11-21 | registration | before step 9 |
   | UD21 | M517's residual, part 2 (test-out 2026-11-22, ATK-1; held by `apps/edge-bff/tests/test_m517_residuals.py`): a stranger on the owner's own network (an office, a café, a mobile carrier's shared address) who knows the login fills, for a browser the account never signed in on there, the per-login limit (15 minutes) and that network's 4 code emails a day; reachable on the live site today for the admin's login (sign-in is open there), the owner's known browsers are not affected; accept, or a challenge | not yet asked with context (found by the test-out 2026-11-22) | registration, the admin's new devices | before step 9 |
