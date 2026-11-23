@@ -12,6 +12,7 @@
      Flow pane    one per asset (Visibility → Flow Timeline): net bars and the cumulative line on the chart's sessions,
                   locked to the chart's time range, crosshair and axis widths; its drawings are kept under its ticker */
 import type { Ctx, FilterApi } from './context';
+import { buildColorPicker } from './colorPicker';
 import { draggable } from './draggable';
 import { $, brokerEnd, cls, hasLogos, logoHtml, keyOf, onLogos, rupiah, spin, store } from './context';
 import { countedCandles, cumulativeFrom, FLOW_CUMULATIVE_FROM } from './flow';
@@ -270,9 +271,10 @@ export function initAssets(ctx: Ctx) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'idlg-cbtn'; b.setAttribute('aria-label', 'Line colour'); b.style.setProperty('--c', o.color);
       b.onclick = (e: any) => {
         e.preventDefault(); e.stopPropagation(); const was = cpop && cpop.owner === b; closeCpop(); if (was) return;
-        cpop = document.createElement('div'); cpop.className = 'idlg-cpop'; cpop.owner = b; b.classList.add('open');
-        PALETTE.forEach(c => { const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.setAttribute('aria-label', c); s.setAttribute('aria-pressed', String(o.color === c));
-          s.onclick = (ev: any) => { ev.preventDefault(); ev.stopPropagation(); o.color = c; b.style.setProperty('--c', c); closeCpop(); live() }; cpop.appendChild(s) });
+        cpop = document.createElement('div'); cpop.className = 'idlg-cpop has-cpk'; cpop.owner = b; b.classList.add('open');
+        // EXEC-PINE-INDICATORS (UD32): the Terminal's one colour box (app/colorPicker.ts), the colour only for a compare line
+        cpop.appendChild(buildColorPicker({ label:'Line', color:() => o.color, used:PALETTE,
+          setColor:c => { o.color = c; b.style.setProperty('--c', c) }, onChange:done => { live(); if (done) closeCpop() } }));
         dlg.appendChild(cpop);
         const br = b.getBoundingClientRect(), dr = dlg.getBoundingClientRect();
         cpop.style.top = (br.bottom - dr.top + 6) + 'px'; cpop.style.left = Math.max(8, br.right - dr.left - cpop.offsetWidth) + 'px';

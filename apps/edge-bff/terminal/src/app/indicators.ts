@@ -12,6 +12,7 @@ import { draggable } from './draggable';
 import * as spec from '../data/specFormat';
 import { $, nfCompact, rupiah, store, visibleBars } from './context';
 import { keyedMarkers } from '../data/chartTime';
+import { buildColorPicker, lineOptions, type LineStyleKey } from './colorPicker';
 import { onCandles } from '../data/timeframe';
 import { sumOverDays } from './flow';
 import { withPicked } from '../data/brokerAgg';
@@ -119,6 +120,36 @@ export function initIndicators(ctx: Ctx) {
     return { out, guides:{ on:r.guides.length > 0, levels:r.guides.join(', ') }, fill:{ on:!!r.fill || !!(r.fills && r.fills.length), opacity:10 }, opacity:100, offset:0,
       ...(Array.isArray(r.layers) && r.layers.length ? { layers:Object.fromEntries(r.layers.map(l => [l.k, l.on !== false])) } : {}) };
   }
+  /* EXEC-PINE-INDICATORS (the user 2026-11-23, "A": the labels as TradingView draws them): a label as Pine's
+     label.style_label_up / style_label_down, a filled box with its text and a pointer whose tip sits on the bar's price;
+     `up` puts the box below the point, `down` above it. Drawn by LabelPrim (a registry mark with marker.style 'label') and
+     by DrawingPrim (a drawing's mark with style 'label'). */
+  const labelFont = () => `600 11px ${getComputedStyle(document.documentElement).getPropertyValue('--mono').trim() || 'Inter, sans-serif'}`;
+  function paintLabels(c, labels, ts, series) {
+    if(!labels || !labels.length) return;
+    c.font = labelFont();
+    const H = 18, P = 5;
+    for(const l of labels) {
+      const x = ts.logicalToCoordinate(l.i), y = series.priceToCoordinate(l.price);
+      if(x === null || y === null) continue;
+      const m = c.measureText(l.text), tw = m.width, w = tw + 12, up = l.dir !== 'down', top = up ? y + P : y - P - H;
+      c.fillStyle = l.bg; c.beginPath(); (c as any).roundRect ? (c as any).roundRect(x - w / 2, top, w, H, 3) : c.rect(x - w / 2, top, w, H); c.fill();
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x - P, up ? y + P + .5 : y - P - .5); c.lineTo(x + P, up ? y + P + .5 : y - P - .5); c.closePath(); c.fill();
+      const asc = m.actualBoundingBoxAscent || 8, desc = m.actualBoundingBoxDescent || 0;
+      c.textBaseline = 'alphabetic'; c.fillStyle = l.fg; c.fillText(l.text, x - tw / 2, top + H / 2 + (asc - desc) / 2);
+    }
+  }
+  class LabelPrim {
+    d: any; view: any; chart: any; series: any; req: any;
+    constructor() { this.d = null; const self = this; this.view = { zOrder:() => 'top', renderer:() => ({ draw:t => self.paint(t) }) } }
+    attached(p) { this.chart = p.chart; this.series = p.series; this.req = p.requestUpdate }
+    detached() { this.chart = null }
+    set(d) { this.d = d; if(this.req) this.req() }
+    updateAllViews() {}
+    paneViews() { return [this.view] }
+    paint(target) { if(!this.d || !this.chart) return; const ts = this.chart.timeScale();
+      target.useMediaCoordinateSpace(({ context:c }) => paintLabels(c, this.d, ts, this.series)) }
+  }
   /* EXEC-PINE-INDICATORS: an indicator's drawing on the price chart (DRAWINGS): segments between two candles (a ray runs
      to the right edge; dashed where the source dashes it) and background ranges over whole candles */
   class DrawingPrim {
@@ -126,7 +157,8 @@ export function initIndicators(ctx: Ctx) {
     constructor() {
       this.d = null; const self = this;
       // the ranges under the candles (as BandFill), the segments over them
-      this.views = [{ zOrder:() => 'bottom', renderer:() => ({ draw:() => {}, drawBackground:t => self.paint(t, true) }) }, { zOrder:() => 'normal', renderer:() => ({ draw:t => self.paint(t, false) }) }];
+      this.views = [{ zOrder:() => 'bottom', renderer:() => ({ draw:() => {}, drawBackground:t => self.paint(t, true) }) }, { zOrder:() => 'normal', renderer:() => ({ draw:t => self.paint(t, false) }) },
+        { zOrder:() => 'top', renderer:() => ({ draw:t => { if(self.d && self.chart) { const ts = self.chart.timeScale(); t.useMediaCoordinateSpace(({ context:c }) => paintLabels(c, self.d.labels, ts, self.series)) } } }) }];
     }
     attached(p) { this.chart = p.chart; this.series = p.series; this.req = p.requestUpdate }
     detached() { this.chart = null }
@@ -646,7 +678,9 @@ export function initIndicators(ctx: Ctx) {
     inst.parts.forEach(pt => {
       /* EXEC-PINE-INDICATORS: an output drawn see-through as its source draws it (registry `alpha`, 0..1: Alpha Extract's
          levels at TradingView's transparency) */
-      const s = st.out[pt.o.k], a = inst.disp[pt.o.k], vis = shown(pt), ao = op * (pt.o.alpha ?? 1), c1 = alpha(s.color, ao), c2 = alpha(s.color2 || s.color, ao);
+      /* UD31: an output's own opacity (the colour box, indicators drawn on the price chart) */
+      const s = st.out[pt.o.k], a = inst.disp[pt.o.k], vis = shown(pt), ao = op * (pt.o.alpha ?? 1) * ((s.opacity ?? 100) / 100), c1 = alpha(s.color, ao), c2 = alpha(s.color2 || s.color, ao);
+      const ls = LINE_STYLES[s.lineStyle || 'Solid'] ?? L.LineStyle.Solid;
       /* re-test Q2: the axis shows the last value only when the last candle has one (an empty end showed 1.68× of 30 Oct) */
       const cv = own(pt) ? (v => v) : conv;                   // the right axis is not the price: no return conversion
       if(pt.series && (r.zone !== 'overlay' || own(pt)) && pt.kind !== 'marker' && pt.kind !== 'strip' && pt.kind !== 'cells') pt.series.applyOptions({ lastValueVisible:a ? a[a.length - 1] !== null && a[a.length - 1] !== undefined : false });
@@ -657,6 +691,14 @@ export function initIndicators(ctx: Ctx) {
            at an oscillator's value: atPriceTop, atPriceBottom, atPriceMiddle). Without `marker`, an arrow under the candle. */
         const m = pt.o.marker || {}, onPart = m.on ? inst.parts.find(q => q.o.k === m.on && q.series) : null, at = m.on ? inst.disp[m.on] : null;
         const host = onPart ? onPart.series : ctx.chartStyle === 'line' || ctx.displayMode === 'return' ? ctx.mainLine : ctx.candle;
+        /* a mark as a Pine label (marker.style 'label'): a box at the output's value (`on`), below it (atPriceBottom) or
+           above it (atPriceTop), its text in marker.textColor */
+        if(m.style === 'label' && at) {
+          if(pt.labelPrim && pt.labelHost !== host) { try { pt.labelHost.detachPrimitive(pt.labelPrim) } catch(e) {} pt.labelPrim = null }
+          if(!pt.labelPrim) { pt.labelPrim = new LabelPrim(); host.attachPrimitive(pt.labelPrim); pt.labelHost = host }
+          pt.labelPrim.set(vis ? inRange(a, (v, i) => v === 1 && isN(at[i]) ? [{ i, price:cv(at[i]), text:m.text || '', bg:c1, fg:m.textColor || '#ffffff', dir:m.position === 'atPriceTop' ? 'down' : 'up' }] : []) : []);
+          return;
+        }
         if(pt.plugin && pt.host !== host) { pt.plugin.detach(); pt.plugin = null }
         if(!pt.plugin) { pt.plugin = L.createSeriesMarkers(host, []); pt.host = host }
         const mark = (i: number) => at ? (isN(at[i]) ? { position:m.position || 'atPriceMiddle', price:cv(at[i]) } : null) : { position:m.position || 'belowBar' };
@@ -696,7 +738,7 @@ export function initIndicators(ctx: Ctx) {
       } else if(pt.kind === 'seg') {
         const data = want => gapped(inRange(a, (v, i) => v === null || dir[i] !== want ? { time:T(i) } : { time:T(i), value:conv(v) }));   // a transparent segment at every trend flip (whitespace alone is joined)
         pt.series.setData(data(1)); pt.series2.setData(data(-1));
-        pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width }); pt.series2.applyOptions({ visible:vis, color:c2, lineWidth:s.width });
+        pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width, lineStyle:ls }); pt.series2.applyOptions({ visible:vis, color:c2, lineWidth:s.width, lineStyle:ls });
       } else if(pt.kind === 'dots') {
         pt.series.setData(inRange(a, (v, i) => v === null ? [] : [{ time:T(i), value:conv(v), color:dir && dir[i] === -1 ? c2 : c1 }]));
         pt.series.applyOptions({ visible:vis, color:c1, pointMarkersRadius:Math.max(1, s.width) });
@@ -710,7 +752,7 @@ export function initIndicators(ctx: Ctx) {
            B is found, Alpha KAMA's first bars); every other line keeps the gap */
         const gap = (i: number) => pt.o.join ? [] : [{ time:T(i) }];
         pt.series.setData(gapped(inRange(a, (v, i) => v === null ? gap(i) : [breaks.has(i + 1) ? { time:T(i), value:cv(v), color:GAP } : { time:T(i), value:cv(v), ...tint(i) }])))   // a gap, not a bridge (agent 5 F1);
-        pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width });
+        pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width, lineStyle:ls });
       }
       if(r.zone === 'overlay' && !own(pt)) [pt.series, pt.series2].filter(Boolean).forEach(se => se.applyOptions({ priceFormat:ctx.formatMode() }));
     });
@@ -742,10 +784,12 @@ export function initIndicators(ctx: Ctx) {
         inst.drawPrim = new DrawingPrim(); host.attachPrimitive(inst.drawPrim); inst.drawMarks = L.createSeriesMarkers(host, []); inst.drawHost = host;
       }
       const D = drawn(inst) ? inst.drawingData : null, on = (k: string) => !!D && (st.layers?.[k] ?? true);
-      inst.drawMarks.setMarkers(keyedMarkers(D ? (D.marks || []).filter(m => on(m.layer) && m.i >= 0 && m.i < ohlc.length).sort((x, y) => x.i - y.i)
-        .map(m => ({ time:ohlc[m.i].time, position:m.position, shape:m.shape, color:alpha(m.color, op), size:1, ...(m.text ? { text:m.text } : {}) })) : []));
+      const marks = D ? (D.marks || []).filter(m => on(m.layer) && m.i >= 0 && m.i < ohlc.length) : [];
+      inst.drawMarks.setMarkers(keyedMarkers(marks.filter(m => m.style !== 'label').sort((x, y) => x.i - y.i)
+        .map(m => ({ time:ohlc[m.i].time, position:m.position, shape:m.shape, color:alpha(m.color, op), size:1, ...(m.text ? { text:m.text } : {}) }))));
       inst.drawPrim.set(D ? { segments:(D.segments || []).filter(g => on(g.layer)).map(g => ({ ...g, v0:conv(g.v0), v1:conv(g.v1), color:alpha(g.color, op) })),
-        shades:(D.shades || []).filter(h => on(h.layer)).map(h => ({ ...h, color:alpha(h.color, .12 * op) })) } : null);
+        shades:(D.shades || []).filter(h => on(h.layer)).map(h => ({ ...h, color:alpha(h.color, .12 * op) })),
+        labels:marks.filter(m => m.style === 'label' && isN(m.price)).map(m => ({ i:m.i, price:conv(m.price), text:m.text || '', bg:alpha(m.color, op), fg:m.textColor || '#ffffff', dir:m.position === 'aboveBar' ? 'down' : 'up' })) } : null);
     }
     (inst.fillPrims || []).forEach(({ f, prim }) => {
       const pa = inst.parts.find(x => x.o.k === f.a), pb = inst.parts.find(x => x.o.k === f.b), A = inst.disp[f.a], Bv = inst.disp[f.b];
@@ -945,7 +989,7 @@ export function initIndicators(ctx: Ctx) {
     const old = inst.parts, pane = inst.series ? inst.series.getPane().paneIndex() : undefined;
     (inst.guideLines || []).forEach(([se, pl]) => { try{ se.removePriceLine(pl) }catch(e){} }); inst.guideLines = [];
     buildParts(inst, pane);
-    old.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
+    old.forEach(pt => { if(pt.labelPrim) { try { pt.labelHost.detachPrimitive(pt.labelPrim) } catch(e) {} } if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     if(inst.def.pane === 'sub') layoutPanes();
   }
   /* EXEC-BROKER-INV-PANEL (user 2026-11-06, "3B"): a broker list whose default is picked from the screen (FL23 "auto_c",
@@ -1141,7 +1185,7 @@ export function initIndicators(ctx: Ctx) {
     if(inst.box) inst.box.remove();
     if(inst.drawPrim) { try { inst.drawHost.detachPrimitive(inst.drawPrim) } catch(e) {} }       // a drawing sits on the price series, which stays
     if(inst.drawMarks) inst.drawMarks.detach();
-    if(inst.def.multi) inst.parts.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
+    if(inst.def.multi) inst.parts.forEach(pt => { if(pt.labelPrim) { try { pt.labelHost.detachPrimitive(pt.labelPrim) } catch(e) {} } if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     else if(inst.def.lines) (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series)); else chart.removeSeries(inst.series);
     inst.row.remove(); paintLg();
     if(sub && pane && pane.getSeries().length === 0 && chart.panes().length > 1) { try { chart.removePane(pane.paneIndex()) } catch(e) {} }
@@ -1186,13 +1230,22 @@ export function initIndicators(ctx: Ctx) {
     };
     let cpop = null;
     const closeCpop = () => { if(cpop){ cpop.owner.classList.remove('open'); cpop.remove(); cpop = null } };
-    function colorBtn(get, set, label) {
+    // a colour box with line options stays open while it is used; a press anywhere else in the dialog closes it
+    dlg.addEventListener('pointerdown', (e: any) => { if(cpop && !cpop.contains(e.target) && !cpop.owner.contains(e.target)) closeCpop() });
+    /* EXEC-PINE-INDICATORS (UD32): the colour box (app/colorPicker.ts); `lines` adds opacity, thickness and line style
+       (the outputs of an indicator drawn on the price chart, UD31) */
+    function colorBtn(get, set, label, lines?: { s: any; style: boolean }, after: () => void = () => refresh(inst)) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'idlg-cbtn'; b.title = label; b.setAttribute('aria-label', label + ' colour'); b.style.setProperty('--c', get());
       b.onclick = (e: any) => {
         e.preventDefault(); e.stopPropagation(); const was = cpop && cpop.owner === b; closeCpop(); if(was) return;
-        cpop = document.createElement('div'); cpop.className = 'idlg-cpop'; cpop.owner = b; b.classList.add('open');
-        PALETTE.forEach(c => { const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.setAttribute('aria-label', c); s.setAttribute('aria-pressed', String(get() === c));
-          s.onclick = (ev: any) => { ev.preventDefault(); ev.stopPropagation(); set(c); b.style.setProperty('--c', c); closeCpop(); refresh(inst) }; cpop.appendChild(s) });
+        cpop = document.createElement('div'); cpop.className = 'idlg-cpop has-cpk'; cpop.owner = b; b.classList.add('open');
+        const used = list.flatMap(i => [i.style?.color, ...Object.values(i.style?.out || {}).flatMap((o: any) => [o?.color, o?.color2])]).filter(Boolean);
+        const s = lines?.s;
+        cpop.appendChild(buildColorPicker({ label, color:get, used,
+          setColor:c => { set(c); b.style.setProperty('--c', c) },
+          ...(s ? { opacity:{ get:() => s.opacity ?? 100, set:v => { s.opacity = v } }, width:{ get:() => s.width || 2, set:v => { s.width = v } } } : {}),
+          ...(s && lines!.style ? { lineStyle:{ get:() => (s.lineStyle || 'Solid') as LineStyleKey, set:v => { s.lineStyle = v } } } : {}),
+          onChange:done => { after(); if(done) closeCpop() } }));
         dlg.appendChild(cpop);
         const br = b.getBoundingClientRect(), dr = dlg.getBoundingClientRect();
         cpop.style.top = (br.bottom - dr.top + 6) + 'px'; cpop.style.left = Math.max(8, br.right - dr.left - cpop.offsetWidth) + 'px';
@@ -1265,16 +1318,17 @@ export function initIndicators(ctx: Ctx) {
         const w = document.createElement('div'); w.className = 'idlg-row compact'; w.appendChild(b); return w;
       }
       if(f.kind === 'int' || f.kind === 'num') return row(f.label, numInput(f, store_, recomputes, f.kind === 'int'), f.hint);
-      const box = document.createElement('div'); box.className = 'idlg-sw';
-      PALETTE.forEach(c => { const b = document.createElement('button'); b.type = 'button'; b.style.background = c; b.setAttribute('aria-label', 'Color ' + c); b.setAttribute('aria-pressed', String(store_[f.key] === c));
-        b.onclick = () => { store_[f.key] = c; box.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); live(false) }; box.appendChild(b) });
-      return row(f.label, box);
+      // UD32: the same colour box as the registry indicators (their width and line style stay fields of their own)
+      return row(f.label, colorBtn(() => store_[f.key], c => { store_[f.key] = c }, f.label, undefined, () => live(false)));
     }
     /* Style tab of a registry indicator: one row per plotted output, then fill / guides / opacity / offset */
     function styleMulti() {
       const st = inst.style, r = def.reg;
       inst.parts.forEach(pt => {
         const s = st.out[pt.o.k], line = document.createElement('div'); line.className = 'idlg-row compact';
+        /* UD31: opacity, thickness and line style in the colour box for an indicator drawn on the price chart (a line, a
+           two-colour line, dots; line style where it is a line) */
+        const lo = lineOptions(r.zone, pt.kind), lines = lo ? { s, style:lo.style } : undefined;
         const left = document.createElement('span'); left.className = 'idlg-lab';
         left.append(checkbox(s.on, v => { s.on = v; refresh(inst) }, 'Show ' + pt.o.label), document.createTextNode(pt.o.label));
         const right = document.createElement('span'); right.className = 'idlg-ctl';
@@ -1283,13 +1337,13 @@ export function initIndicators(ctx: Ctx) {
         if(pt.o.quad) { if(!s.quad) s.quad = pt.o.quad.slice(0, 4);
           ([[0, 'Both accumulate'], [2, 'Foreign absorbs'], [1, 'Domestic absorbs'], [3, 'Both leave']] as [number, string][])
             .forEach(([k, t]) => right.append(colorBtn(() => s.quad[k], c => { s.quad = s.quad.map((x: string, j: number) => j === k ? c : x) }, t))) }
-        else if(pair) right.append(colorBtn(() => s.color, c => { s.color = c }, pair[0]), colorBtn(() => s.color2, c => { s.color2 = c }, pair[1]));
+        else if(pair) right.append(colorBtn(() => s.color, c => { s.color = c }, pair[0], lines), colorBtn(() => s.color2, c => { s.color2 = c }, pair[1], lines));
         else if(/optional_state/.test(pt.o.rule)) {
           const lab = document.createElement('label'); lab.className = 'idlg-mini';
           lab.append(checkbox(!!s.states, v => { s.states = v; refresh(inst) }, 'State colours'), document.createTextNode('State colours'));
           right.append(lab, colorBtn(() => s.color, c => { s.color = c }, 'Bars'));
-        } else right.append(colorBtn(() => s.color, c => { s.color = c }, pt.o.label));
-        if(pt.kind !== 'hist') right.append(sel([1, 2, 3, 4], s.width, v => { s.width = +v; refresh(inst) }, v => v + ' px'));
+        } else right.append(colorBtn(() => s.color, c => { s.color = c }, pt.o.label, lines));
+        if(pt.kind !== 'hist' && !lines) right.append(sel([1, 2, 3, 4], s.width, v => { s.width = +v; refresh(inst) }, v => v + ' px'));   // in the colour box otherwise
         line.append(left, right); body.appendChild(line);
       });
       const extra = (label, ctl) => { const l = document.createElement('div'); l.className = 'idlg-row compact'; const a = document.createElement('span'); a.className = 'idlg-lab'; a.append(...label); l.append(a, ctl); body.appendChild(l) };

@@ -4278,10 +4278,11 @@
 "#00e5a8"
 ],
 "marker": {
-"shape": "arrowUp",
+"style": "label",
 "position": "atPriceBottom",
 "text": "BULL",
-"on": "bdo"
+"on": "bdo",
+"textColor": "#000000"
 }
 },
 {
@@ -4297,10 +4298,11 @@
 "#ff4d6d"
 ],
 "marker": {
-"shape": "arrowDown",
+"style": "label",
 "position": "atPriceTop",
 "text": "BEAR",
-"on": "bdo"
+"on": "bdo",
+"textColor": "#ffffff"
 }
 },
 {

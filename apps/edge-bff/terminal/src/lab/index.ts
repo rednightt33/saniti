@@ -310,8 +310,9 @@ F.alpha_extract = def('alpha_extract', AE_OUTS, () => 'OHLC', (B: Seg, p) => {
    bull_div, bear_div, buy_a (1 on the bar, else 0; missing before SMI exists); swing_high, swing_low = the price of the
    last swing confirmed up to the bar (the user's "harga above or below swing high / swing low"; before a confirmation
    the earlier one). The Terminal's drawing (DRAWINGS, never an output) places the SH, SL, BULL DIV and BEAR DIV labels on
-   the swing candles as TradingView does, the divergence lines, the active BUY A level and, as an option the user asked
-   for, a green or red background over each divergence (from the earlier swing to the later one). */
+   the swing candles as TradingView does (Pine label boxes, at the Pine's prices), the divergence lines, the active BUY A
+   level and, as an option the user asked for, a green or red background over each divergence (from the earlier swing to
+   the later one). */
 DEFAULTS.alpha_divergence = { swing_mode: 'Original (SMI extreme)' };
 function divergenceRun(B: { H: ArrayLike<number>; L: ArrayLike<number>; C: ArrayLike<number> }, n: number, priceMode: boolean) {
   const win = (x: ArrayLike<number>, i: number, hi: boolean) => { if (i < 9) return null; let m = x[i]; for (let j = i - 9; j <= i; j++) m = hi ? Math.max(m, x[j]) : Math.min(m, x[j]); return m };
@@ -374,20 +375,26 @@ DRAWINGS.alpha_divergence = (B, p0) => {
     let e = s; while (e < n && ok(e)) e++;
     if (e > s) {
       const cut = (x: ArrayLike<number | null | undefined>) => Array.from({ length: e - s }, (_, i) => x[s + i] as number);
-      const { ev } = divergenceRun({ H: cut(B.H), L: cut(B.L), C: cut(B.C) }, e - s, isPriceMode(p));
-      for (const h of ev.highs) d.marks!.push({ i: s + h.bar, layer: 'swings', position: 'aboveBar', shape: 'arrowDown', color: '#ff5252', text: 'SH' });
-      for (const l of ev.lows) d.marks!.push({ i: s + l.bar, layer: 'swings', position: 'belowBar', shape: 'arrowUp', color: '#00e676', text: 'SL' });
+      const H = cut(B.H), L = cut(B.L), C = cut(B.C), { ev } = divergenceRun({ H, L, C }, e - s, isPriceMode(p));
+      /* the labels as the Pine places them (label.new): SH at the swing high, SL at the swing low, BEAR DIV / BULL DIV half
+         an ATR(14) beyond them (the ATR of the confirmation bar, labelOffset), BUY A at the low of its bar */
+      const atr = rma(C.map((c, i) => i === 0 ? H[i] - L[i] : Math.max(H[i] - L[i], Math.abs(H[i] - C[i - 1]), Math.abs(L[i] - C[i - 1]))), 14);
+      const off = (t: number) => (atr[t] ?? NaN) * 0.5;
+      const label = (i: number, price: number, text: string, color: string, textColor: string, above: boolean, layer: string) =>
+        d.marks!.push({ i, layer, position: above ? 'aboveBar' : 'belowBar', shape: above ? 'arrowDown' : 'arrowUp', color, text, style: 'label', price, textColor });
+      ev.highs.forEach(h => label(s + h.bar, h.price, 'SH', '#ff5252', '#ffffff', true, 'swings'));
+      ev.lows.forEach(l => label(s + l.bar, l.price, 'SL', '#00e676', '#ffffff', false, 'swings'));
       for (const x of ev.bears) {
-        d.marks!.push({ i: s + x.b1, layer: 'divergences', position: 'aboveBar', shape: 'arrowDown', color: '#ff5252', text: 'BEAR DIV' });
+        if (Number.isFinite(off(x.t))) label(s + x.b1, x.p1 + off(x.t), 'BEAR DIV', '#ff5252', '#ffffff', true, 'divergences');
         d.segments!.push({ i0: s + x.b0, v0: x.p0, i1: s + x.b1, v1: x.p1, layer: 'divergences', color: '#ff5252', width: 2 });
         d.shades!.push({ i0: s + x.b0, i1: s + x.b1, layer: 'shading', color: '#ff5252' });
       }
       for (const x of ev.bulls) {
-        d.marks!.push({ i: s + x.b1, layer: 'divergences', position: 'belowBar', shape: 'arrowUp', color: '#00e676', text: 'BULL DIV' });
+        if (Number.isFinite(off(x.t))) label(s + x.b1, x.p1 - off(x.t), 'BULL DIV', '#00e676', '#000000', false, 'divergences');
         d.segments!.push({ i0: s + x.b0, v0: x.p0, i1: s + x.b1, v1: x.p1, layer: 'divergences', color: '#00e676', width: 2 });
         d.shades!.push({ i0: s + x.b0, i1: s + x.b1, layer: 'shading', color: '#00e676' });
       }
-      for (const t of ev.buys) d.marks!.push({ i: s + t, layer: 'buy_a', position: 'belowBar', shape: 'arrowUp', color: '#4caf50', text: 'BUY A' });
+      for (const t of ev.buys) label(s + t, L[t], 'BUY A', '#4caf50', '#ffffff', false, 'buy_a');
       // the BUY A level still waiting at the end of the stretch (TradingView deletes it when it triggers or a new one comes)
       if (ev.line) d.segments!.push({ i0: s + ev.line.from, v0: ev.line.level, i1: e - 1, v1: ev.line.level, layer: 'buy_a', color: '#4caf50', width: 1, dash: true, ray: e === n });
     }

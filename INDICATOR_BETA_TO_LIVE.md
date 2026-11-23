@@ -88,14 +88,20 @@ All edits are on the session branch; one commit per indicator (or one per batch)
    `json.dumps(rows, indent=0, ensure_ascii=False)`.
    To draw an indicator as its source draws it (EXEC-PINE-INDICATORS, 2026-11-23; `terminal/src/app/indicators.ts` reads
    them, nothing is coded per indicator): per output `colors` [main, second], `alpha` (0..1), `step` (a stepped line),
+   `join` (the line drawn across days without a value, as Pine's `style_line` and `style_stepline` do; ERRORS M557),
    `palette` with `paletteFrom` (a line coloured per bar by another output's index: Alpha KAMA, Alpha Extract), `marker`
-   {shape, position, text, size, on} (a mark on the price, or with `on` at another output's value); per row
+   {shape, position, text, size, on, style, textColor} (a mark on the price, or with `on` at another output's value;
+   `style` "label" draws Pine's `label.style_label_up/down`, a filled box with a pointer and `textColor` text, as the
+   TradingView screenshots of Alpha Extract and Alpha Divergence show); per row
    `guideStyle` {color, width, style}, `fills` [{a, b, color, color2?, opacity}] (areas between two outputs, two colours
    with `color2`) and `layers` [{k, label, on}] with a drawing in `calc/indicators.ts` `DRAWINGS` (registered by the lab
    module: labels on earlier candles, segments, a level ray, background ranges; never an output of F, so the Screener,
    the Backtest and the look-ahead gate never read a mark placed in hindsight). An output coded in categories carries
    `categories` [{value, key, label}]; the Screener's forms `state_category` and `event_category_change` then offer "is
    one of" and "changed from -> to within N" (SCREENER_ONBOARDING, the category transforms).
+   The Style tab's colour box (`app/colorPicker.ts`, UD32) offers opacity, thickness and line style per output only on
+   an indicator with `zone` "overlay" (UD31, `lineOptions`); a panel indicator's box holds the colours only. A
+   `DRAWINGS` mark with `style` "label" is drawn the same way as a label marker.
 4. **The stage.** `apps/edge-bff/catalog/releases.json` `items`: `{"kind": "indicator", "id": "I54", "stage": "lab"}`
    (the completeness test, `test_every_registry_id_has_an_entry_and_every_entry_names_a_registry_id`, prints this line
    when it is missing).

@@ -280,7 +280,9 @@ export const SRC = (p: Params) => needSrc(p.source);
    segment and shade names its layer (registry `layers`, the switches of the style tab). Empty in the public build: the
    lab module registers its own. */
 export interface Drawing {
-  marks?: { i: number; layer: string; position: 'aboveBar' | 'belowBar'; shape: 'arrowUp' | 'arrowDown' | 'circle' | 'square'; color: string; text?: string }[];
+  /** a mark: a chart marker, or with style 'label' a Pine label at `price` (aboveBar: the box above it, belowBar: below) */
+  marks?: { i: number; layer: string; position: 'aboveBar' | 'belowBar'; shape: 'arrowUp' | 'arrowDown' | 'circle' | 'square'; color: string; text?: string;
+    style?: 'label'; price?: number; textColor?: string }[];
   segments?: { i0: number; v0: number; i1: number; v1: number; layer: string; color: string; width?: number; dash?: boolean; ray?: boolean }[];
   shades?: { i0: number; i1: number; layer: string; color: string }[];
 }
