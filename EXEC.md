@@ -17204,6 +17204,27 @@ dengan konfirmasi user per deploy.
 - User 2026-11-23: "Lanjutkan indikator lainnya dulu baru push yo main all at once ya": catatan deploy pilot (`21e95866`)
   dan enam indikator berikutnya tetap di branch; satu push ke `main` (dengan konfirmasi deploy) sesudah semuanya selesai.
 
+#### Kelompok 1: Inside Bar Detection (I55), Alpha Price Action BUY (I56) dan SELL (I57), 2026-11-23
+
+- Dibangun di branch (`afcf2841`): rumus `inside_bar`, `price_action_buy`, `price_action_sell` di `terminal/src/lab/index.ts`;
+  baris registry I55-I57; mesin gambar Terminal membaca tiga field umum baru per output: `marker` (bentuk, posisi, teks,
+  ukuran, output tempat duduknya), `palette`/`paletteFrom` (warna garis per bar, untuk Alpha KAMA) dan `step` (garis
+  tangga); `releases.json` I55-I57 `lab`; overlay Screener (Inside Bar: sedang/terjadi inside bar, break atas/bawah; Price
+  Action: close di atas/bawah level 1/A/B, menembus level, jarak %, break 1/A/B dalam N sesi); kedua registry dibuat ulang.
+- Tampilan sesuai Pine: garis tangga biru (Candle 1), merah (A), oranye (B); penanda IB kuning dan IB BREAK hijau/merah;
+  penanda break A/B mati bawaan (Pine `showBreakMarkers = false`); penanda Candle 1/A/B terbaru tidak dibuat (Pine
+  `showLatestMarkers = false`, hindsight).
+- Uji: `terminal/tests/calc/inside_bar_price_action.test.ts` 8/8 (setiap bar terhadap implementasi yang ditulis baris per
+  baris dari Pine, kedua sumber break, N 12/30/50, kausal); Terminal 1.114, Screener 1.358, halaman Backtest 102 lulus;
+  backtest-worker 284/285 dan screener-worker 141/143 (yang gagal tes batas heap, sama seperti pada `main`); edge-bff
+  lab/release dan 3f 67 lulus (Postgres lokal sekali pakai); `look_check11` PASS; gambar di beta dengan build lab lokal
+  (BBCA) tanpa error.
+- Temuan saat uji (ERRORS M554, `afcf2841`, `ce188bbb`): Backtest menawarkan penanda 0/1 Inside Bar sebagai garis harga
+  untuk stop; aturan "semua output kecuali yang bernama direction" diganti dengan hasil probe satuan generator
+  (`compare-lag.json` `price_levels`); pasangan "output vs output" di jendela kondisi membaca `with_output` registry.
+  Garis yang sudah rilis tidak berubah.
+- Sisa: Alpha KAMA, Alpha Extract, Alpha Divergence; lalu satu push ke `main` dengan konfirmasi deploy.
+
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
 - Rumus (dibaca dari Pine, kausal): baseline = median 4 bar dari MA(source, 23) (EMA; pilihan RMA/SMA/WMA/HMA/TEMA);

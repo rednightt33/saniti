@@ -8886,6 +8886,42 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M554 — The Backtest read "a price line" and "the other output" by a name rule, not by what the outputs are (2026-11-23; fixed on the branch in `afcf2841` and `ce188bbb`)
+
+- **Found by:** the lab indicators Inside Bar Detection (I55) and Alpha Price Action BUY/SELL (I56, I57)
+  (EXEC-PINE-INDICATORS, group 1): `apps/backtest-worker` `tests/engine.test.ts` "price lines are the outputs of the
+  overlay indicators without direction" failed with I55 `ib`, `break_up` and `break_down` in the list.
+- **Symptom:** the Backtest's stop and trailing-stop line choices (`LEVEL_LINES`) and the worker's check of a sent line
+  (`lineOf`) offered every output of an indicator drawn on the price except one named `direction`, so Inside Bar's 0/1
+  flags and the Price Action breaks would have been offered, and accepted, as price lines a stop sits on.
+- **Verified root cause:** `apps/edge-bff/backtest/src/core/engine.ts:119-121` and `:132` (before the fix) and the page's
+  `src/reg.ts:72` filtered outputs with `o !== 'direction'`: the rule assumed every output of an overlay indicator is a
+  price except Supertrend's and SAR's state. The registries already know what each output is: the Screener generator's
+  unit probe (`build-screener-registry.mjs` `unitProbe`: scale and shift the prices) marks an output `unit: price`,
+  `comparable_with: close` when it moves with the price. The same kind of name rule sat in the condition window
+  (`src/condwin.ts` `cwMap`): the other output of an output-vs-output choice was guessed from the label's words, then
+  taken as the first output not named `direction`, although the catalog option carries the registry's `with_output`.
+- **Class:** a fact about an output (is it a price level; which output it is compared with) derived from its name
+  instead of the registry's measured or declared fact. Every indicator drawn on the price with an output that is not a
+  price meets it: the lab ones here, Alpha KAMA's colour state and entry flags, Alpha Divergence's flags, and any later
+  overlay indicator.
+- **Solution (data contract, then the readers):** the generator writes `price_levels` (the probe's price-level outputs,
+  in registry order) into `backtest/src/core/compare-lag.json` (schema 2); `core/priceLevels.ts` reads it; `engine.ts`
+  `LEVEL_LINES` and `lineOf` and the page's `reg.ts` `LEVEL_LINES` offer and accept only those (a flag or a state is
+  refused `UNKNOWN_OUTPUT`); the release filter filters the new part by indicator (`shared/release-filter.mjs`, so a lab
+  id never reaches a public bundle). `cwMap` (now `src/cwmap.ts`) pairs with the option's `with_output` only.
+  `CONTRACT.md` section 3 says so.
+- **Covers / does not cover:** covers every indicator the probe runs on (the Screener generator reads the Backtest
+  registry, so every Backtest indicator). The released lines are unchanged: the probe gives exactly the old list for
+  I01-I43. It does not judge whether a price level is a sensible place for a stop (a VWAP band is offered as before).
+- **Verified:** `apps/backtest-worker` `tests/engine.test.ts` (the list, every line a probe price level, I55 `ib`, I56
+  `break_a` and I09 `direction` refused `UNKNOWN_OUTPUT`); `apps/edge-bff/backtest/tests/condwin-pair.test.ts` (every
+  paired option of the registry maps to its `with_output`; none or an unknown partner gives no card); the 3f public-bundle
+  and lab-page tests (26 passed); `registry:check` of both generators.
+- **Lesson for new data:** an output's meaning (price level, flag, state, partner) is read from the registry's derived
+  or declared fields, never from its name; a new output kind adds a field the generator derives.
+- **Status:** fixed on the branch (`afcf2841`, `ce188bbb`); deploys with the lab indicators (EXEC-PINE-INDICATORS).
+
 ### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23, open, asked of the user)
 
 - **Found by:** the pilot lab indicator Alpha Volatile (EXEC-PINE-INDICATORS, id I54), Part A "The tripwire in Part A".
