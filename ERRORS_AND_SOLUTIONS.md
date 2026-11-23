@@ -8983,7 +8983,9 @@ in its staleness check.
 - **Proposal (asked of the user):** the tripwire's ALWAYS rule accepts a registry release that an EXEC section records
   (the record names the indicator ids and the user's words), and Part A's step names the exact command; or the guide
   drops the record step for Part A and keeps the post-merge check.
-- **Status:** open.
+- **Status:** open; recorded as EXEC-TRIPWIRE-LAB (the user 2026-11-23: "Ok untuk M553 -- masukan exec dulu"), the
+  choice (a) or (b) waiting (EXEC-MU-ACCOUNTS pending decisions, UD29). The same refusal also leaves the Backtest core
+  changes of EXEC-PINE-INDICATORS (M554, M555) without a content-hash record.
 
 ### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed in `61fb22c4`, on the beta since 2026-11-23 (`fb4a5c3c`))
 

@@ -16705,6 +16705,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD20 | A valid Railway token for telegram-trigger (the Telegram Run Now buttons fail) | 2026-11-03 | the manual restart button | any time |
   | UD25 | Step 9 window, test-out F1: while registration is open any client can make the live site send code emails to any address (per-address and per-hour limits only): (a) keep it open the 24 hours and the agent watches `email_sent` and closes early on a burst, or (b) close it as soon as the user has finished testing | 2026-11-23 (twice, with context; 0 code emails sent 03:24-06:20 UTC) | the window's spam exposure | while the window is open (until 2026-11-24 03:24 UTC) |
   | UD26 | Step 9 window, F2: is the close at 2026-11-24 10:24 WIB confirmed in advance (a variable change that redeploys edge-bff-live), so the agent runs it on time, or asked again then | 2026-11-23 (twice, with context) | the window's close | 2026-11-24 03:24 UTC |
+  | UD29 | ERRORS M553, the Backtest tripwire for indicator releases (EXEC-TRIPWIRE-LAB): (a) the tool takes a release record (the ALWAYS paths' content hash, the ids, the user's words), or (b) the guide drops the record step and the release is evidenced by CI, the formula tests and EXEC | 2026-11-23 with context (the user: "Ok untuk M553 -- masukan exec dulu"; the choice asked again with the options) | the guide's record step; a content-hash record of the Backtest core changes of EXEC-PINE-INDICATORS (M554, M555) | before the next indicator release to the live site or the next Backtest core change |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17402,3 +17403,35 @@ dengan konfirmasi user per deploy.
     sama): BUY tembus ke atas, SELL tembus ke bawah; sumber break wick (bawaan, seperti skrip) atau close;
   - keadaan sekarang: close di atas atau di bawah level yang dipilih.
 - Nama di EDGE ("3. ok"): "Alpha Price Action BUY" (Candle A BUY), "Alpha Price Action SELL" (Candle A SELL).
+
+
+## EXEC-TRIPWIRE-LAB — tripwire Backtest untuk rilis indikator (ERRORS M553; dicatat 2026-11-23, menunggu pilihan)
+
+User 2026-11-23: "Ok untuk M553 -- masukan exec dulu". Dicatat untuk direncanakan, belum dieksekusi (AGENTS.md "Plans":
+persetujuan merencanakan bukan perintah eksekusi). Pilihan (a) atau (b) masih terbuka: register keputusan tertunda UD29.
+
+- **Masalahnya.** Tripwire (`scripts/screener/check_backtest_untouched.mjs`, dijalankan manual, bukan di CI) menjaga dua
+  hal: pekerjaan Screener tidak pernah mengubah rumus indikator (`ALWAYS`: `terminal/src/calc/indicators.ts`,
+  `terminal/src/data/indRegistry.json`, Feature 04, updater Stockbit), dan setiap perubahan core atau worker Backtest
+  membawa catatan persetujuan (`--record-core`, `--record`: hash isi file plus kata-kata user dan bagian EXEC-nya). Alat
+  ini menolak mencatat apa pun selama `ALWAYS` berbeda dari `main`. Setiap rilis indikator (INDICATOR_BETA_TO_LIVE.md
+  Part A dan B) mengubah kedua file itu dengan sengaja, jadi langkah catatan di panduan tidak pernah bisa dijalankan.
+- **Fakta tambahan dari ronde ini.** Perubahan core Backtest yang ikut dalam rilis indikator juga tidak bisa dicatat:
+  M554 (`backtest/src/core/engine.ts`, `priceLevels.ts`, `compare-lag.json`) dan M555 (generator Screener). Bukti
+  penggantinya: gerbang look-ahead di CI, uji rumus bar per bar, dan catatan EXEC-PINE-INDICATORS. Sesudah `main` memuat
+  perubahan, `check` terhadap `origin/main` lulus lagi karena basisnya sama dengan pohon kerja, bukan karena ada catatan.
+- **Pilihan.**
+  - (a) Alat menerima rilis indikator yang tercatat di EXEC: mode baru `--record-release --exec <bagian> --decision
+    "<kata user>" --ids I55,I56,...` menulis catatan berisi hash isi `ALWAYS`; `check` menerima perbedaan `ALWAYS` yang
+    hash-nya sama dengan catatan dan hanya menambah baris registry atau entri modul lab dengan id yang disebut. Sesudah
+    itu catatan core dan worker bisa dibuat seperti biasa. Biaya: perubahan alat dan ujinya, serta langkah panduan
+    (sekitar setengah hari). Mencakup: setiap rilis berikutnya, termasuk perubahan core yang ikut di dalamnya.
+  - (b) Langkah catatan dihapus dari Part A dan B panduan; tripwire untuk pekerjaan Screener tetap seperti sekarang.
+    Rilis indikator dibuktikan oleh gerbang look-ahead, uji rumus dan bagian EXEC-nya; sesudah merge, `check` dijalankan
+    untuk menunjukkan lulus. Biaya: hanya dokumen. Tidak mencakup: perubahan core Backtest yang ikut dalam rilis
+    indikator tidak punya catatan hash isi, hanya kata-kata di EXEC dan CI.
+- **Rekomendasi agen:** (a). Ronde ini menunjukkan perubahan core Backtest memang ikut dalam rilis indikator (M554), dan
+  catatan hash isi adalah satu-satunya bukti yang tidak bergantung pada ingatan siapa pun. (b) lebih murah dan cukup
+  bila rilis indikator tidak pernah membawa perubahan core.
+- **Pemicu:** jawaban user atas UD29; dibutuhkan sebelum rilis indikator berikutnya ke live (Part B) atau perubahan core
+  Backtest berikutnya.
