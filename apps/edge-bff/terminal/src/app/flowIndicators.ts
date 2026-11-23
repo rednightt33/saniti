@@ -7,6 +7,7 @@
 import { autoInventoryBrokers, boardIndex, classBrokers, computeFlow, defaultInventoryBrokers, fdParts, investorIndex, loadersTable, type FlowContext, type FlowRows, type InsiderRow, type LoaderRow } from '../calc/flow';
 import { FD_QUADRANTS } from '../data/brokerAgg';
 import { fdPct } from './fdMap';
+import { sideWord } from '../data/sideWord';
 import REG from '../data/flowRegistry.json';
 import type { Ctx } from './context';
 import { nfCompact, rupiah, visibleBars } from './context';
@@ -625,7 +626,8 @@ export function initFlowIndicators(ctx: Ctx) {
         if (!r.params.some(q => q.key === 'scope') && r.params.some(q => q.key === 'top') && p.top) parts.push(`Top ${p.top}`);
         const sided = r.params.some(q => q.key === 'side');
         if (p.scope) parts.push(scopeText(p, sided));
-        if (p.side && p.side !== 'buy' && !(sided && p.scope === 'topn')) parts.push(p.side === 'both' ? 'Buy & Sell' : 'Sell');
+        /* EXEC-FL51-TITLE (ERRORS M540): the side in the registry's own words (data/sideWord.ts) */
+        if (p.side && !(sided && p.scope === 'topn')) { const w = sideWord(byKey.side?.options, p.side); if (w) parts.push(w) }
         const f = filterText(p); if (f) parts.push(f);
         // a window that caps a count reads "limit 60D" (QA F2-09: "60D" read as a 60-day window)
         if (p.window) parts.push(/limit/i.test(byKey.window?.label || '') ? `limit ${p.window}${letter}` : `${p.window}${letter}`);

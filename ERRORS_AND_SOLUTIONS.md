@@ -9018,7 +9018,7 @@ in its staleness check.
   runs pass (ERRORS M546). It reaches `main` with that branch, which needs the user's confirmation (AGENTS.md
   "Deploys").
 
-### M540 — Terminal: judul Loaders (FL51) menulis "Sell" saat pilihan Show = Loaders (2026-11-22, open)
+### M540 — Terminal: judul Loaders (FL51) menulis "Sell" saat pilihan Show = Loaders (2026-11-22; FIXED on the branch, not deployed)
 
 - **Ditemukan oleh:** verifikasi ronde 2 M538 di beta (pengaturan pemilik: FL51 `side: 'load'`, `top: '3'`).
 - **Gejala:** judul legenda "Loaders (Top 3, Sell, Domestic · Regular, from …)" padahal yang ditampilkan adalah pembeli
@@ -9031,7 +9031,13 @@ in its staleness check.
   dengan pilihan sisi bernama lain akan mendapat kata yang salah juga.
 - **Usulan (belum dikerjakan, menunggu user):** kata sisi diambil dari label pilihan di registry (`options`), bukan dari
   `buy`/`both`/lainnya.
-- **Status:** open; dilaporkan ke user 2026-11-22.
+- **Solution (EXEC-FL51-TITLE; user 2026-11-23: "M540 masukan exec untuk diperbaiki", kata "B1"):** kata sisi diambil
+  dari pilihan registry (`apps/edge-bff/terminal/src/data/sideWord.ts`): pilihan pertama adalah bacaan indikator itu sendiri
+  dan tidak ditulis (Buy, Loaders), `both` menggabungkan label pilihan lain ("Buy & Sell", "Loaders & Sellers"), pilihan
+  lain ditulis labelnya ("Sell", "Sellers"). Tes `tests/data/side_word.test.ts` (dari registry: kata FL51; setiap indikator
+  buy/sell tetap dengan kata lamanya; judul hanya lewat `sideWord`; gagal pada kode lama). Cek beta dengan build lokal:
+  "Loaders (Top 3, Domestic · Regular, from …)", "Loaders (Top 5, Regular, …)".
+- **Status:** fixed on the branch; deploy beta menunggu konfirmasi user (AGENTS.md "Deploys").
 
 ### M539 — CI edge-bff: "too many clients" di database uji; tes-tes yang sama gagal di `main` dua kali (2026-11-22, cause verified; FIXED on the branch, `4f1e6d3e`)
 

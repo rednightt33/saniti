@@ -16954,6 +16954,9 @@ menulis setiap pilihan sisi selain `buy` dan `both` sebagai "Sell" (`apps/edge-b
 - Perbaikan yang disetujui: kata sisi di judul diambil dari label pilihan di registry (`flowRegistry.json`, `options`),
   bukan dari daftar tetap; berlaku untuk setiap indikator Flow yang punya pilihan sisi. Tes: judul FL51 untuk
   load/sell/both dan judul indikator buy/sell yang tidak berubah.
-- Terbuka (pertanyaan ke user): kata untuk FL51 — label registry apa adanya ("Loaders (Top 3, Loaders, …)", "Sellers",
-  "Both"), atau sisi tidak ditulis bila sama dengan nama indikator (Loaders) dan "Loaders & Sellers" untuk Both.
+- Kata untuk FL51, user 2026-11-23: "B1": sisi tidak ditulis bila sama dengan bacaan indikator (Loaders), "Sellers",
+  "Loaders & Sellers" untuk Both. Dikerjakan di branch (ERRORS M540); deploy beta menunggu konfirmasi.
+- Pine (user 2026-11-23, "A1"): indikator Pine untuk Terminal, Screener dan Backtest mengikuti INDICATOR_BETA_TO_LIVE.md
+  (lab dulu); dasar kodenya menunggu branch `claude/pensive-feynman-4ahfe3` (pencabutan penjaga lab, rumus lab di
+  worker) sampai di `main`; terjemahan dan uji rumus dikerjakan di branch ini sambil menunggu.
 - Rilis: hanya ke beta, dengan konfirmasi deploy user (AGENTS.md "Deploys"); live hanya atas permintaan user.
