@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M551 — The lab Flow indicator's registration point, and what its dry run found (2026-11-23; built on the branch, not deployed)
+### M551 — The lab Flow indicator's registration point, and what its dry run found (2026-11-23; built in `521c5048` on the branch, not deployed)
 
 - **Request (the user 2026-11-23, step 3 of the sequence):** "Satu batasan yang masih ada: indikator Flow (FL) baru belum
   bisa dijadikan lab, karena titik pendaftaran rumusnya belum dibangun. Kalau Anda mau menambah FL khusus beta, bagian
@@ -8923,7 +8923,7 @@ in its staleness check.
   version moves with `calc/flow.ts`; the Screener registry's entries are identical, only its source hash moved). The copy
   with FL53: the Terminal suite (1087), Screener core (412), screener-worker (139 + the derived catalog test),
   backtest-worker gates (30), every page built with FL53 in no public file and in both lab builds; the edge-bff release
-  and proof-build tests (see the EXEC record for the last run). The screener-worker's two heap tests fail in this
+  and proof-build tests (134) and the generator checks (9). The screener-worker's two heap tests fail in this
   container on `origin/main` too (not this change; green on CI).
 - **Not tested out by another agent yet:** step 8 (the ledger).
 - **Lesson:** a file that names items by id is part of the release filter from its first commit; a gate that may skip a

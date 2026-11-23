@@ -3,7 +3,7 @@
  "built": "2026-11-22",
  "workflow": "wf_877859a9-d28",
  "counts": {
-  "fixed_not_tested_out": 187,
+  "fixed_not_tested_out": 188,
   "open_with_row": 23,
   "fixed_tested_out": 111,
   "accepted_by_user": 4,
@@ -38,8 +38,8 @@
   },
   {
    "group": "after the ledger (2026-11-23): fixes and builds since wf_877859a9-d28",
-   "rows": 19,
-   "notes": "Added by the main agent: M539, M546, M547, M548, the 13 fixed parts of M549 (wf_4181198a-09f), step 7 (never checked) and M550. Every row is fixed_not_tested_out: no agent other than its author tested it out. The titles of M549 parts not named in ERRORS are short; ERRORS M549 holds each part."
+   "rows": 20,
+   "notes": "Added by the main agent: M539, M546, M547, M548, the 13 fixed parts of M549 (wf_4181198a-09f), step 7 (never checked) and M550. Every row is fixed_not_tested_out: no agent other than its author tested it out. The titles of M549 parts not named in ERRORS are short; ERRORS M549 holds each part. M551 added after step 3 (2026-11-23)."
   }
  ],
  "critic": {
@@ -4890,6 +4890,18 @@
    "open_row": "",
    "step8_action": "Set one indicator and one Flow indicator to preview in a copy: the admin on a live-settings app holds them (catalog, allow, menus); a paid, free and guest principal do not; no plan holds them by stage; the public build keeps them marked; a preview formula left in src/lab fails public_formulas.test.ts.",
    "evidence": "ERRORS M550; tests/test_preview_stage.py, terminal/tests/data/ind_menu.test.ts, backtest/tests/preview-lines.test.ts"
+  },
+  {
+   "key": "after-ledger/M551",
+   "finding_id": "M551",
+   "title": "The lab Flow indicator's registration point and its dry-run fixes D1-D6",
+   "fate": "fixed_not_tested_out",
+   "fix_commit": "521c5048 (with f1436829, b24361fd)",
+   "tested_out_by": "none",
+   "runs_on": "branch_only",
+   "open_row": "",
+   "step8_action": "Follow INDICATOR_BETA_TO_LIVE \"A lab Flow indicator\" cold in a copy with a new lab FL: no public file holds its id; the lab builds and both workers compute it; remove its registerFlow line and the look-ahead gate names it; remove flow-kinds.json from REGISTRIES and the coverage test names the file.",
+   "evidence": "ERRORS M551; apps/edge-bff/terminal/src/calc/flow.ts registerFlow, shared/release-filter.mjs keyedParts, apps/backtest-worker/tests/lookahead.test.ts"
   }
  ]
 }
