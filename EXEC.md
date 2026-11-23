@@ -16649,6 +16649,12 @@ Order of the services (CONTRACT 17, rollback floors):
     (the registration test window) before step 8: its implementation plan from the live edge-bff's code, then executed
     with (1) and (2), tested out by a workflow, fixes carried to step 8. Deploys within it still wait for the user's
     confirmation (AGENTS.md "Deploys").
+  - Wait for CI (2026-11-23): "Iyee maksudnya pada saat deploy. Deploy nunggu 30 menit. INi yang lama . Untuk live dan
+    beta matikan wait for CI. Kamu tetap lihat hasil CI dan alpor kalau merah. Akan kita buat wait for CI ini aktif untuk
+    live ketika dekat2 launch." and "Done matikan CI untuk ketiganya." → the user turned Wait for CI off on edge-bff,
+    edge-bff-live and screener-worker; `.railway/railway.ts` follows (`railway config plan`: up to date); AGENTS.md
+    "Deploys" and "The live site", LIVE_PROMOTION.md. This changes the decisions of 2026-11-15 (decision 3, K10 a) and
+    2026-11-19/20 (live only on green CI) for deploys; the gate still runs on every push.
 - **The user's go for the rest of the round (2026-11-22): "Lanjutkan sisa pekerjaan, kemudian penutup putaran ya.. then
   proceed ke langkah 7. Aman?"** The rest (R1-5 A1, lab gap 3 and L11, the status test of rule 9), then the close (the
   re-check by five agents with the older fixes, the beta deploy with the shared workers' check against the live site's
@@ -16690,6 +16696,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | Lab tab rail entry (checker SERVE-3, TR-13; FUTURE_PLAN "The shell") | edge-bff hands each lab tab's rail entry (label, path, its own `<tab>-app`) only to principals holding it, and the shell draws and routes it | the lab-gap owner of this execution | before the first tab is set to `lab` in `catalog/releases.json`, held by `LAB_TAB_HELD_UNTIL` in `apps/edge-bff/tests/test_live_switch.py` |
   | CRIT-1's round trip on the real sites (ERRORS M548) | the admin's lab indicator survives the beta, the live Terminal with the same account, and the beta again | the lab-indicator builder | the first lab indicator's beta deploy (`INDICATOR_BETA_TO_LIVE.md` Part A step 12) |
   | A lab Flow indicator's registration point (ERRORS M548) | the `FLOW` map of `calc/flow.ts` is not exported, so a Flow indicator cannot be at the lab stage (`LAB_KIND_HELD`) | the lab-gap owner of this execution | the user asks for a beta-only Flow indicator |
+  | Wait for CI back on edge-bff-live (the user 2026-11-23) | the live site deploys without waiting for CI until then | the launch's owner, through this execution | near the launch: before registration opens for good (after step 9's window and step 8), asked with the launch's go |
   | The five failing Screener smoke steps (ERRORS M417) | run `node apps/edge-bff/screener/tests/smoke/smoke.mjs`; diagnose or retire each failing step | the Screener owner | the next Screener change, or step 8 (the deep checker), whichever comes first |
   | terminal-publisher's upload (test-out fix round 1, guest-exposure-2) | the publisher is a CLI upload and still runs the `examples.py` before the Radar cut by name (`c9aef344`); the same bytes today, so nothing leaks now | the publisher's owner, through this execution | its next upload, or step 8 |
   | The other readers of `TELEGRAM_NOTIFY_URL` (test-out deploy-3) | market-sql-governor, market-audit-store and market-python-sandbox (`app/queue_alarm.py`), idx-price-cron (`price_update.py`, `intraday_update.py`), fixed-income-price-cron, stockbit-updater, terminal-publisher, feature-04-worker and `scripts/restart_postgres.py` read the address with no start check: a wrong value starts the service and only its alerts fail; one shared check like edge-bff's `notify_url_problem` (`app/config.py`) at each start | ops, through this execution | the next change of telegram-monitor's address or port, the next change of each service, or step 8, whichever comes first |

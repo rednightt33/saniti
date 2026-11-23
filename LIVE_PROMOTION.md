@@ -8,7 +8,7 @@ User decisions (EXEC.md, option A):
 - 2026-11-19 and 2026-11-20: two sites from one code base.
   - The beta is `edge-bff` at edge-bff-dev.up.railway.app. It is for the admin only, gets every feature first and
     deploys from `main`.
-  - The live site is `edge-bff-live` at app.edgefinance.id. It deploys only from the branch `live`, with Wait for CI.
+  - The live site is `edge-bff-live` at app.edgefinance.id. It deploys only from the branch `live` (Wait for CI off since 2026-11-23, the user; back on near the launch).
 - 2026-11-20: "Tidak bisa pengembangan di beta dibawa live on schedule basis. Semuanya harus on request basis."
 
 ## 1. The two sites
@@ -201,7 +201,8 @@ CI → `main` → the beta runs it), and then `live` moves to it. The user's req
    git push origin <commit>:refs/heads/live
    ```
 
-   Only a fast-forward to the target. Railway waits for that commit's CI, then deploys `edge-bff-live`. Never
+   Only a fast-forward to the target. Railway deploys `edge-bff-live` at once (Wait for CI off since 2026-11-23); read
+   that commit's CI to its end and report a red run to the user with a proposal. Never
    `railway up` to that service: a CLI upload skips both the branch and CI, and the next push to `live` replaces it.
 7. **Wait for SUCCESS.**
    - `railway deployment list -s 3baa0d66-41ce-4986-9b56-93b4d13a4e10 -e dev --json`: the new deployment must reach

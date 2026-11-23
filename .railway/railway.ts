@@ -233,7 +233,7 @@ export default defineRailway(() => {
   // look-ahead gate among them, .github/workflows/backtest-lookahead.yml). Applied 2026-11-16 with the deploy after Gate 3
   // (user "1A 2B 3A, go deploy"; RAILWAY_CHANGELOG 2026-11-16)
   const screenerWorker = service("screener-worker", {
-    source: github("rednightt33/saniti", { checkSuites: true, rootDirectory: "/" }),
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "apps/screener-worker/Dockerfile",
       watchPatterns: ["/apps/screener-worker/**", "/apps/edge-bff/screener/src/core/**",
         "/apps/edge-bff/screener/scripts/build-screener-registry.mjs", "/apps/edge-bff/backtest/src/core/**",
@@ -251,7 +251,7 @@ export default defineRailway(() => {
   // (3baa0d66-41ce-4986-9b56-93b4d13a4e10) exists empty, with the custom domain app.edgefinance.id (port 8080), created
   // by the CLI; it is declared here once it gets its source and variables (RAILWAY_CHANGELOG.md 2026-11-19).
   const edgeBff = service("edge-bff", {
-    source: github("rednightt33/saniti", { checkSuites: true, rootDirectory: "/apps/edge-bff" }),   // K10 a, as screener-worker
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/edge-bff" }),   // Wait for CI off since 2026-11-23 (the user); was K10 a
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
     healthcheck: "/ready",
@@ -313,9 +313,10 @@ export default defineRailway(() => {
   // RAILWAY_CHANGELOG.md 2026-11-20). 2026-11-22, at the promotion that carries the contact-support panel:
   // TELEGRAM_NOTIFY_URL and TELEGRAM_SUPPORT_SECRET (references to telegram-monitor's), EDGE_ADMIN_ORIGIN (the beta). The live admin's login variables live on orc-test-runner (EXEC option A).
   const edgeBffLive = service("edge-bff-live", {
-    // its own branch: `live` moves to a version the beta ran first (EXEC.md option A); deploys wait for CI (K10 a).
+    // its own branch: `live` moves to a version the beta ran first (EXEC.md option A); deploys waited for CI (K10 a) until 2026-11-23, when the user turned
+    // Wait for CI off here, on edge-bff and on screener-worker; live's comes back near the launch (EXEC-MU-ACCOUNTS).
     // Connected by the user in the dashboard (ERRORS M514: an agent session's project token may not connect a repository).
-    source: github("rednightt33/saniti", { branch: "live", checkSuites: true, rootDirectory: "/apps/edge-bff" }),
+    source: github("rednightt33/saniti", { branch: "live", checkSuites: false, rootDirectory: "/apps/edge-bff" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
     healthcheck: "/ready",

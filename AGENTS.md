@@ -27,8 +27,8 @@ Flow FL01-FL52 with every option and the engine as a whole on data cut at t, wit
 caught; `pit.test.ts`, `flow-grammar.test.ts`, `grammar.test.ts`: the point-in-time indicators, the Flow indicators and
 the grammar through the worker's own path) and the Screener and page suites. A new indicator, Flow indicator, transform,
 pattern or condition kind enters the gate by the registries it is derived from; a test is never skipped to pass it
-(edge-bff and screener-worker are to deploy only on green checks, K10 a, applied with the deploy after Gate 3; until then
-`checkSuites` is off and a push to `main` deploys them, ERRORS M459). Before a release that changes what the Backtest
+(edge-bff and screener-worker deployed only on green checks, K10 a, until the user turned Wait for CI off on 2026-11-23,
+section "Deploys"; the gate still runs on every push and its red is reported). Before a release that changes what the Backtest
 reads, run the real-data check too (`verification/backtest/lookahead/README.md`). The Terminal (`apps/edge-bff/terminal`)
 keeps its own hindsight indicators (user: "Terminal jangan disentuh"); the Backtest reads their point-in-time versions
 (`apps/backtest-worker/src/pit/`, worker-only, admins only).
@@ -269,13 +269,21 @@ Before asking, read what is already waiting: a deployment of another session in 
 when its CI turns green (`railway deployment list`), and is named in the question. The session branch is pushed
 freely: no service deploys from it. A scheduled cron run and the user's own Telegram buttons are not deploys.
 
+Wait for CI (user decision 2026-11-23: "Untuk live dan beta matikan wait for CI. Kamu tetap lihat hasil CI dan lapor kalau
+merah. Akan kita buat wait for CI ini aktif untuk live ketika dekat2 launch."): edge-bff, edge-bff-live and screener-worker
+deploy without waiting for GitHub Actions (`.railway/railway.ts` `checkSuites: false`; the user switched it in the
+dashboard, ERRORS M514). CI still runs on every push. After every push to `main` or `live` the agent reads that commit's
+runs to their end and tells the user at once when one is red, with what failed and a proposal (a fix, or a rollback to
+the deployment RAILWAY_CHANGELOG names). Wait for CI comes back on edge-bff-live near the launch (EXEC-MU-ACCOUNTS,
+Carried open parts).
+
 ## The live site
 
 User decisions 2026-11-19 and 2026-11-20 (EXEC.md option A): the beta (`edge-bff`, edge-bff-dev.up.railway.app, the
 admin only, every feature first) and the live site (`edge-bff-live`, app.edgefinance.id).
-- `edge-bff-live` deploys only from branch `live`, with Wait for CI. Never `railway up` to it: a CLI upload skips both
+- `edge-bff-live` deploys only from branch `live` (Wait for CI off since 2026-11-23, section "Deploys"). Never `railway up` to it: a CLI upload skips both
   `live` and CI, and the next push to `live` silently replaces it (live checker after the switch-on, F6).
-- `live` moves only to a commit the beta already runs (its latest SUCCESS deployment), whose CI is green, with the
+- `live` moves only to a commit the beta already runs (its latest SUCCESS deployment), with the
   user's go; record it in RAILWAY_CHANGELOG.md. Rollback: EXEC.md option A.
 - Beta work reaches the live site only on the user's request, never on a schedule (user, 2026-11-20: "Tidak bisa
   pengembangan di beta dibawa live on schedule basis. Semuanya harus on request basis."). Before moving `live`, read
