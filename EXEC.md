@@ -16960,3 +16960,30 @@ menulis setiap pilihan sisi selain `buy` dan `both` sebagai "Sell" (`apps/edge-b
   (lab dulu); dasar kodenya menunggu branch `claude/pensive-feynman-4ahfe3` (pencabutan penjaga lab, rumus lab di
   worker) sampai di `main`; terjemahan dan uji rumus dikerjakan di branch ini sambil menunggu.
 - Rilis: hanya ke beta, dengan konfirmasi deploy user (AGENTS.md "Deploys"); live hanya atas permintaan user.
+
+## EXEC-PINE-INDICATORS — indikator dari Pine untuk Terminal, Screener dan Backtest (lab di beta; disetujui 2026-11-23)
+
+User 2026-11-23: "Di beta saya akan kirimkan pine untuk ditambahkan ke terminal, screener dan backtest", "A1" (dasar kode:
+menunggu branch `claude/pensive-feynman-4ahfe3` sampai di `main`; terjemahan dan uji rumus di branch ini sambil
+menunggu), "jika sudah jelas masukan exec. Saya lanjut indikator selanjutnya." Prosedur: INDICATOR_BETA_TO_LIVE.md Part A
+(lab, hanya admin di beta); ke live hanya bila user menyebut indikatornya (Part B). Deploy: digabung dengan M540
+(EXEC-FL51-TITLE), user 2026-11-23: "Nanti. Deploy bareng indikator tambahan."; setiap deploy dengan konfirmasi user.
+
+### I54 — Baseline Deviation Oscillator [Alpha Extract] (Pine v6 dari user, 2026-11-23)
+
+- Rumus (dibaca dari Pine, kausal): baseline = median 4 bar dari MA(source, 23) (EMA; pilihan RMA/SMA/WMA/HMA/TEMA);
+  osc mentah = (close − baseline) / ATR(14) (Wilder); BDO = EMA(osc mentah, 5); Signal = EMA(BDO, round(5 × 1,5) = 8);
+  batas dinamis: +Upper = max(EMA(highest(BDO,120),10), 0), −Upper = min(EMA(lowest(BDO,120),10), 0), ekstrem = batas ×
+  (1 + 0,2). BULL = BDO crossover −Upper atau −Extreme; BEAR = BDO crossunder +Upper atau +Extreme (crossover Pine:
+  a > b dan a[1] ≤ b[1]).
+- Keputusan user 2026-11-23:
+  - "1A": Screener/Backtest menguji BULL/BEAR "terjadi dalam N sesi terakhir" (bentuk `within` yang sudah ada).
+  - "2 sama persis": sinyal identik dengan TradingView, termasuk gerombolan dua tembusan, batas yang dipaksa 0, dan masa
+    pemanasan (TradingView memakai 0 untuk batas yang belum lengkap, `nz`), dicocokkan dengan TradingView.
+  - "3 tidak, hanya ketika label bull dan bear saja": tembusan nol (zeroUp/zeroDn) tidak menjadi kejadian.
+  - "4 nilai bawaan": parameter dengan nilai bawaan Pine (MA EMA 23, source Close, median 4, ATR 14, smoothing 5, window
+    120, dynamic smooth 10, expansion 0,2, signal ×1,5).
+  - "5 nama indikator Alpha Extract": nama di EDGE "Baseline Deviation Oscillator [Alpha Extract]".
+- Terbuka: nilai pembanding dari TradingView (BBCA harian, 2–3 tanggal, BDO/Signal/±Upper, tanggal label BULL/BEAR);
+  sampai ada, rumus diuji terhadap implementasi pembanding independen yang mengikuti semantik Pine (ta.ema/ta.rma
+  bertanam SMA, ta.atr, ta.highest/lowest termasuk bar ini, array median, nz).
