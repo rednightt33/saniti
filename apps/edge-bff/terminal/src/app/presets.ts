@@ -66,6 +66,8 @@ export function initPresets(ctx: Ctx): PresetsSurface | null {
       if (name) { say(`Renamed to “${name}”`); changed() }
     },
     update: async p => {
+      // re-check I-1: a preset of an indicator this site lacks names nothing it holds (not its id either)
+      if (!S.defName(p)) { say(`“${p.name}” is not available here: its indicator is not on this site.`, true); return }
       const on = Ind.onChartOf?.(p.def_id) || [], from = on.find(x => x.presetId === p.preset_id) || on[on.length - 1];
       const nm = S.defName(p) || p.def_id;
       if (!from) { say(`Add ${nm} to the chart and set its filters first, then choose Update from chart.`, true); return }

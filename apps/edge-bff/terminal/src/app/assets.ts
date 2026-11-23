@@ -272,8 +272,8 @@ export function initAssets(ctx: Ctx) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'idlg-cbtn'; b.setAttribute('aria-label', 'Line colour'); b.style.setProperty('--c', o.color);
       b.onclick = (e: any) => {
         e.preventDefault(); e.stopPropagation();
-        // the colours in use: the other compare lines', then the compare defaults (checker S-6)
-        cbox.toggle(b, { label:'Line', color:() => o.color, used:[...assets.map(x => x.opts.color), ...PALETTE],
+        // the colours in use: the compare lines' (checker S-6 and its re-check: only colours on the chart)
+        cbox.toggle(b, { label:'Line', color:() => o.color, used:assets.map(x => x.opts.color),
           setColor:c => { o.color = c; b.style.setProperty('--c', c) }, onChange:() => live() });
       };
       return b;
@@ -326,7 +326,7 @@ export function initAssets(ctx: Ctx) {
     back.onmousedown = (e: any) => cbox.backdropDown(e);
     back.onclick = (e: any) => {
       const t = e.target.closest('[data-tab]'), act = e.target.closest('[data-act]');
-      if (cbox.swallowClick()) return;                                   // checker S-7: that press closed the colour box only
+      if (cbox.swallowClick(e)) return;                                   // checker S-7: that press closed the colour box only
       if (e.target === back) close(false);
       else if (t) { tab = t.dataset.tab; paint() }
       else if (e.target.closest('.idlg-x')) close(false);

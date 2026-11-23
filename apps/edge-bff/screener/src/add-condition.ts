@@ -728,10 +728,11 @@ const ruleOfCard = (e: Entry, c: Card): Rule => ({ opt:c.op ? OP_OPT : c.opt, va
   ...(c.second ? { second:{ ...c.second } as Params } : {}), ...(c.op ? { op:{ ...c.op } } : {}) });
 function writeCard() {
   if (!H) return;
-  /* every field the rule gives, its optional ones removed when the rule has none (re-check of checker SC-1: the category
-     choice was not written back, a field list here forgot it) */
-  const { c, e, rule } = H, { id: _id, on: _on, entry: _entry, ...f } = cardOfRule(e, rule);
-  for (const k of ['op', 'pick', 'second', 'metric'] as const) if (!(k in f)) delete (c as Partial<Card>)[k];
+  /* every field the rule gives, the rule's own optional ones (op, pick) removed when it has none (re-check of checker
+     SC-1: the category choice was not written back, a field list here forgot it). A My metric link (`metric`) is the
+     card's, never the rule's: it stays (re-check round 1, NEW-1 of the Screener/Backtest checker) */
+  const { c, e, rule } = H, { id: _id, on: _on, entry: _entry, metric: _metric, ...f } = cardOfRule(e, rule);
+  for (const k of ['op', 'pick'] as const) if (!(k in f)) delete (c as Partial<Card>)[k];
   Object.assign(c, f);
   checkCard(c); ui.markDirty(); ui.refresh('conds');
 }

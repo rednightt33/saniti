@@ -1455,7 +1455,8 @@ of it is written per indicator:
 4. **Card and page.** The chosen keys travel as the card's `pick` (the Screener's `Card.pick`, the option's `Opt.pick`);
    a new card, a changed condition and Reset to default take the condition's own default (`newCard`; the Backtest
    window builds its card through the same `newCard`, checker B-1 and SC-1 of 2026-11-23). The Screener's add-condition
-   window and builder and the Backtest's condition window draw the pick as checkboxes.
+   window and builder draw the pick as checkboxes; the Backtest's condition window as a text field of keys separated by
+   commas.
 5. **Operators.** An output with categories is tested through its category forms only, and an output that only colours
    another one in the Terminal (`indRegistry` `paletteFrom` names it, no test: the generator marks it `drawing_only`)
    is no series: the operator panel offers neither (checker SC-7).

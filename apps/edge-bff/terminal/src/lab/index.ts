@@ -184,8 +184,10 @@ function kamaHann(x: Nn[], len: number): number[] {
 const KAMA_OUTS = ['kama', 'ema_x', 'color_index', 'color_state', 'long', 'short'];
 F.alpha_kama = def('alpha_kama', KAMA_OUTS, () => 'HLC', (B: Seg, p) => {
   const n = B.N, L = p.kama_length as number, f1 = p.kama_factor_1 as number, f2 = p.kama_factor_2 as number;
-  /* checker N-5: the smoothing length is a float in the Pine (input.float, minval 2): T3's alpha reads it as it is, the
-     Hann window loops i = 1 .. its floor with (length + 1) in the cosine, as Pine's `for i = 1 to` a float */
+  /* checker N-5 and its re-check: the Pine's smoothing length is a float (input.float, minval 2); here a whole number, as
+     every length parameter (calc/indicators.ts def() floors the keys of LENGTH_KEYS, smoothing_length among them), so
+     the registry offers whole numbers. T3 and the Hann window would read a decimal as the Pine does (the Hann loop runs
+     i = 1 .. its floor with length + 1 in the cosine) if it ever reached them. */
   const sl = Math.max(1, Number(p.smoothing_length)), gl = Math.max(1, Math.floor(Number(p.gradient_lookback)));
   const prev = (a: number[]): Nn[] => a.map((_, t) => t > 0 ? a[t - 1] : null);
   const smooth = (x: Nn[]): Nn[] => p.smoothing_method === 'T3' ? kamaT3(x, sl) : p.smoothing_method === 'Hann Window' ? kamaHann(x, sl) : x;

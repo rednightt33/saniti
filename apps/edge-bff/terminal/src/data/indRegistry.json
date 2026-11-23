@@ -4118,12 +4118,13 @@
 {
 "k": "smoothing_length",
 "label": "Smoothing Length",
-"type": "number",
+"type": "integer",
 "def": 3,
 "ev": "PROPOSED_DEFAULT",
 "min": 2,
 "max": 50,
-"hint": "Length of the smoothing (a decimal is allowed, as in the Pine)"
+"hint": "Length of the smoothing (whole numbers; the Pine also takes a decimal)",
+"step": 1
 },
 {
 "k": "vhf_adaptive",

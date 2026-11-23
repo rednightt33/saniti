@@ -72,15 +72,22 @@ describe('every series a condition reads is causal: its value at a bar never rea
       { kind: 'transform', fn: 'distance_to_extreme', of: { kind: 'price', field: 'high' }, args: { extreme: 'highest', length: 50, form: 'percent' } },
     ] as Record<string, unknown>[];
     // the category transforms (EXEC-PINE-INDICATORS) read an output the registry codes in categories, every category and
-    // every change between two of them; this build's registry may hold none (today only a lab indicator has one, and the
-    // page tests read the public build): they are then covered where the lab is, the worker's look-ahead gate and its
-    // grammar parity test (backtest-worker tests/lookahead.test.ts, grammar.test.ts)
-    const coded = INDICATORS.flatMap(i => i.outputs.filter(o => o.categories?.length).map(o => ({ of: { kind: 'indicator', indicator: i.id, output: o.key }, keys: o.categories!.map(c => c.key) })))[0];
-    const CATEGORY_FNS = METRICS_CATALOG.transforms.filter(t => t.category_args?.length).map(t => t.fn);
-    if (coded) refs.push({ kind: 'transform', fn: 'in_categories', of: coded.of, args: { categories: coded.keys.join(',') } },
-      { kind: 'transform', fn: 'category_change', of: coded.of, args: { changes: coded.keys.flatMap(a => coded.keys.filter(b => b !== a).map(b => `${a}>${b}`)).join(',') } });
-    expect(new Set(refs.map(x => x.fn))).toEqual(new Set(METRICS_CATALOG.transforms.map(x => x.fn).filter(fn => coded || !CATEGORY_FNS.includes(fn))));     // every transform of the catalog
-    const bad = refs.map(x => causal(resolveSeries(x as unknown as MetricRef, 'x', ctx), ctx)).filter(Boolean);
-    expect(bad).toEqual([]);
+    // every change between two of them. The public build's registry holds none (today only a lab indicator has one): the
+    // test then codes Supertrend's direction (-1 down, 1 up) in categories for itself, so both transforms are read at
+    // every cut on every push (re-check of checker C-6, 2026-11-23: they used to drop out of this test)
+    let coded = INDICATORS.flatMap(i => i.outputs.filter(o => o.categories?.length).map(o => ({ of: { kind: 'indicator', indicator: i.id, output: o.key }, keys: o.categories!.map(c => c.key) })))[0];
+    const st = INDICATORS.find(i => i.outputs.some(o => o.key === 'direction' && !o.categories)), dirOut = st?.outputs.find(o => o.key === 'direction') as { categories?: unknown } | undefined;
+    if (!coded && st && dirOut) {
+      dirOut.categories = [{ value: -1, key: 'down', label: 'Down' }, { value: 1, key: 'up', label: 'Up' }];
+      coded = { of: { kind: 'indicator', indicator: st.id, output: 'direction' }, keys: ['down', 'up'] };
+    }
+    try {
+      expect(coded, 'an output coded in categories (the registry\'s or the test\'s own)').toBeTruthy();
+      refs.push({ kind: 'transform', fn: 'in_categories', of: coded!.of, args: { categories: coded!.keys.join(',') } },
+        { kind: 'transform', fn: 'category_change', of: coded!.of, args: { changes: coded!.keys.flatMap(a => coded!.keys.filter(b => b !== a).map(b => `${a}>${b}`)).join(',') } });
+      expect(new Set(refs.map(x => x.fn))).toEqual(new Set(METRICS_CATALOG.transforms.map(x => x.fn)));     // every transform of the catalog
+      const bad = refs.map(x => causal(resolveSeries(x as unknown as MetricRef, 'x', ctx), ctx)).filter(Boolean);
+      expect(bad).toEqual([]);
+    } finally { if (dirOut && coded?.of.indicator === st?.id) delete dirOut.categories }
   });
 });

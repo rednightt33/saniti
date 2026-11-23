@@ -142,13 +142,16 @@ export function initIndicators(ctx: Ctx) {
     if(!m) { c.font = font; const t = c.measureText(text); m = { w:t.width, asc:t.actualBoundingBoxAscent || 8, desc:t.actualBoundingBoxDescent || 0 }; if(labelText.size > 500) labelText.clear(); labelText.set(k, m) }
     return m;
   };
+  /** the chart canvas's own pixel ratio (bitmap over media size) */
+  const labelRatio = (t: any) => { let r = 1; t.useBitmapCoordinateSpace(({ horizontalPixelRatio }) => { r = horizontalPixelRatio || 1 }); return r };
   /** the first label at or after bar `from` (labels sorted by bar) */
   const labelFrom = (labels: any[], from: number) => { let lo = 0, hi = labels.length; while(lo < hi) { const mid = (lo + hi) >> 1; if(labels[mid].i < from) lo = mid + 1; else hi = mid } return lo };
   const sortLabels = (labels: any[]) => (labels || []).slice().sort((x, y) => x.i - y.i);
-  function paintLabels(c, labels, ts, series, paneH: number) {
+  function paintLabels(c, labels, ts, series, paneH: number, ratio = 1) {
     if(!labels || !labels.length) return;
     const vr = ts.getVisibleLogicalRange(), from = vr ? Math.floor(vr.from) - 2 : -Infinity, to = vr ? Math.ceil(vr.to) + 2 : Infinity;
-    const dpr = window.devicePixelRatio || 1, px = (v: number) => Math.round(v * dpr) / dpr, P = LABEL_P;
+    // re-check V1-7: whole pixels of the chart's own canvas (its bitmap ratio), not the window's devicePixelRatio
+    const px = (v: number) => Math.round(v * ratio) / ratio, P = LABEL_P;
     for(let k = labelFrom(labels, from); k < labels.length && labels[k].i <= to; k++) {
       const l = labels[k], x = ts.logicalToCoordinate(l.i), y0 = series.priceToCoordinate(l.price);
       if(x === null || y0 === null) continue;
@@ -186,8 +189,8 @@ export function initIndicators(ctx: Ctx) {
     updateAllViews() {}
     paneViews() { return [this.view] }
     autoscaleInfo(from, to) { return labelScale(this.d, from, to, this.h) }
-    paint(target) { if(!this.d || !this.chart) return; const ts = this.chart.timeScale();
-      target.useMediaCoordinateSpace(({ context:c, mediaSize }) => { this.h = mediaSize.height; paintLabels(c, this.d, ts, this.series, mediaSize.height) }) }
+    paint(target) { if(!this.d || !this.chart) return; const ts = this.chart.timeScale(), ratio = labelRatio(target);
+      target.useMediaCoordinateSpace(({ context:c, mediaSize }) => { this.h = mediaSize.height; paintLabels(c, this.d, ts, this.series, mediaSize.height, ratio) }) }
   }
   /* EXEC-PINE-INDICATORS: an indicator's drawing on the price chart (DRAWINGS): segments between two candles (a ray runs
      to the right edge; dashed where the source dashes it) and background ranges over whole candles */
@@ -197,7 +200,7 @@ export function initIndicators(ctx: Ctx) {
       this.d = null; const self = this;
       // the ranges under the candles (as BandFill), the segments over them
       this.views = [{ zOrder:() => 'bottom', renderer:() => ({ draw:() => {}, drawBackground:t => self.paint(t, true) }) }, { zOrder:() => 'normal', renderer:() => ({ draw:t => self.paint(t, false) }) },
-        { zOrder:() => 'top', renderer:() => ({ draw:t => { if(self.d && self.chart) { const ts = self.chart.timeScale(); t.useMediaCoordinateSpace(({ context:c, mediaSize }) => { self.h = mediaSize.height; paintLabels(c, self.d.labels, ts, self.series, mediaSize.height) }) } } }) }];
+        { zOrder:() => 'top', renderer:() => ({ draw:t => { if(self.d && self.chart) { const ts = self.chart.timeScale(), ratio = labelRatio(t); t.useMediaCoordinateSpace(({ context:c, mediaSize }) => { self.h = mediaSize.height; paintLabels(c, self.d.labels, ts, self.series, mediaSize.height, ratio) }) } } }) }];
     }
     attached(p) { this.chart = p.chart; this.series = p.series; this.req = p.requestUpdate }
     detached() { this.chart = null }
@@ -1459,7 +1462,7 @@ export function initIndicators(ctx: Ctx) {
       const t = e.target.closest('[data-tab]'), a = e.target.closest('[data-act]');
       /* user 2026-11-08 (TradingView: "langsung klik di luar box setting tersebut, maka itu sudah langsung apply"; "(4) OK"):
          a click outside the dialog applies, as Ok; Cancel, × and Esc discard; invalid inputs keep it open with their message */
-      if(cbox.swallowClick()) return;                                    // checker S-7: that press closed the colour box only
+      if(cbox.swallowClick(e)) return;                                    // checker S-7: that press closed the colour box only
       if(e.target === back) close(true);
       else if(t) { tab = t.dataset.tab; paint() }
       else if(e.target.closest('.idlg-x')) close(false);

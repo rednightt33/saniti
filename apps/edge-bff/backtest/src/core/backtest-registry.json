@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "registry_version": "65459f8af334dd8d",
+  "registry_version": "2a69cd7d3f01ceaf",
   "generated_by": "apps/backtest-worker/scripts/build-registry.mjs",
   "sources": [
     {
       "file": "apps/edge-bff/terminal/src/data/indRegistry.json",
-      "sha256": "13ad0b1f3fe49f8759b2dff6e3b295153f6e31ea5bc8cf8a1f9635cb549c0789"
+      "sha256": "5d78bb4ab9d246969310f966f87a499013a8e44f4f205d46a6fdef8aa7718e6c"
     },
     {
       "file": "apps/edge-bff/terminal/src/calc/indicators.ts",
@@ -2349,10 +2349,11 @@
         },
         {
           "key": "smoothing_length",
-          "type": "number",
+          "type": "integer",
           "default": 3,
           "min": 2,
-          "max": 50
+          "max": 50,
+          "step": 1
         },
         {
           "key": "vhf_adaptive",

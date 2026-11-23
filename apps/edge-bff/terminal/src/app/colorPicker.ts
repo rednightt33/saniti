@@ -43,6 +43,8 @@ export interface PickerOptions {
   lineStyle?: { get: () => LineStyleKey; set: (v: LineStyleKey) => void };
   /** called after every change; `done` true when the box should close (a colour picked in a box without line options) */
   onChange: (done: boolean) => void;
+  /** the Done button's action (a touch screen); none: no button */
+  onDone?: () => void;
 }
 
 const norm = (c: string) => (c || '').toLowerCase();
@@ -70,7 +72,8 @@ const stroke = (width: number, style: LineStyleKey) => { const i = document.crea
 
 /** The box's content (the caller wraps it in its own positioned `.idlg-cpop` and closes it). */
 export function buildColorPicker(o: PickerOptions): HTMLElement {
-  const box = document.createElement('div'); box.className = 'cpk'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', `${o.label} colour`);
+  // re-check NEW-2: a box without colours (a palette line) is named for its line, as its button is
+  const box = document.createElement('div'); box.className = 'cpk'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', `${o.label} ${o.color ? 'colour' : 'line'}`);
   const lines = !!(o.opacity || o.width || o.lineStyle);
   if (o.color && o.setColor) {
     const color = o.color, setColor = o.setColor;
@@ -103,6 +106,9 @@ export function buildColorPicker(o: PickerOptions): HTMLElement {
     if (o.width) box.append(segment('Thickness', [1, 2, 3, 4] as const, o.width.get() as 1, w => stroke(w, 'Solid'), w => { o.width!.set(w); o.onChange(false) }));
     if (o.lineStyle) box.append(segment('Line style', LINE_STYLE_KEYS, o.lineStyle.get(), k => stroke(2, k), k => { o.lineStyle!.set(k); o.onChange(false) }));
   }
+  /* re-check S-3: on a touch screen the box may cover the dialog (no room beside it): a Done button closes it (shown by
+     the stylesheet for a coarse pointer only) */
+  if (o.onDone) { const done = document.createElement('button'); done.type = 'button'; done.className = 'cpk-done'; done.textContent = 'Done'; done.onclick = e => { e.preventDefault(); e.stopPropagation(); o.onDone!() }; box.append(done) }
   return box;
 }
 
@@ -141,15 +147,16 @@ export class ColorBoxHost {
   }
   /** Escape: true when it closed a box (the dialog then stays open) */
   escape(): boolean { if (!this.box) return false; this.close(true); return true }
-  /** the backdrop's mousedown: closes an open box; the click that follows is then the box's, not the dialog's */
+  /** the backdrop's mousedown: closes an open box; the click that follows on the backdrop is then the box's, not the dialog's */
   backdropDown(e: any) { this.swallow = false; if (this.box && !this.box.contains(e.target) && e.target !== this.box.owner) { this.swallow = e.target === e.currentTarget; this.close() } }
-  /** the backdrop's click: true when it belongs to a box closed by its mousedown */
-  swallowClick(): boolean { const s = this.swallow; this.swallow = false; return s }
+  /** the backdrop's click: true when it is the click of the press that closed a box; only a click on the backdrop itself
+      (re-check NEW-1: a press released elsewhere left the mark, and the next Enter on Ok was swallowed) */
+  swallowClick(e: any): boolean { const s = this.swallow && e.target === e.currentTarget; this.swallow = false; return s }
   toggle(owner: HTMLElement, o: PickerOptions) {
     const was = this.box && this.box.owner === owner; this.close(); if (was) return;
     const box = document.createElement('div') as HTMLDivElement & { owner?: HTMLElement };
     box.className = 'idlg-cpop has-cpk'; box.owner = owner; owner.classList.add('open'); this.box = box;
-    box.appendChild(buildColorPicker({ ...o, onChange: done => { o.onChange(done); if (done) this.close(true) } }));
+    box.appendChild(buildColorPicker({ ...o, onChange: done => { o.onChange(done); if (done) this.close(true) }, onDone: () => this.close(true) }));
     this.dlg.appendChild(box);
     const b = owner.getBoundingClientRect(), d = this.dlg.getBoundingClientRect();
     const at = placeColorBox({ w: innerWidth, h: innerHeight }, d, b, { w: box.offsetWidth, h: box.offsetHeight });
