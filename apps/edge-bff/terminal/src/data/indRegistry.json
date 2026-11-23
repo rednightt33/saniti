@@ -4158,5 +4158,307 @@
 "info": "Garis KAMA (Kaufman) yang panjangnya menyesuaikan VHF: cepat saat harga trending, lambat saat choppy. Dihitung dari close, high dan low hari sebelumnya yang dihaluskan T3. Warna mengikuti sudut KAMA terhadap rata-ratanya sendiri (-20 sampai +20 derajat, 20 warna); ENTER LONG muncul saat close kemarin menembus KAMA ke atas, KAMA berbalik naik dan sudutnya di atas 0,5 derajat. Terjemahan skrip TradingView 'VHF Adaptive Linear Regression KAMA' (c) simwai, MPL 2.0.",
 "display": "Garis KAMA 20 warna dengan segitiga sinyal di chart harga",
 "position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I59",
+"cat": "Momentum",
+"name": "Alpha Extract",
+"key": "alpha_extract",
+"short": "Alpha Extract",
+"req": "OHLC",
+"zone": "panel",
+"unit": "dimensionless",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "bdo",
+"label": "BDO",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": "Green at or above 0, red below (a continuous line coloured per bar).",
+"colors": [
+"#00e5a8"
+],
+"palette": [
+"#ff4d6d",
+"#00e5a8"
+],
+"paletteFrom": "positive"
+},
+{
+"k": "signal",
+"label": "Signal",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#cfd3d7"
+],
+"alpha": 0.7
+},
+{
+"k": "upper",
+"label": "+Upper",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#ff4d6d"
+],
+"alpha": 0.3
+},
+{
+"k": "upper_extreme",
+"label": "+Extreme",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#ff4d6d"
+],
+"alpha": 0.4
+},
+{
+"k": "lower",
+"label": "-Upper",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#00e5a8"
+],
+"alpha": 0.3
+},
+{
+"k": "lower_extreme",
+"label": "-Extreme",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "",
+"colors": [
+"#00e5a8"
+],
+"alpha": 0.4
+},
+{
+"k": "bull",
+"label": "BULL",
+"r": "marker",
+"role": "marker_dots",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session BDO crosses above -Upper or -Extreme.",
+"colors": [
+"#00e5a8"
+],
+"marker": {
+"shape": "arrowUp",
+"position": "atPriceBottom",
+"text": "BULL",
+"on": "bdo"
+}
+},
+{
+"k": "bear",
+"label": "BEAR",
+"r": "marker",
+"role": "marker_dots",
+"vis": true,
+"w": 1,
+"rule": "single_line",
+"cond": "1 on the session BDO crosses below +Upper or +Extreme.",
+"colors": [
+"#ff4d6d"
+],
+"marker": {
+"shape": "arrowDown",
+"position": "atPriceTop",
+"text": "BEAR",
+"on": "bdo"
+}
+},
+{
+"k": "positive",
+"label": "At or above 0",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "single_line",
+"cond": "1 where BDO is at or above 0, else 0; the colour of the BDO line."
+}
+],
+"params": [
+{
+"k": "ma_type",
+"label": "Baseline MA",
+"type": "enum",
+"def": "EMA",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"EMA",
+"RMA",
+"SMA",
+"WMA",
+"HMA",
+"TEMA"
+]
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "Close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"Close",
+"Open",
+"HL2",
+"HLC3",
+"OHLC4"
+]
+},
+{
+"k": "ma_length",
+"label": "Baseline Length",
+"type": "integer",
+"def": 23,
+"ev": "PROPOSED_DEFAULT",
+"min": 5,
+"max": 200,
+"step": 1,
+"hint": "Length of the baseline average"
+},
+{
+"k": "median_length",
+"label": "HL Median Filter Length",
+"type": "integer",
+"def": 4,
+"ev": "PROPOSED_DEFAULT",
+"min": 3,
+"max": 25,
+"step": 1,
+"hint": "Values of the baseline the median takes"
+},
+{
+"k": "atr_length",
+"label": "ATR Length (Normalization)",
+"type": "integer",
+"def": 14,
+"ev": "PROPOSED_DEFAULT",
+"min": 5,
+"max": 100,
+"step": 1,
+"hint": "Wilder ATR that scales the distance"
+},
+{
+"k": "smooth_length",
+"label": "Oscillator Smoothing",
+"type": "integer",
+"def": 5,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"max": 50,
+"step": 1,
+"hint": "EMA of the raw oscillator"
+},
+{
+"k": "dynamic_window",
+"label": "Dynamic Window",
+"type": "integer",
+"def": 120,
+"ev": "PROPOSED_DEFAULT",
+"min": 20,
+"max": 500,
+"step": 1,
+"hint": "Sessions of the highest and lowest BDO"
+},
+{
+"k": "dynamic_smooth",
+"label": "Dynamic Smooth",
+"type": "integer",
+"def": 10,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"max": 200,
+"step": 1,
+"hint": "EMA of the highest and lowest BDO"
+},
+{
+"k": "dynamic_expansion",
+"label": "Dynamic Expansion",
+"type": "number",
+"def": 0.2,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"max": 2,
+"step": 0.05,
+"hint": "How far the extreme levels lie beyond the upper ones"
+},
+{
+"k": "signal_multiplier",
+"label": "Signal Length Multiplier",
+"type": "number",
+"def": 1.5,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"max": 3,
+"step": 0.1,
+"hint": "Signal length = smoothing x this, rounded"
+}
+],
+"guides": [
+0.0
+],
+"guideStyle": {
+"color": "#cfd3d7",
+"width": 1,
+"style": "solid"
+},
+"fill": null,
+"fills": [
+{
+"a": "upper",
+"b": "upper_extreme",
+"color": "#ff4d6d",
+"opacity": 0.12
+},
+{
+"a": "lower",
+"b": "lower_extreme",
+"color": "#00e5a8",
+"opacity": 0.12
+},
+{
+"a": "bdo",
+"b": "signal",
+"color": "#00e5a8",
+"color2": "#ff4d6d",
+"opacity": 0.1
+}
+],
+"tip": "Jarak harga dari garis dasarnya dalam satuan ATR, dengan batas atas/bawah dinamis dan label BULL/BEAR.",
+"info": "Alpha Extract (Baseline Deviation Oscillator): garis dasar = median 4 nilai EMA 23 harga; BDO = EMA 5 dari (close - garis dasar) / ATR 14; Signal = EMA BDO. Batas atas/bawah = EMA 10 dari BDO tertinggi/terendah 120 sesi (0 sebelum ada), ekstrem 1,2 kalinya. BULL saat BDO menembus ke atas batas bawah atau ekstrem bawah; BEAR saat menembus ke bawah batas atas atau ekstrem atas.",
+"display": "Garis BDO dua warna, Signal, batas dan zona dinamis, awan BDO-Signal dan label BULL/BEAR di panel terpisah",
+"position": "Separate indicator pane"
 }
 ]

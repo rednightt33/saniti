@@ -3660,6 +3660,103 @@
           ]
         }
       }
+    },
+    "I59": {
+      "shape": "osc",
+      "synonyms": [
+        "Alpha Extract",
+        "BDO",
+        "Baseline Deviation Oscillator",
+        "BULL",
+        "BEAR"
+      ],
+      "description": "Distance of the close from a median-filtered baseline in ATR units, with dynamic overbought and oversold levels and BULL and BEAR signals.",
+      "default_test": {
+        "form": "event_value",
+        "output": "bull",
+        "op": "crosses_above",
+        "value": 0.5,
+        "within": 5
+      },
+      "outputs": {
+        "bdo": {
+          "tests": []
+        },
+        "signal": {
+          "tests": []
+        },
+        "upper": {
+          "tests": []
+        },
+        "upper_extreme": {
+          "tests": []
+        },
+        "lower": {
+          "tests": []
+        },
+        "lower_extreme": {
+          "tests": []
+        },
+        "bull": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "BULL on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "BULL"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "bear": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "BEAR on this session"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "BEAR"
+              },
+              "defaults": {
+                "value": 0.5
+              }
+            }
+          ]
+        },
+        "positive": {
+          "tests": []
+        }
+      }
     }
   }
 }

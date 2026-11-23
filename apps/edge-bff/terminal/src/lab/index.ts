@@ -26,7 +26,7 @@
    registerFlow refuses an id that already has a formula. Releasing it (or putting it at preview) moves the formula into
    calc/flow.ts FLOW (terminal/tests/calc/public_formulas.test.ts and calc/flow.test.ts "registry" compute every entry
    of the public build). */
-import { DEFAULTS, F, def, ema, sma, stdev, type Seg } from '../calc/indicators';
+import { DEFAULTS, F, def, ema, rma, sma, stdev, wma, type Seg } from '../calc/indicators';
 
 /* ---- Alpha Volatile (EXEC-PINE-INDICATORS; the user's Pine "Nic - Tail Move Indicator V2 (RAW Distance)", 2026-11-23,
    defaults from the user's screenshot: EMA 26, lookback 100, decile 9, Z 2). Causal: every value at bar t reads bars up
@@ -236,4 +236,61 @@ F.alpha_kama = def('alpha_kama', KAMA_OUTS, () => 'HLC', (B: Seg, p) => {
   /* EMA X is the released EMA (I02) of the close, so it equals the EMA line the user draws beside it */
   const ema_x = (F.ema(B as never, { length: p.ema_length as number, source: 'close' }) as Record<string, Nn[]>).ema;
   return { kama, ema_x, color_index, color_state, long: signal(false), short: signal(true) };
+});
+
+/* ---- Alpha Extract (EXEC-PINE-INDICATORS; the user's Pine v6 "Baseline Deviation Oscillator [Alpha Extract]", named
+   Alpha Extract by the user, 2026-11-23; defaults the Pine's, "4 nilai bawaan"). Causal: every value at bar t reads bars
+   up to t. As the Pine (its warm-up included, the user's "2 sama persis"):
+   - baseline = the median of the last median_length values of MA(source, ma_length) (EMA by default; RMA, SMA, WMA,
+     HMA with lengths floor(n/2) and floor(sqrt(n)), TEMA = 3 EMA1 - 3 EMA2 + EMA3), missing until those values exist;
+   - scale = ((baseline + ATR) - (baseline - ATR)) x 0.5, at least 1e-10 (ATR: Wilder's average of the true range,
+     ta.atr); raw = (close - baseline) / scale (the Pine's close, whatever the source);
+   - BDO = EMA(raw, smooth_length); Signal = EMA(BDO, max(2, round(smooth_length x signal_multiplier)));
+   - +Upper = max(nz(EMA(highest(BDO, dynamic_window), dynamic_smooth)), 0), -Upper = min(nz(EMA(lowest(BDO, ...)), 0), 0)
+     (a window's missing values left out, as for Alpha KAMA's VHF), the extremes x (1 + dynamic_expansion): 0 until the
+     levels exist, as TradingView draws them;
+   - BULL = BDO crosses above -Upper or -Extreme, BEAR = BDO crosses below +Upper or +Extreme (a > b and a[1] <= b[1]);
+     1 on the bar, else 0; missing until BDO has two values. The zero crosses are alerts only (the user's "3 tidak").
+   Outputs for the Terminal: bdo (coloured per bar by its sign: positive, 1 at or above 0, else 0), signal, upper,
+   upper_extreme, lower, lower_extreme. */
+DEFAULTS.alpha_extract = { ma_type: 'EMA', source: 'Close', ma_length: 23, median_length: 4, atr_length: 14, smooth_length: 5,
+  dynamic_window: 120, dynamic_smooth: 10, dynamic_expansion: 0.2, signal_multiplier: 1.5 };
+const AE_OUTS = ['bdo', 'signal', 'upper', 'upper_extreme', 'lower', 'lower_extreme', 'bull', 'bear', 'positive'];
+F.alpha_extract = def('alpha_extract', AE_OUTS, () => 'OHLC', (B: Seg, p) => {
+  const n = B.N, L = p.ma_length as number, M = p.median_length as number, sm = p.smooth_length as number;
+  const W = Math.max(1, Math.floor(Number(p.dynamic_window))), DS = Math.max(1, Math.floor(Number(p.dynamic_smooth))), ex = p.dynamic_expansion as number;
+  const src: number[] = B.C.map((c, i) => p.source === 'Open' ? B.O[i] : p.source === 'HL2' ? (B.H[i] + B.L[i]) / 2
+    : p.source === 'HLC3' ? (B.H[i] + B.L[i] + c) / 3 : p.source === 'OHLC4' ? (B.O[i] + B.H[i] + B.L[i] + c) / 4 : c);
+  const hma = (x: Nn[], len: number): Nn[] => { const a = wma(x, Math.max(1, Math.floor(len / 2))), b = wma(x, len);
+    return wma(a.map((v, i) => v === null || b[i] === null ? null : 2 * v - (b[i] as number)), Math.max(1, Math.floor(Math.sqrt(len)))) };
+  const tema = (x: Nn[], len: number): Nn[] => { const e1 = ema(x, len), e2 = ema(e1, len), e3 = ema(e2, len);
+    return e1.map((v, i) => v === null || e2[i] === null || e3[i] === null ? null : 3 * v - 3 * (e2[i] as number) + (e3[i] as number)) };
+  const t = p.ma_type, raw0: Nn[] = t === 'RMA' ? rma(src, L) : t === 'SMA' ? sma(src, L) : t === 'WMA' ? wma(src, L) : t === 'HMA' ? hma(src, L) : t === 'TEMA' ? tema(src, L) : ema(src, L);
+  const baseline: Nn[] = raw0.map((_, i) => {
+    if (i < M - 1) return null;
+    const w: number[] = []; for (let j = 0; j < M; j++) { const v = raw0[i - j]; if (v === null) return null; w.push(v) }
+    w.sort((a, b) => a - b);
+    return M % 2 === 1 ? w[(M - 1) / 2] : (w[M / 2 - 1] + w[M / 2]) / 2;
+  });
+  const tr: number[] = B.C.map((_, i) => i === 0 ? B.H[i] - B.L[i] : Math.max(B.H[i] - B.L[i], Math.abs(B.H[i] - B.C[i - 1]), Math.abs(B.L[i] - B.C[i - 1])));
+  const atr = rma(tr, p.atr_length as number);
+  const raw: Nn[] = baseline.map((b, i) => { const a = atr[i]; if (b === null || a === null) return null; return (B.C[i] - b) / Math.max(1e-10, ((b + a) - (b - a)) * 0.5) });
+  const bdo = ema(raw, sm), signal = ema(bdo, Math.max(2, Math.round(sm * (p.signal_multiplier as number))));
+  /* the highest (lowest) BDO of the window [i - W + 1, i], a missing value left out: a monotonic queue of indices, O(N) */
+  const extreme = (hi: boolean): Nn[] => { const o: Nn[] = new Array(n).fill(null), q: number[] = []; let h = 0;
+    for (let i = 0; i < n; i++) {
+      const v = bdo[i];
+      if (v !== null) { while (q.length > h && (hi ? (bdo[q[q.length - 1]] as number) <= v : (bdo[q[q.length - 1]] as number) >= v)) q.pop(); q.push(i) }
+      while (q.length > h && q[h] < i - W + 1) h++;
+      if (i >= W - 1 && q.length > h) o[i] = bdo[q[h]];
+    }
+    return o };
+  const up = ema(extreme(true), DS), dn = ema(extreme(false), DS);
+  const upper = up.map(v => Math.max(nz(v), 0)), lower = dn.map(v => Math.min(nz(v), 0));
+  const upper_extreme = upper.map(v => v * (1 + ex)), lower_extreme = lower.map(v => v * (1 + ex));
+  const cross = (b: number[], i: number, above: boolean) => { const a0 = bdo[i], a1 = i > 0 ? bdo[i - 1] : null;
+    return a0 !== null && a1 !== null && (above ? a0 > b[i] && a1 <= b[i - 1] : a0 < b[i] && a1 >= b[i - 1]) };
+  const flag = (above: boolean, x: number[], y: number[]) => bdo.map((v, i) => v === null || i === 0 || bdo[i - 1] === null ? null : cross(x, i, above) || cross(y, i, above) ? 1 : 0);
+  return { bdo, signal, upper, upper_extreme, lower, lower_extreme, bull: flag(true, lower, lower_extreme), bear: flag(false, upper, upper_extreme),
+    positive: bdo.map(v => v === null ? null : v >= 0 ? 1 : 0) };
 });

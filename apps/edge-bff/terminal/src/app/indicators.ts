@@ -72,6 +72,10 @@ export function initIndicators(ctx: Ctx) {
     const fill = r.fill ? (r.fill.match(/(\w+)\s*↔\s*(\w+)/) || []).slice(1) : null;
     return {
       id:r.key, name:r.name, reg:r, multi:true, inputs, style:[], fill:fill && fill.length === 2 ? fill : null,
+      /* EXEC-PINE-INDICATORS: areas between two outputs as the source draws them (registry `fills`: {a, b, color, color2?,
+         opacity}), each in its own colour, two colours where `color2` is given (a >= b in color, else color2: Alpha
+         Extract's cloud between BDO and Signal); they follow the indicator's fill switch */
+      fills:Array.isArray(r.fills) && r.fills.length ? r.fills : null,
       pane:r.zone === 'panel' ? 'sub' : r.zone,              // 'overlay' (candle pane, price axis) | 'volume' (volume axis) | 'sub' (own pane)
       format:u.fmt, minMove:u.minMove,
       compute:p => DAY && dailyOnly(r) ? onTheCandles(F[r.key](DAILY_BARS, p)) : F[r.key](BARS, p),
@@ -109,7 +113,7 @@ export function initIndicators(ctx: Ctx) {
       if(Array.isArray(o.colors) && o.colors[0]) { s.color = o.colors[0]; if(o.colors[1]) s.color2 = o.colors[1] }
       out[o.k] = s;
     });
-    return { out, guides:{ on:r.guides.length > 0, levels:r.guides.join(', ') }, fill:{ on:!!r.fill, opacity:10 }, opacity:100, offset:0 };
+    return { out, guides:{ on:r.guides.length > 0, levels:r.guides.join(', ') }, fill:{ on:!!r.fill || !!(r.fills && r.fills.length), opacity:10 }, opacity:100, offset:0 };
   }
   const merge = (a, b) => { if(!b || typeof b !== 'object') return a; const o = Array.isArray(a) ? [...a] : { ...a }; for(const k in b) o[k] = a && typeof a[k] === 'object' && a[k] !== null && !Array.isArray(a[k]) ? merge(a[k], b[k]) : b[k]; return o };
 
@@ -130,9 +134,9 @@ export function initIndicators(ctx: Ctx) {
       const ts = this.chart.timeScale(), r = ts.getVisibleLogicalRange(); if(!r) return;
       const from = Math.max(0, Math.floor(r.from) - 1), to = Math.min(d.a.length - 1, Math.ceil(r.to) + 1);
       target.useBitmapCoordinateSpace(({ context:ctx, horizontalPixelRatio:hx, verticalPixelRatio:vy }) => {
-        ctx.fillStyle = d.color; let seg = [];
+        ctx.fillStyle = d.color; let seg = [], cur = d.color;
         const flush = () => {
-          if(seg.length > 1){ ctx.beginPath(); seg.forEach((p, k) => k ? ctx.lineTo(p[0] * hx, p[1] * vy) : ctx.moveTo(p[0] * hx, p[1] * vy)); for(let k = seg.length - 1; k >= 0; k--) ctx.lineTo(seg[k][0] * hx, seg[k][2] * vy); ctx.closePath(); ctx.fill() }
+          if(seg.length > 1){ ctx.fillStyle = cur; ctx.beginPath(); seg.forEach((p, k) => k ? ctx.lineTo(p[0] * hx, p[1] * vy) : ctx.moveTo(p[0] * hx, p[1] * vy)); for(let k = seg.length - 1; k >= 0; k--) ctx.lineTo(seg[k][0] * hx, seg[k][2] * vy); ctx.closePath(); ctx.fill() }
           seg = [];
         };
         for(let i = from; i <= to; i++){
@@ -141,7 +145,11 @@ export function initIndicators(ctx: Ctx) {
           if(a === null || b === null){ flush(); continue }
           const x = ts.logicalToCoordinate(i), ya = this.series.priceToCoordinate(a), yb = this.series.priceToCoordinate(b);
           if(x === null || ya === null || yb === null){ flush(); continue }
-          seg.push([x, ya, yb]);
+          /* EXEC-PINE-INDICATORS: a colour per bar (`colors`): the stretch from the bar before to this bar takes this
+             bar's colour, as TradingView's fill between two plots does */
+          const c = d.colors ? d.colors[i] || d.color : d.color;
+          if(c !== cur && seg.length) { const last = seg[seg.length - 1]; flush(); seg.push(last) }
+          cur = c; seg.push([x, ya, yb]);
         }
         flush();
       });
@@ -548,6 +556,8 @@ export function initIndicators(ctx: Ctx) {
       return { ...res, priceRange:{ minValue:Math.min(res.priceRange.minValue, ...lv), maxValue:Math.max(res.priceRange.maxValue, ...lv) } };
     } });
     if(inst.def.fill) { const host = inst.parts.find(p => p.o.k === inst.def.fill[0]); if(host){ inst.fillPrim = new BandFill(); host.series.attachPrimitive(inst.fillPrim) } }
+    if(inst.def.fills) inst.fillPrims = inst.def.fills.map(f => { const host = inst.parts.find(p => p.o.k === f.a && p.series); if(!host) return null;
+      const prim = new BandFill(); host.series.attachPrimitive(prim); return { f, prim } }).filter(Boolean);
     if(panel && left) chart.priceScale('left', paneIdx).applyOptions({ visible:true, scaleMargins:{ top:.2, bottom:.06 } });
     /* a strip's cells sit under the legend row of its short pane (EXEC-RP-LOOK-2 C) */
     const strip = inst.parts.length && inst.parts.every(pt => pt.kind === 'strip');
@@ -595,7 +605,9 @@ export function initIndicators(ctx: Ctx) {
     const shown = pt => drawn(inst) && st.out[pt.o.k].on && !pt.o.hidden && !(bandsOff && /bands_mode/.test(pt.o.cond));
     const own = pt => pt.o.scale === 'right' && r.zone === 'overlay';          // a line on the price pane's right axis
     inst.parts.forEach(pt => {
-      const s = st.out[pt.o.k], a = inst.disp[pt.o.k], vis = shown(pt), c1 = alpha(s.color, op), c2 = alpha(s.color2 || s.color, op);
+      /* EXEC-PINE-INDICATORS: an output drawn see-through as its source draws it (registry `alpha`, 0..1: Alpha Extract's
+         levels at TradingView's transparency) */
+      const s = st.out[pt.o.k], a = inst.disp[pt.o.k], vis = shown(pt), ao = op * (pt.o.alpha ?? 1), c1 = alpha(s.color, ao), c2 = alpha(s.color2 || s.color, ao);
       /* re-test Q2: the axis shows the last value only when the last candle has one (an empty end showed 1.68× of 30 Oct) */
       const cv = own(pt) ? (v => v) : conv;                   // the right axis is not the price: no return conversion
       if(pt.series && (r.zone !== 'overlay' || own(pt)) && pt.kind !== 'marker' && pt.kind !== 'strip' && pt.kind !== 'cells') pt.series.applyOptions({ lastValueVisible:a ? a[a.length - 1] !== null && a[a.length - 1] !== undefined : false });
@@ -679,6 +691,12 @@ export function initIndicators(ctx: Ctx) {
       guideLevels(inst).forEach(lv =>
         inst.guideLines.push([host, host.createPriceLine({ price:lv, color:gs.color || '#a3a3a3', lineWidth:gs.width || 1, lineStyle:gStyle, axisLabelVisible:false, title:'' })]));
     }
+    (inst.fillPrims || []).forEach(({ f, prim }) => {
+      const pa = inst.parts.find(x => x.o.k === f.a), pb = inst.parts.find(x => x.o.k === f.b), A = inst.disp[f.a], Bv = inst.disp[f.b];
+      const on = st.fill.on && pa && pb && A && Bv && shown(pa) && shown(pb), o = (f.opacity ?? .12) * op;
+      prim.set(on ? { breaks, a:A.map(v => v === null ? null : conv(v)), b:Bv.map(v => v === null ? null : conv(v)), color:alpha(f.color, o),
+        ...(f.color2 ? { colors:A.map((v, i) => v === null || Bv[i] === null ? null : alpha(v >= Bv[i] ? f.color : f.color2, o)) } : {}) } : null);
+    });
     if(inst.fillPrim) {
       const [ka, kb] = inst.def.fill, pa = inst.parts.find(x => x.o.k === ka), pb = inst.parts.find(x => x.o.k === kb);
       const on = st.fill.on && pa && pb && shown(pa) && shown(pb);
@@ -1219,6 +1237,8 @@ export function initIndicators(ctx: Ctx) {
       const extra = (label, ctl) => { const l = document.createElement('div'); l.className = 'idlg-row compact'; const a = document.createElement('span'); a.className = 'idlg-lab'; a.append(...label); l.append(a, ctl); body.appendChild(l) };
       if(def.fill) extra([checkbox(st.fill.on, v => { st.fill.on = v; refresh(inst) }, 'Background fill'), document.createTextNode('Background fill')],
         sel([5, 10, 15, 20, 30], st.fill.opacity, v => { st.fill.opacity = +v; refresh(inst) }, v => v + '%'));
+      /* the source's own areas (registry `fills`) keep their colours: a switch only */
+      else if(def.fills) extra([checkbox(st.fill.on, v => { st.fill.on = v; refresh(inst) }, 'Fills'), document.createTextNode('Fills')], document.createElement('span'));
       if(r.guides.length || r.levelsParam) {                            // levelsParam: offered with no default (Flow FL08, FL21, FL37)
         const t = document.createElement('input'); t.type = 'text'; t.className = 'idlg-in'; t.value = st.guides.levels; t.setAttribute('aria-label', 'Reference levels');
         t.oninput = () => { st.guides.levels = t.value; refresh(inst) };

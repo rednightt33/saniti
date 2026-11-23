@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "registry_version": "19fadc257fcabbfb",
+  "registry_version": "894bf3610c25e498",
   "generated_by": "apps/backtest-worker/scripts/build-registry.mjs",
   "sources": [
     {
       "file": "apps/edge-bff/terminal/src/data/indRegistry.json",
-      "sha256": "51f158e15fe1d7034446465c0b592017e8806e8410d9bf1511f619cc9bd9c7a8"
+      "sha256": "e32159ab67fba87cb673201d408f58f5a0522d49c6ff27605d06cdf979e8f824"
     },
     {
       "file": "apps/edge-bff/terminal/src/calc/indicators.ts",
@@ -2380,6 +2380,124 @@
           "min": 1,
           "max": 1000,
           "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I59",
+      "key": "alpha_extract",
+      "name": "Alpha Extract",
+      "category": "Momentum",
+      "function": "F.alpha_extract",
+      "inputs": [
+        "O",
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "bdo",
+        "signal",
+        "upper",
+        "upper_extreme",
+        "lower",
+        "lower_extreme",
+        "bull",
+        "bear",
+        "positive"
+      ],
+      "params": [
+        {
+          "key": "ma_type",
+          "type": "enum",
+          "default": "EMA",
+          "options": [
+            "EMA",
+            "RMA",
+            "SMA",
+            "WMA",
+            "HMA",
+            "TEMA"
+          ]
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "Close",
+          "options": [
+            "Close",
+            "Open",
+            "HL2",
+            "HLC3",
+            "OHLC4"
+          ]
+        },
+        {
+          "key": "ma_length",
+          "type": "integer",
+          "default": 23,
+          "min": 5,
+          "max": 200,
+          "step": 1
+        },
+        {
+          "key": "median_length",
+          "type": "integer",
+          "default": 4,
+          "min": 3,
+          "max": 25,
+          "step": 1
+        },
+        {
+          "key": "atr_length",
+          "type": "integer",
+          "default": 14,
+          "min": 5,
+          "max": 100,
+          "step": 1
+        },
+        {
+          "key": "smooth_length",
+          "type": "integer",
+          "default": 5,
+          "min": 1,
+          "max": 50,
+          "step": 1
+        },
+        {
+          "key": "dynamic_window",
+          "type": "integer",
+          "default": 120,
+          "min": 20,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "key": "dynamic_smooth",
+          "type": "integer",
+          "default": 10,
+          "min": 1,
+          "max": 200,
+          "step": 1
+        },
+        {
+          "key": "dynamic_expansion",
+          "type": "number",
+          "default": 0.2,
+          "min": 0,
+          "max": 2,
+          "step": 0.05
+        },
+        {
+          "key": "signal_multiplier",
+          "type": "number",
+          "default": 1.5,
+          "min": 1,
+          "max": 3,
+          "step": 0.1
         }
       ],
       "not_accepted": [],
