@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-11-23 — The beta on `5a722475`: `{"all": true}` holds no preview item (UD28)
+
+- **The user's words:** "Ok A - jangan lupa update juga MD promosi table agar AI lain tahu kalau ada indikator di beta mau
+  ditaruh ke live admin preview." then "deploy".
+- **Commit `5a722475`** on `main` (fast-forward from `fb4a5c3c`): UD28 (`principal.holds`, `allow.allow_of`,
+  `catalog.holds_every`: a family value `{"all": true}` holds every lab and released item but no preview one;
+  ERRORS M552 PV-2), LIVE_PROMOTION.md §4's table of the three paths for an indicator, the records.
+- **Deployments:** `edge-bff` `e4d8ffdb` SUCCESS; `screener-worker` SKIPPED (no file of its watch paths changed); the
+  workers and the live site unchanged. The beta's `/version` names `5a722475`; `/ready` 200 on both sites; the lab probe
+  404 on both. CI of `5a722475` on `main` read to its end (reported if red).
+- **Rollback:** redeploy `edge-bff` `ccc00250` (`fb4a5c3c`).
+
 ## 2026-11-23 — The beta on `fb4a5c3c`: the preview stage, the lab Flow registration point and the fixes of their check (the user's order)
 
 - **The user's words:** "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error = betulkan.

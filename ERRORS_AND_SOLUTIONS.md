@@ -8928,8 +8928,8 @@ in its staleness check.
 - **Asked (EXEC UD28), then fixed with the user's "Ok A" (2026-11-23):** PV-2, a family value `{"all": true}` held every
   preview item on the live site (no seeded plan has one; an operator's SQL write would). It now holds every lab and
   released item but no preview one (`principal.holds`; `allow.allow_of` and `catalog.holds_every` give '*' only while the
-  kind has no preview item; `tests/test_preview_stage.py`, both sites, red with the rule removed; `bb638e12`); on the branch, not
-  deployed. LIVE_PROMOTION.md §4 gained a table of the three paths for an indicator (the user's request).
+  kind has no preview item; `tests/test_preview_stage.py`, both sites, red with the rule removed; `bb638e12`); on the beta since
+  2026-11-23 (`5a722475`). LIVE_PROMOTION.md §4 gained a table of the three paths for an indicator (the user's request).
 - **Carried (EXEC-MU-ACCOUNTS, Carried open parts):** PV-5's real fix (the stored examples match by kind); P4's other
   by-value references (screener-metrics.json operators and transforms, preset definitions), not reached by any public
   page entry.

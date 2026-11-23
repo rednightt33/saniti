@@ -16795,8 +16795,8 @@ Order of the services (CONTRACT 17, rollback floors):
   indikator di beta mau ditaruh ke live admin preview."):** a family value `{"all": true}` holds every lab and released
   item but no preview one (`principal.holds`; `allow.allow_of` and `catalog.holds_every` give '*' only while the kind
   has no preview item); LIVE_PROMOTION.md §4 opens with a table of the three paths (beta only, live for the admin only,
-  released) and §7 notes the preview stage and the lab Flow point as beta-only code. Built on the branch (ERRORS M552
-  PV-2); its deploy is asked of the user.
+  released) and §7 notes the preview stage and the lab Flow point as beta-only code (ERRORS M552 PV-2). On the beta
+  since 2026-11-23 (`5a722475`, the user's "deploy").
 - **A "preview" release stage: an item released on the live site to the admin only (the user 2026-11-23: "B. Coba inspect
   code dulu dan siapkan implementation plan. Akan dijalankan setelah perbaikan dari checker selesai dan pushed to main
   terakhir sudah dilakukan."; asked: "ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya
