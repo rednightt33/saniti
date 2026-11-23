@@ -10,7 +10,9 @@ import { fileURLToPath } from 'node:url';
 
 export async function serve(DATA, TICKER) {
   const brokerCodes = [...new Set((JSON.parse(existsSync(join(DATA, `bk_${TICKER}.json`)) ? readFileSync(join(DATA, `bk_${TICKER}.json`), 'utf8') : '{"rows":[]}').rows).map(r => r[1]))].sort();
-  const BUILD = fileURLToPath(new URL('../../../apps/edge-bff/static/terminal-app/', import.meta.url));
+  /* TERMINAL_BUILD (EXEC-PINE-INDICATORS checkers): another built Terminal folder laid out as static/terminal-app, e.g. a
+     copy of static/ whose terminal-app holds the lab build's index.html with its lab/ assets (the lab items offline) */
+  const BUILD = process.env.TERMINAL_BUILD ? join(process.env.TERMINAL_BUILD, '/') : fileURLToPath(new URL('../../../apps/edge-bff/static/terminal-app/', import.meta.url));
   const TYPES = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.svg':'image/svg+xml' };
   const sha = b => createHash('sha256').update(b).digest('hex');
   const gz = doc => gzipSync(Buffer.from(JSON.stringify(doc)));
@@ -31,7 +33,8 @@ export async function serve(DATA, TICKER) {
         ...columnar(data, ['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl', 'bf', 'sf']), gap:[...new Set(yr.filter(r => r[8]).map(r => `${r[0]}|${r[3]}`))].map(s => s.split('|')) };
       return { year:+y, body:gz(doc), rows:yr.length, through:yr.at(-1)[0] } });
   }
-  const TICKERS = gz({ columns:['ticker', 'name', 'type', 'sector'], ticker:['BBRI', 'IHSG'], name:['Bank Rakyat Indonesia', 'Composite Index'], type:['stock', 'index'], sector:['Finance', null] });
+  const NAMES = { BBRI:'Bank Rakyat Indonesia', BBCA:'Bank Central Asia' };   // the served ticker is listed whichever it is
+  const TICKERS = gz({ columns:['ticker', 'name', 'type', 'sector'], ticker:[TICKER, 'IHSG'], name:[NAMES[TICKER] || TICKER, 'Composite Index'], type:['stock', 'index'], sector:['Finance', null] });
 
   const REFS = { tickers:TICKERS, brokers:gz({ columns:['code', 'name', 'type'], code:brokerCodes, name:brokerCodes, type:brokerCodes.map(() => 'Domestic') }),
     logos:gz({ columns:['ticker', 'sha256'], ticker:[], sha256:[] }) };
