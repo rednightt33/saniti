@@ -8886,6 +8886,33 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M555 — The Screener's unit probe judged a series by its start, so a Pine recursion from 0 was not a price level (2026-11-23; fixed on the branch in `7f193584`)
+
+- **Found by:** the lab indicator Alpha KAMA (I58, EXEC-PINE-INDICATORS): `npm run registry` in `apps/edge-bff/screener`
+  stopped with "overlay I58.kama: state_level needs a level comparable with a bar field (the scaling probe finds
+  price_change)".
+- **Verified root cause:** `build-screener-registry.mjs` `related()` (lines 144-153 before the fix) required the shifted
+  run to equal the base plus the shift on every bar where both have a value. The script's KAMA starts from 0 (Pine
+  `nz(tmpVal[1])`) and closes on the price at its smoothing constant (at most 0.66² a bar, 0.0645² in a choppy market), so
+  for the first few hundred bars KAMA(price + s) - KAMA(price) is not s; from about bar 1,500 of the fixture the two
+  agree within the tolerance. The probe therefore read a price level as a price change, and the generator refused the
+  price tests (above/below, crosses, distance %) and the Backtest's price lines.
+- **Class:** any output whose recursion starts from a constant rather than from the first input: common in Pine
+  translations (`nz(x[1])` starts), so every later Pine indicator with a recursive line meets it; the released indicators
+  all seed with the first value and never did.
+- **Solution (the generator, the layer that derives the unit):** the values are compared from bar `unit_from` (2000 of
+  the fixture's 4000) on; the finite bars must still match on every bar. A unit is a property of the series once its
+  start has decayed; the cut probe already classes such a series `recursive`.
+- **Covers / does not cover:** covers a start that decays within the first half of the fixture (KAMA: under 10⁻⁶ of the
+  shift by bar 2000). A start that never decays (a cumulative level) stays what it was.
+- **Verified:** the regenerated `screener-registry.json` changes no output field of the 57 earlier indicators (unit,
+  comparable_with, compare lag, history class, first valid bar, tests); only the formula fingerprint and the probe
+  constants change. I58 `kama` and `ema_x` are price levels comparable with close; `compare-lag.json` `price_levels`
+  lists them; `registry:check` of both generators current.
+- **Lesson for new data:** a property the generator derives from a probe is judged where the property holds by
+  definition (here: after the start); a new probe states the part of the fixture it reads.
+- **Status:** fixed on the branch (`7f193584`); deploys with the lab indicators (EXEC-PINE-INDICATORS).
+
 ### M554 — The Backtest read "a price line" and "the other output" by a name rule, not by what the outputs are (2026-11-23; fixed on the branch in `afcf2841` and `ce188bbb`)
 
 - **Found by:** the lab indicators Inside Bar Detection (I55) and Alpha Price Action BUY/SELL (I56, I57)
@@ -8920,7 +8947,9 @@ in its staleness check.
   and lab-page tests (26 passed); `registry:check` of both generators.
 - **Lesson for new data:** an output's meaning (price level, flag, state, partner) is read from the registry's derived
   or declared fields, never from its name; a new output kind adds a field the generator derives.
-- **Status:** fixed on the branch (`afcf2841`, `ce188bbb`); deploys with the lab indicators (EXEC-PINE-INDICATORS).
+- **Follow-up:** the `engine.ts` edit moved a line SCREENER_ONBOARDING.md points at (`ADJUSTED_HISTORY_BOUNDARY`, the
+  screener-worker suite's pointer test, red at `afcf2841`); the pointer moved in `7f193584`.
+- **Status:** fixed on the branch (`afcf2841`, `ce188bbb`, `7f193584`); deploys with the lab indicators (EXEC-PINE-INDICATORS).
 
 ### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23, open, asked of the user)
 

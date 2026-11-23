@@ -17225,6 +17225,29 @@ dengan konfirmasi user per deploy.
   Garis yang sudah rilis tidak berubah.
 - Sisa: Alpha KAMA, Alpha Extract, Alpha Divergence; lalu satu push ke `main` dengan konfirmasi deploy.
 
+#### Alpha KAMA (id registry I58), 2026-11-23
+
+- Dibangun di branch (`7f193584`): rumus `alpha_kama` di `terminal/src/lab/index.ts` (blok terjemahan tetap di bawah MPL 2.0
+  dengan kredit © simwai); baris registry I58 (garis KAMA 20 warna lewat `palette`/`paletteFrom`, segitiga ENTER LONG
+  mint di bawah candle dan ENTER SHORT oranye di atas candle, EMA X tersembunyi); `releases.json` I58 `lab`; overlay
+  Screener: close di atas/bawah/menembus KAMA dan jarak %, EMA X di atas/bawah KAMA dan menembus KAMA, ENTER LONG/SHORT
+  pada sesi itu atau dalam N sesi, dan sementara "keadaan warna di antara a dan b" sampai bentuk kategori (di bawah) selesai.
+- Cara Pine dibaca (dicatat di kode): data kemarin dengan high/low tertukar; T3 mulai dari 0; periode VHF dibulatkan;
+  blok `if bar_index > periode` milik `kama()` punya riwayat sendiri: pada bar yang dilewati KAMA kosong dan putaran
+  berikutnya melanjutkan nilai putaran terakhir (aturan Pine untuk riwayat di dalam fungsi), `math.sum` di dalamnya
+  menjumlah putaran yang berjalan saja dan bernilai 0 untuk ER selama putarannya belum cukup; sudut kosong bila ATR 0.
+  Akibatnya di data uji KAMA pertama muncul sekitar bar 90 dari nilai mendekati 0 dan menyatu dengan harga sekitar bar
+  300-400; beberapa bar awal kosong. Nilai TradingView (2-3 tanggal) tetap ditanyakan untuk memastikan bacaan ini.
+- EMA X: EMA close yang sama dengan indikator EMA rilis (I02); panjang bawaan 20 (asumsi, bisa diubah di Screener dan
+  Backtest).
+- Uji: `terminal/tests/calc/alpha_kama.test.ts` 7/7 terhadap implementasi Pine bar per bar (bawaan, tanpa penghalusan,
+  Hann, VHF mati, regresi linear dan panjang lain), batas 5 kelompok warna (-11,6°, -3,2°, +5,3°, +13,7°), awal riwayat,
+  kausal; empat varian rumus salah (high/low tidak ditukar, mulai ulang dari 0, alpha T3 salah, pembulatan indeks) gagal;
+  Terminal 1.121, Screener 1.358, halaman Backtest 102; backtest-worker 284/285, screener-worker 141/143 (tes heap, sama
+  dengan `main`); lab/release dan 3f 67 lulus; gambar di beta dengan build lab lokal (BBRI) tanpa error.
+- Temuan (ERRORS M555, `7f193584`): probe satuan generator Screener menilai KAMA "perubahan harga" karena awalnya dari 0;
+  satuan kini dinilai pada paruh kedua fixture. Tidak ada field output dari 57 indikator lain yang berubah.
+
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
 - Rumus (dibaca dari Pine, kausal): baseline = median 4 bar dari MA(source, 23) (EMA; pilihan RMA/SMA/WMA/HMA/TEMA);
