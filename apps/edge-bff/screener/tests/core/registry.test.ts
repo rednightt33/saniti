@@ -246,7 +246,7 @@ describe('registry.ts parameters (report 6.8 narrowing, I7)', () => {
     const f = refusal(() => resolveScreenerParams(ind('I33'), { annualization_periods: 252.5 }, 'p', OPTS));
     expect([f.code, f.details?.integer]).toEqual(['PARAM_OUT_OF_RANGE', true]);
     const u = refusal(() => screenerIndicator('I99', 'x.indicator'));
-    expect([u.code, u.field, (u.details?.allowed as string[]).length]).toEqual(['UNKNOWN_INDICATOR', 'x.indicator', 53]);
+    expect([u.code, u.field, (u.details?.allowed as string[]).length]).toEqual(['UNKNOWN_INDICATOR', 'x.indicator', INDICATORS.length]);
   });
   it('accepts a valid minimum, the defaults and whole numbers', () => {
     expect(resolveScreenerParams(ind('I23'), { weight_fast: 0 }, 'p', OPTS).weight_fast).toBe(0);

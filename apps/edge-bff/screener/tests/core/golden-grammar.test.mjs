@@ -58,6 +58,10 @@ describe('golden grammar (EXEC-BACKTEST-REVAMP P0.1)', () => {
     const keys = Object.keys(got);
     expect(keys.length).toBeGreaterThan(200);
     expect(keys.filter(k => k.startsWith('metric:')).length).toBeGreaterThan(20);          // the patterns and metrics are in
-    expect(JSON.parse(JSON.stringify(got))).toEqual(want);
+    // every recorded case gives its frozen result; a case the golden does not hold (a new indicator's offered forms, at
+    // its release) is new, not a changed result, and is recorded with GOLDEN_UPDATE=1 in the release's commit (lab dry
+    // run 2026-11-23, INDICATOR_BETA_TO_LIVE.md part B)
+    const recorded = Object.fromEntries(Object.keys(want).map(k => [k, got[k] ?? null]));
+    expect(JSON.parse(JSON.stringify(recorded))).toEqual(want);
   });
 });
