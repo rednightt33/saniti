@@ -16987,3 +16987,28 @@ menunggu), "jika sudah jelas masukan exec. Saya lanjut indikator selanjutnya." P
 - Terbuka: nilai pembanding dari TradingView (BBCA harian, 2–3 tanggal, BDO/Signal/±Upper, tanggal label BULL/BEAR);
   sampai ada, rumus diuji terhadap implementasi pembanding independen yang mengikuti semantik Pine (ta.ema/ta.rma
   bertanam SMA, ta.atr, ta.highest/lowest termasuk bar ini, array median, nz).
+
+### I55 — Alpha KAMA (Pine v5 "VHF Adaptive Linear Regression KAMA", © simwai, MPL-2.0; dari user 2026-11-23)
+
+- Terminal: apa adanya (user: "Ini di tambahkan ke terminal as is"): garis KAMA di chart harga dengan 20 warna (skema Red →
+  Green, sudut −20°..+20°), segitiga ENTER LONG / ENTER SHORT. Kredit "© simwai, MPL-2.0" di file kodenya.
+- Rumus (dibaca dari Pine, kausal; nilai hari t dari data sampai t−1): close/high/low candle sebelumnya
+  (`request.security(..., [close[1], high[1], low[1]], lookahead_on)` pada timeframe chart), dengan high dan low TERTUKAR
+  seperti di skrip asli (baris 109, ditiru apa adanya); T3 panjang 3 (hot 1, alpha 2/(1+3)), mulai dari 0 (`nz`); panjang
+  KAMA adaptif per bar = round(89 × VHF × 2), VHF = (highest − lowest close 89) / jumlah |Δclose| 89; KAMA Kaufman dengan
+  faktor 0,66 dan 0,0645 (sc = (ER × (f1 − f2) + f2)²), mulai dari 0; linreg mati (bawaan); sudut = atan((KAMA −
+  SMA14(KAMA)) / ATR Hann-window 14) dalam derajat; warna = indeks trunc(19 × (sudut + 20) / 40), dibatasi 0..19.
+  ENTER LONG = close kemarin crossover KAMA dan KAMA crossover KAMA[1] dan sudut > 0,5; ENTER SHORT kebalikannya
+  (sudut < −0,5).
+- Screener dan Backtest (user 2026-11-23):
+  - sinyal beli dan sinyal jual ("3 ya") terjadi dalam N sesi terakhir;
+  - warna KAMA sekarang salah satu dari 5 keadaan; 5 keadaan = 5 kelompok berisi 4 warna yang digambar ("1a"): Merah
+    indeks 0-3 (< −11,6°), Oranye 4-7 (−11,6° s/d −3,2°), Kuning 8-11 (−3,2° s/d +5,3°), Hijau kekuningan 12-15 (+5,3° s/d
+    +13,7°), Hijau terang 16-19 (≥ +13,7°);
+  - berganti warna A → B ("2a": kemarin A, hari ini B, langsung), beberapa pasangan digabung dengan ATAU, terjadi dalam N
+    sesi;
+  - EMA X (panjang pilihan user) di atas/bawah KAMA, dan EMA X menembus KAMA dalam N sesi ("4 keduanya");
+  - harga di atas/bawah KAMA, menembus, jarak %: bentuk uji garis harga yang sudah ada.
+- Nama di EDGE ("5 namanya Alpha KAMA"): "Alpha KAMA".
+- Terbuka: nilai pembanding dari TradingView (KAMA dan warna di 2–3 tanggal, tanggal ENTER LONG/SHORT); awal riwayat harga
+  kita dibanding TradingView (KAMA mulai dari 0 dan menyesuaikan lambat), dicek dan dilaporkan saat membangun.
