@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed on the branch, not deployed)
+### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed in `61fb22c4` on the branch, not deployed)
 
 - **The check (the user 2026-11-23: "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error =
   betulkan. Yang di benerin di remark untuk step 8 nanti. Setelah itu deploy."):** three fresh agents at xhigh (preview
