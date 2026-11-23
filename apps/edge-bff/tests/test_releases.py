@@ -116,11 +116,13 @@ def test_every_registry_id_has_an_entry_and_every_entry_names_a_registry_id():
 # - screener_preset: may be lab. No worker gates a preset by id, but a preset is a catalog row whose definition reads
 #   items that are gated by their own stages; the lab stage keeps the row off the live site's catalog
 #   (catalog.tab_list, app/screener.py PRESET_KIND), nothing more.
-# - flow_indicator: held (LAB_KIND_HELD).
+# - flow_indicator: may be lab since 2026-11-23 (step 3 of the user's sequence): its formula is registered from
+#   terminal/src/lab/index.ts (calc/flow.ts registerFlow, flowKit), its registry entry and tip come from the spreadsheet
+#   and scripts/build_flow_registry.py (not shipped), its Screener kinds from flow-kinds.json (read by the workers and
+#   the generator only); the public builds and the catalogs leave a lab one out. Proven by the dry run of 2026-11-23
+#   (INDICATOR_BETA_TO_LIVE.md "A lab Flow indicator"). Held before: the FLOW map was written to be the one place of
+#   every formula (it is exported; the reason recorded earlier, "unexported", was wrong) and had no wrapped entry point.
 LAB_KIND_HELD = {
-    'flow_indicator': ("a lab Flow indicator's formula has no registration point: terminal/src/calc/flow.ts keeps its "
-                       "FLOW map unexported and keys every formula by its id, so the formula would be in a file every "
-                       "public build carries (LIVE_PROMOTION.md section 3; INDICATOR_BETA_TO_LIVE.md, Flow indicators)"),
     # the test-out of 2026-11-23 (LLA-F2): the dry run covered an indicator only; a lab candle needs its pair and mirror
     # (backtest core candles.ts), a CASES entry and the count pins of the look-ahead gate, candles.test.ts and the
     # screener-worker's operators.test.ts made derived first; held until one is dry-run like the indicator was
@@ -158,7 +160,7 @@ def test_the_lab_kind_guard_refuses_a_held_kind_and_lets_the_others_be_lab(tmp_p
     current = releases.load(planted)
     lab = {kind for kind in KINDS for e in current.entries(kind) if e['stage'] == 'lab'}
     assert lab == set(KINDS)
-    assert {kind for kind, _ in held_lab(current)} == {'flow_indicator', 'candle_pattern'}
+    assert {kind for kind, _ in held_lab(current)} == {'candle_pattern'}
     assert not [i for _, i in held_lab(current) if i.startswith('P_')]
     assert {kind for kind in KINDS for e in current.entries(kind) if e['stage'] == 'preview'} == set(KINDS)
 
