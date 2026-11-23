@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M549 — The test-out of items 1-3 of 2026-11-23: the guide, the lab lift and the registration window (2026-11-23; found by the test-out `wf_4181198a-09f`; FIXED on the branch, see Status)
+### M549 — The test-out of items 1-3 of 2026-11-23: the guide, the lab lift and the registration window (2026-11-23; found by the test-out `wf_4181198a-09f`; FIXED on the branch, `083dbc23`)
 
 - **The test-out (three fresh agents at xhigh, the user's "Untuk workflow, pengecekan menggunakan Opus 5,5 xhigh"):**
   19 findings, 6 medium. The guide was followed cold from lab to released (CI's full edge-bff suite 1228 passed in the
@@ -8919,7 +8919,7 @@ in its staleness check.
     confirmation and its exact value, the residuals as open questions, and its line citations.
 - **Carried (EXEC-MU-ACCOUNTS, Carried open parts):** F3, a session masked at the close but not revoked; F5, the beta's
   'Resend code' while the live site is closed; a lab candle pattern.
-- **Status:** FIXED on the branch (this entry's commit); its test-out joins step 8 (EXEC UD23).
+- **Status:** FIXED on the branch, `083dbc23`; its test-out joins step 8 (EXEC UD23).
 
 ### M548 — The lab item guard lifted; its dry run found the look-ahead gate passing a lab indicator without computing it (2026-11-23; found by the dry run; FIXED on the branch, `6ab63c15`)
 
