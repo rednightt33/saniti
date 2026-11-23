@@ -197,7 +197,8 @@ dijadikan lab ... Kalau Anda mau menambah FL khusus beta, bagian itu perlu diban
 run in a copy of the repository: a lab FL53 entered through the spreadsheet and the generator, its formula registered
 from the lab module with the shared building blocks, every page built (FL53 in no public file, in the Terminal's and
 the Backtest's lab builds), the Terminal (1087), Screener core (412), screener-worker, backtest-worker look-ahead, pit
-and grammar suites, the edge-bff release and proof-build tests and the generator checks run (ERRORS M551). Part A's
+and grammar suites, the edge-bff release and proof-build tests and the generator checks run (ERRORS M551); not
+checked: a browser drawing the lab FL53 on the lab Terminal (its lab bundle holds the registration). Part A's
 steps 9-13 (tests, commit, CI, the deploys, the check on the beta) and Parts B and C apply as for a technical
 indicator; these replace its steps 1-8:
 
@@ -218,7 +219,9 @@ indicator; these replace its steps 1-8:
    (technical indicators only: no change).
 6. **No id in shipped code.** A table keyed by FL id in a public file (`SINGLE_SECURITY`, `MENU_HIDDEN`, the
    point-in-time list) would name the lab item: `test_an_item_the_shipped_code_names_is_never_lab` refuses it and the
-   bundle scan finds it. A lab Flow indicator that needs such a row stays released-only, asked of the user.
+   bundle scan finds it. A lab Flow indicator that needs such a row cannot be lab today: the tables would first be
+   derived from the registry entry (EXEC-MU-ACCOUNTS, Carried open parts, "A lab Flow indicator that needs a per-id
+   row"), which the user decides.
 7. **The gates:** the look-ahead gate computes it with every option and fails when a registry Flow indicator has no
    formula (`apps/backtest-worker/tests/lookahead.test.ts`, "every Flow indicator of the registry has a formula");
    the screener-worker's catalog count is derived from the generated registry (`tests/flow.test.ts`).

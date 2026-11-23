@@ -8925,6 +8925,9 @@ in its staleness check.
   backtest-worker gates (30), every page built with FL53 in no public file and in both lab builds; the edge-bff release
   and proof-build tests (134) and the generator checks (9). The screener-worker's two heap tests fail in this
   container on `origin/main` too (not this change; green on CI).
+- **Not checked:** a browser drawing a lab Flow indicator on the lab Terminal (the lab bundle holds its registration;
+  the workers compute it). **Carried:** a lab Flow indicator that needs a per-id row in shipped code (`SINGLE_SECURITY`,
+  a point-in-time version, a special plot) cannot be lab yet (EXEC-MU-ACCOUNTS, Carried open parts).
 - **Not tested out by another agent yet:** step 8 (the ledger).
 - **Lesson:** a file that names items by id is part of the release filter from its first commit; a gate that may skip a
   missing formula must first prove each one exists.
