@@ -89,8 +89,9 @@ its dry run of 2026-11-23; Part C puts it on the live site for the admin only (p
 **Preview** (the user 2026-11-23: "ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya
 admin saja yang bisa lihat, user paid tidak bisa lihat"; plan "B"; CONTRACT 8 "Preview"):
 - who holds it: the admin's `*` on both sites, or an account given its id. A plan's `{"stages": [...]}` takes `lab`
-  and `released` only (the database refuses `preview`), and no plan gives an item family `{"all": true}`
-  (`tests/test_preview_stage.py` reads every seeded plan);
+  and `released` only (the database refuses `preview`), and a family value `{"all": true}` holds every lab and released
+  item but no preview one (the user's "Ok A", 2026-11-23, EXEC UD28; `principal.holds`, `allow.allow_of`,
+  `catalog.holds_every`; `tests/test_preview_stage.py`);
 - what the pages do: the public build keeps its definition and formula, its entry marked `release: 'preview'`; the
   Terminal's indicator menu and the Backtest's stop and trailing lines leave it out for an account the catalog does not
   list it for (not shown locked); the Screener's and Backtest's catalogs, `/api/v1/catalog` and the stored examples list
@@ -202,6 +203,20 @@ Releasing means a commit that changes the stage from `lab` to `released`. It tak
 CI → `main` → the beta runs it), and then `live` moves to it. The user's request names it.
 
 ## 4. Steps for each request
+
+**Which path a request takes** (the user 2026-11-23: "update MD promosi table agar AI lain tahu kalau ada indikator di
+beta mau ditaruh ke live admin preview"):
+
+| The user asks | Stage in `releases.json` | Who sees it on the live site | The guide | Then |
+|---|---|---|---|---|
+| A new indicator on the beta only ("khusus beta") | `lab` | nobody (the beta's admin only) | `INDICATOR_BETA_TO_LIVE.md` Part A (a Flow indicator: its section "A lab Flow indicator") | beta deploy; no promotion |
+| An indicator on the beta put on the live site **for the admin only** ("taruh ke live, admin saja", "preview") | `preview` | the admin (`*`) and an account given its id; never paid, free, guests or `{"all": true}` | `INDICATOR_BETA_TO_LIVE.md` Part C (step 0: may it be preview?) | beta deploy, check it as the admin and as a paid test account on the beta, then this section's steps 2-8 to move `live` |
+| An indicator for every plan that holds released items ("rilis ke live") | `released` | every plan of the released stage (paid) | `INDICATOR_BETA_TO_LIVE.md` Part B | beta deploy, then this section's steps 2-8 |
+| Anything else that is on the beta (a fix, a page, a tab) | the tab's stage (section 3) | by its tab and plan | this section | steps 1-8 |
+
+`scripts/live_diff.py` names what reaches the live site at each stage ("preview (on the live site for the admin only,
+paid and free accounts do not see it)"); tell the user that line. A preview item needs a live site whose code knows the
+stage: `live` at a commit at or after `fb4a5c3c` (the preview stage reached the beta then; section 7).
 
 1. **The user names the scope**, for example "bawa Screener preset baru ke live". Record their words in EXEC.md.
 2. **See what would move.**
@@ -324,6 +339,8 @@ Update this table at every promotion: what is on each site, and since when.
 | A sign-in stays at the page it was shown at (Phase 4; every tab, when the account can open it; the user's "A", 2026-11-22) | released | 2026-11-22 (`ec739a06`) | Before: every sign-in led to the Monitor or the Terminal. With this commit a person signed out at, say, `/backtest` lands on `/backtest` after signing in; `/login` and the account pages lead to the landing page as before |
 | Contact support (Phase 4; the user, 2026-11-22: the rail's mailbox on both sites; `support` in `tabs`, a capability domain with no page of its own) | released | 2026-11-22 (`ec739a06`) | Migration `20261122_001` first (expand-only). **At its promotion the live site needs** `TELEGRAM_NOTIFY_URL`, `TELEGRAM_SUPPORT_SECRET` (references to telegram-monitor's, as the beta's) and `EDGE_ADMIN_ORIGIN` (the beta's address) on `edge-bff-live`; without them a message is still kept and emailed, with no Telegram summary and no link. The live site's sender emails the admins; its housekeeping retries the Telegram summaries of both sites. **Until `live` runs this commit, the live site's older sender (`4b35b5ed`) sends the beta's support emails without their images and without Reply-To** (it posts only the sender, the address, the subject and the text, and claims every pending email of the shared outbox), and no site retries a Telegram summary that failed: promote before relying on the emails, and never call the email checked from a beta test. Promoted 2026-11-22 with `TELEGRAM_NOTIFY_URL`, `TELEGRAM_SUPPORT_SECRET` and `EDGE_ADMIN_ORIGIN` set on `edge-bff-live` (RAILWAY_CHANGELOG.md) |
 | Privacy and Terms links hidden until their texts exist (both sites); Terminal footer "Charts by TradingView" only | released | 2026-11-20 (`4785d1ef`) | The user's "OK" to both; the links return when `EDGE_PRIVACY_URL` / `EDGE_TERMS_URL` are set |
+| The preview stage: an item on the live site for the admin only (EXEC-MU-ACCOUNTS; ERRORS M550, M552; `{"all": true}` holds no preview item, UD28) | beta only (code) | not yet: the live site runs `ec739a06`, which does not know the stage | On the beta since 2026-11-23 (`fb4a5c3c`). No item is at preview. Before the first preview item reaches the live site, `live` moves to a commit at or after `fb4a5c3c` (the user's go) |
+| The lab Flow indicator's registration point (ERRORS M551, M552) | beta only (code) | not yet (`ec739a06`) | On the beta since 2026-11-23 (`fb4a5c3c`); the shared workers run it for both sites. No Flow indicator is lab |
 | Tab switch (`tabs` in the release file), this runbook, `scripts/live_diff.py` | released | 2026-11-20 (`4785d1ef`) | No visible change: every tab stays released |
 | The A2 fix (the account's own browser, a reset bound to its browser, the client's part of an address's day; ERRORS M517) | released | 2026-11-21 (`4b35b5ed`) | Migrations `20261120_001` and `_002` applied on dev. Goes live on the user's request. The user chose (2026-11-21) to bring it live together with 3e and 3f, in one promotion, not alone |
 | The MFA lock names the way still open (ERRORS M519: with both ways locked, the `/mfa` page no longer offers the authenticator code) | released | 2026-11-21 (`4b35b5ed`) | Additive (`details.use` "code"); no migration. It goes live with A2, 3e and 3f |

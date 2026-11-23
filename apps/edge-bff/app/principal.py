@@ -20,7 +20,8 @@ What a principal holds (`grants`, key -> value, each checked against its capabil
 - `limits`: the limits (non-negative integers) and lists (arrays of strings), read with `p.limit(key)`;
 - item families (`items` values {ids, stages, all}): `p.can('<family>:<id>')` holds the item when its id is listed,
   its release stage (releases.py stage_of) is listed, or all is true (a value may name the stages lab and released only,
-  releases.GRANT_STAGES: a preview item is held by its id, `*` or all; EXEC UD28). Unknown keys are not held.
+  releases.GRANT_STAGES; all holds every item but a preview one: a preview item is held by its id or `*` only, the
+  user's "Ok A", 2026-11-23, EXEC UD28). Unknown keys are not held.
 
 Dependencies (`Auth`, handed to every router as `routes(app, auth)`):
 - `auth.principal`: the Principal (401 UNAUTHENTICATED otherwise); sets request.state.owner and request.state.principal;
@@ -171,10 +172,14 @@ def holds(grants, kinds, key):
     if not sep or not item or kinds.get(family) != 'items':
         return False
     value = grants[family]
-    if value.get('all') is True or item in value.get('ids', ()):
+    if item in value.get('ids', ()):
         return True
     kind = KIND_OF_FAMILY.get(family)
-    return kind is not None and stage_of(kind, item) in value.get('stages', ())
+    stage = stage_of(kind, item) if kind is not None else None
+    # {"all": true}: every item of the family but one at the preview stage, which only its id or '*' holds (EXEC UD28)
+    if value.get('all') is True and stage != releases.PREVIEW:
+        return True
+    return stage is not None and stage in value.get('stages', ())
 
 
 @dataclass(frozen=True)

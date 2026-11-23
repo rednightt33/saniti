@@ -137,14 +137,11 @@ def plan_grants(store):
 
 def test_no_plan_but_one_holding_everything_holds_a_preview_item(store, preview_one_of_each):
     """Derived over every seeded plan (paid, free, the guest plan, the test plans): only a plan holding `*` holds a
-    preview item, and no other plan gives an item family {"all": true} (which would hold it too)."""
+    preview item (a family value {"all": true} holds none since EXEC UD28, the test below)."""
     plans = plan_grants(store)
     assert len(plans) >= 3, plans                                            # paid, free and the guest plan at least
-    item_families = set(releases.KIND_OF_FAMILY)
     for plan, (grants, kinds) in plans.items():
         everything = grants.get('*') is True
-        if not everything:
-            assert not [f for f in item_families if kinds.get(f) == 'items' and grants[f].get('all') is True], plan
         for kind, item_id in preview_one_of_each.values():
             got = {f: holds(grants, kinds, f'{f}:{item_id}') for f in releases.FAMILIES_OF_KIND[kind]}
             assert any(got.values()) is everything, (plan, kind, item_id, got)
@@ -201,3 +198,41 @@ def test_a_preview_item_is_not_beta_only_and_a_live_view_keeps_the_admin_grants(
     star = live_view(principal({'*': ('flag', True)}))
     kind, item_id = preview_one_of_each['indicator']
     assert star.live and '*' not in star.capabilities and star.can(f'terminal.indicator:{item_id}')
+
+
+@pytest.mark.parametrize('site', ['live', 'beta'])
+def test_a_family_value_all_true_holds_lab_and_released_items_but_no_preview_one(settings, store, monkeypatch, site):
+    """EXEC UD28 (the user's "Ok A", 2026-11-23): {"all": true} on an item family, written by an operator into an account
+    or a plan (the admin page cannot), holds every lab and released item of the family, never a preview one; the
+    workers' allow is then the held ids, never '*', while the kind has a preview item; the admin's `*` still holds it."""
+    entries = releases.entries('indicator')
+    lab, preview, plain = entries[0]['id'], entries[1]['id'], entries[2]['id']
+    items = [{'kind': k, 'id': e['id'], 'stage': ('lab' if (k, e['id']) == ('indicator', lab) else
+                                                  PREVIEW if (k, e['id']) == ('indicator', preview) else 'released')}
+             for k in releases.KINDS for e in releases.entries(k)]
+    monkeypatch.setattr(releases, 'CURRENT', releases.Releases({
+        'schema_version': 1, 'items': items, 'tabs': [{'id': t, 'stage': st} for t, st in releases.CURRENT.tabs().items()]}))
+    app = create_app((live_of if site == 'live' else beta_on)(settings), store, FakeOrc())
+    with TestClient(app) as c:
+        sign_in_admin(c, store)
+        alice = paid_user(store, f'all_{site}')
+        override(store, alice['user_id'], 'terminal.indicator', '{"all": true}')
+        p = app.state.auth.owner_principal(alice['owner_key'])
+        assert not p.can(f'terminal.indicator:{preview}') and p.can(f'terminal.indicator:{plain}')
+        assert p.can(f'terminal.indicator:{lab}') is (site == 'beta')           # lab: beta only, as before
+        allow = allow_of(p, 'backtest')['indicator']
+        assert allow != '*' and preview not in allow and plain in allow
+        assert (lab in allow) is (site == 'beta')
+        assert not catalog.holds_every(p, 'indicator') and not catalog.holds_entry(p, 'indicator', preview)
+        admin = app.state.auth.owner_principal(settings.owner)
+        mine = allow_of(admin, 'backtest')['indicator']
+        assert admin.can(f'terminal.indicator:{preview}') and (mine == '*' if site == 'beta' else preview in mine)
+    # without a preview item in the kind, {"all": true} still sends '*' on the beta (unchanged)
+    monkeypatch.setattr(releases, 'CURRENT', releases.Releases({
+        'schema_version': 1, 'items': [{**it, 'stage': 'released'} if it['stage'] == PREVIEW else it for it in items],
+        'tabs': [{'id': t, 'stage': st} for t, st in releases.load().tabs().items()]}))
+    if site == 'beta':
+        app2 = create_app(beta_on(settings), store, FakeOrc())
+        with TestClient(app2):
+            q = app2.state.auth.owner_principal(alice['owner_key'])
+            assert allow_of(q, 'backtest')['indicator'] == '*'

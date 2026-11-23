@@ -70,7 +70,9 @@ def holds_every(p, kind):
         return False
     if EVERYTHING in p.capabilities or p.grants.get(EVERYTHING) is True:
         return True
-    return any(p.kinds.get(f) == 'items' and p.grants[f].get('all') is True for f in releases.FAMILIES_OF_KIND[kind])
+    # a family value {"all": true} holds no preview item (EXEC UD28): every item only while the kind has none
+    return not releases.any_at(kind, releases.PREVIEW) and any(
+        p.kinds.get(f) == 'items' and p.grants[f].get('all') is True for f in releases.FAMILIES_OF_KIND[kind])
 
 
 def holds_every_item(p):

@@ -16703,7 +16703,6 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD18 | The Terminal defects and proposals only the user opens (M454, M447, M333) | each its own date | paying accounts' pages | before paid launch |
   | UD24 | (acknowledged by the user 2026-11-23, "Dicatat dulu saja"; not shown again) Mass downloads of the Terminal's data (the user 2026-11-23: "Goalnya adalah kita mau deteksi kode yang mencegah user untuk mendownload data via penarikan masal"): today only per-account quotas (paid: 60 tickers an hour, 200 a day, 300 files an hour, 500 MB a day), presigned URLs of 120 s and the audit log `terminal.access_log` (90 days); no detector tells a browser from a script; which detection or prevention to build | 2026-11-23 with context | protection of the data | before step 9 (registration) |
   | UD20 | A valid Railway token for telegram-trigger (the Telegram Run Now buttons fail) | 2026-11-03 | the manual restart button | any time |
-  | UD28 | Preview and `{"all": true}` (check of steps 2-3, PV-2): a family value `{"all": true}` on an item family (an account override or a plan row an operator writes in SQL; no seeded plan has one, the admin page cannot write one) makes that account hold every preview item on the live site. (a) `all` holds lab and released items only, preview needs `*` or the id; (b) the database refuses `{"all": true}` on the item families (a forward migration; the paid plan already uses stages); (c) keep it, the guard also reads overrides and the live rows | 2026-11-23 | the preview stage's promise "paid never sees it" against an operator's write | before the first preview item |
   | UD25 | Step 9 window, test-out F1: while registration is open any client can make the live site send code emails to any address (per-address and per-hour limits only): (a) keep it open the 24 hours and the agent watches `email_sent` and closes early on a burst, or (b) close it as soon as the user has finished testing | 2026-11-23 (twice, with context; 0 code emails sent 03:24-06:20 UTC) | the window's spam exposure | while the window is open (until 2026-11-24 03:24 UTC) |
   | UD26 | Step 9 window, F2: is the close at 2026-11-24 10:24 WIB confirmed in advance (a variable change that redeploys edge-bff-live), so the agent runs it on time, or asked again then | 2026-11-23 (twice, with context) | the window's close | 2026-11-24 03:24 UTC |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
@@ -16792,6 +16791,12 @@ Order of the services (CONTRACT 17, rollback floors):
   - Executed so far (2026-11-23): the plan, the rehearsal test, the register review. The open-close flips wait for the
     user's confirmation and presence. Its test-out: the workflow of items 1-3; fixes go to step 8.
 
+- **UD28 answered (the user 2026-11-23: "Ok A - jangan lupa update juga MD promosi table agar AI lain tahu kalau ada
+  indikator di beta mau ditaruh ke live admin preview."):** a family value `{"all": true}` holds every lab and released
+  item but no preview one (`principal.holds`; `allow.allow_of` and `catalog.holds_every` give '*' only while the kind
+  has no preview item); LIVE_PROMOTION.md §4 opens with a table of the three paths (beta only, live for the admin only,
+  released) and §7 notes the preview stage and the lab Flow point as beta-only code. Built on the branch (ERRORS M552
+  PV-2); its deploy is asked of the user.
 - **A "preview" release stage: an item released on the live site to the admin only (the user 2026-11-23: "B. Coba inspect
   code dulu dan siapkan implementation plan. Akan dijalankan setelah perbaikan dari checker selesai dan pushed to main
   terakhir sudah dilakukan."; asked: "ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya

@@ -294,8 +294,9 @@ admin only, every feature first) and the live site (`edge-bff-live`, app.edgefin
 - Every tab, page and catalog item has its stage in `apps/edge-bff/catalog/releases.json` (`tabs`, `items`; unlisted
   is lab). Lab stays off on the live site for everyone, the admin's `*` included, and stays on the beta. A catalog item
   at `preview` (user 2026-11-23: "promote ke live hanya admin saja yang bisa lihat, user paid tidak bisa lihat") is on
-  both sites for the admin only; no plan holds it by stage; its definition and formula are public (LIVE_PROMOTION.md §3
-  "Preview"; `INDICATOR_BETA_TO_LIVE.md` Part C). A tab is lab or released only.
+  both sites for the admin only; no plan holds it by stage, nor by `{"all": true}` (UD28, "Ok A"); its definition and
+  formula are public (LIVE_PROMOTION.md §3 "Preview"; `INDICATOR_BETA_TO_LIVE.md` Part C). Which path a request takes
+  (beta only, live for the admin only, released): LIVE_PROMOTION.md §4, its first table. A tab is lab or released only.
   Since 2026-11-23 (the user: "Cabut tes penjaga lab") a new catalog item may enter at `lab` (the beta only):
   indicators by `INDICATOR_BETA_TO_LIVE.md` (a Flow indicator by its section "A lab Flow indicator", since 2026-11-23);
   Screener metrics and presets as data. A candle pattern may not be lab yet (`tests/test_releases.py` `LAB_KIND_HELD`:

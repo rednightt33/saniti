@@ -56,7 +56,9 @@ def allow_of(principal, worker):
     for kind in KINDS:
         family = families[kind]
         value = principal.grants.get(family) if principal.kinds.get(family) == 'items' else None
-        if everything or (whole and isinstance(value, dict) and value.get('all') is True):
+        # a family value {"all": true} holds no preview item (EXEC UD28): '*' for it only while the kind has none
+        if everything or (whole and isinstance(value, dict) and value.get('all') is True
+                          and not releases.any_at(kind, releases.PREVIEW)):
             out[kind] = EVERYTHING
         else:
             # an item that is part of its tab (catalog.ungated: a universe attribute every Screener answer shows,

@@ -257,8 +257,11 @@ The user, 2026-11-23: "ada indikator baru di main --> promote ke live, tapi saya
 yang bisa lihat, user paid tidak bisa lihat" (EXEC-MU-ACCOUNTS "A preview release stage"; LIVE_PROMOTION.md §3
 "Preview"). Only when the user names the indicator for it ("I54 preview ke live"). What preview holds and what it does
 not: the admin (`*`, or an account given its id) sees and runs it on both sites; paid, free and guest accounts never see
-it (the menus leave it out, the catalogs do not list it, the workers refuse it); its definition and formula are in the
-public page files, so anyone reading those files can see them. A formula that must stay private stays lab.
+it, nor an account whose family value is `{"all": true}` (UD28) (the menus leave it out, the catalogs do not list it,
+the workers refuse it); its definition and formula are in the public page files, so anyone reading those files can see
+them. A formula that must stay private stays lab. The live site must run a commit at or after `fb4a5c3c` (the code of
+the preview stage; LIVE_PROMOTION.md §7), so the first preview item's promotion moves that code too; LIVE_PROMOTION.md
+§4's first table names this path.
 
 0. **Can it be preview?** an indicator or a Flow indicator may be preview only when no shipped code but its own formula
    definition names or computes it (`tests/test_releases.py` `test_an_item_the_shipped_code_names_is_never_lab`, its

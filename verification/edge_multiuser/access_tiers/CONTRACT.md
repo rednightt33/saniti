@@ -494,9 +494,10 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
     a plan without it (3e), so serving its definition per principal would hide nothing.
 - **Preview (the user 2026-11-23, EXEC-MU-ACCOUNTS "A preview release stage": "ada indikator baru di main --> promote ke
   live, tapi saya mau promote ke live hanya admin saja yang bisa lihat, user paid tidak bisa lihat"; plan "B"):** an
-  item at `preview` is on both sites and held only by a principal whose grants name the item: `*`, its id, or a family
-  value `{"all": true}`, which no seeded plan holds (`tests/test_preview_stage.py`; an operator's SQL write of one would
-  hold every preview item: EXEC UD28 asks whether `all` should). Which items may be preview: an indicator or a Flow
+  item at `preview` is on both sites and held only by a principal whose grants name the item itself: `*` or its id. A
+  family value `{"all": true}` holds every lab and released item but no preview one (the user's "Ok A", 2026-11-23,
+  EXEC UD28; `principal.holds`; `allow.allow_of` and `catalog.holds_every` give it '*' only while its kind has no
+  preview item; `tests/test_preview_stage.py`). Which items may be preview: an indicator or a Flow
   indicator may be preview only when no shipped code but its own formula definition names or computes it
   (`tests/test_releases.py` `test_an_item_the_shipped_code_names_is_never_lab`, its `FORMULA_HOME` rule): 36 of today's
   53 indicators and 20 of the 52 Flow indicators qualify today; a new one qualifies when only its formula names it.
