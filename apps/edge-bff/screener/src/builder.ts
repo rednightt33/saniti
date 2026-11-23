@@ -74,6 +74,8 @@ function condRow(c: Card): string {
   // the worker judges the setup, its refusal shown on this card)
   const S0 = e.flow ? flowSessions(e) : null, wmax = S0 == null ? withinMax() : Math.min(withinMax(), S0), wh = e.flow ? depthHint(flowBudget(e, c.params)) : '';
   const within = o?.within ? `<div class="vrow"><span class="unit">within</span><input class="inp" type="number" min="1" max="${wmax}" step="1" data-c="${c.id}" data-k="within" value="${c.within}" ${inv('within')} aria-label="Within sessions"${wh ? ` title="${esc(wh)}"` : ''}><span class="unit">sessions${wh ? ` · ${esc(wh)}` : ''}</span></div>${err('within')}` : '';
+  // a category form's choice (EXEC-PINE-INDICATORS): its categories, or its changes from -> to, as a checkbox list
+  const pick = o?.pick ? `<div class="vrow">${flowControlHtml(o.pick, c.pick, `data-c="${c.id}" data-k="pick"`, o.pick.label || o.pick.key, errs.pick || '', !!errs.pick)}</div>${err('pick')}` : '';
   const pf = (p: Entry['params'][number], second = false) => {
     const v = second ? c.second[p.key] : c.params[p.key], k = (second ? '2.' : '') + p.key, attr = second ? 'data-p2' : 'data-p';
     // a flow indicator's list, anchor date or broker codes (param-fields.ts)
@@ -96,7 +98,7 @@ function condRow(c: Card): string {
   const ops = `<select class="sel" data-c="${c.id}" data-k="op" aria-label="Condition">${e.opts.map(x => `<option value="${esc(x.key)}" ${x.key === c.opt ? 'selected' : ''} ${x.disabled ? `disabled title="${esc(x.disabled)}"` : ''}>${esc(x.label)}${x.disabled ? ' — not offered' : ''}</option>`).join('')}${opOpt}</select>${err('op')}`;
   return `<div class="mc ${c.on ? '' : 'off'} ${cus ? 'cus' : ''} ${x}" data-card="${c.id}"${tip}>${head}
     <div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${asOf}${review}
-    ${mode}${grid}${ops}${vals}${within}${pass}</div>`;
+    ${mode}${grid}${ops}${vals}${pick}${within}${pass}</div>`;
 }
 
 /** update one card in place while typing (the prototype's paramUI2) */
@@ -267,9 +269,14 @@ export function onBuilderField(el: HTMLInputElement | HTMLSelectElement): boolea
     if (c.opt === el.value) return true;
     c.opt = el.value;
     const o = e && optOf(e, c);
+    if (o?.pick) c.pick = String(o.pick.default ?? ''); else delete c.pick;   // a category choice belongs to its condition
     if (o?.value === 'input' && c.value === '') c.value = e!.def.value;
     if (o?.between && c.value2 === '') c.value2 = e!.def.value2 === '' ? (typeof c.value === 'number' ? c.value : 0) : e!.def.value2;
     checkCard(c); ui.markDirty(); ui.refresh('conds'); return true;
+  }
+  if (k === 'pick') {
+    const o = e && optOf(e, c); if (!o?.pick) return true;
+    c.pick = String(paramFieldValue(o.pick, el)); checkCard(c); ui.markDirty(); ui.refresh('conds'); return true;
   }
   const v = el.value.trim() === '' ? '' : Number(el.value);
   (c as any)[k] = v === '' || Number.isFinite(v) ? v : '';

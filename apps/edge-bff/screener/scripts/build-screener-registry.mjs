@@ -91,7 +91,30 @@ export const TEST_FORMS = {
   event_output: { ops: EVENT_OPS, with: true },
   event_instance: { ops: EVENT_OPS },
   event_vs_ma: { ops: EVENT_OPS, defaults: ['ma', 'length'] },
+  // EXEC-PINE-INDICATORS (the user 2026-11-23, Alpha KAMA "1a", "2a"): an output with categories (indRegistry outs[].
+  // categories): in one of the chosen categories (transform in_categories), and changed from one category to another,
+  // several changes joined by OR, within N sessions (transform category_change). `gt` is the form's one operator ("is").
+  state_category: { ops: ['gt'], needs: 'categories', defaults: ['categories'] },
+  event_category_change: { ops: ['gt'], needs: 'categories', defaults: ['changes'] },
 };
+/** An output's categories as indRegistry outs[].categories gives them: a non-empty list of {value: whole number, key:
+    lower-case word, label}, values and keys unique; the problems, empty when there are none. */
+export function categoryProblems(cats, where) {
+  if (!Array.isArray(cats) || !cats.length) return [`${where}: categories must be a non-empty list`];
+  const out = [];
+  for (const c of cats) if (!c || !Number.isInteger(c.value) || typeof c.key !== 'string' || !/^[a-z][a-z0-9_]*$/.test(c.key) || typeof c.label !== 'string' || !c.label.trim())
+    out.push(`${where}: each category needs a whole-number value, a key of lower-case letters, digits and _ and a label (${JSON.stringify(c)})`);
+  if (new Set(cats.map(c => c?.value)).size !== cats.length || new Set(cats.map(c => c?.key)).size !== cats.length) out.push(`${where}: category values and keys must be unique`);
+  return out;
+}
+/** The keys a default of a category form names, checked against the output's categories: `categories` a comma list of
+    keys, `changes` a comma list of from>to pairs of two different keys. */
+export function categoryDefaultProblems(k, v, cats, where) {
+  const keys = new Set(cats.map(c => c.key)), items = typeof v === 'string' ? v.split(',').map(x => x.trim()).filter(Boolean) : [];
+  if (!items.length) return [`${where}: default ${k} must name at least one ${k === 'categories' ? 'category' : 'change'}`];
+  if (k === 'categories') return items.filter(x => !keys.has(x)).map(x => `${where}: ${x} is not a category (${[...keys]})`);
+  return items.filter(x => { const [a, b, extra] = x.split('>'); return extra !== undefined || !keys.has(a) || !keys.has(b) || a === b }).map(x => `${where}: ${x} is not a change from>to of two categories (${[...keys]})`);
+}
 const MA_TYPES = ['SMA', 'EMA'];
 
 /* ---- the deterministic synthetic series the probes run on -------------------------------------------------- */
@@ -518,6 +541,7 @@ export function overlayProblems(overlay, base) {
           else if (k === 'ma' && !MA_TYPES.includes(v)) out.push(`${where}: ma must be one of ${MA_TYPES}`);
           else if ((k === 'bars' || k === 'length') && !(Number.isInteger(v) && v >= 1)) out.push(`${where}: ${k} must be a whole number of at least 1`);
           else if (k === 'value' && !isN(v)) out.push(`${where}: value must be a number`);
+          else if ((k === 'categories' || k === 'changes') && typeof v !== 'string') out.push(`${where}: ${k} must be a comma list`);
         }
       }
       for (const d of spec.disabled_tests || []) if (!TEST_FORMS[d.form] || typeof d.reason !== 'string' || !d.reason) out.push(`overlay ${r.id}.${o}: a disabled test needs a known form and a reason`);
@@ -859,8 +883,14 @@ export async function build({ against = null } = {}) {
     const outputs = r.outputs.map(o => {
       const to = ti.outs.find(x => x.k === o), u = units[o], spec = ov.outputs[o];
       const field = u.comparable_with === 'close' ? B.C : u.comparable_with === 'volume' ? B.V : null;
+      if (to?.categories !== undefined) { const bad = categoryProblems(to.categories, `indRegistry ${r.id}.${o}`); if (bad.length) throw new Error(bad.join('; ')) }
       for (const t of spec.tests || []) {
         const need = TEST_FORMS[t.form].needs;
+        if (need === 'categories') {
+          if (!to?.categories) throw new Error(`overlay ${r.id}.${o}: ${t.form} needs an output with categories (indRegistry outs[].categories)`);
+          const bad = Object.entries(t.defaults || {}).flatMap(([k, v]) => categoryDefaultProblems(k, v, to.categories, `overlay ${r.id}.${o} ${t.form}`));
+          if (bad.length) throw new Error(bad.join('; '));
+        }
         if (need === 'close' && u.comparable_with !== 'close') throw new Error(`overlay ${r.id}.${o}: ${t.form} needs a price level (the scaling probe finds ${u.unit})`);
         if (need === 'level' && !u.comparable_with) throw new Error(`overlay ${r.id}.${o}: ${t.form} needs a level comparable with a bar field (the scaling probe finds ${u.unit})`);
         if (need === 'band' && !(['upper', 'lower'].every(b => units[b]?.comparable_with === 'close') || ['upper1', 'lower1'].every(b => units[b]?.comparable_with === 'close')))
@@ -868,6 +898,7 @@ export async function build({ against = null } = {}) {
       }
       return {
         key: o, label: to?.label ?? null, display_unit: ti.unit ?? null,
+        ...(to?.categories ? { categories: to.categories.map(({ value, key, label }) => ({ value, key, label })) } : {}),
         unit: u.unit, level_comparable: u.comparable_with !== null, comparable_with: u.comparable_with,
         price_compare_lag: field ? compareLag(field, atProbe[o]) : { gt: 0, lt: 0 },
         history_class: historyClass(full[o], cutOut[o], PROBE.cut_at, hasAnchor),

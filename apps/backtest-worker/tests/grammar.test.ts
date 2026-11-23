@@ -22,6 +22,7 @@ const IX = (() => { const t = synth('IHSG', 3, 420, '2024-06-03'); return { ...t
 const A = synth('GA01', 701, 420, '2024-06-03');
 const rsi = { kind: 'indicator', indicator: 'I13', output: 'rsi', params: {} };
 const close = { kind: 'price', field: 'close' };
+const kamaState = { kind: 'indicator', indicator: 'I58', output: 'color_state', params: {} };
 const TESTS: Record<string, unknown> = {
   value_between: { kind: 'value', metric: rsi, op: 'between', value: 40, value2: 60 },
   state_cross_line: { kind: 'state', lhs: close, op: 'gt', rhs: { kind: 'indicator', indicator: 'I01', output: 'sma', params: {} } },
@@ -32,6 +33,10 @@ const TESTS: Record<string, unknown> = {
   value_transform: { kind: 'value', metric: { kind: 'transform', fn: 'zscore', of: close, args: { length: 20 } }, op: 'gt', value: 0.5 },
   value_vs_index: { kind: 'value', metric: { kind: 'transform', fn: 'vs_index', of: close, args: {} }, op: 'gt', value: 0 },
   window_at_least: { kind: 'window', mode: 'at_least', length: 10, count: 3, test: { kind: 'value', metric: rsi, op: 'gt', value: 55 } },
+  // the category forms (EXEC-PINE-INDICATORS, Alpha KAMA's colour; a lab indicator, which the worker computes)
+  category_state: { kind: 'value', metric: { kind: 'transform', fn: 'in_categories', of: kamaState, args: { categories: 'yellow,yellow_green,green' } }, op: 'gt', value: 0.5 },
+  category_change_within: { kind: 'window', mode: 'ever', length: 10, test: { kind: 'value', metric: { kind: 'transform', fn: 'category_change', of: kamaState,
+    args: { changes: 'red>orange,orange>yellow,yellow>yellow_green,yellow_green>green,green>yellow_green,yellow_green>yellow,yellow>orange,orange>red' } }, op: 'gt', value: 0.5 } },
 };
 const U = { ...UNIVERSE_DEFAULTS, price_min: null, adv20_min_idr: null } as Definition['universe'];
 const calcOf = (t = A) => new Calc(t.bars as never, undefined, { ticker: t.ticker, dates: t.dates, index: { dates: IX.dates, bars: IX.bars as never } });

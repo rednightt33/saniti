@@ -470,10 +470,17 @@ export type Shape = 'line' | 'band' | 'dir' | 'osc' | 'pair' | 'adx' | 'vol' | '
     event_value           EVENT output crosses a value
     event_output          EVENT output crosses another output of the same instance (with_output)
     event_instance        EVENT output crosses the same output of a second instance (golden / death cross)
-    event_vs_ma           EVENT output crosses transform ma(output, ma, length) */
+    event_vs_ma           EVENT output crosses transform ma(output, ma, length)
+    state_category        VALUE transform in_categories(output, categories) gt 0.5: in one of the chosen categories
+    event_category_change WINDOW ever `within` over VALUE transform category_change(output, changes) gt 0.5: changed
+                          from one category to another (several from>to changes, OR) within N sessions
+    (the last two on an output with `categories`; EXEC-PINE-INDICATORS, the user 2026-11-23) */
 export type TestForm = 'value' | 'value_pct_distance' | 'value_band_position' | 'state_level' | 'state_value' | 'state_output'
   | 'state_instance' | 'state_rising' | 'state_vs_ma' | 'event_level' | 'event_value' | 'event_output' | 'event_instance'
-  | 'event_vs_ma';
+  | 'event_vs_ma' | 'state_category' | 'event_category_change';
+/** One category of an output coded in categories (indRegistry outs[].categories): the value its series takes, the key
+    the category transforms name (in_categories `categories`, category_change `changes`) and its label. */
+export interface OutputCategory { value: number; key: string; label: string }
 export type TestOp = 'gt' | 'lt' | 'between' | 'crosses_above' | 'crosses_below';
 /** One allowed test form of an output: ops restricts the operators to the prototype's (report 6.9.1, kept 1:1);
     labels: the prototype's card label per operator where it has one; defaults: the value or the transform arguments
@@ -509,6 +516,7 @@ export interface CatalogOutput {
   disabled_tests: DisabledTestForm[];           // additive: forms shown disabled with a reason (6.9.1 cum rows)
   history_class: HistoryClass;                  // additive: per output (6.8 cut probe "for all 76 outputs")
   first_valid_bar: number | null;               // additive: at the start configuration, the registry defaults except I43 at Week (6.8 "first_valid_bar per output")
+  categories?: OutputCategory[];                // additive: an output coded in categories (state_category, event_category_change)
 }
 export interface CatalogIndicator {
   id: string; key: string; name: string; category: string; synonyms: string[]; formula_version: string;

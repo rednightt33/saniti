@@ -35,7 +35,7 @@ export const NO_INTRADAY = 'No data yet: intraday bars are not in the market dat
 
 /* ---- the rule chosen per indicator before adding (the reference's RULE); defaults from the catalog --------------- */
 type Params = Record<string, ParamValue>;
-export interface Rule { opt: string; value: number | ''; value2: number | ''; within: number | ''; params: Params; second?: Params; op?: OpState }
+export interface Rule { opt: string; value: number | ''; value2: number | ''; within: number | ''; params: Params; second?: Params; op?: OpState; pick?: string }
 /** the condition select's choice that opens the universal operators (operators.ts; P3): the row's test is then the
     operator's, set in the Customize panel */
 export const OP_OPT = '__op';
@@ -58,7 +58,7 @@ export function setOpt(e: Entry, opt: string) {
   const r = ruleOf(e);
   if (opt === OP_OPT) { if (offersOperators(e.ops, e)) { r.op ??= defaultOp(e.ops!, e, undefined, r.params); r.opt = OP_OPT } return }
   delete r.op;
-  if (r.opt !== opt) delete r.second;             // the second line's defaults belong to the condition (its form's defaults)
+  if (r.opt !== opt) { delete r.second; delete r.pick }   // the second line's defaults and a category choice belong to the condition
   r.opt = opt;
   const o = e.opts.find(x => x.key === opt);
   if (o?.value === 'input' && r.value === '') r.value = e.def.value;
@@ -72,6 +72,7 @@ const withinHint = (e: Entry, params: Params) => e.flow ? depthHint(flowBudget(e
 /** the card this rule adds (fresh id among the page's cards) */
 export function cardOfRule(e: Entry, r = ruleOf(e)): Card {
   return newCard(e, S.cards.map(x => x.id), { opt:r.op ? e.def.opt : r.opt, value:r.value, value2:r.value2, within:r.within, params:{ ...r.params } as Card['params'],
+    ...(r.pick !== undefined && !r.op ? { pick:r.pick } : {}),
     ...(r.second && !r.op ? { second:{ ...r.second } as Card['second'] } : {}), ...(r.op ? { op:r.op } : {}) });
 }
 /** the condition reads two lines of the indicator, the second with its own parameters (as the card shows "2nd") */
@@ -253,6 +254,9 @@ function boxesOf(e: Entry, i: number): Box[] {
   for (const p of e.params) out.push({ name:p.label || p.key, control:paramControl(e, p, i, c.params[p.key], p.default, false, er[`p.${p.key}`]), unit:'', def:optionText(p, p.default), changed:String(c.params[p.key]) !== String(p.default), thr:false, group:p.type === 'multi' });
   if (d2) for (const p of e.params) out.push({ name:`2nd ${p.label || p.key}`, control:paramControl(e, p, i, c.second[p.key], d2[p.key], true, er[`p2.${p.key}`]), unit:'', def:optionText(p, d2[p.key]), changed:String(c.second[p.key]) !== String(d2[p.key]), thr:false });
   if (r.op && e.ops) { out.push(...opBoxes(e, r.op, i, er, c.params as Params)); return out }
+  // a category form's choice (EXEC-PINE-INDICATORS), a checkbox list as a flow list is
+  if (o?.pick) out.push({ name:o.pick.label || o.pick.key, control:flowControlHtml(o.pick, c.pick, `data-af="pick" data-ai="${i}"`, `${o.pick.label || o.pick.key} of ${e.label}`, er.pick || '', !!er.pick)!,
+    unit:'', def:optionText(o.pick, o.pick.default), changed:String(c.pick ?? '') !== String(o.pick.default ?? ''), thr:true, group:true });
   for (const l of fieldsOf(o)) {
     const v = r[l.f], d = fdef(e, l.f);
     const hint = l.f === 'within' ? withinHint(e, c.params as Params) : '';
@@ -616,6 +620,7 @@ function onField(e: Event) {
   if (setParam(el) || setOpField(el)) { drawRow(Number(el.dataset.ai)); return }
   if (!f || !it?.entry || it.kind !== 'ind') return;
   if (f === 'opt') setOpt(it.entry, el.value);
+  else if (f === 'pick') { const o = optOf(it.entry, cardOfRule(it.entry)); if (o?.pick) ruleOf(it.entry).pick = String(paramValue(o.pick, el)) }
   else { const r = ruleOf(it.entry); (r as unknown as Record<string, number | ''>)[f] = el.value.trim() === '' ? '' : Number(el.value) }
   // an operator is set in the Customize panel: it opens at once (the header's box is that panel already)
   if (f === 'opt' && el.value === OP_OPT && ruleOf(it.entry).op && Number(el.dataset.ai) !== HOST) { setPop(Number(el.dataset.ai)); return }
@@ -624,7 +629,7 @@ function onField(e: Event) {
 function onInput(e: Event) {
   const el = e.target as HTMLInputElement, f = el.dataset.af, it = itemAt(el.dataset.ai);
   if (el.tagName === 'INPUT' && (setParam(el) || setOpField(el))) return;
-  if (!f || f === 'opt' || !it?.entry) return;
+  if (!f || f === 'opt' || f === 'pick' || !it?.entry) return;
   const r = ruleOf(it.entry); (r as unknown as Record<string, number | ''>)[f] = el.value.trim() === '' ? '' : Number(el.value);
 }
 /** The open Customize panel of row `i` in the middle of the screen (user 2026-11-08: "muncul di center", "bisa dibesarkan,

@@ -553,6 +553,46 @@
       "interpretation": "How far today's value is below its N-session high (0 at the high) or above its N-session low (0 at the low).",
       "misuse": "Today is included, so the distance to the high is never above 0; percent needs a positive extreme.",
       "evidence": "verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), operator 14"
+    },
+    {
+      "fn": "in_categories",
+      "label": "In one of the chosen categories",
+      "args": [],
+      "ref_args": [],
+      "category_args": [
+        {
+          "key": "categories",
+          "label": "Categories",
+          "kind": "set"
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "formula": "1 on a bar where the output's value is the value of one of the chosen categories (a comma list of keys of that output's categories in the registry), else 0; null where the output is missing",
+      "interpretation": "Whether an output coded in categories (Alpha KAMA's colour) is in one of the chosen categories on the session, for example green or yellow-green.",
+      "misuse": "Only on an output with categories (the catalog lists them under the output); any other series is refused.",
+      "evidence": "EXEC-PINE-INDICATORS, the user 2026-11-23 (Alpha KAMA 1a: one of the 5 colour states, more than one may be chosen)"
+    },
+    {
+      "fn": "category_change",
+      "label": "Changed from one category to another",
+      "args": [],
+      "ref_args": [],
+      "category_args": [
+        {
+          "key": "changes",
+          "label": "Changes",
+          "kind": "changes"
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "formula": "1 on a bar i where the output was the from category on bar i - 1 and is the to category on bar i, for one of the chosen changes (a comma list of from>to keys), else 0; null where either bar is missing",
+      "interpretation": "A change of category on the session, several changes joined by OR (yellow-green to green, or yellow to green); in a window (ever in the last N sessions), such a change within N sessions.",
+      "misuse": "Only a change from the session before to the session itself (directly), not one spread over several sessions.",
+      "evidence": "EXEC-PINE-INDICATORS, the user 2026-11-23 (Alpha KAMA 2a: yesterday A, today B; several pairs joined by OR)"
     }
   ],
   "metrics": [

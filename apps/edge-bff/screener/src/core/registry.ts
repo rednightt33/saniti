@@ -12,7 +12,7 @@ import { canonicalJson } from '../../../backtest/src/core/hash.ts';
 import { CANDLES } from '../../../backtest/src/core/candles.ts';
 import type {
   CatalogIndicator, CatalogOutput, CatalogParam, CostClass, DefaultTest, DisabledTestForm, HistoryClass, ParamMap,
-  Shape, TestFormSpec,
+  OutputCategory, Shape, TestFormSpec,
 } from './contract.ts';
 import { ScreenerError } from './errors.ts';
 import doc from './screener-registry.json' with { type: 'json' };
@@ -49,6 +49,9 @@ export interface ScreenerOutput {
       configuration; [] when the option leaves the output without any value (I43 upper1 / lower1 at bands_mode None). */
   inputs_by_source: Record<string, Record<string, string[]>>;
   tests: TestFormSpec[]; disabled_tests: DisabledTestForm[];
+  /** the categories of an output coded in them (indRegistry outs[].categories; EXEC-PINE-INDICATORS): the values its
+      series takes, each with a key the category transforms name and a label */
+  categories?: OutputCategory[];
 }
 export interface OracleRow { output: string; params: ParamMap; table: string; column?: string; expr?: string; columns?: string[] }
 export interface ScreenerIndicator {
@@ -339,6 +342,7 @@ export function catalogIndicator(ind: ScreenerIndicator, opts: ParamOptions): Ca
     key: o.key, shape: ind.overlay.shape, tests: o.tests, unit: o.unit, level_comparable: o.level_comparable,
     price_compare_lag: o.price_compare_lag, inputs_by_source: o.inputs_by_source, label: o.label, display_unit: o.display_unit,
     comparable_with: o.comparable_with, disabled_tests: o.disabled_tests, history_class: o.history_class, first_valid_bar: o.first_valid_bar,
+    ...(o.categories ? { categories: o.categories } : {}),
   }));
   return {
     id: ind.id, key: ind.key, name: ind.name, category: ind.category, synonyms: ind.overlay.synonyms,

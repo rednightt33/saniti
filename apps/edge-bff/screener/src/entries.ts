@@ -31,6 +31,10 @@ export interface Opt {
   unit: string | null;         // unit of the value fields
   defaults: Record<string, ParamValue>;
   disabled?: string;           // a form shown disabled with its reason (raw cumulative levels)
+  /** a category form's choice (state_category: the categories; event_category_change: the from -> to changes), a list
+      of the output's categories (catalog outputs[].categories) the card keeps as Card.pick and sends as the transform's
+      argument (EXEC-PINE-INDICATORS) */
+  pick?: EntryParam;
 }
 export interface Entry {
   key: string;                 // indicator id ('I13') or metric id
@@ -143,6 +147,8 @@ function optLabel(ind: CatalogIndicator, o: CatalogOutput, spec: TestFormSpec, o
     case 'state_rising': return `${s} ${up ? 'rising' : 'falling'} (vs ${d.bars ?? 5} sessions ago)`;
     case 'state_vs_ma': return `${up ? 'Above' : 'Below'} its ${d.length ?? 20}-session ${d.ma ?? 'EMA'}`;
     case 'event_vs_ma': return `${OPLABEL[op] === 'crosses above' ? 'Crosses above' : 'Crosses below'} its ${d.length ?? 20}-session ${d.ma ?? 'EMA'}`;
+    case 'state_category': return `${out} is one of`;
+    case 'event_category_change': return `${out} changed`;
   }
   return cap(OPLABEL[op] || op);
 }
@@ -160,6 +166,19 @@ function cardDefault(dt: { value?: number; value2?: number; within?: number } | 
   return { opt:o?.key || '', value:v(dt?.value) ?? 0, value2:v(dt?.value2) ?? '', within:dt?.within ?? 5 };
 }
 
+/** The choice of a category form, derived from the output's categories (EXEC-PINE-INDICATORS, the user 2026-11-23): the
+    categories themselves (state_category), or every change from one category to another, from -> to (event_category_
+    change); a 'multi' list the page edits as the flow lists are edited, its value the keys joined by LIST_SEP. */
+export function categoryPick(o: CatalogOutput, spec: TestFormSpec): EntryParam | undefined {
+  const cats = o.categories;
+  if (!cats?.length || (spec.form !== 'state_category' && spec.form !== 'event_category_change')) return undefined;
+  const set = spec.form === 'state_category';
+  const options = set ? cats.map(c => c.key) : cats.flatMap(a => cats.filter(b => b.key !== a.key).map(b => `${a.key}>${b.key}`));
+  const label = (k: string) => set ? cats.find(c => c.key === k)!.label : k.split('>').map(x => cats.find(c => c.key === x)!.label).join(' → ');
+  return { key:set ? 'categories' : 'changes', label:set ? 'Categories' : 'Changes (from → to)', type:'multi', default:String(spec.defaults?.[set ? 'categories' : 'changes'] ?? ''),
+    exclusive_min:false, integer:false, options, option_labels:Object.fromEntries(options.map(k => [k, label(k)])) };
+}
+
 function indicatorEntry(ind: CatalogIndicator, indicators: readonly CatalogIndicator[] = []): Entry {
   const opts: Opt[] = [];
   const valueOuts = ind.outputs.filter(o => o.tests.some(t => t.form === 'value' || t.form === 'event_value')).length;
@@ -173,6 +192,7 @@ function indicatorEntry(ind: CatalogIndicator, indicators: readonly CatalogIndic
         value:!valued ? 'none' : (spec.form === 'state_value' || spec.form === 'event_value') && (labelled || spec.defaults?.value != null) ? 'fixed' : 'input',
         between:op === 'between', within:kind === 'event',
         unit:PCT_FORMS.includes(spec.form) ? '%' : o.unit || null, defaults:spec.defaults || {},
+        ...(categoryPick(o, spec) ? { pick:categoryPick(o, spec) } : {}),
       });
     }
     for (const d of o.disabled_tests || []) for (const op of ['gt', 'lt'] as TestOp[])

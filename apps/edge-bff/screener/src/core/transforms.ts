@@ -98,6 +98,21 @@ export const rollingMin = (x: In, n: number): Series => rollingExtreme(x, n, fal
 
 /** rising_run(x): the number of consecutive bars ending at i with x[t] > x[t - 1]; 0 when x[i] <= x[i - 1]; null when
     x[i] or x[i - 1] is missing. The legacy MACD "hup" is STATE rising_run(histogram) gt 2 (report 6.9.1). */
+/** in_categories(x, values): 1 where x is one of the values (the chosen categories' values), else 0; null where x is
+    missing (EXEC-PINE-INDICATORS, Alpha KAMA's colour). */
+export function inCategories(x: In, values: ReadonlySet<number>): Series {
+  const n = x.length, o = nul(n);
+  for (let i = 0; i < n; i++) { const v = at(x, i); if (v !== null) o[i] = values.has(v) ? 1 : 0 }
+  return o;
+}
+/** category_change(x, changes): 1 on bar i where `${x[i-1]}>${x[i]}` is one of the changes (category values), else 0;
+    null on bar 0 and where either bar is missing. */
+export function categoryChange(x: In, changes: ReadonlySet<string>): Series {
+  const n = x.length, o = nul(n);
+  for (let i = 1; i < n; i++) { const a = at(x, i - 1), b = at(x, i); if (a !== null && b !== null) o[i] = changes.has(`${a}>${b}`) ? 1 : 0 }
+  return o;
+}
+
 export function risingRun(x: In): Series {
   const n = x.length, o = nul(n);
   for (let i = 1; i < n; i++) {
@@ -286,7 +301,35 @@ const NO_LAG = Object.freeze({ gt: 0, lt: 0 }) as { gt: 0 | 1; lt: 0 | 1 };
 
 /** The transform functions this module computes (catalog.ts catalogProblems checks the catalog lists exactly these). */
 export const IMPLEMENTED_TRANSFORMS: readonly string[] = ['pct_distance', 'band_position', 'lag', 'change', 'rolling_max', 'rolling_min', 'rising_run', 'ma', 'ratio', 'vs_index',
-  'vs_average', 'percentile', 'zscore', 'change_pct', 'relative', 'slope', 'acceleration', 'distance_to_extreme'];
+  'vs_average', 'percentile', 'zscore', 'change_pct', 'relative', 'slope', 'acceleration', 'distance_to_extreme', 'in_categories', 'category_change'];
+
+/** A category argument of in_categories / category_change (catalog category_args), checked against the categories of
+    the transform's `of` (an indicator output the registry gives categories: indRegistry outs[].categories through the
+    generated registry), never against a list in code. `set`: a comma list of category keys; `changes`: a comma list of
+    from>to keys, two different categories each. Returns the canonical text (the registry's order, repeats dropped, so
+    the same choice hashes the same) and the values the series is tested against. A refusal names the field, the rule and
+    the keys it may hold, with a right and a wrong example. */
+export function categoryArg(fn: string, kind: 'set' | 'changes', v: unknown, of: ResolvedSeries, field: string, ofField: string): { text: string; values: Set<number> | Set<string> } {
+  const ofRef = of.ref as IndicatorRef, out = of.kind === 'indicator' ? screenerOutput(screenerIndicator(ofRef.indicator), ofRef.output) : null;
+  const cats = out?.categories;
+  if (!cats?.length) throw new ScreenerError('INVALID_CONDITION', `${ofField}: ${fn} reads an indicator output coded in categories (the catalog lists its categories under the output); ${of.label} has none.`, ofField);
+  const keys = cats.map(c => c.key), idx = new Map(keys.map((k, i) => [k, i] as const));
+  const items = typeof v === 'string' ? v.split(',').map(x => x.trim()).filter(Boolean) : [];
+  const one = kind === 'set' ? keys[keys.length - 1] : `${keys[0]}>${keys[1]}`, two = kind === 'set' ? `${keys[0]},${keys[keys.length - 1]}` : `${keys[0]}>${keys[1]},${keys[1]}>${keys[2] ?? keys[0]}`;
+  const ex = `right: "${one}" or "${two}"; wrong: "${kind === 'set' ? 'purple' : `${keys[0]}>${keys[0]}`}"`;
+  if (!items.length) throw new ScreenerError('INVALID_CONDITION', `${field}: choose at least one ${kind === 'set' ? 'category' : 'change from>to'} of ${keys.join(', ')} (${ex}).`, field, { allowed: keys });
+  if (kind === 'set') {
+    const bad = items.filter(x => !idx.has(x));
+    if (bad.length) throw new ScreenerError('INVALID_CONDITION', `${field}: ${bad.join(', ')} ${bad.length > 1 ? 'are not categories' : 'is not a category'} of ${of.label}; use ${keys.join(', ')} (${ex}).`, field, { allowed: keys });
+    const chosen = keys.filter(k => items.includes(k));
+    return { text: chosen.join(','), values: new Set(chosen.map(k => cats[idx.get(k)!].value)) };
+  }
+  const pairs = items.map(x => x.split('>').map(y => y.trim()));
+  const bad = items.filter((_, i) => { const p = pairs[i]; return p.length !== 2 || !idx.has(p[0]) || !idx.has(p[1]) || p[0] === p[1] });
+  if (bad.length) throw new ScreenerError('INVALID_CONDITION', `${field}: ${bad.join(', ')} ${bad.length > 1 ? 'are not changes' : 'is not a change'} from one category to another of ${keys.join(', ')}, written from>to (${ex}).`, field, { allowed: keys });
+  const chosen = [...new Map(pairs.map(p => [`${p[0]}>${p[1]}`, p] as const)).values()].sort((a, b) => idx.get(a[0])! - idx.get(b[0])! || idx.get(a[1])! - idx.get(b[1])!);
+  return { text: chosen.map(p => `${p[0]}>${p[1]}`).join(','), values: new Set(chosen.map(p => `${cats[idx.get(p[0])!].value}>${cats[idx.get(p[1])!].value}`)) };
+}
 
 /** The transform reference resolved to a series (metrics.ts ResolvedSeries): fn and args checked against
     screener-metrics.json (unknown fn -> INVALID_CONDITION with the allowed ids; a range -> PARAM_OUT_OF_RANGE), `of`
@@ -309,11 +352,12 @@ export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOpt
     none. */
 function operatorSessions(fn: string, args: Record<string, unknown>): number {
   const n = typeof args.length === 'number' ? args.length : typeof args.bars === 'number' ? args.bars : 0;
-  return fn === 'acceleration' ? 2 * n : n;
+  return fn === 'acceleration' ? 2 * n : fn === 'category_change' ? 1 : n;
 }
 /** The operators whose value at a session reads only the N sessions before it, each exactly (no running sum, no
     recursion): a reader of their result at its last `reach` sessions reads their operand at its last reach + N. */
-const LOCAL = ['lag', 'change', 'change_pct', 'rolling_max', 'rolling_min', 'distance_to_extreme', 'slope', 'acceleration', 'relative', 'ratio', 'pct_distance'];
+const LOCAL = ['lag', 'change', 'change_pct', 'rolling_max', 'rolling_min', 'distance_to_extreme', 'slope', 'acceleration', 'relative', 'ratio', 'pct_distance',
+  'in_categories', 'category_change'];
 /** P5b cost (flowmetrics.ts resolveFlow's lazy anchored series): the reach of a transform's operands from the reach of
     its reader. undefined (not a screen) and null (the whole history) pass down; a local operator adds its N (2N for
     acceleration); a percentile or z-score adds its N only over a flow series itself (its readiness reads the operand's
@@ -350,8 +394,8 @@ function resolveTransformCore(ref: TransformRef, field: string, ctx0: ParamOptio
     throw new ScreenerError('INVALID_CONDITION', `${field}: transforms nest at most ${MAX_DEPTH} deep; simplify the reference.`, field);
   const spec = transformSpec(ref.fn, `${field}.fn`);
   if (ref.args !== undefined && !isObj(ref.args)) throw new ScreenerError('INVALID_CONDITION', `${field}.args must be an object.`, `${field}.args`);
-  const refKeys = spec.ref_args.map(a => a.key), given = (ref.args || {}) as Record<string, unknown>;
-  const scalar = resolveCatalogParams(spec.args, Object.fromEntries(Object.entries(given).filter(([k]) => !refKeys.includes(k))), `${field}.args`, refKeys);
+  const refKeys = spec.ref_args.map(a => a.key), catKeys = (spec.category_args ?? []).map(a => a.key), given = (ref.args || {}) as Record<string, unknown>;
+  const scalar = resolveCatalogParams(spec.args, Object.fromEntries(Object.entries(given).filter(([k]) => !refKeys.includes(k) && !catKeys.includes(k))), `${field}.args`, [...refKeys, ...catKeys]);
   // the operands are resolved under the reach this operator gives them (P5b; operandReach)
   const reach = operandReach(spec.fn, scalar, ctx0.flowReach, isObj(ref.of) ? ref.of.kind : null);
   const ctx = reach === ctx0.flowReach ? ctx0 : { ...ctx0, flowReach: reach };
@@ -371,9 +415,11 @@ function resolveTransformCore(ref: TransformRef, field: string, ctx0: ParamOptio
   for (const k of refKeys) operatorTakes(spec.fn, refArgs[k], `${field}.args.${k}`);
   const args: Record<string, unknown> = { ...scalar };
   for (const k of refKeys) args[k] = refArgs[k].ref;
+  const cat: Record<string, Set<number> | Set<string>> = {};
+  for (const a of spec.category_args ?? []) { const c = categoryArg(spec.fn, a.kind, given[a.key], of, `${field}.args.${a.key}`, `${field}.of`); args[a.key] = c.text; cat[a.key] = c.values }
   const norm = { kind: 'transform', fn: spec.fn, of: of.ref, args } as unknown as TransformRef;
   const base = { kind: 'transform' as const, key: canonicalJson(norm), ref: norm as MetricRef };
-  const label = `${spec.fn}(${[of.label, ...Object.entries(scalar).map(([, v]) => String(v)), ...refKeys.map(k => refArgs[k].label)].join(', ')})`;
+  const label = `${spec.fn}(${[of.label, ...Object.entries(scalar).map(([, v]) => String(v)), ...refKeys.map(k => refArgs[k].label), ...catKeys.map(k => String(args[k]))].join(', ')})`;
   const num = (k: string) => scalar[k] as number;
   switch (spec.fn) {
     case 'pct_distance':
@@ -448,6 +494,12 @@ function resolveTransformCore(ref: TransformRef, field: string, ctx0: ParamOptio
     case 'acceleration':
       return { ...base, label, unit: differenceUnit(of), historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
         full: t => acceleration(of.full(t), num('length')) };
+    case 'in_categories':
+      return { ...base, label, unit: 'dimensionless', historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG, integer: true,
+        full: t => inCategories(of.full(t), cat.categories as Set<number>) };
+    case 'category_change':
+      return { ...base, label, unit: 'dimensionless', historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG, integer: true,
+        full: t => categoryChange(of.full(t), cat.changes as Set<string>) };
     case 'distance_to_extreme': {
       const extreme = scalar.extreme as 'highest' | 'lowest', form = scalar.form as 'absolute' | 'percent';
       return { ...base, label, unit: form === 'percent' ? 'percent' : differenceUnit(of), historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,

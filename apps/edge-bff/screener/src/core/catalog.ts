@@ -34,6 +34,10 @@ export interface TransformDefinition {
   fn: string; label: string;
   args: MetricParam[];
   ref_args: { key: string; label: string }[];
+  /** the arguments that name categories of the transform's `of` (EXEC-PINE-INDICATORS, the user 2026-11-23): a comma
+      list of category keys (`set`) or of from>to changes (`changes`), checked against that output's categories
+      (indRegistry outs[].categories, carried by the generated registry); transforms.ts categoryArg */
+  category_args?: { key: string; label: string; kind: 'set' | 'changes' }[];
   tests: TestKind[];
   formula: string; interpretation: string; misuse: string; evidence: string;
   compare_lag?: Partial<Record<PriceField, { gt: 0 | 1; lt: 0 | 1 }>>;
@@ -280,6 +284,8 @@ export function catalogProblems(implemented?: { transforms: readonly string[]; p
   for (const t of c.transforms) {
     if (fns.has(t.fn)) out.push(`transform ${t.fn}: repeated`); fns.add(t.fn);
     out.push(...paramProblems(`transform ${t.fn}`, t.args));
+    for (const a of t.category_args ?? []) if (!a || typeof a.key !== 'string' || !a.key || typeof a.label !== 'string' || !a.label || !['set', 'changes'].includes(a.kind) || t.args.some(x => x.key === a.key))
+      out.push(`transform ${t.fn}: a category argument needs a key of its own, a label and a kind (set or changes)`);
     if (!t.tests.length || t.tests.some(k => !TEST_KINDS.includes(k))) out.push(`transform ${t.fn}: tests must be a non-empty subset of ${TEST_KINDS}`);
     for (const k of ['formula', 'interpretation', 'misuse', 'evidence'] as const) if (!t[k]) out.push(`transform ${t.fn}: ${k} is required`);
   }

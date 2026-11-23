@@ -17,6 +17,7 @@ export interface Card {
   opt: string;                 // Opt.key
   value: number | ''; value2: number | ''; within: number | '';
   second: ParamMap;            // the second instance's parameters (state_instance / event_instance)
+  pick?: string;               // a category form's choice (Opt.pick): category keys or from>to changes joined by LIST_SEP
   label?: string;
   metric?: { item_id: string; name: string; params: ParamMap };   // a My metric link (prototype c.m / mName / mp)
   raw?: Test;                  // a raw card's wire test
@@ -50,6 +51,7 @@ export function newCard(e: Entry, taken: Iterable<string>, over: Partial<Card> =
     id:newCardId(taken), on:true, entry:e.key, params:{ ...defaultParams(e), ...(over.params || {}) }, opt:opt?.key || '',
     value:over.value ?? e.def.value, value2:over.value2 ?? e.def.value2, within:over.within ?? e.def.within,
     second:{ ...defaultParams(e), ...(opt?.defaults ? pick(opt.defaults, e) : {}), ...(over.second || {}) },
+    ...(opt?.pick ? { pick:over.pick ?? String(opt.pick.default ?? '') } : {}),
     ...(over.metric ? { metric:over.metric } : {}), ...(over.op ? { op:{ ...over.op, margs:{ ...over.op.margs } } } : {}),
   };
 }
@@ -140,6 +142,8 @@ export function cardErrors(e: Entry | undefined, c: Card, withinMax = 130): Reco
   const o = optOf(e, c);
   if (!o) { out.op = 'Pick a condition.'; return out }
   if (o.disabled) out.op = o.disabled;
+  // a category form needs at least one choice (the worker refuses an empty one: transforms.ts categoryArg)
+  if (o.pick && !listOf(c.pick).length) out.pick = o.form === 'state_category' ? 'Choose at least one category.' : 'Choose at least one change (from → to).';
   if (e.flow) {
     // the line the condition reads is drawn at this setup, and its kind still takes the test (a kind may follow a
     // parameter: OPERATORS.md section 4); a cross within the broker sessions held (K1; what the setup leaves of them is
@@ -183,6 +187,13 @@ export function toWire(e: Entry | undefined, c: Card): ConditionDef {
     return { ...base, test:{ kind:'event', within, signal:{ lhs:ref, op:o.op as 'crosses_above' | 'crosses_below', rhs:{ value:v } } } };
   }
   const out = o.output!, me = ind(e, c.params, out), field = (e.indicator!.outputs.find(x => x.key === out)?.comparable_with || 'close') as 'close' | 'volume';
+  // the category forms (EXEC-PINE-INDICATORS): VALUE in_categories(output) > 0.5; a change within N sessions is a window
+  // "ever" over VALUE category_change(output) > 0.5 (the session before to the session itself, OR over the changes)
+  if (o.pick && (o.form === 'state_category' || o.form === 'event_category_change')) {
+    const metric = { kind:'transform', fn:o.form === 'state_category' ? 'in_categories' : 'category_change', of:me, args:{ [o.pick.key]:c.pick ?? '' } } as MetricRef;
+    const vt: ValueTest = { kind:'value', metric, op:'gt', value:0.5 };
+    return { ...base, test:o.form === 'state_category' ? vt : { kind:'window', mode:'ever', length:within, test:vt } };
+  }
   const d = o.defaults || {};
   const fixed = Number(d.value ?? 0);
   let lhs: Side, rhs: Side;
@@ -296,6 +307,17 @@ function fromWireForm(cd: ConditionDef, entries: Map<string, Entry>): Card {
       within:typeof t.within === 'number' ? t.within : e.def.within, second:full(e), ...(cd.label ? { label:cd.label } : {}), ...extra };
   };
   const metricEntry = (r: any) => metricEntryOf(r, entries);
+  // a category form (toWire above): VALUE in_categories(output) > 0.5, or a window "ever" over VALUE category_change > 0.5
+  {
+    const inner = t?.kind === 'window' && t.mode === 'ever' ? t.test : t, m = inner?.kind === 'value' ? inner.metric : null;
+    if ((isTr(m, 'in_categories') || isTr(m, 'category_change')) && isInd(m.of)) {
+      const set = m.fn === 'in_categories', e = entries.get(m.of.indicator);
+      const o = e?.opts.find(x => x.form === (set ? 'state_category' : 'event_category_change') && x.output === m.of.output && !x.disabled);
+      if (!e || !o?.pick || set !== (t.kind === 'value') || inner.op !== 'gt' || inner.value !== 0.5) return raw();
+      return { id:cd.id, on:cd.enabled !== false, entry:e.key, params:full(e, m.of.params), opt:o.key, value:'', value2:'', within:set ? e.def.within : t.length,
+        second:full(e), pick:String(m.args?.[o.pick.key] ?? ''), ...(cd.label ? { label:cd.label } : {}) };
+    }
+  }
   /** the flow indicator a reference names (P5c), when it is one of the catalog's */
   const flowEntryOf = (r: any): Entry | undefined => { const e = r?.kind === 'flow' && typeof r.metric === 'string' ? entries.get(r.metric) : undefined; return e?.flow ? e : undefined };
   try {
@@ -383,6 +405,7 @@ export function condText(e: Entry | undefined, c: Card): string {
   const name = line ? `${base} · ${line}` : base;
   const u = displayUnit(o.unit), us = u === '%' || u === '×' ? u : u ? ' ' + u : '';
   const w = o.within ? ` · within ${vtxt(c.within)}d` : '';
+  if (o.pick) return `${name}: ${o.label} ${listOf(c.pick).length ? optionText(o.pick, c.pick) : '(none chosen)'}${w}`;
   if (o.value !== 'input') return `${name}: ${o.label}${w}`;
   if (o.between) return `${name} ${vtxt(c.value)}–${vtxt(c.value2)}${us}`;
   if (o.kind === 'event' || o.kind === 'state') return `${name} ${o.label.toLowerCase()} ${vtxt(c.value)}${us}${w}`;

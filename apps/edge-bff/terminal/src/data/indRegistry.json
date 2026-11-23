@@ -3991,7 +3991,34 @@
 "vis": false,
 "w": 1,
 "rule": "single_line",
-"cond": "The colour index in groups of 4: 0 red, 1 orange, 2 yellow, 3 yellow-green, 4 green."
+"cond": "The colour index in groups of 4: 0 red, 1 orange, 2 yellow, 3 yellow-green, 4 green.",
+"categories": [
+{
+"value": 0,
+"key": "red",
+"label": "Red"
+},
+{
+"value": 1,
+"key": "orange",
+"label": "Orange"
+},
+{
+"value": 2,
+"key": "yellow",
+"label": "Yellow"
+},
+{
+"value": 3,
+"key": "yellow_green",
+"label": "Yellow-green"
+},
+{
+"value": 4,
+"key": "green",
+"label": "Green"
+}
+]
 },
 {
 "k": "long",

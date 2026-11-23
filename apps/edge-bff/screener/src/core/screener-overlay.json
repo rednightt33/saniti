@@ -3578,12 +3578,27 @@
         "color_state": {
           "tests": [
             {
-              "form": "value",
+              "form": "state_category",
               "ops": [
-                "between"
+                "gt"
               ],
               "labels": {
-                "between": "Colour state between (0 red ... 4 green)"
+                "gt": "Colour is one of"
+              },
+              "defaults": {
+                "categories": "green"
+              }
+            },
+            {
+              "form": "event_category_change",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Colour changed (from → to)"
+              },
+              "defaults": {
+                "changes": "yellow_green>green"
               }
             }
           ]

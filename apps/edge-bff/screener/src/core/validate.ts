@@ -243,6 +243,13 @@ function valueForm(m: MetricRef, op: string, field: string, ctx: ValidateContext
     requireForm(out, ind.id, m.fn === 'pct_distance' ? 'value_pct_distance' : 'value_band_position', op, field);
     return;
   }
+  // the category transforms on an indicator output: the output must offer the form (EXEC-PINE-INDICATORS; the transform
+  // itself refuses an output without categories and a key that is not one, transforms.ts categoryArg)
+  if (m.kind === 'transform' && (m.fn === 'in_categories' || m.fn === 'category_change') && isObj(m.of) && (m.of as MetricRef).kind === 'indicator') {
+    const { ind, out } = indOut(m.of as { indicator: string; output: string });
+    requireForm(out, ind.id, m.fn === 'in_categories' ? 'state_category' : 'event_category_change', op, field);
+    return;
+  }
   // a pattern is a 0/1 signal tested on its own (metrics.ts notSeriesRefusal: Detected, Detected within N sessions, or a
   // window over Detected; in a universe filter, a condition instead)
   if (m.kind === 'pattern') throw notSeriesRefusal(m, field, { as: 'value' }, place, ctx.metrics);

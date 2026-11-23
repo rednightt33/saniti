@@ -115,6 +115,8 @@ function fields(c: Card): Field[] {
       out.push({ k: 'value', l: o.between ? 'From' : 'Value' + (o.unit ? ` (${o.unit})` : ''), t: 'num', v: c.sc.value, def: e.def.value, th: true });
       if (o.between) out.push({ k: 'value2', l: 'To', t: 'num', v: c.sc.value2, def: e.def.value2, th: true });
     }
+    // a category form's choice (EXEC-PINE-INDICATORS): the keys, or the from>to changes, written as the flow lists are
+    if (o?.pick) out.push({ k: 'pick', l: `${o.pick.label || o.pick.key} (${(o.pick.options || []).join(`${LIST_SEP} `)}; separated by ${LIST_SEP})`, t: 'text', v: c.sc.pick ?? '', def: o.pick.default, th: true });
     if (o?.within) out.push({ k: 'within', l: 'Within (sessions)', t: 'num', v: c.sc.within, def: e.def.within, min: 1, step: 1, th: true });
     if (c.sc.op && !o) out.push({ k: 'op.value', l: 'Value', t: 'num', v: c.sc.op.value, def: null, th: true });
     return out;
@@ -136,6 +138,7 @@ function setField(c: Card, k: string, v: string) {
   if (c.type === 'test') {
     const e = entryOf(c);
     if (k === 'value' || k === 'value2' || k === 'within') { (c.sc as unknown as Record<string, unknown>)[k] = v === '' ? '' : +v; return }
+    if (k === 'pick') { c.sc.pick = listOf(v.replace(/\s+/g, '')).join(LIST_SEP); return }
     if (k === 'op.value' && c.sc.op) { c.sc.op = { ...c.sc.op, value: v === '' ? '' : +v }; return }
     const p = e?.params.find(q => 's.' + q.key === k);
     if (!p) return;
@@ -156,7 +159,8 @@ function withChoice(c: Card, cs: string): Card {
   const next = cardFor(r, cs, c.id);
   next.on = c.on;
   if (next.type === 'reg' && c.type === 'reg') { next.p = { ...c.p }; if (next.rhs.t === 'val' && c.rhs.t === 'val') next.rhs = { t: 'val', v: c.rhs.v } }
-  if (next.type === 'test' && c.type === 'test' && cs !== OP_CHOICE) { next.sc = { ...c.sc, opt: cs } }
+  // a category choice belongs to its condition: the new one's default, never the old one's keys
+  if (next.type === 'test' && c.type === 'test' && cs !== OP_CHOICE) { const sc = { ...c.sc, opt: cs }; if (next.sc.pick !== undefined) sc.pick = next.sc.pick; else delete sc.pick; next.sc = sc }
   return next;
 }
 const replaceIn = (c: Card, next: Card) => { for (const L of [S.conds, S.exitConds]) { const k = L.indexOf(c); if (k >= 0) L[k] = next } };
