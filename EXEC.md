@@ -16732,8 +16732,8 @@ Order of the services (CONTRACT 17, rollback floors):
   admin, a refund is held for review), `reconcile()` (called by nothing yet), `POST /api/v1/hooks/payments/{test,midtrans}`
   registered with `signed` and off (404) unless `EDGE_PAYMENTS_PROVIDER` names the provider; `config.validate` refuses
   `midtrans` until its phase and `test` on the live site. Migration `20261123_001_edge_bff_payments.sql`
-  (`payment_orders`, `payment_events`, `subscriptions.provider` widened to `midtrans`; expand-only) written, **not
-  applied**: it is applied with the step-7 deploy, which needs the user's confirmation (AGENTS.md "Deploys");
+  (`payment_orders`, `payment_events`, `subscriptions.provider` widened to `midtrans`; expand-only) applied on dev
+  2026-11-23 05:32 UTC with the step-7 deploy (the user's "Yang pertama saya izinkan"; the beta on `59712547`);
   `EDGE_PAYMENTS_PROVIDER` stays unset. Tests `tests/test_payments.py` (12; two mutations red); the full edge-bff suite
   1226 passed. CONTRACT.md section 11 lists what waits.
   - Carried open part: **the Midtrans phase** (the Sandbox keys as Railway variables the user enters, Snap

@@ -1,5 +1,27 @@
 # Railway changelog
 
+## 2026-11-23 — The beta on `59712547`: step 7's payment shell, the lab item guard lifted, the test-out fixes (the user's order)
+
+- **The user's words:** "3. hasil workflow selesai --> fix it --> push to main." and "Catat sequence berikut. Yang
+  pertama saya izinkan. Setelah kamu push ke main, kamu akan mengerjakan bagian preview. [...]", "Oke, mulai."
+- **Commit `59712547`** on `main` (fast-forward from `ec739a06`): step 7 (the payment shell, routes off), the lab item
+  guard lifted per kind and L11 (ERRORS M548), the test-out fixes of items 1-3 (M549), the step 9 tests, the records.
+- **Order:**
+  1. **Migration `20261123_001`** on dev: DRYRUN 04:37 UTC, APPLY 05:32 UTC (DATABASE_CHANGELOG 2026-11-23).
+  2. **backtest-worker `9dcd5f64`** SUCCESS: CLI upload of `git archive b715b964` (its `Backtest look-ahead gate` run
+     45112793108 green; the worker tree equals `59712547`'s), `engine_version` `ecc16914a1ed19e3`, `registry_version`
+     `514dc3df60a25aff`.
+  3. **`main` `ec739a06` → `59712547`** (Wait for CI off): `edge-bff` `82d1ce37` and `screener-worker` `d3577693`
+     SUCCESS; market-ai-orc and telegram-monitor SKIPPED (no change in their paths). The beta's `/version` names
+     `59712547`; `/ready` 200 on both sites.
+- **Checks:** M340 0 EDGE jobs, 0 orc turns before each step; the lab probe (`lab-probe.svg`) 404 to a visitor on both
+  sites; the live site unchanged (`ec739a06`, the registration window open). CI of `59712547` read to its end (reported
+  if red).
+- **Shared:** both sites use the new workers: their engine versions changed (saved screens re-reviewed once); the
+  look-ahead gate's fixes; the price-line check before the registry (LLA-F4).
+- **Rollback:** the beta: redeploy `edge-bff` `e594bba8` (`ec739a06`); backtest-worker `df495720`; screener-worker
+  `4438dbb0`; the migration's own rollback block (comment) drops the two empty tables and narrows the CHECK.
+
 ## 2026-11-23 — Step 9: the registration window open on the live site for 24 hours (the user's go)
 
 - **The user's words:** "Buka jendela sekarang, 24 jam kedepan, UD6 setuju".

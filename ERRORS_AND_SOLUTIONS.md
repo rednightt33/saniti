@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M549 — The test-out of items 1-3 of 2026-11-23: the guide, the lab lift and the registration window (2026-11-23; found by the test-out `wf_4181198a-09f`; FIXED on the branch, `083dbc23`)
+### M549 — The test-out of items 1-3 of 2026-11-23: the guide, the lab lift and the registration window (2026-11-23; found by the test-out `wf_4181198a-09f`; FIXED in `083dbc23`, on the beta since 2026-11-23 (`59712547`))
 
 - **The test-out (three fresh agents at xhigh, the user's "Untuk workflow, pengecekan menggunakan Opus 5,5 xhigh"):**
   19 findings, 6 medium. The guide was followed cold from lab to released (CI's full edge-bff suite 1228 passed in the
@@ -8921,7 +8921,7 @@ in its staleness check.
   'Resend code' while the live site is closed; a lab candle pattern.
 - **Status:** FIXED on the branch, `083dbc23`; its test-out joins step 8 (EXEC UD23).
 
-### M548 — The lab item guard lifted; its dry run found the look-ahead gate passing a lab indicator without computing it (2026-11-23; found by the dry run; FIXED on the branch, `6ab63c15`)
+### M548 — The lab item guard lifted; its dry run found the look-ahead gate passing a lab indicator without computing it (2026-11-23; found by the dry run; FIXED in `6ab63c15`, on the beta since 2026-11-23 (`59712547`))
 
 - **The user (2026-11-23):** "Cabut tes penjaga lab".
 - **Lifted per kind** (`apps/edge-bff/tests/test_releases.py`, `LAB_ITEM_HELD_UNTIL` replaced by `LAB_KIND_HELD`): an
