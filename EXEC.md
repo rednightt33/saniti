@@ -17201,6 +17201,8 @@ dengan konfirmasi user per deploy.
   screener-worker `98a7bef5` (RAILWAY_CHANGELOG.md). Dicek di beta sebagai admin (Terminal, katalog dan tiga screen
   Screener, pratinjau sinyal Backtest) dan sebagai pengunjung di kedua situs (tidak terlihat). Belum: round trip layout
   CRIT-1 (butuh kode authenticator admin di situs live).
+- User 2026-11-23: "Lanjutkan indikator lainnya dulu baru push yo main all at once ya": catatan deploy pilot (`21e95866`)
+  dan enam indikator berikutnya tetap di branch; satu push ke `main` (dengan konfirmasi deploy) sesudah semuanya selesai.
 
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
