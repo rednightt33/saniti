@@ -47,9 +47,10 @@ function reachedJson(entries, edge = EDGE_BFF) {
   return [...out].sort();
 }
 
-const kindsOf = spec => (spec.lists ? spec.lists.map(([, kind]) => kind) : [spec.kind]);
+const kindsOf = spec => (spec.lists ? spec.lists.map(([, kind]) => kind) : spec.keyedParts ? [...new Set(spec.keyedParts.flatMap(([, kinds]) => kinds))] : [spec.kind]);
 /** The ids a registry holds in the parts its spec filters. */
 const heldIds = (spec, doc) => (spec.keyed ? Object.keys(doc[spec.keyed])
+  : spec.keyedParts ? spec.keyedParts.flatMap(([key]) => Object.keys(doc[key]))
   : spec.lists ? spec.lists.flatMap(([key]) => doc[key].map(e => e?.id)) : spec.list(doc).map(e => e?.id)).filter(x => typeof x === 'string');
 /** What a public build with no item released keeps of a registry that names an item of its own kinds. */
 function leftOver(spec, doc, items = ITEMS) {
@@ -73,6 +74,26 @@ describe('3f: the release filter covers every file a public entry reaches that c
       expect(reached, `${f}: no public entry reaches it any more; remove it from NAMES_NO_ITEM`).toContain(f);
       expect(typeof why === 'string' && why.length > 20, f).toBe(true);
     }
+  });
+
+  it('every JSON file under a page\'s src that names an item is covered by the filter (a page test reads the filtered view of each)', () => {
+    // step 3 of 2026-11-23 (the lab Flow dry run): flow-kinds.json and screener-overlay.json name items by id; a page test
+    // read the filtered registries beside them whole and disagreed. A new file of item ids is covered from its first commit.
+    const ids = new Set(ITEMS.map(it => it.id));
+    const walk = (dir, out = []) => {
+      for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, f.name);
+        if (f.isDirectory()) { if (!['node_modules', 'dist', 'dist-lab', 'tests'].includes(f.name)) walk(p, out) }
+        else if (f.name.endsWith('.json')) out.push(p);
+      }
+      return out;
+    };
+    const naming = pages().flatMap(page => fs.existsSync(path.join(EDGE_BFF, page, 'src')) ? walk(path.join(EDGE_BFF, page, 'src')) : [])
+      .map(f => path.relative(EDGE_BFF, f))
+      .filter(f => { try { return namedIds(JSON.parse(fs.readFileSync(path.join(EDGE_BFF, f), 'utf8')), ids).size > 0 } catch { return false } });
+    expect(naming).toEqual(expect.arrayContaining(['screener/src/core/flow-kinds.json', 'terminal/src/data/flowRegistry.json']));
+    expect(naming.filter(f => !COVERED.has(f) && !NAMES_NO_ITEM[f]),
+      'add each to shared/release-filter.mjs REGISTRIES (keyedParts for an object keyed by id)').toEqual([]);
   });
 
   it.each(REGISTRIES.map(spec => [spec.file, spec]))('%s, filtered with nothing released, names no item of its kinds', (_, spec) => {

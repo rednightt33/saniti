@@ -74,8 +74,10 @@ of 2026-11-22 (RAILWAY_CHANGELOG.md "The round's close": the workers' refusals n
 load the lab formulas, the live site's Terminal parks a saved entry its build lacks and cuts the stored examples to its
 release file), and the user lifted the item guard on 2026-11-23 ("Cabut tes penjaga lab"). The guards that stay:
 
-- `tests/test_releases.py` `LAB_KIND_HELD`: a Flow indicator may not be lab (its formula has no lab registration point:
-  `calc/flow.ts` keeps its map unexported and keys each formula by its id);
+- `tests/test_releases.py` `LAB_KIND_HELD`: a candle pattern may not be lab (not dry-run). A Flow indicator may, since
+  2026-11-23: its formula is registered from the lab module (`calc/flow.ts` `registerFlow`, `flowKit`;
+  `INDICATOR_BETA_TO_LIVE.md` "A lab Flow indicator"). The reason recorded before ("its map is not exported") was wrong:
+  `FLOW` was exported; the gap was a wrapped entry point and the shared building blocks;
 - the standing rules: an item no worker gates by id is never lab, nor an item the shipped code names or computes by its
   key (CRIT-3), and a released entry's text names no lab item;
 - `tests/test_live_switch.py` `LAB_TAB_HELD_UNTIL`: a lab tab's rail entry, route, frame wrapper and words are in the
@@ -170,8 +172,10 @@ How a new piece of work enters:
     at the release.
   - Releasing it moves the formula into `calc/indicators.ts` and the stage to `"released"`, in one commit, with the
     page tests' pinned counts.
-  - A lab Flow indicator's formula has no registration point (the `FLOW` map of `calc/flow.ts` is not exported). Its
-    formula runs on the page's main thread, so that point is reached from `main.ts`.
+  - A lab Flow indicator's formula is registered from `terminal/src/lab/index.ts` with `calc/flow.ts` `registerFlow` and
+    the shared `flowKit` (built 2026-11-23); `main.ts`, both workers, their threads and the generators import the lab
+    module first. Its Screener output kinds (`flow-kinds.json`) and the Screener overlay are filtered by stage like the
+    registries (`shared/release-filter.mjs`).
   - A lab candle pattern, Screener metric or preset is data the workers read whole. The public page builds and the
     catalogs leave it out.
   - Items written in code are not release items: the Terminal's netflow and netbuyline, the VOL row, the Backtest's

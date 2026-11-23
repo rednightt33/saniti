@@ -43,6 +43,13 @@ export const REGISTRIES = [
   { file: 'screener/src/core/screener-registry.json', lists: [['indicators', 'indicator'], ['flows', 'flow_indicator'], ['candles', 'candle_pattern']] },
   // the Backtest page's comparison lag, keyed by indicator id (checker L3, 2026-11-21)
   { file: 'backtest/src/core/compare-lag.json', kind: 'indicator', keyed: 'price_compare_lag' },
+  // the Screener core's hand-kept files keyed by item id (step 3 of 2026-11-23, the lab Flow dry run: a page test reads
+  // the filtered registries, so a file of the same items left whole disagreed with them, "FL53 is not an indicator of
+  // flowRegistry.json"). Each part lists the kinds its ids may be of (an id is of the first kind the release file lists
+  // it under: the overlay's `bars` is a Screener metric). terminal/tests/lab/coverage.test.mjs fails on a JSON file
+  // under a page's src naming an item that no entry here covers.
+  { file: 'screener/src/core/flow-kinds.json', keyedParts: [['indicators', ['flow_indicator']], ['screener_entries', ['flow_indicator']]] },
+  { file: 'screener/src/core/screener-overlay.json', keyedParts: [['indicators', ['indicator', 'screener_metric']]] },
 ];
 
 /** The release stages of an item (app/releases.py STAGES). */
@@ -81,6 +88,17 @@ export function filtered(spec, doc, { lab, stages }) {
   const stage = (kind, e) => e && typeof e.id === 'string' ? stages.get(`${kind}\t${e.id}`) : undefined;
   const keep = kind => e => lab || PUBLIC_STAGES.includes(stage(kind, e));
   const mark = kind => e => stage(kind, e) === PREVIEW ? { ...e, release: PREVIEW } : e;
+  if (spec.keyedParts) {
+    let out = doc;
+    for (const [key, kinds] of spec.keyedParts) {
+      const by = out?.[key];
+      if (!by || typeof by !== 'object' || Array.isArray(by)) throw new Error(`release filter: ${spec.file} has no object "${key}"`);
+      // the first kind the release file lists the id under decides; an id it lists under none is lab
+      const of = id => stage(kinds.find(k => stages.has(`${k}\t${id}`)) ?? kinds[0], { id });
+      out = { ...out, [key]: Object.fromEntries(Object.entries(by).filter(([id]) => lab || PUBLIC_STAGES.includes(of(id)))) };
+    }
+    return out;
+  }
   if (spec.keyed) {
     const by = doc[spec.keyed];
     if (!by || typeof by !== 'object' || Array.isArray(by)) throw new Error(`release filter: ${spec.file} has no object "${spec.keyed}"`);

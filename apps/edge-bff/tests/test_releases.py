@@ -292,8 +292,12 @@ def test_an_item_the_shipped_code_names_is_never_lab():
 RELEASE_FILTER = BFF / 'shared' / 'release-filter.mjs'
 
 
+PARTS = 'keyedParts'
+
+
 def registry_specs():
-    """[(file, [(key or None, kind)], keyed)] of REGISTRIES, read from release-filter.mjs's source (one spec per line)."""
+    """[(file, [(key or None, kind)], keyed)] of REGISTRIES, read from release-filter.mjs's source (one spec per line); a
+    keyedParts spec gives [(key, kinds)] and keyed PARTS."""
     src = RELEASE_FILTER.read_text(encoding='utf-8')
     block = src[src.index('export const REGISTRIES = ['):]
     block = block[:block.index('\n];') + 3]
@@ -303,6 +307,12 @@ def registry_specs():
         file = re.search(r"file: '([^']+)'", ln).group(1)
         kind = re.search(r"kind: '([^']+)'", ln)
         keyed = re.search(r"keyed: '([^']+)'", ln)
+        if 'keyedParts: [' in ln:
+            # objects keyed by item id, each part with the kinds its ids may be of (step 3 of 2026-11-23)
+            parts = re.findall(r"\['(\w+)', \[([^\]]*)\]\]", ln)
+            specs.append((file, [(key, tuple(re.findall(r"'(\w+)'", kinds))) for key, kinds in parts], PARTS))
+            assert specs[-1][1], ln
+            continue
         if 'lists: [' in ln:
             lists = re.findall(r"\['(\w+)', '(\w+)'\]", ln)
         elif 'asList(' in ln:
@@ -312,7 +322,7 @@ def registry_specs():
         elif re.search(r'list: d => d\b', ln):
             lists = [(None, kind.group(1))]
         else:
-            raise AssertionError(f'release-filter.mjs REGISTRIES line not understood (list, lists, keyed or asList): {ln}')
+            raise AssertionError(f'release-filter.mjs REGISTRIES line not understood (list, lists, keyed, keyedParts or asList): {ln}')
         assert lists, ln
         specs.append((file, lists, keyed.group(1) if keyed else None))
     assert len(specs) == block.count('{ file: ') >= 8, f'REGISTRIES read {len(specs)} specs from {block.count("{ file: ")}'
@@ -326,6 +336,11 @@ def registry_entries(only=None):
         if only is not None and file != only:
             continue
         doc = json.loads((BFF / file).read_text(encoding='utf-8'))
+        if keyed == PARTS:
+            for key, kinds in lists:
+                # an id is of the first kind the release file lists it under (shared/release-filter.mjs filtered)
+                out += [(releases.kind_of(i, kinds) or kinds[0], {'id': i, 'value': v}) for i, v in doc[key].items()]
+            continue
         for key, kind in lists:
             if keyed:
                 part = [{'id': i, 'value': v} for i, v in doc[keyed].items()]
@@ -339,12 +354,17 @@ NAME_FIELDS = ('name', 'label', 'short')
 
 
 def released_text_naming_lab(current, entries):
-    lab = {(k, e['id']): e for k, e in entries if current.stage_of(k, e['id']) != 'released'}
+    # an item may have an entry in several files (a registry entry and an overlay keyed by its id): its names are those of
+    # every entry, so one without a name field takes none away (step 3 of 2026-11-23, keyedParts)
+    lab = {}
+    for k, e in entries:
+        if current.stage_of(k, e['id']) != 'released':
+            lab.setdefault((k, e['id']), []).append(e)
     marks = {}
-    for (k, i), e in lab.items():
+    for (k, i), es in lab.items():
         # every display field a registry names an item by: name (indicators, Flow, candles), label and short (Screener
         # metrics, presets) (test-out of 2026-11-23, LLA-F3: a lab metric named by its label passed)
-        marks[i] = [re.compile(rf'\b{re.escape(i)}\b')] + [re.compile(re.escape(e[f])) for f in NAME_FIELDS
+        marks[i] = [re.compile(rf'\b{re.escape(i)}\b')] + [re.compile(re.escape(e[f])) for e in es for f in NAME_FIELDS
                                                          if isinstance(e.get(f), str) and len(e[f]) > 3]
     hits = []
     for k, e in entries:

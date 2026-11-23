@@ -277,7 +277,7 @@ server, region, atau biaya:
 
 3f (EXEC option A item 4) built what keeps a lab item out of the public page builds and the tab catalogs. Its checker
 (ERRORS M523) found the ways a lab item or tab would still reach people who do not hold it. The item guard was lifted on 2026-11-23 (the user: "Cabut tes penjaga lab"; ERRORS M548): `tests/test_releases.py`
-`LAB_KIND_HELD` holds only the kinds without a lab path (a candle pattern, a Flow indicator); the tab guard stays
+`LAB_KIND_HELD` holds only the kinds without a lab path (a candle pattern; a Flow indicator has one since 2026-11-23, ERRORS M551); the tab guard stays
 (`tests/test_live_switch.py` `LAB_TAB_HELD_UNTIL`). Each item below needs the user's go.
 
 | Item | What still happens | The fix at its layer |

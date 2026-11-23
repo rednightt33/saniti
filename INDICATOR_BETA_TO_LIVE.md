@@ -40,10 +40,7 @@ run showed that the page tests never see a lab formula. The files and lines it c
 | The AI (market-ai-orc, shared) | not told about it while lab | do not add it to the AI formula reference until Part B |
 
 Not covered by the lab stage:
-- **Flow indicators** (`FL..`): held at `released` (`apps/edge-bff/tests/test_releases.py` `LAB_KIND_HELD`): a lab Flow
-  formula has no registration point (`terminal/src/calc/flow.ts` keeps its `FLOW` map unexported and keys every formula
-  by its id). A beta-only Flow indicator needs that point built first, reached from `terminal/src/main.ts`, the workers
-  and the generators as `@edge-lab` is: a separate piece of work, asked of the user.
+- **Flow indicators** (`FL..`) have their own steps: section "A lab Flow indicator" below (built 2026-11-23).
 - An indicator another built-in computes by its key (a pattern, a transform, a preset that needs new code in the shared
   cores) is named in code and cannot be lab (`test_an_item_the_shipped_code_names_is_never_lab`).
 - Candle patterns, Screener metrics and presets may be lab as data (`LAB_KIND_HELD` comment in `test_releases.py`);
@@ -193,6 +190,41 @@ Only when the user names the indicator ("I54 boleh ke live"); never on a schedul
 8. **Records:** RAILWAY_CHANGELOG.md (both deploys), `deployed_commits.json` (both sites), ERRORS statuses (rule 9),
    LIVE_PROMOTION.md §7 (the feature notes), EXEC.md (the request done).
 
+## A lab Flow indicator (FL..)
+
+Built 2026-11-23, step 3 of the user's sequence ("Satu batasan yang masih ada: indikator Flow (FL) baru belum bisa
+dijadikan lab ... Kalau Anda mau menambah FL khusus beta, bagian itu perlu dibangun dulu"; "Oke, mulai"). Proven by a dry
+run in a copy of the repository: a lab FL53 entered through the spreadsheet and the generator, its formula registered
+from the lab module with the shared building blocks, every page built (FL53 in no public file, in the Terminal's and
+the Backtest's lab builds), the Terminal (1087), Screener core (412), screener-worker, backtest-worker look-ahead, pit
+and grammar suites, the edge-bff release and proof-build tests and the generator checks run (ERRORS M551). Part A's
+steps 9-13 (tests, commit, CI, the deploys, the check on the beta) and Parts B and C apply as for a technical
+indicator; these replace its steps 1-8:
+
+1. **The registry entry, from the spreadsheet.** `verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx`:
+   a row in `Ringkasan` (id, name `<Family> · <Name>`, place, unit, frequency) and its rows in `Parameter_Terminal`; its
+   plain tip in `scripts/build_flow_registry.py` `PLAIN` (or the `Indikator_baru_dari_Screener` sheet). Then
+   `python3 scripts/build_flow_registry.py` (it sorts by number). An indicator the script builds itself goes in
+   `extra_indicators`. None of these files is in a page build.
+2. **Its stage:** `apps/edge-bff/catalog/releases.json` `{"kind": "flow_indicator", "id": "FL53", "stage": "lab"}`.
+3. **Its formula, in the lab module only:** `apps/edge-bff/terminal/src/lab/index.ts`,
+   `registerFlow('FL53', (c, p) => ...)` built from `flowKit` (`calc/flow.ts`: the call's broker grid, the window,
+   the Top-N cohort and its sums, the ratio and null rules). A block it needs that the kit lacks is added to `flowKit`
+   in the same commit; never copy one. `registerFlow` refuses an id that has a formula.
+4. **Its Screener output kinds:** `apps/edge-bff/screener/src/core/flow-kinds.json` `indicators.FL53` (each output's
+   kind letter, `adv_floor`). The generator refuses an output without one.
+5. **The generated registries:** `npm run registry` in `apps/edge-bff/screener` (it imports the lab module through the
+   loader, so it computes the formula), then `registry:check`; `npm run registry:check` in `apps/backtest-worker`
+   (technical indicators only: no change).
+6. **No id in shipped code.** A table keyed by FL id in a public file (`SINGLE_SECURITY`, `MENU_HIDDEN`, the
+   point-in-time list) would name the lab item: `test_an_item_the_shipped_code_names_is_never_lab` refuses it and the
+   bundle scan finds it. A lab Flow indicator that needs such a row stays released-only, asked of the user.
+7. **The gates:** the look-ahead gate computes it with every option and fails when a registry Flow indicator has no
+   formula (`apps/backtest-worker/tests/lookahead.test.ts`, "every Flow indicator of the registry has a formula");
+   the screener-worker's catalog count is derived from the generated registry (`tests/flow.test.ts`).
+8. **Its release** (Part B) or preview (Part C) moves the formula into `calc/flow.ts` `FLOW` and out of the lab module;
+   the page tests then compute it (`terminal/tests/calc/flow.test.ts` "registry").
+
 ## Part C: on the live site for the admin only (preview), on the user's OK
 
 The user, 2026-11-23: "ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya admin saja
@@ -229,8 +261,8 @@ its `releases.json` stage `released` and the tripwire record; then Part B steps 
 - Other kinds (tests/test_releases.py `LAB_KIND_HELD`): a Screener metric and a preset may be lab (data the workers read
   whole); a candle pattern and a Flow indicator may not yet: a lab candle needs its pair and mirror (`candles.ts`), a
   `CASES` entry and the count pins of `lookahead.test.ts`, `candles.test.ts` and `operators.test.ts` made derived, and a
-  dry run like the indicator's (EXEC-MU-ACCOUNTS, Carried open parts); a Flow indicator has no lab registration point.
-  Any kind may be preview (Part C), a Flow indicator included: its formula is public at that stage.
+  dry run like the indicator's (EXEC-MU-ACCOUNTS, Carried open parts). A Flow indicator may be lab since 2026-11-23
+  (section "A lab Flow indicator"). Any kind may be preview (Part C): its formula is public at that stage.
 
 ## Many indicators at once
 

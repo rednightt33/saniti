@@ -297,10 +297,10 @@ admin only, every feature first) and the live site (`edge-bff-live`, app.edgefin
   both sites for the admin only; no plan holds it by stage; its definition and formula are public (LIVE_PROMOTION.md §3
   "Preview"; `INDICATOR_BETA_TO_LIVE.md` Part C). A tab is lab or released only.
   Since 2026-11-23 (the user: "Cabut tes penjaga lab") a new catalog item may enter at `lab` (the beta only):
-  indicators by `INDICATOR_BETA_TO_LIVE.md`; candle patterns, Screener metrics and presets as data. A Flow indicator
-  may not be lab yet (`tests/test_releases.py` `LAB_KIND_HELD`: its formula has no lab registration point), nor a tab
-  (`tests/test_live_switch.py` `LAB_TAB_HELD_UNTIL`: its rail entry is not served by the server yet); those enter as
-  `released` only with the user's go, or stay off `main`. An item no worker gates by id, or one the shipped code names,
+  indicators by `INDICATOR_BETA_TO_LIVE.md` (a Flow indicator by its section "A lab Flow indicator", since 2026-11-23);
+  Screener metrics and presets as data. A candle pattern may not be lab yet (`tests/test_releases.py` `LAB_KIND_HELD`:
+  not dry-run), nor a tab (`tests/test_live_switch.py` `LAB_TAB_HELD_UNTIL`: its rail entry is not served by the
+  server yet); those enter as `released` only with the user's go, or stay off `main`. An item no worker gates by id, or one the shipped code names,
   is never lab. A new tab is its own `<tab>-app`.
   `tests/test_live_switch.py` fails when a capability tab or a page of the shell has no entry. Migrations stay
   expand-only while the live site runs older code on the shared database.

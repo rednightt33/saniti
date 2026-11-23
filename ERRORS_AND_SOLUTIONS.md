@@ -8886,6 +8886,49 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M551 — The lab Flow indicator's registration point, and what its dry run found (2026-11-23; built on the branch, not deployed)
+
+- **Request (the user 2026-11-23, step 3 of the sequence):** "Satu batasan yang masih ada: indikator Flow (FL) baru belum
+  bisa dijadikan lab, karena titik pendaftaran rumusnya belum dibangun. Kalau Anda mau menambah FL khusus beta, bagian
+  itu perlu dibangun dulu"; "Oke, mulai".
+- **The recorded reason was wrong:** `tests/test_releases.py` `LAB_KIND_HELD`, LIVE_PROMOTION.md §3, CONTRACT and EXEC
+  said `calc/flow.ts` kept its `FLOW` map unexported. It was exported. The gaps were: no wrapped entry point (each
+  formula reads the call's broker rows through a module variable the load-time wrap sets), and the shared building
+  blocks were private, so a lab formula would have copied them. Corrected wherever it was written.
+- **Built:** `calc/flow.ts` `registerFlow(id, fn)` (wrapped as every formula; refuses an id with a formula or one that is
+  no FL id) and `flowKit` (the grid, window, cohort, sums, ratio and null rules); `terminal/src/lab/index.ts` documents
+  the path; `LAB_KIND_HELD` holds candle patterns only; the guide's section "A lab Flow indicator".
+- **Found by the dry run (a lab FL53 in a copy: spreadsheet rows, the generator, `registerFlow` with `flowKit`, a
+  `flow-kinds.json` entry, every page built), each fixed for its class:**
+  - D1: the Screener's `flow-kinds.json` and `screener-overlay.json` name items by id but were not filtered by stage, so
+    a page test read the filtered registries beside them whole ("flow-kinds.json: FL53 is not an indicator of
+    flowRegistry.json"). Both are in `shared/release-filter.mjs` REGISTRIES now (a new spec shape, `keyedParts`: objects
+    keyed by id, each with the kinds its ids may be of; the overlay's `bars` is a Screener metric), and
+    `terminal/tests/lab/coverage.test.mjs` fails on any JSON file under a page's src that names an item and no spec
+    covers. The earlier per-instance patch of the overlay test (the indicator dry run) is back to its general form.
+  - D2: the look-ahead gate passed a Flow indicator without a formula (`computeFlow` answers `{}` for an unknown id;
+    the mechanism of M549 LLA-F1). `apps/backtest-worker/tests/lookahead.test.ts` now requires a formula and an output
+    for every registry Flow indicator; red with FL53's registration moved to another id, naming FL53.
+  - D3: the screener-worker's catalog test pinned 50 flow entries; derived from the generated registry now.
+  - D4: `scripts/build_flow_registry.py` put a spreadsheet row added after FL48 before FL49-FL52 (built in the script);
+    it sorts by number now (the registry is unchanged).
+  - D5: the release-text guard read only the last entry of an item, so an overlay entry without a name took the item's
+    display name away; it reads every entry of the item. The guard's parser of REGISTRIES reads `keyedParts`.
+  - D6: the tab catalog tests took the last Flow entry as the released admin-marked one; a released one now.
+- **Found on the way (step 2's, M550):** `SCREENER_ONBOARDING.md` pointed at `app/screener.py` lines that moved with the
+  preview change (`latest`, `validated`); the screener-worker's pointer test was red. Fixed.
+- **Verified (2026-11-23):** the repository: Terminal lab, calc tests (136), Screener core registry tests, screener-worker
+  flow and pointer tests, backtest-worker look-ahead, pit, flow-grammar and grammar (30), `test_releases.py` and
+  `test_3f_tab_catalogs.py` (41), the generator `--check`, the tripwire (recorded with the user's words: the engine
+  version moves with `calc/flow.ts`; the Screener registry's entries are identical, only its source hash moved). The copy
+  with FL53: the Terminal suite (1087), Screener core (412), screener-worker (139 + the derived catalog test),
+  backtest-worker gates (30), every page built with FL53 in no public file and in both lab builds; the edge-bff release
+  and proof-build tests (see the EXEC record for the last run). The screener-worker's two heap tests fail in this
+  container on `origin/main` too (not this change; green on CI).
+- **Not tested out by another agent yet:** step 8 (the ledger).
+- **Lesson:** a file that names items by id is part of the release filter from its first commit; a gate that may skip a
+  missing formula must first prove each one exists.
+
 ### M550 — The preview release stage: an item on the live site for the admin only (2026-11-23; built in `1894adfc` on the branch, not deployed)
 
 - **Request (the user 2026-11-23):** "apakah versi indikator yang released dari main ke live bisa dibedakan antara user

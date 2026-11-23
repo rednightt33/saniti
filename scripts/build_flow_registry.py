@@ -336,6 +336,9 @@ def build():
             ind['terminal_only_outputs'] = only
         indicators.append(ind)
     indicators += extra_indicators({i['id']: i for i in indicators})
+    # by number (step 3 of 2026-11-23, the lab Flow dry run): a row the spreadsheet adds after FL48 (FL53) came before the
+    # indicators this script adds (FL49-FL52); the order is the menu's and the registries' (no output changes today)
+    indicators.sort(key=lambda i: int(i['id'][2:]))
     return {'schema_version': 1, 'generated_by': 'scripts/build_flow_registry.py',
             'source': {'file': str(SPEC.relative_to(ROOT)), 'sha256': hashlib.sha256(SPEC.read_bytes()).hexdigest()},
             'families': FAMILIES, 'indicators': indicators}

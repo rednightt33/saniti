@@ -167,6 +167,22 @@ test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads 
   assert.deepEqual([...leaking].sort(), TERMINAL_HINDSIGHT);
 });
 
+test('every Flow indicator of the registry has a formula and computes at its defaults (the gate above never passes a missing one)', () => {
+  // step 3 of 2026-11-23 (the lab Flow dry run), the mechanism of ERRORS M549 LLA-F1 for the Flow indicators: computeFlow
+  // answers {} for an id without a formula and `safely` reads a throw as a refused setting, so a lab Flow indicator
+  // whose formula was not registered (calc/flow.ts registerFlow, from src/lab/index.ts) passed the gate untested
+  const n = A.dates.length, d = A.dates, at = new Map(d.map((x, k) => [x, k]));
+  const ctx: TF.FlowContext = { rows: TF.flowRows(M.rows[A.ticker], n, x => at.get(x) ?? -1), dates: d, close: A.bars.C as number[],
+    volume: A.bars.V as number[], insider: [], classification: { AA: 'Institutional-heavy', BK: 'Retail-heavy', YP: 'Retail-heavy' } };
+  const dead: string[] = [];
+  for (const r of (FLOW_REG as { indicators: { id: string }[] }).indicators) {
+    if (typeof TF.FLOW[r.id] !== 'function') { dead.push(`${r.id}: no formula (calc/flow.ts FLOW, or registerFlow from src/lab/index.ts)`); continue }
+    try { if (!Object.keys(TF.computeFlow(r.id, ctx, {})).length) dead.push(`${r.id}: no output at its defaults`) }
+    catch (e) { dead.push(`${r.id}: ${(e as Error).message}`) }
+  }
+  assert.deepEqual(dead, []);
+});
+
 test('the engine as a whole: the same request on the full data and on the data cut at t gives the same ledger', () => {
   // P9 ('action'): AAAA as published after a rights issue at session 260 with factor 1.4: the fixture's prices
   // (adjusted), its broker lots before the ex date on the traded scale, and the publisher's basis {terms, 1.4}, kept whole

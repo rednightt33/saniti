@@ -21,7 +21,7 @@
    its formula goes here, registered under its id with the building blocks the released ones use:
 
      import { flowKit as K, registerFlow } from '../calc/flow';
-     registerFlow('FL53', (c, p) => ({ value: K.each(c.rows, K.W(p, 20), (a, t) => ...) }));
+     registerFlow('<its FL id>', (c, p) => ({ value: K.each(c.rows, K.W(p, 20), (a, t) => ...) }));
 
    registerFlow refuses an id that already has a formula. Releasing it (or putting it at preview) moves the formula into
    calc/flow.ts FLOW (terminal/tests/calc/public_formulas.test.ts and calc/flow.test.ts "registry" compute every entry

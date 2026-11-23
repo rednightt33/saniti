@@ -72,7 +72,7 @@ def other(kind, chosen, among=None):
 def admin_flow():
     """A Flow indicator the workers mark admin-only (a point-in-time version): one of the release file's Flow ids that
     is not the lab one; the mark is the workers' (the doc below carries it, as the real workers do since M520)."""
-    return releases.entries('flow_indicator')[-1]['id']
+    return [e['id'] for e in releases.entries('flow_indicator') if e['stage'] == 'released'][-1]   # a lab one is not it
 
 
 def ref(name, item_id):

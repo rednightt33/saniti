@@ -1268,8 +1268,8 @@ today.
     files carry only the released ones.
   - Built since (TR-2): the registry generators and both workers load the lab formulas through the same registration
     point (`terminal/src/lab/index.ts`, alias `@edge-lab` in `apps/backtest-worker/loader/resolve.mjs`; both images copy
-    the lab folder). Not built: a lab Flow indicator's formula has no registration point (`calc/flow.ts` does not export
-    its map; LIVE_PROMOTION.md section 3).
+    the lab folder). A lab Flow indicator's formula is registered from the lab module (`calc/flow.ts` `registerFlow`,
+    `flowKit`; built 2026-11-23, step 3 of the user's sequence; the earlier "does not export its map" was wrong).
 - **The held gaps (FUTURE_PLAN.md "Before the first lab item or tab"), each with where it stands. The item guard was lifted
   on 2026-11-23 (the user: "Cabut tes penjaga lab"; every item gap below closed on both sites by the deploys of
   2026-11-22): a new item may be lab but a Flow indicator (`tests/test_releases.py` `LAB_KIND_HELD`); no tab yet
@@ -1279,7 +1279,7 @@ today.
     refused by its field only; every refusal to a principal whose allow is not everything leaves with its registry
     list cut to the items held (screener-worker `src/run.ts` `forAllow`, backtest-worker `src/access.ts` `forAllow`;
     test-out wf_c72ae04c-a73);
-  - the lab formulas for the generators and the workers: built (above), the Flow registration point not;
+  - the lab formulas for the generators and the workers: built (above), the Flow registration point too (2026-11-23);
   - the live site's edge-bff from before 3f (checker L5): closed by the promotion of 2026-11-21;
   - a lab tab's rail entry, route and words in the public shell, and `auth/config` naming it (checker SERVE-3): the
     names are out (`hidden_tabs` lists the beta-only tabs; `test_no_lab_tab_is_named_in_the_public_shell` over the
