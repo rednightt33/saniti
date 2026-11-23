@@ -5045,7 +5045,7 @@
    "finding_id": "wf_6a8c44c8-978 PV-2",
    "title": "A family value {\"all\": true} makes a paid account hold every preview item on the live site; the database and the reader accept it, and the only guard reads the migrations' seeded plans",
    "fate": "fixed_not_tested_out",
-   "fix_commit": "the UD28 commit (ERRORS M552 PV-2)",
+   "fix_commit": "bb638e12 (ERRORS M552 PV-2)",
    "tested_out_by": "none",
    "runs_on": "branch_only",
    "open_row": "",
