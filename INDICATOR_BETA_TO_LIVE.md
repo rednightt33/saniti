@@ -91,8 +91,9 @@ All edits are on the session branch; one commit per indicator (or one per batch)
    `join` (the line drawn across days without a value, as Pine's `style_line` and `style_stepline` do; ERRORS M557),
    `palette` with `paletteFrom` (a line coloured per bar by another output's index: Alpha KAMA, Alpha Extract), `marker`
    {shape, position, text, size, on, style, textColor} (a mark on the price, or with `on` at another output's value;
-   `style` "label" draws Pine's `label.style_label_up/down`, a filled box with a pointer and `textColor` text, as the
-   TradingView screenshots of Alpha Extract and Alpha Divergence show); per row
+   `style` "label" draws Pine's `label.new` box with a pointer and `textColor` text, at `on`'s value or over / under the
+   candle (`aboveBar`, `belowBar`, Pine's `yloc.abovebar`), `size` as Pine's size.tiny/small/normal/large: every Pine
+   `label.new` is ported this way, ERRORS M558 V2-3); per row
    `guideStyle` {color, width, style}, `fills` [{a, b, color, color2?, opacity}] (areas between two outputs, two colours
    with `color2`) and `layers` [{k, label, on}] with a drawing in `calc/indicators.ts` `DRAWINGS` (registered by the lab
    module: labels on earlier candles, segments, a level ray, background ranges; never an output of F, so the Screener,

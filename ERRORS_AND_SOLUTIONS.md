@@ -8886,6 +8886,67 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M558 — Checker round of the lab Pine indicators before their beta release: 60 findings, two fix rounds (2026-11-23; fixed on the branch in `12863820` and `9afa833f`, parts open below)
+
+- **Found by:** the user's "All at once ... jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading
+  time, dll dengan 10 agent subsonnet high. Bereskan temuan. Deploy." Ten Sonnet checkers at effort high, one per area
+  (workflow `wf_74eba551-e2f`, its journal holds every finding: run plus id), offline on the lab build with exported
+  rows (no sign-in to the beta: a sign-in revokes the oldest of the owner's five sessions); 6 major, 23 minor, 31 nit.
+  The rule 8 re-check (five Opus agents at medium, `wf_d3fc9cea-e8a`, from the original findings) and its second round
+  (two Opus agents, `wf_c2fe2424-bf4`) tested the fixes out.
+- **Verified root causes and their classes (one per mechanism, each with every place it holds):**
+  - *The colour box placed only from its button* (S-1, C-1, S-3, S-7, S-4, S-6): no clamp to the window, so on a
+    laptop or a phone its line options fell off the screen and it covered the next rows' buttons; a backdrop press
+    closed the dialog with it; a pick dropped the focus. The same code in the indicator and the compare-line dialogs.
+    Solution: one `ColorBoxHost` with `placeColorBox` (`terminal/src/app/colorPicker.ts`) for both: inside the window,
+    beside the dialog where there is room, scrolling when taller than the window, focus back on its button, a backdrop
+    press closes the box only (its mark read only by a click on the backdrop itself, round 2), a Done button on a
+    touch screen, swatch names. `look_check11` checks it on four windows.
+  - *A line coloured by a palette offered a colour of its own* (S-2, C-2, V2-2): the palette ignored the per-output
+    colour and opacity, and the legend kept one colour. Solution: such an output offers its line options only (a palette
+    mark on a panel), its opacity applies to the palette, the legend value takes the bar's palette colour.
+  - *Label boxes the price scale knew nothing of* (V1-1, V1-2, V1-9, P-2, P-3, V1-6, V1-7, V1-4, P-4, C-5): no room in
+    the scale, so boxes were cut at a pane's edge; every label of the history drawn on every frame. Solution: the label
+    primitives give the scale their prices and the box height (`autoscaleInfo`, at most a quarter of the pane) and keep
+    a box inside its pane (on a very short panel a box is kept inside without its pointer); only the visible labels,
+    segments and shades are drawn; font and text widths read once; box and pointer one path; whole pixels of the
+    chart's own canvas; Pine's label sizes; the drawing follows the Offset. Inside Bar's marks are Pine's label boxes
+    (V2-3), as the A work for Alpha Extract and Alpha Divergence.
+  - *A Backtest test card built at the entry's default condition and renamed* (B-1), *Reset to default and the card's
+    Customize that forgot the category choice* (SC-1, and in round 2 the Customize's rewrite dropped the card's My
+    metric link, NEW-1): every card is now built through the Screener's `newCard` at its condition; the Customize writes
+    the rule's own fields only. The operator panel offered a z-score of a colour code (SC-7): an output coded in
+    categories, and one that only colours another (the generator's `drawing_only`), is no series.
+  - *Alpha Volatile sorted its window anew on every bar* (L-1, SC-2): a window kept sorted, the same values, about
+    23 ms to 1.5 ms on 2,146 daily bars.
+  - *A lab name in a public registry's prose* (I-3): reworded; a test now refuses an unreleased item's name in any
+    registry filtered for a public build (`terminal/tests/lab/coverage.test.mjs`).
+  - *A preset of an indicator this site lacks* (I-1): it says "not available here", without its saved summary or id.
+  - *Records* (C-3, C-4, SC-5, B-4, C-7): `SCREENER_ONBOARDING.md` 2.11.1 (the category forms), the transform count,
+    CONTRACT's formula row, dead CSS, four drifted pointers.
+  - *Page tests that never ran the category paths* (SC-4, C-6): a public catalog with one coded output
+    (`screener/tests/fixture/coded.ts`) for the pick tests of both pages, and the Screener's look-ahead page test codes
+    Supertrend's direction in categories when the registry has none.
+- **Kept as the Pine draws it (TradingView fidelity, the user's "sama persis"):** SL under BULL DIV and SH under BEAR DIV
+  (V1-3), white text on lime and green (V1-5), KAMA's pale signal arrows (V2-4), Alpha Extract's flags against levels at
+  0 in the first 128 bars (N-3; the user's decision 2 for I59), overlapping Inside Bar boxes on a dense view (V2-3).
+- **Not changed, with the reason:** Alpha KAMA's smoothing length stays a whole number (N-5: `def()` floors every
+  length parameter by name; round 2 put the registry back to integer and says so in its hint); swatches 26 px on a
+  touch screen (S-9: 80 colours cannot be 44 px on a phone; a Done button closes the box); the layout summary counts
+  the entries a layout holds, drawn or parked (I-2); stale local `dist` folders (I-5: CI builds first); the two
+  screener-worker heap tests fail on this machine only (SC-6: CI's Backend tests pass them).
+- **Open parts (owner and trigger in EXEC.md, EXEC-MU-ACCOUNTS):** the user's decisions UD33 (Alpha KAMA's warm-up from
+  0: V2-1, B-3, N-2), UD34 (checks against TradingView itself: the HMA rounding N-1, Pine v6 colour constants V1-8,
+  Inside Bar's pointer at `yloc.abovebar`), UD35 (the sensitivity grid on a 0/1 condition, B-2, shared core), UD36 (the
+  history class of state-machine outputs, SC-3, shared generator), UD37 (a `{"all": true}` plan and lab items on the
+  beta, I-4), UD29 (the tripwire, SC-6); the carried parts: all seven lab indicators at once cost about 2x a drag (P-1,
+  L-2), DOM tests of the pick (SC-4), the phone's legend rows (V2-5).
+- **Lesson for new data:** a Pine port is checked against the Pine's drawing (label styles and sizes, plot styles), not
+  only its numbers; a control's position is checked against the window, not its button; a new field of a card is
+  carried by building the card, never by a list of fields.
+- **Status:** fixed on the branch (`12863820`, `9afa833f`); the re-check round 1 found 31 fixed and the rest open or
+  kept as above, its new defects fixed in round 2; deploys with the lab indicators.
+
 ### M557 — The Terminal broke a Pine line at a bar without a value, where TradingView runs it on (2026-11-23; fixed on the branch in `2ebbf6b5`)
 
 - **Found by:** the user, comparing the Alpha Price Action BUY / SELL screenshots with TradingView (2026-11-23: "untuk
