@@ -16659,6 +16659,11 @@ Order of the services (CONTRACT 17, rollback floors):
     the live site 03:24 UTC (`EDGE_PRELAUNCH=false` on edge-bff-live, deployment `87ef1cba` of `ec739a06`); it closes
     2026-11-24 03:24 UTC (a scheduled message to this session); UD6 answered: the window runs without Privacy and Terms
     texts (R1-2's condition met for the window, not for the launch).
+  - The next beta deploy (2026-11-23): "3. hasil workflow selesai --> fix it --> push to main." → after the test-out of
+    items 1-3 and its fixes, `main` moves to the branch (the confirmation of that beta deploy): migration
+    `20261123_001` applied first (expand-only), the backtest-worker uploaded by CLI, then `main`; the live site does not
+    move. Anything outside the list given to the user that day (step 7, the lab lift and L11, the look-ahead loader fix,
+    the step 9 test, the records) is named and asked again.
 - **The user's go for the rest of the round (2026-11-22): "Lanjutkan sisa pekerjaan, kemudian penutup putaran ya.. then
   proceed ke langkah 7. Aman?"** The rest (R1-5 A1, lab gap 3 and L11, the status test of rule 9), then the close (the
   re-check by five agents with the older fixes, the beta deploy with the shared workers' check against the live site's
