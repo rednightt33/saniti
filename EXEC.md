@@ -16944,3 +16944,16 @@ dipakai accross chat sebagai referencec?"
     phases are done (the user's words).
   - So the plan stays Phases 3c-3f, Phase 4 and the payment adapter skeleton, plus the beta/live split, with no extra
     guardrail work; round 2 of the re-check is resumed (the remaining finders, then three refuters per finding).
+
+## EXEC-FL51-TITLE — judul indikator Flow menulis sisi dari pilihan registry (ERRORS M540; disetujui 2026-11-23)
+
+User 2026-11-23: "M540 masukan exec untuk diperbaiki." Masalah (ERRORS M540, terverifikasi di kode): judul indikator Flow
+menulis setiap pilihan sisi selain `buy` dan `both` sebagai "Sell" (`apps/edge-bff/terminal/src/app/flowIndicators.ts`,
+`parts.push(p.side === 'both' ? 'Buy & Sell' : 'Sell')`), sehingga FL51 dengan Show = Loaders (`load`) terbaca
+"Loaders (Top 3, Sell, …)".
+- Perbaikan yang disetujui: kata sisi di judul diambil dari label pilihan di registry (`flowRegistry.json`, `options`),
+  bukan dari daftar tetap; berlaku untuk setiap indikator Flow yang punya pilihan sisi. Tes: judul FL51 untuk
+  load/sell/both dan judul indikator buy/sell yang tidak berubah.
+- Terbuka (pertanyaan ke user): kata untuk FL51 — label registry apa adanya ("Loaders (Top 3, Loaders, …)", "Sellers",
+  "Both"), atau sisi tidak ditulis bila sama dengan nama indikator (Loaders) dan "Loaders & Sellers" untuk Both.
+- Rilis: hanya ke beta, dengan konfirmasi deploy user (AGENTS.md "Deploys"); live hanya atas permintaan user.
