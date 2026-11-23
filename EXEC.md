@@ -16706,8 +16706,9 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD25 | Step 9 window, test-out F1: while registration is open any client can make the live site send code emails to any address (per-address and per-hour limits only): (a) keep it open the 24 hours and the agent watches `email_sent` and closes early on a burst, or (b) close it as soon as the user has finished testing | 2026-11-23 (twice, with context; 0 code emails sent 03:24-06:20 UTC) | the window's spam exposure | while the window is open (until 2026-11-24 03:24 UTC) |
   | UD26 | Step 9 window, F2: is the close at 2026-11-24 10:24 WIB confirmed in advance (a variable change that redeploys edge-bff-live), so the agent runs it on time, or asked again then | 2026-11-23 (twice, with context) | the window's close | 2026-11-24 03:24 UTC |
   | UD29 | ERRORS M553, the Backtest tripwire for indicator releases (EXEC-TRIPWIRE-LAB): (a) the tool takes a release record (the ALWAYS paths' content hash, the ids, the user's words), or (b) the guide drops the record step and the release is evidenced by CI, the formula tests and EXEC | 2026-11-23 with context (the user: "Ok untuk M553 -- masukan exec dulu"; the choice asked again with the options) | the guide's record step; a content-hash record of the Backtest core changes of EXEC-PINE-INDICATORS (M554, M555) | before the next indicator release to the live site or the next Backtest core change |
-  | UD30 | EXEC-PINE-INDICATORS: the TradingView label boxes for Alpha Extract (BULL, BEAR) and Alpha Divergence (SH, SL, BULL DIV, BEAR DIV, BUY A): build them in this batch, before the beta deploy, or after it | 2026-11-23 with context (the user: "Tolong catat ... tampilannya bisa seperti terlampir") | the labels' look on the beta | before the beta deploy of the lab indicators |
-  | UD31 | EXEC-PINE-INDICATORS: line style (solid, dashed, dotted) and opacity per output in the Terminal's Style tab: for the seven lab indicators only, or for every Terminal indicator (the released ones change on the beta, then on the live site when it moves) | 2026-11-23 with context | the Style tab change | before the Style tab is changed |
+  | UD30 | (answered 2026-11-23: "A" (build now, one beta deploy)) EXEC-PINE-INDICATORS: the TradingView label boxes for Alpha Extract (BULL, BEAR) and Alpha Divergence (SH, SL, BULL DIV, BEAR DIV, BUY A): build them in this batch, before the beta deploy, or after it | 2026-11-23 with context (the user: "Tolong catat ... tampilannya bisa seperti terlampir") | the labels' look on the beta | before the beta deploy of the lab indicators |
+  | UD31 | (answered 2026-11-23: "Y" (every Terminal indicator)) EXEC-PINE-INDICATORS: line style (solid, dashed, dotted) and opacity per output in the Terminal's Style tab: for the seven lab indicators only, or for every Terminal indicator (the released ones change on the beta, then on the live site when it moves) | 2026-11-23 with context | the Style tab change | before the Style tab is changed |
+  | UD32 | EXEC-PINE-INDICATORS: a TradingView-style colour picker in the Terminal's Style tab (a large grid of colours and tints, a custom colour, opacity, thickness and line style in one box, shared by indicators and the compare lines), in this batch with Y or later | 2026-11-23 with an estimate | the Style tab's colour box | before Y is built (one box) |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17312,6 +17313,15 @@ dengan konfirmasi user per deploy.
   sekarang tab Style tiap output punya warna, tampil/sembunyi dan tebal 1-4 px, plus opacity satu untuk seluruh
   indikator; belum ada jenis garis (penuh, putus-putus, titik) dan opacity per output. Cakupan ditanyakan (UD31): untuk
   ketujuh indikator lab saja, atau untuk semua indikator Terminal (yang sudah rilis ikut berubah di beta, lalu live).
+- **Keputusan user 2026-11-23: "A dan Y".**
+  - A (UD30): label kotak gaya TradingView untuk Alpha Extract dan Alpha Divergence dibangun sekarang, dalam batch ini;
+    deploy beta satu kali sesudahnya.
+  - Y (UD31): jenis garis (penuh, putus-putus, titik) dan opacity per output di tab Style untuk **semua** indikator
+    Terminal; indikator yang sudah rilis ikut berubah di beta, lalu di live saat live dipindah atas permintaan user.
+  - Pertanyaan lanjutan user ("Seberapa sulit apabila kita menambahkan opsi warna sama seperti pada screenshot saya"):
+    pemilih warna gaya TradingView (kisi warna besar dengan gradasi, warna kustom, slider opacity, tebal dan jenis garis
+    dalam satu kotak). Sekarang: kotak 9 warna, dua salinan kode (indikator di `app/indicators.ts`, garis aset di
+    `app/assets.ts`). Dijawab dengan perkiraan; ikut batch ini atau tidak ditanyakan (UD32).
 
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
