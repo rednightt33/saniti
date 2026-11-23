@@ -17197,7 +17197,10 @@ dengan konfirmasi user per deploy.
   edge-bff lab/release 103 lulus; `check_image_imports` kedua worker; `look_check11` PASS. Gambar di beta dengan build lab
   lokal (BBRI): titik biru/merah, desil oranye, pita merah/hijau, garis 0 hitam tebal, tanpa error.
 - Tripwire Backtest: rekaman ditolak (ERRORS M553), ditanyakan ke user.
-- Deploy beta: menunggu konfirmasi user.
+- Deploy beta (user 2026-11-23: "Langsung deploy"): `37e6be83`, backtest-worker `9c18509a`, edge-bff `41bb9e28`,
+  screener-worker `98a7bef5` (RAILWAY_CHANGELOG.md). Dicek di beta sebagai admin (Terminal, katalog dan tiga screen
+  Screener, pratinjau sinyal Backtest) dan sebagai pengunjung di kedua situs (tidak terlihat). Belum: round trip layout
+  CRIT-1 (butuh kode authenticator admin di situs live).
 
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 

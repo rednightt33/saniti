@@ -1,5 +1,33 @@
 # Railway changelog
 
+## 2026-11-23 — The beta on `37e6be83`: the pilot lab indicator Alpha Volatile (I54) and M540 (the user: "Langsung deploy")
+
+- **The user's words:** "Ok" (the pilot, EXEC-PINE-INDICATORS), "Hanya di beta saja for now ya" (lab), "Langsung deploy".
+- **Commit `37e6be83`** on `main` (fast-forward from `5a722475`, 15 commits of this session): the lab indicator Alpha
+  Volatile (I54: lab formula, registry row, `releases.json` lab, Screener overlay, regenerated registries; Terminal reads
+  per-output `colors` and `guideStyle`), the Flow title side words (ERRORS M540, `44cdf484`), the records.
+- **Order:**
+  1. **backtest-worker `9c18509a`** SUCCESS: CLI upload of `git archive 37e6be83` of its Dockerfile's COPY paths (its
+     `Backtest look-ahead gate` run 45155837926 green); start line `engine_version="853176671b82eb18"`,
+     `registry_version="8d000db5ddcd354e"` (both as computed from the tree).
+  2. **`main` `5a722475` → `37e6be83`** (Wait for CI off): `edge-bff` `41bb9e28` and `screener-worker` `98a7bef5`
+     SUCCESS; `market-ai-orc` `8c44f70e` SKIPPED (no watched path). The beta's `/version` names `37e6be83`; `/ready` 200
+     on both sites.
+- **Checks:** before the upload 0 EDGE jobs and 0 orc turns (M340), no other deployment waiting. As the owner on the beta:
+  the Terminal (served lab build) draws Alpha Volatile on BBCA with no page error; the Screener catalog lists I54 "Alpha
+  Volatile" (`registry` `8d000db5ddcd354e`) and three screens ran (back inside within 5: 46 stocks, outside now: 31,
+  distance above the upper band: 20); a Backtest signals preview with "back inside" as entry ran on ASII, BBCA, BBRI,
+  MYOR, PGAS (17-34 signals each). As a visitor: the lab build path 404 on both sites, the public Terminal bundles hold
+  no `alpha_volatile`; the live HTTP smoke `lab_probe_file` 404 for both lab builds, `unexpected` empty. Not run: the
+  saved layout round trip CRIT-1 (it needs the admin's authenticator code on the live site; asked of the user).
+- **CI of `37e6be83`:** look-ahead gate, page smoke, image builds, generated files green; "Record statuses follow the
+  deploys" red on M540's heading without its commit (this records commit cites it); Backend tests read to their end.
+- **Shared:** both sites use the new workers (engine and Screener registry versions moved; saved screens are re-reviewed
+  once); I54 is computed only for a principal whose allow holds it, which on the live site is no one.
+- **Live:** unchanged (`edge-bff-live` `87ef1cba`, `ec739a06`).
+- **Rollback:** the beta: redeploy `edge-bff` `e4d8ffdb` (`5a722475`); screener-worker `64124b65`; backtest-worker: a CLI
+  upload of `git archive fb4a5c3c` (its previous deployment `37b284af` was replaced).
+
 ## 2026-11-23 — The beta on `fb4a5c3c`: the preview stage, the lab Flow registration point and the fixes of their check (the user's order)
 
 - **The user's words:** "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error = betulkan.

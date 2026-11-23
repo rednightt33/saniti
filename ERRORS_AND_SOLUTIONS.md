@@ -9231,7 +9231,7 @@ in its staleness check.
   runs pass (ERRORS M546). It reaches `main` with that branch, which needs the user's confirmation (AGENTS.md
   "Deploys").
 
-### M540 — Terminal: judul Loaders (FL51) menulis "Sell" saat pilihan Show = Loaders (2026-11-22; FIXED on the branch, not deployed)
+### M540 — Terminal: judul Loaders (FL51) menulis "Sell" saat pilihan Show = Loaders (2026-11-22; FIXED on the beta, `44cdf484`)
 
 - **Ditemukan oleh:** verifikasi ronde 2 M538 di beta (pengaturan pemilik: FL51 `side: 'load'`, `top: '3'`).
 - **Gejala:** judul legenda "Loaders (Top 3, Sell, Domestic · Regular, from …)" padahal yang ditampilkan adalah pembeli
@@ -9250,7 +9250,8 @@ in its staleness check.
   lain ditulis labelnya ("Sell", "Sellers"). Tes `tests/data/side_word.test.ts` (dari registry: kata FL51; setiap indikator
   buy/sell tetap dengan kata lamanya; judul hanya lewat `sideWord`; gagal pada kode lama). Cek beta dengan build lokal:
   "Loaders (Top 3, Domestic · Regular, from …)", "Loaders (Top 5, Regular, …)".
-- **Status:** fixed on the branch; deploy beta menunggu konfirmasi user (AGENTS.md "Deploys").
+- **Status:** fixed; on the beta since `37e6be83` (edge-bff `41bb9e28`, 2026-11-23, RAILWAY_CHANGELOG.md); the live site
+  receives it only on the user's request.
 
 ### M539 — CI edge-bff: "too many clients" di database uji; tes-tes yang sama gagal di `main` dua kali (2026-11-22, cause verified; FIXED in `4f1e6d3e`, on the live site since 2026-11-22 (`ec739a06`))
 
