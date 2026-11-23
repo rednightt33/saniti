@@ -17131,6 +17131,54 @@ menunggu), "jika sudah jelas masukan exec. Saya lanjut indikator selanjutnya." P
 (lab, hanya admin di beta); ke live hanya bila user menyebut indikatornya (Part B). Deploy: digabung dengan M540
 (EXEC-FL51-TITLE), user 2026-11-23: "Nanti. Deploy bareng indikator tambahan."; setiap deploy dengan konfirmasi user.
 
+Tahap (user 2026-11-23: "Hanya di beta saja for now ya"): `lab` untuk ketujuh indikator, hanya admin di beta; tidak
+preview, tidak released; live tidak melihatnya (INDICATOR_BETA_TO_LIVE.md Part A).
+
+#### Rencana implementasi (user 2026-11-23: "Ok, now siapkan implementation plan"; draft, menunggu go)
+
+Dasar kode (diperiksa 2026-11-23): mekanisme lab ada di `main` (branch `claude/pensive-feynman-4ahfe3` masuk kecuali satu
+commit catatan); `main` digabung ke branch ini (`f3358eab`).
+
+Temuan dari kode yang menentukan rencana:
+- Terminal menggambar indikator registry lewat mesin yang sama dengan Flow (`indicators.ts` `regDef`, `refreshMulti`):
+  garis, histogram, garis dua warna (`segmented_line`), titik dua warna (`dots`), satu arsiran antara dua garis (`fill`),
+  garis bantu (`guides`), dan penanda satu bentuk (panah naik di bawah candle, tanpa teks). Belum ada: penanda dengan
+  bentuk/posisi/teks/warna sendiri, warna garis per bar dari palet (20 warna Alpha KAMA), garis bertingkat (stepline),
+  lebih dari satu arsiran dan arsiran dua warna, segmen antara dua titik dan garis horizontal ke kanan, arsiran latar.
+- Screener (`screener/src/core/contract.ts` TestForm) dan Backtest (`backtest/src/core/conditions.ts`) sudah punya: kejadian
+  "menembus nilai/level/garis lain" dengan "dalam N sesi", keadaan di atas/bawah level atau garis lain dari instance yang
+  sama, transform `rolling_max`. Belum ada: keadaan "kategori termasuk himpunan" dan kejadian "berganti dari kategori A
+  ke B".
+- Label Divergence di candle swing dan penanda struktur terbaru Price Action adalah tampilan hindsight: tidak boleh
+  masuk rumus bersama (gerbang look-ahead menghitung setiap seri registry).
+
+Fase:
+1. F1 Mesin gambar Terminal (kode umum, dipakai indikator mana pun lewat field registry): penanda bentuk/posisi/teks/warna;
+   garis berwarna per bar dari output palet; stepline; beberapa arsiran per indikator termasuk arsiran dua warna; segmen
+   dua titik, garis horizontal ke kanan dan arsiran latar dari output tampilan. Tampilan hindsight dihitung di lapisan
+   Terminal saja (fungsi tampilan di modul lab, di luar `F`), sehingga registry, Screener, Backtest dan gerbang look-ahead
+   tidak berubah aturannya. Cek tampilan: `look_check11` dan tangkapan layar dibanding gambar TradingView user.
+2. F2 Rumus di modul lab (`terminal/src/lab/index.ts`), satu per indikator, dengan output angka, level dan bendera 0/1
+   (kejadian pada hari diketahuinya): I54 bdo, signal, ±upper, ±extreme, bull, bear; I55 kama, color_index (0..19),
+   color_state (0..4), ema_x (garis EMA X, tersembunyi di Terminal), long, short; I56 swing_high_level, swing_low_level
+   (terkonfirmasi), bull_div, bear_div, buy_a; I57 ib, break_up, break_down; I58 distance, decile, upper_z, lower_z,
+   outside_up, outside_down, back_in_from_up, back_in_from_down; I59/I60 level_1, level_a, level_b, break_1, break_a,
+   break_b (sumber wick/close). Uji tiap rumus (`terminal/tests/calc/<key>.test.ts`) terhadap pembanding Python independen
+   yang mengikuti semantik Pine, ditambah nilai TradingView bila user mengirimnya.
+3. F3 Screener dan Backtest: kondisi dipetakan ke bentuk yang ada (bendera: menembus 0,5 dalam N sesi; level: close di
+   atas/bawah/menembus; EMA X vs KAMA: output vs output instance yang sama; "pernah keluar pita dalam N sesi":
+   `rolling_max`); dua bentuk umum baru untuk output kategori (warna Alpha KAMA): "sedang di salah satu kategori" dan
+   "berganti dari A ke B dalam N sesi", diturunkan dari daftar kategori di registry, di core Screener, grammar Backtest,
+   halaman dan kasus gerbang look-ahead. Overlay Screener, generator registry, `registry:check`, catatan tripwire.
+4. F4 Tes yang relevan (Part A langkah 9) dan CI di branch.
+5. F5 Deploy beta dengan konfirmasi user: backtest-worker (upload CLI) lalu `main` (edge-bff beta dan screener-worker),
+   bersama M540 (EXEC-FL51-TITLE). Live tidak berubah. Cek sebagai admin di beta; pengunjung beta dan live tidak melihatnya
+   (`http_smoke.py` lab_probe_file 404); round trip layout CRIT-1 (indikator lab pertama).
+6. F6 Catatan: RAILWAY_CHANGELOG, `deployed_commits.json`, ERRORS, EXEC.
+
+Urutan yang diusulkan: pilot satu indikator ujung ke ujung (I58 Alpha Volatile: paling sedikit kebutuhan gambar baru),
+lalu yang lain per kelompok kebutuhan gambar.
+
 ### I54 — Alpha Extract (Pine v6 "Baseline Deviation Oscillator [Alpha Extract]" dari user, 2026-11-23)
 
 - Rumus (dibaca dari Pine, kausal): baseline = median 4 bar dari MA(source, 23) (EMA; pilihan RMA/SMA/WMA/HMA/TEMA);
