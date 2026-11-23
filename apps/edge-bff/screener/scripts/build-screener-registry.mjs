@@ -899,6 +899,9 @@ export async function build({ against = null } = {}) {
       return {
         key: o, label: to?.label ?? null, display_unit: ti.unit ?? null,
         ...(to?.categories ? { categories: to.categories.map(({ value, key, label }) => ({ value, key, label })) } : {}),
+        /* checker SC-7 (2026-11-23): an output that only colours another one (indRegistry outs[].paletteFrom names it) and
+           has no test is the Terminal's drawing aid, not a series to screen (the operator panel leaves it out) */
+        ...(!(spec.tests || []).length && ti.outs.some(x => x.paletteFrom === o) ? { drawing_only: true } : {}),
         unit: u.unit, level_comparable: u.comparable_with !== null, comparable_with: u.comparable_with,
         price_compare_lag: field ? compareLag(field, atProbe[o]) : { gt: 0, lt: 0 },
         history_class: historyClass(full[o], cutOut[o], PROBE.cut_at, hasAnchor),

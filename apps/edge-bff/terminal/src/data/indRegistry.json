@@ -3592,9 +3592,11 @@
 "#ffeb3b"
 ],
 "marker": {
-"shape": "arrowDown",
 "position": "aboveBar",
-"text": "IB"
+"text": "IB",
+"style": "label",
+"size": "small",
+"textColor": "#000000"
 }
 },
 {
@@ -3610,9 +3612,11 @@
 "#4caf50"
 ],
 "marker": {
-"shape": "arrowUp",
 "position": "aboveBar",
-"text": "IB BREAK ↑"
+"text": "IB BREAK ↑",
+"style": "label",
+"size": "small",
+"textColor": "#ffffff"
 }
 },
 {
@@ -3628,9 +3632,11 @@
 "#f23645"
 ],
 "marker": {
-"shape": "arrowDown",
 "position": "belowBar",
-"text": "IB BREAK ↓"
+"text": "IB BREAK ↓",
+"style": "label",
+"size": "small",
+"textColor": "#ffffff"
 }
 }
 ],
@@ -4112,13 +4118,12 @@
 {
 "k": "smoothing_length",
 "label": "Smoothing Length",
-"type": "integer",
+"type": "number",
 "def": 3,
 "ev": "PROPOSED_DEFAULT",
 "min": 2,
 "max": 50,
-"step": 1,
-"hint": "Length of the smoothing"
+"hint": "Length of the smoothing (a decimal is allowed, as in the Pine)"
 },
 {
 "k": "vhf_adaptive",
@@ -4282,7 +4287,8 @@
 "position": "atPriceBottom",
 "text": "BULL",
 "on": "bdo",
-"textColor": "#000000"
+"textColor": "#000000",
+"size": "small"
 }
 },
 {
@@ -4302,7 +4308,8 @@
 "position": "atPriceTop",
 "text": "BEAR",
 "on": "bdo",
-"textColor": "#ffffff"
+"textColor": "#ffffff",
+"size": "small"
 }
 },
 {
@@ -4561,7 +4568,7 @@
 },
 {
 "k": "divergences",
-"label": "BULL DIV and BEAR DIV labels and lines",
+"label": "Divergence labels and lines",
 "on": true
 },
 {
@@ -4571,7 +4578,7 @@
 },
 {
 "k": "shading",
-"label": "Background over each divergence (green BULL, red BEAR)",
+"label": "Divergence background",
 "on": false
 }
 ],

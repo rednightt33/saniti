@@ -12,7 +12,7 @@
      Flow pane    one per asset (Visibility → Flow Timeline): net bars and the cumulative line on the chart's sessions,
                   locked to the chart's time range, crosshair and axis widths; its drawings are kept under its ticker */
 import type { Ctx, FilterApi } from './context';
-import { buildColorPicker } from './colorPicker';
+import { ColorBoxHost } from './colorPicker';
 import { draggable } from './draggable';
 import { $, brokerEnd, cls, hasLogos, logoHtml, keyOf, onLogos, rupiah, spin, store } from './context';
 import { countedCandles, cumulativeFrom, FLOW_CUMULATIVE_FROM } from './flow';
@@ -265,19 +265,16 @@ export function initAssets(ctx: Ctx) {
       t.innerHTML = `<input type="checkbox" role="switch" ${on ? 'checked' : ''}><span class="track"></span><span class="thumb"></span>`;
       (t.querySelector('input') as HTMLInputElement).onchange = (e: any) => onChange(e.target.checked); return t;
     };
-    let cpop: any = null;
-    const closeCpop = () => { if (cpop) { cpop.owner.classList.remove('open'); cpop.remove(); cpop = null } };
+    /* the Terminal's one colour box (app/colorPicker.ts, UD32), the colour only for a compare line; one open at a time,
+       inside the window, the focus back on its button (checker S-1, S-4, S-6) */
+    const cbox = new ColorBoxHost(dlg), closeCpop = () => cbox.close();
     const colorBtn = () => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'idlg-cbtn'; b.setAttribute('aria-label', 'Line colour'); b.style.setProperty('--c', o.color);
       b.onclick = (e: any) => {
-        e.preventDefault(); e.stopPropagation(); const was = cpop && cpop.owner === b; closeCpop(); if (was) return;
-        cpop = document.createElement('div'); cpop.className = 'idlg-cpop has-cpk'; cpop.owner = b; b.classList.add('open');
-        // EXEC-PINE-INDICATORS (UD32): the Terminal's one colour box (app/colorPicker.ts), the colour only for a compare line
-        cpop.appendChild(buildColorPicker({ label:'Line', color:() => o.color, used:PALETTE,
-          setColor:c => { o.color = c; b.style.setProperty('--c', c) }, onChange:done => { live(); if (done) closeCpop() } }));
-        dlg.appendChild(cpop);
-        const br = b.getBoundingClientRect(), dr = dlg.getBoundingClientRect();
-        cpop.style.top = (br.bottom - dr.top + 6) + 'px'; cpop.style.left = Math.max(8, br.right - dr.left - cpop.offsetWidth) + 'px';
+        e.preventDefault(); e.stopPropagation();
+        // the colours in use: the other compare lines', then the compare defaults (checker S-6)
+        cbox.toggle(b, { label:'Line', color:() => o.color, used:[...assets.map(x => x.opts.color), ...PALETTE],
+          setColor:c => { o.color = c; b.style.setProperty('--c', c) }, onChange:() => live() });
       };
       return b;
     };
@@ -322,13 +319,14 @@ export function initAssets(ctx: Ctx) {
     };
     const onKey = (e: any) => {
       if (document.querySelector('.gp-backdrop')) return;          // the ticker search (Inputs → Symbol) is open
-      if (cpop && e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); const ow = cpop.owner; closeCpop(); ow.focus(); return }
+      if (e.key === 'Escape' && cbox.open) { e.stopPropagation(); e.preventDefault(); cbox.escape(); return }
       if (document.querySelector('.cs-pop:not([hidden])')) return;
       if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); close(false) }
     };
-    back.onmousedown = (e: any) => { if (cpop && !cpop.contains(e.target) && e.target !== cpop.owner) closeCpop() };
+    back.onmousedown = (e: any) => cbox.backdropDown(e);
     back.onclick = (e: any) => {
       const t = e.target.closest('[data-tab]'), act = e.target.closest('[data-act]');
+      if (cbox.swallowClick()) return;                                   // checker S-7: that press closed the colour box only
       if (e.target === back) close(false);
       else if (t) { tab = t.dataset.tab; paint() }
       else if (e.target.closest('.idlg-x')) close(false);

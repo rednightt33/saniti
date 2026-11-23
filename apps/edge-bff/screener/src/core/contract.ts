@@ -517,6 +517,7 @@ export interface CatalogOutput {
   history_class: HistoryClass;                  // additive: per output (6.8 cut probe "for all 76 outputs")
   first_valid_bar: number | null;               // additive: at the start configuration, the registry defaults except I43 at Week (6.8 "first_valid_bar per output")
   categories?: OutputCategory[];                // additive: an output coded in categories (state_category, event_category_change)
+  drawing_only?: true;                          // additive: colours another output in the Terminal only, no test (not a series to screen)
 }
 export interface CatalogIndicator {
   id: string; key: string; name: string; category: string; synonyms: string[]; formula_version: string;

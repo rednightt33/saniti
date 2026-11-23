@@ -98,7 +98,7 @@ All edits are on the session branch; one commit per indicator (or one per batch)
    module: labels on earlier candles, segments, a level ray, background ranges; never an output of F, so the Screener,
    the Backtest and the look-ahead gate never read a mark placed in hindsight). An output coded in categories carries
    `categories` [{value, key, label}]; the Screener's forms `state_category` and `event_category_change` then offer "is
-   one of" and "changed from -> to within N" (SCREENER_ONBOARDING, the category transforms).
+   one of" and "changed from -> to within N" (SCREENER_ONBOARDING 2.11.1, the category forms).
    The Style tab's colour box (`app/colorPicker.ts`, UD32) offers opacity, thickness and line style per output only on
    an indicator with `zone` "overlay" (UD31, `lineOptions`); a panel indicator's box holds the colours only. A
    `DRAWINGS` mark with `style` "label" is drawn the same way as a label marker.

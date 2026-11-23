@@ -318,7 +318,7 @@ and the borrowed backtest-worker files.
   proposed dev values (LOCAL, provisional) is the worker README's "Configuration" table. Tests: `tests/config.test.ts`;
   `tests/readme_config.test.ts` (the README table against `loadConfig` itself).
 - **Start-up check** (`apps/screener-worker/src/version.ts:69-84` `checkStartup`): the screener registry has no problem against the base
-  registry (`registry.ts:153` `registryProblems`); `screener-metrics.json` and `presets.json` pass `catalogProblems`
+  registry (`registry.ts:156` `registryProblems`); `screener-metrics.json` and `presets.json` pass `catalogProblems`
   with the transforms and patterns `transforms.ts` computes (`IMPLEMENTED_TRANSFORMS`, `IMPLEMENTED_PATTERNS`); the
   backtest registry artifact matches its sources; every source `screener-registry.json` names (except the build-only
   oracle script) is in the image with the recorded sha256. Otherwise `startup_check_failed` and exit.
@@ -379,7 +379,7 @@ nothing; skew then deferral; skip unchanged; one refresh at a time; pinning acro
   `stockListsOf`, called at `snapshot.ts:297`). The file is read as `brokers` is (`refresh.ts:445` `stockLists`); one not indexed, missing, off the
   origin, of another sha256 or broken leaves the lists `REQUIRES_DATA` with a plain reason and the Screener running, and
   its sha256 is part of `referenceHash`, so a changed membership is a refresh and another snapshot.
-- **Pinned series** (`snapshot.ts:279-300`): the 53 indicators at `registry.ts:323` `startParams` (the registry
+- **Pinned series** (`snapshot.ts:279-300`): the 53 indicators at `registry.ts:326` `startParams` (the registry
   defaults, except I43 at anchor Week: P17 a does not offer its default Session), 76 outputs; the core's declared
   derived series of the default cards (`condition.ts:618` `declaredDerivedSeries`: the bar fields, the prior Donchian
   bands, the rising lags and vs-MA averages); every series the presets read. 113 series on the real publication (LOCAL).
@@ -531,7 +531,7 @@ window and refused after it ...".
 Header `x-screener-worker-key` (at least 32 characters, compared in constant time, `server.ts:157-161`) on every route
 except `/health` and `/ready`; `x-screener-owner` (16 hex: the first 16 of HMAC-SHA256(`SCREENER_WORKER_KEY`,
 `owner_key`) computed by edge-bff) selects the owner's lane and budget (`server.ts:430-435`). Routes (`server.ts` header
-`:5-16`, `contract.ts:684` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
+`:5-16`, `contract.ts:685` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
 state), `GET /ready` (200 only with a loaded snapshot, else 503 `SCREENER_NOT_READY` with `Retry-After`: the Railway
 healthcheck), `GET /v1/catalog` and `/v1/universe` (`ETag`, `304`), `POST /v1/run`, `/v1/preview`, `/v1/counts` (gzip
 with `ETag`), `POST /v1/validate` (`{valid, definition_hash, normalized, versions}`; `versions` is additive,
@@ -680,7 +680,7 @@ available; it never runs with a leg removed.
   sha256 of the generated document without that field (read it from the file: it moved with each generator change on
   2026-10-29, while the cost probe was made reproducible), so any input or derived change moves it.
 - **Narrow-only.** The overlay and the derived narrowing may only narrow the base registry
-  (`registry.ts:153` `registryProblems` fails on a wider range), so every transferable screener condition is also valid
+  (`registry.ts:156` `registryProblems` fails on a wider range), so every transferable screener condition is also valid
   for the Backtest.
 - **Checks.** `npm run registry:check` re-derives every field and fails on a difference
   (`tests/core/registry-check.test.mjs`); the cost probe's rule is tested in `tests/core/registry-cost.test.mjs`; the
@@ -691,7 +691,8 @@ available; it never runs with a leg removed.
 ## 1.11 The non-indicator metric catalog and derived availability (BRANCH)
 
 Everything that is not one of the registry indicators is described as **data** in
-`apps/edge-bff/screener/src/core/screener-metrics.json`: 10 transforms (`fn`, label, `args` with ranges, `ref_args`,
+`apps/edge-bff/screener/src/core/screener-metrics.json`: the transforms (20 on 2026-11-23, the category transforms of
+2.11 among them; each `fn`, label, `args` with ranges, `ref_args`, `category_args`,
 `tests`, `formula`, `interpretation`, `misuse`, `evidence`), 75 metrics (11 patterns, 4 transform-based metrics such as
 the 52-week high distance, the `return_rank` cross-section, 4 universe attributes, the 20 flow metrics FL01-FL20 of
 PHASE 2, the 32 fundamentals of APPENDIX C.3 with the 2 dividend metrics among them, index membership, listing board,
@@ -1434,6 +1435,33 @@ the rebuilt worker).
 row), `ERRORS_AND_SOLUTIONS.md` (anything found), `BACKTEST_END_TO_END.md` section 14 and `CONTRACT.md` if a rule
 changed, this document, `EXEC.md`. Saved screens are unaffected (a release only adds an id).
 
+### 2.11.1 An output coded in categories: the category forms (EXEC-PINE-INDICATORS, 2026-11-23)
+
+Some outputs are not a number to compare but a state: Alpha KAMA's colour (I58 `color_state`, five colours). The user's
+decisions (EXEC.md EXEC-PINE-INDICATORS, 1a and 2a): such an output is screened as "is one of the chosen states" and as
+"changed from one state to another" (yesterday A, today B; several pairs joined by OR; ever within N sessions). Nothing
+of it is written per indicator:
+
+1. **Registry.** The output in `indRegistry.json` carries `categories` [{value, key, label}] (the code its series holds,
+   the key the forms name, the label the page shows). The generator (`build-screener-registry.mjs`, `categoryProblems`)
+   refuses repeated values or keys and a key that is not a plain word.
+2. **Overlay.** `screener-overlay.json` gives the output the forms `state_category` (transform `in_categories`, default
+   `{"categories": "green"}`, a comma list of keys) and `event_category_change` (transform `category_change`, default
+   `{"changes": "yellow_green>green"}`, a comma list of `from>to`); the generator checks each default against the
+   output's categories (`categoryDefaultProblems`) and refuses the forms on an output with no categories.
+3. **Catalog.** The two transforms are data in `screener-metrics.json` with `category_args` (kind `set` or `changes`);
+   the worker checks the card's keys against the output's categories (`category_args`), and both transforms enter the
+   Backtest look-ahead gate through the registries (`apps/backtest-worker/tests/lookahead.test.ts`).
+4. **Card and page.** The chosen keys travel as the card's `pick` (the Screener's `Card.pick`, the option's `Opt.pick`);
+   a new card, a changed condition and Reset to default take the condition's own default (`newCard`; the Backtest
+   window builds its card through the same `newCard`, checker B-1 and SC-1 of 2026-11-23). The Screener's add-condition
+   window and builder and the Backtest's condition window draw the pick as checkboxes.
+5. **Operators.** An output with categories is tested through its category forms only, and an output that only colours
+   another one in the Terminal (`indRegistry` `paletteFrom` names it, no test: the generator marks it `drawing_only`)
+   is no series: the operator panel offers neither (checker SC-7).
+6. **Tests.** `apps/screener-worker/tests/category_forms.test.ts` (entries, forms, wire both ways), the worker's look-ahead
+   and grammar tests (both transforms), and the page suites.
+
 ## 2.12 Worked example 2: add a flow metric (FL10, net-buy concentration HHI)
 
 From FLOW INDICATOR PROPOSALS 16.5: "whether the stock's net buying over D sessions is held by one or two brokers (near
@@ -1649,7 +1677,8 @@ on only when every leg is available.
 2. PostgreSQL: migration, indexes measured, catalogs, publisher grant, loader and monitoring (2.2).
 3. Publisher: deterministic xsection file, index entry, rebuild rule, verify, size measured (2.3 L2).
 4. Catalog: registry release (A) or `screener-metrics.json` entries; availability derived; new kinds or NA reasons with
-   all four gate items (2.3 L4).
+   all four gate items (2.3 L4); an output coded in categories carries `categories` and the two category forms
+   (2.11.1).
 5. Worker: decoder, checks, units, alignment, version, memory and time measured (2.3 L5).
 6. Page: texts, disabled states, units (2.3 L7).
 7. Tests at every layer; tripwire green unless this is a registry or Backtest release.

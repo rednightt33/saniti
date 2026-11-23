@@ -365,7 +365,8 @@ function popHtml(e: Entry, i: number, B = boxesOf(e, i), cond = false): string {
 }
 /** Reset to default: the row's parameters and threshold back to the catalog's defaults (its condition stays) */
 export function resetRule(e: Entry) {
-  const r = ruleOf(e); r.params = defaultParams(e) as Params; delete r.second;
+  // checker SC-1: the category choice too (newCard then gives the condition's default)
+  const r = ruleOf(e); r.params = defaultParams(e) as Params; delete r.second; delete r.pick;
   r.value = e.def.value; r.value2 = e.def.value2; r.within = e.def.within;
   if (r.op && e.ops) r.op = defaultOp(e.ops, e, undefined, r.params);
 }
@@ -727,9 +728,11 @@ const ruleOfCard = (e: Entry, c: Card): Rule => ({ opt:c.op ? OP_OPT : c.opt, va
   ...(c.second ? { second:{ ...c.second } as Params } : {}), ...(c.op ? { op:{ ...c.op } } : {}) });
 function writeCard() {
   if (!H) return;
-  const { c, e, rule } = H, f = cardOfRule(e, rule);
-  c.opt = f.opt; c.value = f.value; c.value2 = f.value2; c.within = f.within; c.params = f.params; c.second = f.second;
-  if (f.op) c.op = f.op; else delete c.op;
+  /* every field the rule gives, its optional ones removed when the rule has none (re-check of checker SC-1: the category
+     choice was not written back, a field list here forgot it) */
+  const { c, e, rule } = H, { id: _id, on: _on, entry: _entry, ...f } = cardOfRule(e, rule);
+  for (const k of ['op', 'pick', 'second', 'metric'] as const) if (!(k in f)) delete (c as Partial<Card>)[k];
+  Object.assign(c, f);
   checkCard(c); ui.markDirty(); ui.refresh('conds');
 }
 let hostDrawing = false;

@@ -209,7 +209,7 @@ export function initIndMenu(ctx: Ctx) {
       countEl.textContent = `${all.length} preset${all.length === 1 ? '' : 's'}`;
       return;
     }
-    const hits = ps && q ? ps.list().filter(p => `${p.name} ${p.summary} ${ps.defName(p) || ''} ${p.def_id}`.toLowerCase().includes(q)) : [];
+    const hits = ps && q ? ps.list().filter(p => (ps.defName(p) ? `${p.name} ${p.summary} ${ps.defName(p)} ${p.def_id}` : p.name).toLowerCase().includes(q)) : [];   // I-1: a preset not available here is found by its own name only
     const spying = spyMode(), rows = spying ? ordered() : view(group, query), wide = !spying;
     let last = '';
     /* EXEC-IND-NAV B1 (user 2026-11-07: "B1 ok"): every group heading carries how many indicators it holds */
@@ -237,8 +237,10 @@ export function initIndMenu(ctx: Ctx) {
   const presetRow = (p: Preset) => {
     const nm = P()!.defName(p), gone = !nm;
     return `<div class="im-row im-prow${gone ? ' gone' : ''}" role="listitem" tabindex="0" data-preset="${esc(p.preset_id)}"><button type="button" class="im-star${p.favorite ? ' on' : ''}" data-pstar="${esc(p.preset_id)}" aria-pressed="${p.favorite}" aria-label="${p.favorite ? 'Remove from' : 'Add to'} favorites">${STAR}</button>`
-      + `<div><div class="nm"><span class="nmt">${esc(p.name)}</span><small>${gone ? 'no longer available' : `${esc(nm)} · ${esc(p.def_id)}`}</small></div>`
-      + `<div class="pa" title="${esc(p.summary)}">${esc(p.summary)}</div></div>`
+      /* checker I-1 (2026-11-23): a preset of an indicator this build does not hold (a lab one on the live site, or one
+         removed) says only that it is not available here, with its own name, never its saved summary (which names it) */
+      + `<div><div class="nm"><span class="nmt">${esc(p.name)}</span><small>${gone ? 'not available here' : `${esc(nm)} · ${esc(p.def_id)}`}</small></div>`
+      + `<div class="pa" title="${gone ? '' : esc(p.summary)}">${gone ? '' : esc(p.summary)}</div></div>`
       + `<div class="im-pact"><button type="button" class="im-more" data-pmenu="${esc(p.preset_id)}" aria-haspopup="menu" aria-label="More for ${esc(p.name)}">⋯</button>`
       + `<button type="button" class="im-add" data-padd="${esc(p.preset_id)}" aria-label="Add ${esc(p.name)}"${gone ? ' disabled' : ''}>Add</button></div></div>`;
   };

@@ -82,9 +82,7 @@ function cardFor(r: Row, cs: string, id = Math.random().toString(36).slice(2, 8)
     if (m.rhs.t === 'val' && m.lhs.t === 'out' && (c.rhs as { v: number }).v === 0) c.rhs = { t: 'val', v: regMedian(e.key, c.p, m.lhs.o) };
     return c;
   }
-  const t = mkTest(e, id);
-  if (cs !== OP_CHOICE) t.sc.opt = cs || t.sc.opt;
-  return t;
+  return mkTest(e, id, cs && cs !== OP_CHOICE ? cs : undefined);
 }
 const csOf = (c: Card): string => c.type === 'test' ? (c.sc.op && !c.sc.opt ? OP_CHOICE : c.sc.opt) : c.type === 'reg' ? csOfReg(c) : (c as LegacyCard).op;
 const rowOf = (c: Card): number => rows().findIndex(r => c.type === 'test' ? r.e?.key === c.entry : c.type === 'reg' ? r.e?.key === c.ind && r.kind !== 'na' : r.kind === 'pre' && r.type === c.type);

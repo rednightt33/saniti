@@ -209,7 +209,7 @@ export const srcOf = (B: Seg, s: string): number[] => {
   }
 };
 const needSrc = (s: unknown) => SOURCE_NEED[String(s)] || 'C';
-const truthy = (v: unknown) => v === true || v === 'true' || v === 1 || v === '1';
+export const truthy = (v: unknown) => v === true || v === 'true' || v === 1 || v === '1';
 
 /** Registry defaults (indRegistry `def`), used for parameters the caller leaves out. */
 export const DEFAULTS: Record<string, Params> = {
@@ -282,7 +282,7 @@ export const SRC = (p: Params) => needSrc(p.source);
 export interface Drawing {
   /** a mark: a chart marker, or with style 'label' a Pine label at `price` (aboveBar: the box above it, belowBar: below) */
   marks?: { i: number; layer: string; position: 'aboveBar' | 'belowBar'; shape: 'arrowUp' | 'arrowDown' | 'circle' | 'square'; color: string; text?: string;
-    style?: 'label'; price?: number; textColor?: string }[];
+    style?: 'label'; price?: number; textColor?: string; size?: 'tiny' | 'small' | 'normal' | 'large' }[];
   segments?: { i0: number; v0: number; i1: number; v1: number; layer: string; color: string; width?: number; dash?: boolean; ray?: boolean }[];
   shades?: { i0: number; i1: number; layer: string; color: string }[];
 }

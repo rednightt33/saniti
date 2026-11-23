@@ -52,6 +52,9 @@ export interface ScreenerOutput {
   /** the categories of an output coded in them (indRegistry outs[].categories; EXEC-PINE-INDICATORS): the values its
       series takes, each with a key the category transforms name and a label */
   categories?: OutputCategory[];
+  /** an output that only colours another one in the Terminal (indRegistry paletteFrom) and has no test: not offered as a
+      series by the operator panel (checker SC-7) */
+  drawing_only?: true;
 }
 export interface OracleRow { output: string; params: ParamMap; table: string; column?: string; expr?: string; columns?: string[] }
 export interface ScreenerIndicator {
@@ -342,7 +345,7 @@ export function catalogIndicator(ind: ScreenerIndicator, opts: ParamOptions): Ca
     key: o.key, shape: ind.overlay.shape, tests: o.tests, unit: o.unit, level_comparable: o.level_comparable,
     price_compare_lag: o.price_compare_lag, inputs_by_source: o.inputs_by_source, label: o.label, display_unit: o.display_unit,
     comparable_with: o.comparable_with, disabled_tests: o.disabled_tests, history_class: o.history_class, first_valid_bar: o.first_valid_bar,
-    ...(o.categories ? { categories: o.categories } : {}),
+    ...(o.categories ? { categories: o.categories } : {}), ...(o.drawing_only ? { drawing_only: true as const } : {}),
   }));
   return {
     id: ind.id, key: ind.key, name: ind.name, category: ind.category, synonyms: ind.overlay.synonyms,

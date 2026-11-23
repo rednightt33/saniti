@@ -38,9 +38,11 @@ export function refusalOf(e: Entry): string | null {
   return null;
 }
 
-/** a new test card on an entry at its defaults (the Screener's newCard; its id the page's own) */
-export function mkTest(e: Entry, id: string): TestCard {
-  const sc = newCard(e, []);
+/** a new test card on an entry at its defaults, or at condition `opt` with that condition's own defaults (the Screener's
+    newCard: a category choice is the condition's default; checker B-1 2026-11-23: the window built the entry's default
+    condition and then only renamed it, so a category form opened with an empty choice); its id the page's own */
+export function mkTest(e: Entry, id: string, opt?: string): TestCard {
+  const sc = newCard(e, [], opt ? { opt } : {});
   // an entry offered through the catalog's universal operators only (a flow series such as FL01's lots per transaction):
   // its default operator, as the Screener's builder opens it (operators.ts defaultOp)
   if (!e.opts.length && e.ops) sc.op = defaultOp(e.ops, e, undefined, sc.params);

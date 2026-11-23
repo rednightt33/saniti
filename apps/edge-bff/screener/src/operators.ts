@@ -61,7 +61,10 @@ export function seriesList(e: Entry, params?: ParamMap): Series[] {
     forms:null, drawn:true, why:null, fmt:'raw' }];
   if (e.flow) return flowOutputs(e, params ?? defaultParams(e)).map(o => ({ key:o.key, label:o.label, unit:o.unit, comparable:o.comparable, type:o.kind || null,
     whole:wholeKind(e.ops, o.kind), forms:null, drawn:o.drawn, why:o.why, fmt:formatOfMetric(o.unit) }));
-  return (e.indicator?.outputs || []).map(o => ({ key:o.key, label:o.label || o.key, unit:o.unit, comparable:o.comparable_with, type:null, whole:false,
+  /* checker SC-7 (2026-11-23): an output coded in categories is tested by its category forms ("is one of", "changed from
+     -> to"), and an output that only colours another one is no series: neither is offered measures such as a z-score of
+     a colour code (both read from the catalog, nothing named here) */
+  return (e.indicator?.outputs || []).filter(o => !o.categories && !o.drawing_only).map(o => ({ key:o.key, label:o.label || o.key, unit:o.unit, comparable:o.comparable_with, type:null, whole:false,
     forms:o.tests, drawn:true, why:null, fmt:formatOfOutput(o.unit, o.display_unit, null) }));
 }
 export const seriesOf = (e: Entry, key: string, params?: ParamMap): Series | undefined => seriesList(e, params).find(s => s.key === key);

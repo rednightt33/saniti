@@ -112,6 +112,23 @@ describe('3f: the release filter covers every file a public entry reaches that c
       'add each to shared/release-filter.mjs REGISTRIES (keyedParts for an object keyed by id)').toEqual([]);
   });
 
+  /* checker I-3 (2026-11-23): an item's id is filtered, but a sentence may name it (screener-metrics.json said "Alpha
+     KAMA's colour"). The names of the items not released (their registry entries' names, read from the unfiltered
+     registries) appear nowhere in a registry filtered for a public build. */
+  it.each(REGISTRIES.map(spec => [spec.file, spec]))('%s, filtered with nothing released, names no unreleased item in its text', (_, spec) => {
+    const released = new Set(ITEMS.filter(it => it.stage === 'released' || it.stage === 'preview').map(it => it.id));
+    const names = new Set();
+    for (const s2 of REGISTRIES) {
+      const d = JSON.parse(fs.readFileSync(path.join(EDGE_BFF, s2.file), 'utf8')), ids = heldIds(s2, d);
+      const walk = x => { if (Array.isArray(x)) return x.forEach(walk); if (!x || typeof x !== 'object') return;
+        if (typeof x.id === 'string' && ids.includes(x.id) && !released.has(x.id) && typeof x.name === 'string' && x.name.length > 5) names.add(x.name);
+        Object.values(x).forEach(walk) };
+      walk(d);
+    }
+    const text = JSON.stringify(filtered(spec, JSON.parse(fs.readFileSync(path.join(EDGE_BFF, spec.file), 'utf8')), { lab: false, stages: new Map() }));
+    expect([...names].filter(n => text.includes(n)), 'a sentence names an item that is not released: name the kind of output instead').toEqual([]);
+  });
+
   it.each(REGISTRIES.map(spec => [spec.file, spec]))('%s, filtered with nothing released, names no item of its kinds', (_, spec) => {
     const doc = JSON.parse(fs.readFileSync(path.join(EDGE_BFF, spec.file), 'utf8'));
     expect(heldIds(spec, doc).length, 'the spec reads the registry\'s entries').toBeGreaterThan(0);

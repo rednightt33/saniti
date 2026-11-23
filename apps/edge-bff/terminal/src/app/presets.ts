@@ -51,7 +51,7 @@ export function initPresets(ctx: Ctx): PresetsSurface | null {
     defName: p => Ind.defName?.(p.def_id) ?? null,
     add: p => {
       const nm = S.defName(p);
-      if (!nm) { say(`“${p.name}” is no longer available: its indicator was removed from the Terminal.`, true); return }
+      if (!nm) { say(`“${p.name}” is not available here: its indicator is not on this site.`, true); return }   // checker I-1: not "removed" (a lab one is kept on the beta)
       const inst = Ind.addPreset?.(p.def_id, p.config, p.preset_id);
       if (!inst) { say(`“${p.name}” cannot be drawn on this ticker (${nm} needs data this ticker does not have).`, true); return }
       say(`${p.name} added`);

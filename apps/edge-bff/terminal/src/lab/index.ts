@@ -26,7 +26,7 @@
    registerFlow refuses an id that already has a formula. Releasing it (or putting it at preview) moves the formula into
    calc/flow.ts FLOW (terminal/tests/calc/public_formulas.test.ts and calc/flow.test.ts "registry" compute every entry
    of the public build). */
-import { DEFAULTS, DRAWINGS, F, def, ema, rma, sma, stdev, wma, type Drawing, type Seg } from '../calc/indicators';
+import { DEFAULTS, DRAWINGS, F, def, ema, rma, sma, stdev, truthy, wma, type Drawing, type Seg } from '../calc/indicators';
 
 /* ---- Alpha Volatile (EXEC-PINE-INDICATORS; the user's Pine "Nic - Tail Move Indicator V2 (RAW Distance)", 2026-11-23,
    defaults from the user's screenshot: EMA 26, lookback 100, decile 9, Z 2). Causal: every value at bar t reads bars up
@@ -51,13 +51,18 @@ F.alpha_volatile = def('alpha_volatile', AV_OUTS, () => 'C', (B: Seg, p) => {
   const mean = sma(distance, L), sd = stdev(distance, L);
   const upper_z = mean.map((m, i) => m === null || sd[i] === null ? null : m + (p.z_multiplier as number) * (sd[i] as number));
   const lower_z = mean.map((m, i) => m === null || sd[i] === null ? null : m - (p.z_multiplier as number) * (sd[i] as number));
-  const decile = distance.map((_, i) => {
-    if (i < L - 1) return null;
-    const w: number[] = [];
-    for (let j = 0; j < L; j++) { const v = distance[i - j]; if (v === null) return null; w.push(v) }
-    w.sort((a, b) => a - b);
-    return w[Math.max(Math.floor((dec / 10) * w.length) - 1, 0)];
-  });
+  /* checker L-1/SC-2 (2026-11-23): the window is kept sorted as it moves (one insert and one removal by binary search per
+     bar) instead of sorted anew on every bar: the same values, O(N x L) moves instead of O(N x L log L) compares (23 ms
+     to about 1 ms at the defaults over the daily history) */
+  const decile: (number | null)[] = new Array(n).fill(null), win: number[] = [], at = Math.max(Math.floor((dec / 10) * L) - 1, 0);
+  const pos = (v: number) => { let lo = 0, hi = win.length; while (lo < hi) { const m = (lo + hi) >> 1; if (win[m] < v) lo = m + 1; else hi = m } return lo };
+  for (let i = 0, run = 0; i < n; i++) {
+    const v = distance[i];
+    if (v === null) { win.length = 0; run = 0; continue }          // a missing distance empties the window
+    win.splice(pos(v), 0, v); run++;
+    if (run > L) win.splice(pos(distance[i - L] as number), 1);
+    if (run >= L) decile[i] = win[at];
+  }
   const side = (i: number): number | null => {           // 1 above the band, -1 below, 0 inside, null not computed
     const d = distance[i], u = upper_z[i], l = lower_z[i];
     return d === null || u === null || l === null ? null : d > u ? 1 : d < l ? -1 : 0;
@@ -173,19 +178,21 @@ function kamaT3(x: Nn[], len: number): Nn[] {
 /** the script's doHannWindow(): weights 1 - cos(2 pi i / (len + 1)), i = 1..len, a missing value read as 0 */
 function kamaHann(x: Nn[], len: number): number[] {
   const w: number[] = []; for (let i = 1; i <= len; i++) w.push(1 - Math.cos(2 * Math.PI * i / (len + 1)));
-  const coef = w.reduce((s, v) => s + v, 0);
-  return x.map((_, t) => { let s = 0; for (let i = 1; i <= len; i++) s += w[i - 1] * nz(t - i + 1 >= 0 ? x[t - i + 1] : null); return coef !== 0 ? s / coef : 0 });
+  const coef = w.reduce((s, v) => s + v, 0), m = w.length;
+  return x.map((_, t) => { let s = 0; for (let i = 1; i <= m; i++) s += w[i - 1] * nz(t - i + 1 >= 0 ? x[t - i + 1] : null); return coef !== 0 ? s / coef : 0 });
 }
 const KAMA_OUTS = ['kama', 'ema_x', 'color_index', 'color_state', 'long', 'short'];
 F.alpha_kama = def('alpha_kama', KAMA_OUTS, () => 'HLC', (B: Seg, p) => {
   const n = B.N, L = p.kama_length as number, f1 = p.kama_factor_1 as number, f2 = p.kama_factor_2 as number;
-  const sl = Math.max(1, Math.floor(Number(p.smoothing_length))), gl = Math.max(1, Math.floor(Number(p.gradient_lookback)));
+  /* checker N-5: the smoothing length is a float in the Pine (input.float, minval 2): T3's alpha reads it as it is, the
+     Hann window loops i = 1 .. its floor with (length + 1) in the cosine, as Pine's `for i = 1 to` a float */
+  const sl = Math.max(1, Number(p.smoothing_length)), gl = Math.max(1, Math.floor(Number(p.gradient_lookback)));
   const prev = (a: number[]): Nn[] => a.map((_, t) => t > 0 ? a[t - 1] : null);
   const smooth = (x: Nn[]): Nn[] => p.smoothing_method === 'T3' ? kamaT3(x, sl) : p.smoothing_method === 'Hann Window' ? kamaHann(x, sl) : x;
   const cl = smooth(prev(B.C)), lo = smooth(prev(B.H)), hi = smooth(prev(B.L));          // high and low swapped, as the script
   /* VHF period */
   const period: Nn[] = new Array(n).fill(null);
-  if (p.vhf_adaptive === false) period.fill(L);
+  if (!truthy(p.vhf_adaptive)) period.fill(L);                         // checker N-4: booleans read as the released ones (truthy)
   else {
     const diff: Nn[] = cl.map((c, t) => { const q = nz(t > 0 ? cl[t - 1] : null); return c === null ? null : c > q ? c - q : q - c });
     let noise: Nn = null;
@@ -214,7 +221,7 @@ F.alpha_kama = def('alpha_kama', KAMA_OUTS, () => 'HLC', (B: Seg, p) => {
     raw[t] = last;
   }
   let kama = raw;
-  if (p.linear_regression === true) kama = raw.map((_, t) => {
+  if (truthy(p.linear_regression)) kama = raw.map((_, t) => {
     if (t < 4) return null;
     const y: number[] = []; for (let j = t - 4; j <= t; j++) { const v = raw[j]; if (v === null) return null; y.push(v) }
     const xm = 2, ym = y.reduce((s, v) => s + v, 0) / 5; let sxy = 0, sxx = 0;
@@ -381,7 +388,7 @@ DRAWINGS.alpha_divergence = (B, p0) => {
       const atr = rma(C.map((c, i) => i === 0 ? H[i] - L[i] : Math.max(H[i] - L[i], Math.abs(H[i] - C[i - 1]), Math.abs(L[i] - C[i - 1]))), 14);
       const off = (t: number) => (atr[t] ?? NaN) * 0.5;
       const label = (i: number, price: number, text: string, color: string, textColor: string, above: boolean, layer: string) =>
-        d.marks!.push({ i, layer, position: above ? 'aboveBar' : 'belowBar', shape: above ? 'arrowDown' : 'arrowUp', color, text, style: 'label', price, textColor });
+        d.marks!.push({ i, layer, position: above ? 'aboveBar' : 'belowBar', shape: above ? 'arrowDown' : 'arrowUp', color, text, style: 'label', price, textColor, size: 'normal' });   // Pine: no size given (size.normal)
       ev.highs.forEach(h => label(s + h.bar, h.price, 'SH', '#ff5252', '#ffffff', true, 'swings'));
       ev.lows.forEach(l => label(s + l.bar, l.price, 'SL', '#00e676', '#ffffff', false, 'swings'));
       for (const x of ev.bears) {

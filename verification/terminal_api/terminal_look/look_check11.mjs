@@ -207,6 +207,37 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
     return { border:cs.borderTopColor, shadow:cs.boxShadow !== 'none', outline:cs.outlineStyle } });
   check('settings open control: no border line, soft shadow', !!R.focus && /rgba\(0, 0, 0, 0\)|transparent/.test(R.focus.border) && R.focus.shadow && R.focus.outline === 'none', R.focus);
   await ctx.close() }
+/* EXEC-PINE-INDICATORS, checker round 1 (2026-11-23, C-3; AGENTS.md "EDGE Terminal look": a new control row enters the
+   check): the colour box of an indicator drawn on the price chart (Bollinger Bands' last line, the box with Opacity,
+   Thickness and Line style), on a wide screen, a laptop, a short window and the phone. The box is inside the window
+   (S-1/C-1), beside the dialog where the window has room (S-3: never over the next rows' colour buttons), each of its
+   rows is one line with its name in the middle of its control, each Thickness and Line style button holds its stroke
+   in its middle, and a press on the backdrop closes the box only (S-7). */
+for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['l1366', { viewport:{ width:1366, height:768 } }], ['s1280', { viewport:{ width:1280, height:640 } }], ['phone', devices['iPhone 13']]]) {
+  const ctx = await b.newContext(opt), p = await ctx.newPage(); p.on('pageerror', e => errs.push('cpk ' + nm + ' ' + e.message));
+  await p.addInitScript(() => { if (!sessionStorage.getItem('c')) { sessionStorage.setItem('c', '1'); localStorage.setItem('ml.ind.v1', JSON.stringify([{ def:'bollinger', params:{} }])) } });
+  await p.goto(origin + '/terminal-app/'); await p.waitForFunction(() => !document.querySelector('.ml-boot'), null, { timeout:30000 });
+  await p.waitForSelector('.ind-row[data-def="bollinger"]', { timeout:15000 });
+  await p.evaluate(() => (document.querySelector('.ind-row[data-def="bollinger"] [data-act="cfg"]')).click());
+  await p.waitForSelector('.idlg-tabs [data-tab="Style"]', { timeout:5000 }); await p.click('.idlg-tabs [data-tab="Style"]');
+  const btns = p.locator('.idlg .idlg-cbtn'); await btns.nth((await btns.count()) - 1).click(); await p.waitForSelector('.idlg-cpop .cpk', { timeout:5000 });
+  const C = await p.evaluate(() => { const mid = e => { const r = e.getBoundingClientRect(); return r.top + r.height / 2 }, box = document.querySelector('.idlg-cpop'), a = box.getBoundingClientRect(), d = document.querySelector('.idlg').getBoundingClientRect();
+    const btnTops = [...document.querySelectorAll('.idlg .idlg-cbtn')].map(x => x.getBoundingClientRect()).filter(r => r.top > a.top - 1);
+    return { inside:a.left >= 0 && a.top >= 0 && a.right <= innerWidth && a.bottom <= innerHeight, side:box.dataset.side,
+      besideRoom:innerWidth - d.right >= a.width + 16, over:btnTops.some(r => r.left < a.right && r.right > a.left && r.top < a.bottom && r.bottom > a.top),
+      rows:[...box.querySelectorAll('.cpk-row')].map(r => { const l = r.querySelector('.cpk-lab'), c = r.lastElementChild; return { name:l.textContent, lines:Math.round(l.getBoundingClientRect().height / parseFloat(getComputedStyle(l).lineHeight || '16')) || 1, dy:Math.round((mid(l) - mid(c)) * 10) / 10 } }),
+      strokes:[...box.querySelectorAll('.cpk-seg button')].map(bt => { const i = bt.querySelector('.cpk-line'); return Math.round((mid(i) - mid(bt)) * 10) / 10 }) } });
+  await p.screenshot({ path:`${SP}/look11_cpk_${nm}.png` });
+  await p.mouse.click(3, (opt.viewport?.height || 844) - 3); await p.waitForTimeout(200);
+  C.after = await p.evaluate(() => ({ box:!!document.querySelector('.idlg-cpop'), dialog:!document.querySelector('.idlg-back')?.hidden }));
+  (R.cpk ||= {})[nm] = C;
+  // a window too narrow for the box beside the dialog (the phone) has it over the dialog; a press outside it closes it
+  check(`colour box (${nm}): inside the window; where the window has room, beside the dialog and over no colour button of the rows below`, C.inside && (!C.besideRoom || (C.side === 'right' && !C.over)), C);
+  check(`colour box (${nm}): each row (Opacity, Thickness, Line style) one line, its name within 1 px of its control's middle`, C.rows.length === 3 && C.rows.every(r => r.lines === 1 && Math.abs(r.dy) <= 1), C.rows);
+  check(`colour box (${nm}): each Thickness and Line style button holds its stroke within 1 px of its middle`, C.strokes.length === 7 && C.strokes.every(v => Math.abs(v) <= 1), C.strokes);
+  check(`colour box (${nm}): a press on the backdrop closes the box and keeps the dialog`, !C.after.box && C.after.dialog, C.after);
+  await ctx.close();
+}
 /* 3e (CONTRACT 8b, the Terminal's lock prompts; main.ts lockedPage, stats.ts, events.ts): with broker and events locked
    and IHSG not held (the stub's LOCK), on a wide screen and on the phone: the Flow Timeline's head holds its title and
    the lock on one line with its ink in the middle of the band, its body is out, the Events button's lock mark sits in
