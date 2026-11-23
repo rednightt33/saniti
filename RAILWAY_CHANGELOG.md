@@ -25,6 +25,8 @@
   with an I60 BULL DIV entry on ASII, BBCA, BBRI, MYOR, PGAS (2-5 signals each); the Terminal's served lab build draws
   six lab indicators on BBCA with no page error and its colour box opens beside the dialog. As a visitor: the lab
   build and its probe 404 on both sites; the public Terminal bundle holds none of the lab names.
+- **CI of `c91e2809` on `main`:** read to the end, all green (look-ahead gate 45253935291, page smoke, image builds,
+  generated files, record statuses, Backend tests 45253935385 with its six jobs).
 - **Postgres:** the real-data look-ahead check read about 285 thousand rows through pgweb (read-only); not a large
   update, no restart.
 - **Shared:** both sites use the new workers (engine and registry versions moved: saved screens and backtests are
