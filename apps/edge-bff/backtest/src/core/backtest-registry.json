@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "registry_version": "269e5febcc9cb8f2",
+  "registry_version": "d727eeb6fde87a0b",
   "generated_by": "apps/backtest-worker/scripts/build-registry.mjs",
   "sources": [
     {
       "file": "apps/edge-bff/terminal/src/data/indRegistry.json",
-      "sha256": "a7861120710e8a3709c47c6d7d92a27c181764a57c8de4607649958d0f8c3d2b"
+      "sha256": "831223d3ba63b8e3144d926eaed67c18a2806ffbdf6df88806a186b3c4c71764"
     },
     {
       "file": "apps/edge-bff/terminal/src/calc/indicators.ts",

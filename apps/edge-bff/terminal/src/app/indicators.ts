@@ -705,7 +705,11 @@ export function initIndicators(ctx: Ctx) {
            `paletteFrom`: Alpha KAMA's 20 colours) */
         const pal = Array.isArray(pt.o.palette) && pt.o.paletteFrom ? inst.disp[pt.o.paletteFrom] : null;
         const tint = (i: number) => { const k = pal ? pal[i] : null; return isN(k) && pt.o.palette[k] ? { color:alpha(pt.o.palette[k], op) } : {} };
-        pt.series.setData(gapped(inRange(a, (v, i) => v === null ? [{ time:T(i) }] : [breaks.has(i + 1) ? { time:T(i), value:cv(v), color:GAP } : { time:T(i), value:cv(v), ...tint(i) }])))   // a gap, not a bridge (agent 5 F1);
+        /* EXEC-PINE-INDICATORS: an output its source draws with Pine's plot.style_line / style_stepline (registry `join`)
+           runs on over a bar without a value, as TradingView draws it (Alpha Price Action's levels while no Candle A or
+           B is found, Alpha KAMA's first bars); every other line keeps the gap */
+        const gap = (i: number) => pt.o.join ? [] : [{ time:T(i) }];
+        pt.series.setData(gapped(inRange(a, (v, i) => v === null ? gap(i) : [breaks.has(i + 1) ? { time:T(i), value:cv(v), color:GAP } : { time:T(i), value:cv(v), ...tint(i) }])))   // a gap, not a bridge (agent 5 F1);
         pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width });
       }
       if(r.zone === 'overlay' && !own(pt)) [pt.series, pt.series2].filter(Boolean).forEach(se => se.applyOptions({ priceFormat:ctx.formatMode() }));

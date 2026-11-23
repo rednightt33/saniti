@@ -3674,7 +3674,8 @@
 "colors": [
 "#2962ff"
 ],
-"step": true
+"step": true,
+"join": true
 },
 {
 "k": "level_a",
@@ -3688,7 +3689,8 @@
 "colors": [
 "#f23645"
 ],
-"step": true
+"step": true,
+"join": true
 },
 {
 "k": "level_b",
@@ -3702,7 +3704,8 @@
 "colors": [
 "#ff9800"
 ],
-"step": true
+"step": true,
+"join": true
 },
 {
 "k": "break_1",
@@ -3805,7 +3808,8 @@
 "colors": [
 "#2962ff"
 ],
-"step": true
+"step": true,
+"join": true
 },
 {
 "k": "level_a",
@@ -3819,7 +3823,8 @@
 "colors": [
 "#f23645"
 ],
-"step": true
+"step": true,
+"join": true
 },
 {
 "k": "level_b",
@@ -3833,7 +3838,8 @@
 "colors": [
 "#ff9800"
 ],
-"step": true
+"step": true,
+"join": true
 },
 {
 "k": "break_1",
@@ -3958,7 +3964,8 @@
 "#54f700",
 "#1eff00"
 ],
-"paletteFrom": "color_index"
+"paletteFrom": "color_index",
+"join": true
 },
 {
 "k": "ema_x",
