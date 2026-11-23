@@ -17038,3 +17038,16 @@ menunggu), "jika sudah jelas masukan exec. Saya lanjut indikator selanjutnya." P
 - Terbuka: dukungan Terminal untuk segmen garis antara dua titik dan arsiran latar (dipastikan saat membangun; bila perlu
   tambahan di mesin gambar Terminal, dilaporkan dulu); nilai pembanding dari TradingView (tanggal SH/SL, BULL/BEAR DIV,
   BUY A di BBCA).
+
+### I57 — Inside Bar Detection (Pine v6 "Nic- Inside Bar Chain Break Alert (Stable & Exact)"; dari user 2026-11-23)
+
+- Terminal: apa adanya ("Terminal as is saja"): label IB di setiap candle dengan high ≤ high kemarin dan low ≥ low kemarin
+  (sama persis ikut), label IB BREAK ↑/↓; pilihan tampil/sembunyi dan ukuran label.
+- Rumus (dibaca dari Pine, kausal): IB pertama memulai kompresi dengan mother bar = candle sebelumnya (high, low tetap);
+  selama kompresi candle boleh menyentuh di luar rentang asal close di dalam; BREAK ↑ = close > high mother, BREAK ↓ =
+  close < low mother; sesudah break kompresi selesai.
+- Keputusan user 2026-11-23: "1.B" hari tanpa transaksi (candle datar) dihitung sebagai inside bar, sama seperti
+  TradingView, juga di Screener dan Backtest; "2.OK" arah break dipilih (Break ↑ / Break ↓ / keduanya, bawaan Break ↑);
+  "3. Inside Bar Detection saja": nama di EDGE "Inside Bar Detection".
+- Screener: IB terjadi hari ini atau dalam N sesi terakhir; break terjadi dalam N sesi terakhir. Backtest: break terjadi
+  dalam N sesi terakhir.
