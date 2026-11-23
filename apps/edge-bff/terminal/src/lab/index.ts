@@ -14,7 +14,16 @@
      F.my_key = def('my_key', ['out'], SRC, (B, p) => ({ out: ... }));
 
    Its registry entry goes into data/indRegistry.json with the item at stage "lab" in catalog/releases.json; the public
-   build leaves the entry out. Releasing it moves both lines into calc/indicators.ts (Part B). A lab Flow indicator needs
-   a registration point in calc/flow.ts first (its map is not exported), reached from main.ts: not built
-   (tests/test_releases.py LAB_KIND_HELD). */
+   build leaves the entry out. Releasing it moves both lines into calc/indicators.ts (Part B).
+
+   A lab Flow indicator (INDICATOR_BETA_TO_LIVE.md, "A lab Flow indicator"; built 2026-11-23, step 3 of the user's
+   sequence): its registry entry comes from the spreadsheet (scripts/build_flow_registry.py) with the item at stage "lab";
+   its formula goes here, registered under its id with the building blocks the released ones use:
+
+     import { flowKit as K, registerFlow } from '../calc/flow';
+     registerFlow('FL53', (c, p) => ({ value: K.each(c.rows, K.W(p, 20), (a, t) => ...) }));
+
+   registerFlow refuses an id that already has a formula. Releasing it (or putting it at preview) moves the formula into
+   calc/flow.ts FLOW (terminal/tests/calc/public_formulas.test.ts and calc/flow.test.ts "registry" compute every entry
+   of the public build). */
 export {};
