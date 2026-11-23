@@ -126,6 +126,10 @@ A question that only makes sense to someone who has read the earlier turns or EX
 2. Inspect current Railway and database state before mutation. Use explicit project, environment, and service IDs from `PROJECT_CONTEXT.md`.
 3. Preserve unrelated services, tables, rows, files, and user changes.
 4. Apply the smallest safe change and verify it from the live system.
+   - Tests (user decision 2026-11-23: "tes yang dijalankan bukan wajib full suite, tapi tes yg memang relevant
+     (targeted) dan full suite wajib dijalankan apabila memang diperlukan"): run the tests relevant to the change; CI runs
+     the full suites on every push. Run a full suite locally only when it is needed, for example a change to a test
+     fixture or helper every test uses.
 5. Record the change in GitHub during the same task:
    - Schema: add a forward SQL migration, refresh `DATABASE_SCHEMA.md`, and append `DATABASE_CHANGELOG.md`.
    - Metadata: update `Table_Catalog` for every new/changed public data table, `Column_Catalog` for every new/changed column in those tables, and `Feature_Catalog` for new/changed Feature definitions. Every active Feature definition must include a formula, plain-language analytical interpretation, recommended use, misuse warning, semantic review status, and validation-evidence paths; run `scripts/audit_feature_catalog_semantics.py` after a Feature change. Register safe Feature joins in `Feature_Relationship_Catalog` and generic AI tools/limits in `Tool_Catalog`. The only initial exclusions are `Database_Table_Status`, `Table_Catalog`, and `Column_Catalog` themselves. Register new/changed PostgreSQL routines in related `Table_Catalog.related_functions`; see `DATABASE_CATALOG.md`. Do not mark inferred meanings VERIFIED.
