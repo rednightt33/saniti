@@ -112,7 +112,7 @@ These tests enforce the switches:
   must be listed as lab or released, or belong to `BETA_ONLY_TABS`. The same file shows that a lab tab is refused on
   the live site, the admin's `*` included, is hidden from the live rail, and stays on the beta. It refuses any lab tab
   for now (above).
-- `apps/edge-bff/tests/test_releases.py`: every registry id has an entry; no item is at the lab stage for now (above).
+- `apps/edge-bff/tests/test_releases.py`: every registry id has an entry; an item is at the lab stage only in a kind `LAB_KIND_HELD` does not hold (a candle pattern and a Flow indicator held).
 - `apps/edge-bff/tests/test_3f_public_bundles.py` scans every file served without the admin check (each page's build,
   its Web Worker files and the shell) for every lab item's id and formula key. Its proof builds (round 2 of the
   checker) copy apps/edge-bff, write fixture items on disk into every registry the filter knows (one released, one lab,

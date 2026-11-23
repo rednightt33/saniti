@@ -8886,6 +8886,41 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M549 — The test-out of items 1-3 of 2026-11-23: the guide, the lab lift and the registration window (2026-11-23; found by the test-out `wf_4181198a-09f`; FIXED on the branch, see Status)
+
+- **The test-out (three fresh agents at xhigh, the user's "Untuk workflow, pengecekan menggunakan Opus 5,5 xhigh"):**
+  19 findings, 6 medium. The guide was followed cold from lab to released (CI's full edge-bff suite 1228 passed in the
+  copy); no lab item reached a principal without it by a bundle, a catalog or a worker; the window opens and closes as
+  planned.
+- **Fixed (the user: "Perbaiki dulu temuannya"):**
+  - GC-1: the guide said the beta and the screener-worker wait for CI (off since 2026-11-23); Part A step 11 and Part
+    B now read each commit's runs and report red; the backtest-worker upload reads its look-ahead run
+    (`apps/backtest-worker/README.md`); AGENTS "Deploys" names the files a Wait-for-CI change updates.
+  - LLA-F1: the look-ahead gate passed a lab indicator whose formula throws on every call (`safely`); now each registry
+    indicator's defaults run outside it and must give a finite value (`apps/backtest-worker/tests/lookahead.test.ts`;
+    red with one `DEFAULTS` entry removed, naming I01).
+  - LLA-F2: a lab candle pattern was opened without a dry run and would turn the gate red: candle patterns are held
+    (`LAB_KIND_HELD`), with a carried part.
+  - LLA-F3: the released-text guard read only `name`; it reads `label` and `short` too (`tests/test_releases.py`
+    `NAME_FIELDS`, a self-test per field; red with them removed).
+  - LLA-F4: the Backtest worker checked a stop line against the full registry before the plan's allow, so a lab id
+    answered INVALID_LINE and an unknown one UNKNOWN_INDICATOR; the allow is checked first (`src/validate.ts`
+    `checkRequest`; `tests/access.test.ts`, red before the fix).
+  - LLA-F5: `http_smoke.py` reads `LAB_PROBE` from `shared/release-filter.mjs`; the filter's comment names the .svg.
+  - LLA-F6: the CRIT-1 browser test's docstring.
+  - GC-2: stale "no lab item" texts (LIVE_PROMOTION section 3, FUTURE_PLAN, a test docstring).
+  - GC-3: the Backtest tripwire was red against `main`: its worker baseline recorded under EXEC-MU-ACCOUNTS with the
+    user's words (`scripts/screener/backtest_worker_baseline.json`; the tripwire OK); the guide names it.
+  - GC-4, GC-5, GC-6: the guide cites symbols, not line numbers; the missing facts (the need argument, the overlay's
+    format, the formula test and the oracle at release, the order, `Auth.lab_admin`, a lab-only fix's versions).
+  - F6: the window's other paths are tests (`apps/edge-bff/tests/test_step9_window_paths.py`, P1-P9; P1 and P7 hold
+    today's residuals for UD7 and UD22).
+  - F1, F2, F4, F7 (records): the step-9 plan now names UD7's exposure and the watch on the live logs, the close's
+    confirmation and its exact value, the residuals as open questions, and its line citations.
+- **Carried (EXEC-MU-ACCOUNTS, Carried open parts):** F3, a session masked at the close but not revoked; F5, the beta's
+  'Resend code' while the live site is closed; a lab candle pattern.
+- **Status:** FIXED on the branch (this entry's commit); its test-out joins step 8 (EXEC UD23).
+
 ### M548 — The lab item guard lifted; its dry run found the look-ahead gate passing a lab indicator without computing it (2026-11-23; found by the dry run; FIXED on the branch, `6ab63c15`)
 
 - **The user (2026-11-23):** "Cabut tes penjaga lab".

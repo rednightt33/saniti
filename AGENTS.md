@@ -275,7 +275,8 @@ deploy without waiting for GitHub Actions (`.railway/railway.ts` `checkSuites: f
 dashboard, ERRORS M514). CI still runs on every push. After every push to `main` or `live` the agent reads that commit's
 runs to their end and tells the user at once when one is red, with what failed and a proposal (a fix, or a rollback to
 the deployment RAILWAY_CHANGELOG names). Wait for CI comes back on edge-bff-live near the launch (EXEC-MU-ACCOUNTS,
-Carried open parts).
+Carried open parts). A change of Wait for CI updates this paragraph, `LIVE_PROMOTION.md` and
+`INDICATOR_BETA_TO_LIVE.md` (Part A step 11) in the same commit.
 
 ## The live site
 

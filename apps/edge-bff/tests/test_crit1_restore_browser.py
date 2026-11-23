@@ -3,9 +3,11 @@ its saved indicators (src/app/indicators.ts restore -> data/inputs.ts restoreLis
 build lacks, at its place, and the list it saves keeps it. The preferences are shared by owner, not by site, so the live
 site's public build must keep the admin's lab indicators for the beta's lab build.
 
-No indicator is at the lab stage yet (tests/test_releases.py refuses one), so no lab build can draw a real one in a
-browser: the public Terminal here gets a saved list with a stand-in id no build knows between two it draws, as the lab
-build's list would reach it, and the saved list after the load (the restore's save, then a change, then a reload) must
+The repository holds no lab indicator (an indicator may be lab since 2026-11-23, tests/test_releases.py LAB_KIND_HELD),
+so no lab build here can draw a real one: the public Terminal gets a saved list with a stand-in id no build knows between
+two it draws, as the lab build's list would reach it (the test-out of 2026-11-23 ran the same check with a planted I54 on
+its public build); the round trip on the real sites is INDICATOR_BETA_TO_LIVE.md Part A step 12, at the first lab
+indicator, and the saved list after the load (the restore's save, then a change, then a reload) must
 still hold it at its place. That the lab build draws it again from that list is restoreList's unit test
 (terminal/tests/data/inputs.test.ts). Needs EDGE_TEST_POSTGRES_URL, Playwright with EDGE_TEST_CHROMIUM and the built
 Terminal page."""

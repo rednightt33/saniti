@@ -108,7 +108,7 @@ export function releaseFilter({ lab = false } = {}) {
 }
 
 /** L11 (3f checker; built 2026-11-23 when the lab item guard was lifted): a file of a fixed name that only a lab build
-    holds, at <base>assets/lab-probe.js. A hashed lab file's name cannot be known from outside once the public and lab
+    holds, at <base>assets/lab-probe.svg (a .js file would read as a bundle to the proof builds). A hashed lab file's name cannot be known from outside once the public and lab
     builds differ, so a smoke that asks for the public build's names under /lab/ passes by absence; this one name
     proves the lab build is not served (the live smoke, verification/edge_multiuser/live_smoke/http_smoke.py) and is
     served to the admin on the beta (tests/test_3f_lab_pages.py). An empty image, not a script: it holds no code, and

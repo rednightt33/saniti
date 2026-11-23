@@ -325,3 +325,15 @@ test('a request nested thousands of levels deep is refused 422 at every depth, w
     assert.ok(r && r.status === 422, `${name} ${depth} ${allow ? 'restricted' : 'all'}: ${JSON.stringify(r)?.slice(0, 300)}`);
   }
 });
+
+test('a stop line outside allow is refused by the plan alike for a known and an unknown id (test-out 2026-11-23, LLA-F4)', () => {
+  // the plan's allow is read before the full registry, so the answer does not tell a lab or held id from an unknown one
+  const allow = allowOf({ indicator: ['I01'], flow_indicator: [], candle_pattern: [], screener_metric: [] });
+  const answer = (indicator: string) => {
+    const q = request([]); q.exit.stop.mode = 'line'; q.exit.stop.line = { indicator, output: 'rsi' } as never;
+    const r = refusal(() => checkRequest(q, REFS, CFG, undefined, allow));
+    return r && [r.code, r.field];
+  };
+  assert.deepEqual(answer('I13'), answer('I999'));
+  assert.equal((answer('I13') ?? [])[0], 'CAPABILITY_REQUIRED');
+});

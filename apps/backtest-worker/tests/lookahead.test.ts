@@ -62,6 +62,18 @@ test('every registry indicator (53 released and any at the lab stage): defaults,
   // every registry indicator has its formula in this process (a lab one through loader/register.mjs): `safely` below
   // reads a refused setting as no series, so a missing formula would pass the gate unseen (lab dry run, 2026-11-23)
   assert.deepEqual(REGISTRY.indicators.filter(r => typeof F[r.key] !== 'function').map(r => r.id), []);
+  // ... and computes: its defaults run outside `safely` and give at least one finite value, so a formula that throws on
+  // every call (a missing DEFAULTS entry, a wrong need) fails here naming it (test-out of 2026-11-23, LLA-F1)
+  const dead: string[] = [];
+  for (const r of REGISTRY.indicators) {
+    try {
+      const out = F[r.key](bars(A, N), resolveParams(r, {})) as Record<string, unknown> | null;
+      const finite = Object.values(out ?? {}).some(a => a != null && typeof (a as ArrayLike<unknown>).length === 'number'
+        && Array.from(a as ArrayLike<unknown>).some(x => num(x) !== null));
+      if (!finite) dead.push(`${r.id}: no finite value at its defaults`);
+    } catch (e) { dead.push(`${r.id}: ${(e as Error).message}`) }
+  }
+  assert.deepEqual(dead, []);
   for (const r of REGISTRY.indicators) {
     const variants: Record<string, unknown>[] = [{}];
     for (const p of r.params) {

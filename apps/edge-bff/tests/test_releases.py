@@ -121,6 +121,12 @@ LAB_KIND_HELD = {
     'flow_indicator': ("a lab Flow indicator's formula has no registration point: terminal/src/calc/flow.ts keeps its "
                        "FLOW map unexported and keys every formula by its id, so the formula would be in a file every "
                        "public build carries (LIVE_PROMOTION.md section 3; INDICATOR_BETA_TO_LIVE.md, Flow indicators)"),
+    # the test-out of 2026-11-23 (LLA-F2): the dry run covered an indicator only; a lab candle needs its pair and mirror
+    # (backtest core candles.ts), a CASES entry and the count pins of the look-ahead gate, candles.test.ts and the
+    # screener-worker's operators.test.ts made derived first; held until one is dry-run like the indicator was
+    'candle_pattern': ("a lab candle pattern was not dry-run: its pair and mirror (candles.ts), its CASES entry and the "
+                       "count pins of lookahead.test.ts, candles.test.ts and operators.test.ts are not ready for a 21st "
+                       "pattern (EXEC-MU-ACCOUNTS, Carried open parts; INDICATOR_BETA_TO_LIVE.md)"),
 }
 
 
@@ -144,7 +150,7 @@ def test_the_lab_kind_guard_refuses_a_held_kind_and_lets_the_others_be_lab(tmp_p
     current = releases.load(planted)
     lab = {kind for kind in KINDS for e in current.entries(kind) if e['stage'] != 'released'}
     assert lab == set(KINDS)
-    assert {kind for kind in lab if kind in LAB_KIND_HELD} == {'flow_indicator'}
+    assert {kind for kind in lab if kind in LAB_KIND_HELD} == {'flow_indicator', 'candle_pattern'}
 
 
 def not_gated_by_id():
@@ -164,7 +170,7 @@ def lab_not_gated(current):
 
 
 def test_an_item_no_worker_gates_by_id_is_never_lab():
-    """A standing rule, not one of LAB_ITEM_HELD_UNTIL (3f round 2, TRC2-5 and CS-5): a lab item is held by its holders
+    """A standing rule, not one of LAB_KIND_HELD (3f round 2, TRC2-5 and CS-5): a lab item is held by its holders
     only through the workers' checks by id (allow.KINDS), so an item every principal reads or computes whatever its plan
     can never be at the lab stage; it stays out of the catalogs only in name. (A preset is outside this rule: a run
     carries a definition, never a preset id, and a lab preset is held by hiding its definition.)"""
@@ -317,12 +323,17 @@ def registry_entries(only=None):
     return out
 
 
+NAME_FIELDS = ('name', 'label', 'short')
+
+
 def released_text_naming_lab(current, entries):
     lab = {(k, e['id']): e for k, e in entries if current.stage_of(k, e['id']) != 'released'}
     marks = {}
     for (k, i), e in lab.items():
-        marks[i] = [re.compile(rf'\b{re.escape(i)}\b')] + ([re.compile(re.escape(e['name']))]
-                                                          if isinstance(e.get('name'), str) and len(e['name']) > 3 else [])
+        # every display field a registry names an item by: name (indicators, Flow, candles), label and short (Screener
+        # metrics, presets) (test-out of 2026-11-23, LLA-F3: a lab metric named by its label passed)
+        marks[i] = [re.compile(rf'\b{re.escape(i)}\b')] + [re.compile(re.escape(e[f])) for f in NAME_FIELDS
+                                                         if isinstance(e.get(f), str) and len(e[f]) > 3]
     hits = []
     for k, e in entries:
         if (k, e['id']) in lab:
@@ -356,6 +367,16 @@ def test_a_released_entrys_text_names_no_lab_item():
         data = json.loads(FILE.read_text(encoding='utf-8'))
         data['items'] = [{**it, 'stage': 'lab'} if (it['kind'], it['id']) == ('indicator', target) else it for it in data['items']]
         assert (first[0], first[1]['id'], target) in released_text_naming_lab(Releases(data), planted), file
+    # a lab item named by its display label (a Screener metric's label or short), not its id (LLA-F3)
+    for field in ('label', 'short'):
+        lab_one = next((k, e) for k, e in entries if isinstance(e.get(field), str) and len(e[field]) > 3)
+        other = next((k, e) for k, e in entries if (k, e['id']) != (lab_one[0], lab_one[1]['id']))
+        planted = [(k, {**e, 'misuse': f'Read it with {lab_one[1][field]}.'}) if (k, e['id']) == (other[0], other[1]['id'])
+                   else (k, e) for k, e in entries]
+        data = json.loads(FILE.read_text(encoding='utf-8'))
+        data['items'] = [{**it, 'stage': 'lab'} if (it['kind'], it['id']) == lab_one[:1] + (lab_one[1]['id'],) else it
+                         for it in data['items']]
+        assert (other[0], other[1]['id'], lab_one[1]['id']) in released_text_naming_lab(Releases(data), planted), field
     hits = released_text_naming_lab(releases.load(FILE), entries)
     assert not hits, (f'released entries whose own text names a lab item ({hits[:5]}): that text ships to every '
                       'principal. Reword it, or release the item first.')

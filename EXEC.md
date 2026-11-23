@@ -16705,6 +16705,9 @@ Order of the services (CONTRACT 17, rollback floors):
   | CRIT-1's round trip on the real sites (ERRORS M548) | the admin's lab indicator survives the beta, the live Terminal with the same account, and the beta again | the lab-indicator builder | the first lab indicator's beta deploy (`INDICATOR_BETA_TO_LIVE.md` Part A step 12) |
   | A lab Flow indicator's registration point (ERRORS M548) | the `FLOW` map of `calc/flow.ts` is not exported, so a Flow indicator cannot be at the lab stage (`LAB_KIND_HELD`) | the lab-gap owner of this execution | the user asks for a beta-only Flow indicator |
   | Wait for CI back on edge-bff-live (the user 2026-11-23) | the live site deploys without waiting for CI until then | the launch's owner, through this execution | near the launch: before registration opens for good (after step 9's window and step 8), asked with the launch's go |
+  | A masked session revoked at the pre-launch mode's close (ERRORS M549, test-out F3) | `principal.resolve` returns no principal for a window session after the close but leaves its row, so it returns on a reopen or a test mark | the step-9 owner | before the next registration window or the launch |
+  | The beta's 'Resend code' while the live site is in its pre-launch mode (ERRORS M549, F5) | the admin page offers and sends a code the live site's verify then refuses | the admin page's owner | before the next registration window or the launch |
+  | A lab candle pattern (ERRORS M549, LLA-F2) | `LAB_KIND_HELD` holds candle patterns: a dry run like the indicator's, its pair and mirror, a `CASES` entry, the count pins made derived | the lab-gap owner | the user asks for a beta-only candle pattern |
   | The five failing Screener smoke steps (ERRORS M417) | run `node apps/edge-bff/screener/tests/smoke/smoke.mjs`; diagnose or retire each failing step | the Screener owner | the next Screener change, or step 8 (the deep checker), whichever comes first |
   | terminal-publisher's upload (test-out fix round 1, guest-exposure-2) | the publisher is a CLI upload and still runs the `examples.py` before the Radar cut by name (`c9aef344`); the same bytes today, so nothing leaks now | the publisher's owner, through this execution | its next upload, or step 8 |
   | The other readers of `TELEGRAM_NOTIFY_URL` (test-out deploy-3) | market-sql-governor, market-audit-store and market-python-sandbox (`app/queue_alarm.py`), idx-price-cron (`price_update.py`, `intraday_update.py`), fixed-income-price-cron, stockbit-updater, terminal-publisher, feature-04-worker and `scripts/restart_postgres.py` read the address with no start check: a wrong value starts the service and only its alerts fail; one shared check like edge-bff's `notify_url_problem` (`app/config.py`) at each start | ops, through this execution | the next change of telegram-monitor's address or port, the next change of each service, or step 8, whichever comes first |
@@ -16735,7 +16738,8 @@ Order of the services (CONTRACT 17, rollback floors):
 
 - **Step 9, the registration test window: implementation plan (2026-11-23, from the live site's code at `ec739a06`; the
   user: "Sekarang akan masuk langkah 9 instead of langkah 8 ... segera execute").**
-  - What the switch does (code read at `ec739a06`): `EDGE_PRELAUNCH` is unset on edge-bff-live, so `Settings.prelaunch`
+  - What the switch does (code read at `ec739a06`; the lines cited are the branch head's, at `ec739a06` `config.py:217-219` and
+    `main.py:994`): `EDGE_PRELAUNCH` is unset on edge-bff-live, so `Settings.prelaunch`
     holds (`app/config.py:223-225`, the live site's default). `EDGE_PRELAUNCH=false` opens registration and its code step
     (`app/auth_flows.py:739-745`, `/api/v1/auth/config` `registration` true, the sign-in page's "Create account") and
     sign-in for every account (`app/main.py:997`); unsetting it again closes both, ends the session of every account that
@@ -16750,8 +16754,11 @@ Order of the services (CONTRACT 17, rollback floors):
     environment), so the window's code mail is the first real send: the address must be one the user reads (a "+alias"
     of the user's own mailbox).
   - The register before step 9, for a short window with the user's own addresses: UD1, UD2, UD4, UD5, UD10, UD11 and
-    UD12 do not hold it (they hold the launch); UD24 acknowledged; UD8 and UD21 stand as accepted residuals of the
-    pre-launch mode; **UD22 becomes reachable while the window is open** (anyone may register then); **UD6 needs the
+    UD12 do not hold it (they hold the launch); UD24 acknowledged; UD8 and UD21 are open questions for the launch, not
+    accepted (corrected after the test-out, F4); **UD22 becomes reachable while the window is open** (anyone may
+    register then; named in the go question of 2026-11-23); **UD7 too: while open one client can make edge-bff queue a
+    code mail to any number of addresses** (no per-client send limit, no Resend webhook, UD5; test-out F1, 25 of 25 in
+    the probe), so the window is watched in the live logs (`email_sent`) and closed early on a burst; **UD6 needs the
     user's explicit acceptance** that the window runs without Privacy and Terms texts (R1-2's condition).
   - Steps, each flip a deploy that needs the user's confirmation (AGENTS.md "Deploys"), the user present to register:
     1. M340 check (no active run); `EDGE_PRELAUNCH=false` on edge-bff-live (a redeploy of `ec739a06`; no `main` move:
@@ -16759,10 +16766,16 @@ Order of the services (CONTRACT 17, rollback floors):
        `registration` true.
     2. The user registers on app.edgefinance.id with a "+alias" address, enters the code, lands signed in, signs out and
        in again; the agent reads the logs (`email_sent`, no `email_send_failed`).
-    3. Close within the agreed time: `EDGE_PRELAUNCH` removed (a redeploy); read back `registration` false and the
-       smoke (registration 403 REGISTRATION_CLOSED).
+    3. Close within the agreed time: `EDGE_PRELAUNCH` removed, or set to exactly `true` (any other value stops the
+       start, `config.py`); a redeploy; read back `registration` false and the smoke (registration 403
+       REGISTRATION_CLOSED). The close is a deploy (AGENTS.md "Deploys"): its confirmation is asked before the scheduled
+       time (test-out F2).
     4. The accounts made in the window are listed on the beta's admin page (Accounts, newest first); the user disables
-       or keeps each (no account is deleted, ERRORS M535; a kept one signs in only once marked a test account).
+       or keeps each (no account is deleted, ERRORS M535; a kept one signs in only once marked a test account). At the
+       close, 'End sessions' (or disable) on each window account: the pre-launch mode masks a window session without
+       revoking it, so it would come back on a reopen or a test mark (test-out F3, ERRORS M549). Do not use 'Resend
+       code' on a pending window registration after the close: it mails a code the live site refuses (F5); pending rows
+       go by the 24 h purge.
     5. Records: RAILWAY_CHANGELOG (both flips, the deployments, the read-backs), EXEC, ERRORS for anything found.
   - Executed so far (2026-11-23): the plan, the rehearsal test, the register review. The open-close flips wait for the
     user's confirmation and presence. Its test-out: the workflow of items 1-3; fixes go to step 8.

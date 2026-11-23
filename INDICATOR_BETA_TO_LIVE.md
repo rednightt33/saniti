@@ -63,8 +63,8 @@ Not covered by the lab stage:
 All edits are on the session branch; one commit per indicator (or one per batch) is fine.
 
 1. **The formula wrapper, first lab indicator only.** `terminal/src/calc/indicators.ts` keeps its wrapper `def` and the
-   helpers a lab formula needs private (`def` at `indicators.ts:244`, `srcOf` at `:201`, `SRC` at `:274`, `Seg` at
-   `:200`). Export them (`export function def`, `export const srcOf`, `export const SRC`, `export interface Seg`); the
+   helpers a lab formula needs private (`function def`, `const srcOf`, `const SRC`, `interface Seg`: find them by symbol,
+   the lines move). Export them (`export function def`, `export const srcOf`, `export const SRC`, `export interface Seg`); the
    formulas do not change. This changes `registry_version` and both engine versions once (the file is hashed): the
    Screener re-reviews saved screens once after the deploy.
 2. **The formula, in the lab module only.** `terminal/src/lab/index.ts` (never `calc/indicators.ts` while lab: that file
@@ -79,8 +79,10 @@ All edits are on the session branch; one commit per indicator (or one per batch)
      return { zscore: x.map((v, i) => { const mi = m[i], si = s[i]; return mi !== null && si !== null && si > 0 ? (v - mi) / si : null }) };
    });
    ```
-   `DEFAULTS.<key>` is required: `def` reads it for every parameter (`indicators.ts:246`, `:250`, which throws without it). The keys of the defaults are
-   the registry's parameter keys.
+   `DEFAULTS.<key>` is required: `def` reads it for every parameter and throws without it (the look-ahead gate now fails
+   naming the indicator, ERRORS M549). The keys of the defaults are
+   the registry's parameter keys. The third argument of `def` is the data the formula needs: `SRC` for a `source`
+   parameter, `() => 'V'` for volume, `() => 'HLC'` (or `p => 'HLC' + needSrc(p.source)`) for a range; read a neighbour.
 3. **The registry row.** Append to `terminal/src/data/indRegistry.json` (the fields of a neighbour of the same zone, e.g.
    I17 for a panel line: `id`, `cat`, `name`, `key`, `short`, `req`, `zone`, `unit`, `colorRule`, `outs`, `params`,
    `guides`, `fill`, `tip`, `info`, `display`, `position`). The file is written one value per line: keep it so with
@@ -90,7 +92,8 @@ All edits are on the session branch; one commit per indicator (or one per batch)
    when it is missing).
 5. **The Screener overlay.** `apps/edge-bff/screener/src/core/screener-overlay.json` `indicators.I54`: `shape`,
    `synonyms`, `description`, `default_test`, `outputs.<key>.tests` (SCREENER_ONBOARDING §2.11 Step 4; the generator
-   refuses an entry that breaks a rule, `overlayProblems`).
+   refuses an entry that breaks a rule, `overlayProblems`). The file is written with `json.dumps(doc, indent=2,
+   ensure_ascii=False)` and a final newline (the registry file above has `indent=0` and none).
 6. **The generated registries.** Both generators import the lab module, so they see the formula:
    - `npm run registry` in `apps/backtest-worker` → `apps/edge-bff/backtest/src/core/backtest-registry.json`;
    - `npm run registry` in `apps/edge-bff/screener` → `screener/src/core/screener-registry.json` and
@@ -115,19 +118,21 @@ All edits are on the session branch; one commit per indicator (or one per batch)
    - `node scripts/check_image_imports.mjs apps/backtest-worker/Dockerfile` and the Screener's.
    - Expected changes: `registry_version`, both engine versions and `screener_registry_version`. Pinned counts of 53
      indicators in the page tests do not change at the lab stage (the page tests see the public registry).
-10. **Commit and push the session branch; CI green.**
+10. **Commit and push the session branch; read its CI runs** (the whole suites; a red run is fixed before step 11).
 11. **The beta deploy, with the user's confirmation (AGENTS.md "Deploys").** Tell the user, before asking:
     - the shared workers change for **both** sites at this deploy: they compute the new formula for anyone whose allow
       holds it, which on the live site is no one; their versions change, so saved screens are re-reviewed once;
     - nothing changes on the live site's pages.
     Then, in order (RAILWAY_CHANGELOG.md 2026-11-22 "The round's close" is a worked record):
     1. the M340 check: `python3 scripts/restart_postgres.py` (check mode): `user_runs` `edge_jobs` 0, `orc_turns` 0;
-    2. the backtest-worker by CLI upload (it is not GitHub-connected): `git archive <commit>` of the COPY paths of
+    2. the backtest-worker by CLI upload (it is not GitHub-connected), from a commit whose `Backtest look-ahead gate`
+       run is green (`apps/backtest-worker/README.md`, Deploy; record the run ID): `git archive <commit>` of the COPY paths of
        `apps/backtest-worker/Dockerfile` (the lab folder included) into a scratch folder, the Dockerfile at its root,
        `railway up <folder> --path-as-root -p <project> --service backtest-worker --environment dev --detach`; wait for
        SUCCESS and read `engine_version` in its start log;
-    3. fast-forward `main` to the commit: edge-bff (the beta) and the screener-worker wait for CI, then deploy; wait for
-       both SUCCESS, the beta's `/version` naming the commit and `/ready` 200;
+    3. fast-forward `main` to the commit: edge-bff (the beta) and the screener-worker deploy at once (Wait for CI is off
+       since 2026-11-23, AGENTS.md "Deploys"): read that commit's runs to their end and tell the user at once when one is
+       red, with a proposal (a fix or the rollback RAILWAY_CHANGELOG names); wait for both SUCCESS, the beta's `/version` naming the commit and `/ready` 200;
     4. records: RAILWAY_CHANGELOG.md, `verification/records/deployed_commits.json` (the beta's commit) and the ERRORS
        statuses (AGENTS.md "Findings and fixes" rule 9: `python3 scripts/record_status.py` shows 0 stale).
 12. **Check it on the beta and the live site.**
@@ -151,7 +156,7 @@ Only when the user names the indicator ("I54 boleh ke live"); never on a schedul
 1. **Record the user's words** in `EXEC.md`.
 2. **One commit that releases it:**
    - move `DEFAULTS.<key>` into the `DEFAULTS` object and `F.<key>` into the `F` map of `terminal/src/calc/indicators.ts`
-     (`:215`, `:277`), and remove both from `terminal/src/lab/index.ts` (leave its comment and `export {};`);
+     (the `DEFAULTS` object and the `F` map), and remove both from `terminal/src/lab/index.ts` (leave its comment and `export {};`);
    - `releases.json`: its stage `released`;
    - `npm run registry` in `apps/backtest-worker` and `apps/edge-bff/screener`, then `registry:check` in both;
    - the release pins (the page tests count the public registry, which now holds it): `terminal/tests/calc/edge.test.ts`
@@ -164,8 +169,15 @@ Only when the user names the indicator ("I54 boleh ke live"); never on a schedul
      commit;
    - `SCREENER_ONBOARDING.md` pointers into `calc/indicators.ts` move with its lines: the pointer test
      (`apps/screener-worker/tests/onboarding_pointers.test.ts`) names each line to change.
+   - the formula's unit test (Part A step 7) now imports `calc/indicators.ts` only;
+   - the Feature 04 oracle: a new indicator Feature 04 does not store gets an `ORACLE_NOTES` line
+     (`scripts/terminal_indicator_spec.py`) and `scripts/screener/parity_f04.py --write` (SCREENER_ONBOARDING §2.11 Step 4);
+   - the Backtest tripwire (`npm run tripwire` in `apps/edge-bff/screener`; not in CI) flags any registry or worker
+     change: record its baseline with the user's go in the same commit (`--record --exec EXEC-MU-ACCOUNTS --decision
+     "<the user's words>" --note "<what changed>"`, `scripts/screener/check_backtest_untouched.mjs`). Part A records it
+     too.
 3. **The tests of Part A step 9 again**, the public builds now holding the indicator (`test_3f_public_bundles.py`).
-4. **Commit and push; CI green.**
+4. **Commit and push; read its CI runs** (Part A step 10).
 5. **The beta deploy, with the user's confirmation** (Part A step 11; the engine versions change again).
 6. **Optional, asked of the user: the AI.** The AI formula reference (`scripts/terminal_indicator_spec.py`, its `I`
    table) is generated into the applied migration `20261025_102_terminal_indicator_formulas.sql`; a new row would edit
@@ -178,6 +190,17 @@ Only when the user names the indicator ("I54 boleh ke live"); never on a schedul
    404, `browser_smoke.cjs`, `example_smoke.py`).
 8. **Records:** RAILWAY_CHANGELOG.md (both deploys), `deployed_commits.json` (both sites), ERRORS statuses (rule 9),
    LIVE_PROMOTION.md §7 (the feature notes), EXEC.md (the request done).
+
+## Notes
+
+- This guide's order (the backtest-worker first, then `main`) replaces SCREENER_ONBOARDING §2.11 Step 6.1-6.2.
+- The lab build goes to the admin on the beta only: `app/principal.py` `Auth.lab_admin`.
+- A fix of a lab formula only (no registry row changed) moves both engine versions but not `registry_version` or the
+  Screener's `formula_version`: the registry hashes `indRegistry.json` and `calc/indicators.ts`, not the lab module.
+- Other kinds (tests/test_releases.py `LAB_KIND_HELD`): a Screener metric and a preset may be lab (data the workers read
+  whole); a candle pattern and a Flow indicator may not yet: a lab candle needs its pair and mirror (`candles.ts`), a
+  `CASES` entry and the count pins of `lookahead.test.ts`, `candles.test.ts` and `operators.test.ts` made derived, and a
+  dry run like the indicator's (EXEC-MU-ACCOUNTS, Carried open parts); a Flow indicator has no lab registration point.
 
 ## Many indicators at once
 
