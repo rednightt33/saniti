@@ -16732,6 +16732,9 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD45 | (answered 2026-11-24: "UD45 A": the badge stays and the data stays as it is; no own corrections) EXEC-PRICE-DISTORTION, an anomaly a pull again cannot mend (TradingView has the same data: WGSH 2026-03-31, the six old steps of UD40, BAJA and BRNA): (A) the badge stays and the data as it is; (B) corrected by us, case by case with the user's go (a bad day replaced or left out, an old step rescaled with the action's factor) | 2026-11-24 with context | the data of those stocks | before the build |
   | UD46 | (answered 2026-11-24: "B", "masukan exec ya": option (b), both chips switched off once in every saved screen, a data write with the user's go at the build) EXEC-PRICE-DISTORTION P-1: the screens users saved hold both hiding chips as explicit values; (a) leave them, (b) switch them off once (a data write, with the user's go) | 2026-11-24 with context | saved screens keep hiding | before the build |
   | UD47 | (answered 2026-11-24: "UD47 ini juga harus langsung masuk ke live": option (b), the whole change reaches the live site at once: the workers and the live page move in the same release, beta first because `live` moves only to a commit the beta runs; the deploy is still confirmed then, with everything that moves, `scripts/live_diff.py --sites`) EXEC-PRICE-DISTORTION P-2: the live site before its promotion: (a) the new Backtest behaviour only for requests from the new page, the Screener's detection at once (six stocks back on live; new anomalies hidden there until the promotion); (b) everything at once on live | 2026-11-24 with context | what paying users see before the promotion | before the build |
+  | UD48 | EXEC-TERMINAL-SESSION-TOGGLE: the lines meant are the thin vertical lines at the start of each trading day on intraday charts (the user wrote "garis horizontal"; the circled lines are vertical) | 2026-11-24 with context | what the pill switches | before the build |
+  | UD49 | EXEC-TERMINAL-SESSION-TOGGLE: the switch is remembered with the layout (like the chart style), on by default | 2026-11-24 with context | where the choice is kept | before the build |
+  | UD50 | EXEC-TERMINAL-SESSION-TOGGLE: the lag: measure first and propose a fix with numbers before building; include the symbol and layout switches, which reload the page the same way | 2026-11-24 with context | the scope of the lag work | before the build |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17693,3 +17696,30 @@ saran agen, dengan cek collateral damage). Dicatat, belum dieksekusi.
   5. EXEC-MU-ACCOUNTS langkah 8 dan baris "Carried open parts" M558 menunjuk ke RECHECK.md.
 - **Cakupan:** catatan dan tes saja; tidak ada service yang berubah. Masuk `main` dengan konfirmasi user (section "Deploys").
 - **Pemicu:** go user.
+
+## EXEC-TERMINAL-SESSION-TOGGLE — tombol garis awal sesi di chart intraday dan lag ganti timeframe (dicatat 2026-11-24, menunggu konfirmasi user)
+
+Kata-kata user 2026-11-24 (dengan dua screenshot Terminal MAPI 15M, garis tegak dilingkari dan kotak merah di kanan atas
+sebelah "Search markets"): "Ini timeline 15 menit. Diluar timeline weekly/ monthly/ daily maka kalau kita select akan ada
+garis horizontal yang saya buletin. Saya mau ketika lets say awal timeline Daily --> select ke 15 menit, maka akan muncul
+pills di kotak merah sebelah kanan atas nomor 1 yang fungsinya adalah toggle on dan off garis horizontal. Selain itu,
+sepertinya toggle between timeline masih laggy untuk kondisi sekarang. Nanti sekalian di cek. konfirmasi"
+
+- **Fakta dari kode:** garis yang dilingkari adalah garis tegak tipis di awal setiap sesi perdagangan, hanya di chart
+  intraday (5M, 15M, 1H, 4H), dari EXEC-UI-AUDIT-FIX F8 (user 2026-11-01, "garis tipis di awal setiap sesi"):
+  `apps/edge-bff/terminal/src/app/chart.ts:297-331` (`intradayMarks`, `SessionLines`); disembunyikan otomatis bila garis
+  lebih rapat dari 24 px. Pergantian timeframe menyimpan pilihan lalu memuat ulang seluruh halaman
+  (`apps/edge-bff/terminal/src/main.ts:69` `location.reload()`): skrip, berkas data, indikator dan panel Flow dibangun
+  ulang setiap kali; ganti saham (`src/app/search.ts:58`) dan ganti layout (`src/app/layouts.ts:189`) memakai mekanisme
+  yang sama. Waktunya belum diukur.
+- **Usulan agen:** pill bersakelar "Session lines" di bilah atas kanan, sebelum kotak pencarian, hanya tampil di timeframe
+  intraday; bawaan menyala (seperti sekarang); berubah seketika tanpa memuat ulang; diingat bersama layout seperti gaya
+  chart (kunci baru di `LAYOUT_KEYS` dan di `apps/edge-bff/shared/edge-session.ts` STORAGE, AGENTS.md); mengikuti
+  `.claude/skills/edge-design-system/`; `verification/terminal_api/terminal_look/look_check11.mjs` ditambah sakelar ini
+  (AGENTS.md "EDGE Terminal look"). Lag: diukur dulu di beta (klik sampai chart tergambar, dipecah per bagian: jaringan,
+  baca berkas, indikator, panel Flow) untuk D ke 15M dan sebaliknya dengan layout "test", lalu usulan perbaikan dengan
+  angka sebelum dibangun (perbaikan wajar: ganti timeframe di tempat tanpa memuat ulang, menyentuh banyak bagian Terminal).
+- **Rilis:** beta dulu; Terminal sudah rilis, jadi ke live hanya dengan permintaan user.
+- **Pertanyaan (register UD48-UD50):** garis yang dimaksud garis tegak awal sesi; pilihan diingat bersama layout;
+  pengukuran lag mencakup juga ganti saham dan ganti layout (mekanisme sama).
+- **Pemicu:** konfirmasi user, lalu go.
