@@ -98,14 +98,23 @@ causes of ERRORS M544 (verified findings left unsolved between phases, workflow 
    what it is, when it was asked, what it holds back, and by when it is needed. It is shown to the user at the end of
    every phase. A question asked only in chat is not asked.
 7. **A latent gap is asked, not only held.** A gap kept closed by a guard test is also put in the plan or asked.
-8. **Re-check after every fix round: one more phase in every checker workflow** (user 2026-11-22: "Masukan ke memory:
-   workflow ditambahkan 1 fase lagi which to test out perbaikan ya"). A checker workflow (ultracode or any other) no
-   longer ends at find, refute and fix: its last phase tests the fixes out. Before the next phase or deploy, five
-   independent agents (Opus at medium effort, by area) receive the original findings, not the fix summary; each
-   reproduces the original failure, looks for the same mechanism elsewhere, and returns a verdict per item (fixed,
-   partly, not fixed, cannot tell) with its evidence (the test or probe run, file:line). An item found incomplete is
-   fixed and tested out alone; at most two rounds, then what remains goes into the register. CI is green as well. A
-   fix that no agent other than its author tested out is not called done in a report.
+8. **Re-check after every fix round, only with the user's explicit approval** (user 2026-11-22: "Masukan ke memory:
+   workflow ditambahkan 1 fase lagi which to test out perbaikan ya"; changed by the user 2026-11-24: "Aturan 8 harus
+   dijalankan dengan approval saya explicit dengan pemilihan model dan tingkat berpikir yang I'll decide. Tapi purpose
+   dari itu adalah pengecekan bug yang sudah di fix alhasil dari pengecekan dari subagents sebelumnya"). Two different
+   steps:
+   - The *initial check* is the one the user orders (for example "10 agent Sonnet high"): agents find the bugs, the
+     agent fixes them.
+   - The *re-check* tests out the fixes of the bugs that check found. It runs only after the user approves it
+     explicitly, each time, and with the model and the thinking level (effort) the user chooses; the agent never starts
+     one on its own, nor a second round. When the fixes are done, the agent asks with context: which findings were
+     fixed, how many agents and areas it proposes, and that the user picks the model and the effort.
+   In an approved re-check the agents receive the original findings, not the fix summary; each reproduces the original
+   failure, looks for the same mechanism elsewhere, and returns a verdict per item (fixed, partly, not fixed, cannot
+   tell) with its evidence (the test or probe run, file:line). An item found incomplete is fixed and, with the user's
+   approval again, tested out alone; at most two rounds, then what remains goes into the register. CI is green as well.
+   A fix that no agent other than its author tested out is not called done in a report: until the user approves a
+   re-check, the report says the fix was tested by its author only.
 9. **Record statuses follow the deploys.** After a deploy the statuses of the entries it carries are updated in the same
    task, and `verification/records/deployed_commits.json` gets the commits the beta and the live site run. A test
    (`scripts/tests/test_record_status.py`, `.github/workflows/records-status.yml`, `scripts/record_status.py`) compares

@@ -16602,6 +16602,14 @@ Order of the services (CONTRACT 17, rollback floors):
     3f round 2, the example mode's run 2 and the Watchlist's latest data, Phase 4's 18), derived from the checkers'
     journals, joins this round's fixes. And: "Masukan ke memory: workflow ditambahkan 1 fase lagi which to test out
     perbaikan ya" → AGENTS.md "Findings and fixes" rule 8.
+  - Rule 8 changed by the user 2026-11-24: "boleh edit aturan itu specifically, jadi dengan approval saya saja. Jadi
+    proses tersebut berbeda ya dengan initial yang saya suruh kamu sonnet 5.5 high tadi. Sonnet 5.5 high tadi adalah
+    pengecekan initial bug > you fix it.. Aturan 8 harus dijalankan dengan approval saya explicit dengan pemilihan model
+    dan tingkat berpikir yang I'll decide. Tapi purpose dari itu adalah pengecekan bug yang sudah di fix alhasil dari
+    pengecekan dari subagents sebelumnya. Paham?" → AGENTS.md rule 8: the re-check of fixes runs only on the user's
+    explicit approval each time, with the model and effort the user picks; the initial check is separate. (Context: the
+    re-checks of EXEC-PINE-INDICATORS, five and then two Opus agents, ran on the earlier wording without a separate
+    approval; the second round's size was the agent's own choice.)
   - Group A's design questions (asked 2026-11-22 with context), the user's answers the same day: "3A" (SH1: the shared
     Backtest slot taken in turns when both sites have jobs waiting), "4A" (R1-16: the beta locks an account after 100
     consecutive wrong passwords as the live site does, a known browser exempt, the unlock script the way back). Q1
@@ -16734,7 +16742,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | All seven lab indicators at once (ERRORS M558 P-1, L-2) | about 2x a drag's cost and 3-10x a crosshair move with all seven on at 4x CPU throttle (offline, software raster); the legend rows and two extra panes carry it | the lab-indicator builder | re-measured on a real device before any of them leaves lab |
   | DOM tests of the category pick (ERRORS M558 SC-4) | the model-level page tests cover the pick (tests/fixture/coded.ts); the add-condition window, builder and the Backtest window's DOM are not driven by a test | the lab-indicator builder | before the lab indicators leave lab |
   | The phone's legend rows (ERRORS M558 V2-5) | with several overlays on, the legend rows cover the price pane of a phone (main clips the same) | the Terminal's owner | before the lab indicators leave lab |
-  | The round 2 close of ERRORS M558, tested out by its author only | one category in both look-ahead gates (a planted leak caught), `syncMetric` in the Customize panel, the shared used colours, the label boxes' x and y ratios | the next checker workflow | its first run after this deploy |
+  | The round 2 close of ERRORS M558, tested out by its author only | one category in both look-ahead gates (a planted leak caught), `syncMetric` in the Customize panel, the shared used colours, the label boxes' x and y ratios | a re-check the user approves (AGENTS.md rule 8, model and effort the user's) | the user's approval |
 
 - **The round's close (2026-11-22, the user's go):** the full edge-bff suite 1214 passed after ERRORS M539 and M547 were
   fixed; CI green; the beta (`e594bba8`) and the live site (`306c1190`) on `ec739a06`, the workers with it
