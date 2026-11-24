@@ -8886,6 +8886,34 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M560 — The publisher reads three stocks pulled again as "close not reloaded" (broker basis `price`) (2026-11-24, OPEN)
+
+- **Symptom:** the broker basis rows (`apps/terminal-publisher/publisher.py` `broker_basis`), recomputed with the
+  publisher's own function on dev's rows (read-only role, 2026-11-24, broker data through 2026-11-09), give `price`
+  `raw` for VKTR (rights, ex 2026-10-07), AHAP (rights, ex 2026-10-09) and BUVA (rights, ex 2026-10-14), whose prices
+  were pulled again on 2026-10-31 (D22).
+- **Evidence:** the close of the session before ex is below that session's broker VWAP by about the action's factor, as
+  an adjusted close is (VKTR 626.91 against 836.89, AHAP 72.17 against 90.63, BUVA 522.00 against 582.27), and it joins
+  the ex-date close (670, 78, 520). AHAP and BUVA have basis status `terms` (the prices carry the action) in the same row.
+- **Root cause (verified):** `price` is decided from the median close of up to 15 sessions before ex against the median of
+  up to 16 after (`publisher.py:320-322`); the three fell 10-35 % in the weeks after their ex-date, which is near their
+  factors (1.23, 1.22, 1.13), so the drop reads as an action not carried by the close.
+- **Effects:** the daily Telegram "Basis harga lawan data broker" lists AHAP and BUVA as not reloaded (VKTR is listed as
+  unresolved too) (derived from `basis_attention`, `publisher.py:2383-2391`; the messages themselves not read); the
+  Backtest leaves empty the Flow values whose range crosses their ex-dates (`apps/backtest-worker/src/basis.ts:49`)
+  and misses its restated-prices warning there (`engine.ts:605-612`); M559's proposed fix would keep them hidden.
+- **Class:** a measurement over a window that ordinary market moves can match; any reader of `price`.
+- **Proposed solution (UD38):** decide `price` from the closes either side of the ex-date against the action's factor
+  (one session, so a later trend cannot imitate the action). Tested read-only on all 708 price actions since 2018: every
+  measurable action from 2026-09-12 (7) reads adjusted; before it 208 adjusted and 6 with a step in the stored history
+  on the ex-date that matches the action (CMNP 2020-11-10, BPFI 2022-01-31, BSWD 2022-08-30 and 2023-04-11, FMII
+  2023-07-07, FITT 2024-06-25), equal to TradingView's own series; open part, register UD40. A limit-down session on
+  the ex-date of an action near 10 % could still be misread; actions under 10 % stay unmeasured (UD38 asks their rule).
+  Evidence: `verification/price_break_basis/` (`basis_now.py`, `jump_rule.py` and their 2026-11-24 results, read-only).
+- **Status:** OPEN (EXEC.md EXEC-PRICE-BREAK-BASIS, register UD38, UD40).
+- **Lesson:** a measured flag is checked against a case whose answer is known (here the six stocks pulled again) before
+  it is used to hide or show data.
+
 ### M559 — The Screener hides and labels "history not adjusted" stocks whose price history was already pulled again (2026-11-24, OPEN)
 
 - **Symptom:** FORU (rights issue, ex 2026-09-22) and PBSA (split 1:2, ex 2026-10-14) are left out of every default
@@ -8917,7 +8945,10 @@ in its staleness check.
   action with no measurement (no broker rows around it): it stays flagged, the safe side. The screener-worker is
   shared, so the change reaches the live site and needs a deploy confirmation; tests: a pulled-again stock shown, a
   raw-scale stock still hidden, an unmeasured one still hidden.
-- **Status:** OPEN, asked (EXEC.md register UD38).
+- **2026-11-24, the user:** the goal approved ("Untuk 6 saham yang sudah benar price wise, badge nya bisa di remove.
+  Screener bawaan harus menampilkan data yang sudah benar ... Ok untuk solusi kamu"); the solution revised the same day
+  because the measured status it reads is wrong for three of the six (M560); EXEC.md EXEC-PRICE-BREAK-BASIS.
+- **Status:** OPEN, the revision asked (EXEC.md register UD38).
 - **Lesson:** a TEMPORARY rule that stands in for missing data is tied to that data: when the data arrives (here the
   pull and the measured basis), every rule that stood in for it is revisited in the same task.
 

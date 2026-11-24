@@ -1,0 +1,12 @@
+broker data through 2026-11-09
+FORU 2026-09-22 RIGHT_ISSUE status unresolved price adjusted terms 19.50671505 pre/post 15 16 decided 2026-10-13
+BAJA 2026-09-28 RIGHT_ISSUE status same price adjusted terms 0.751497006 pre/post 15 16 decided 2026-10-19
+ENRG 2026-10-05 RIGHT_ISSUE status terms price adjusted terms 1.354231792 pre/post 15 16 decided 2026-10-26
+VKTR 2026-10-07 RIGHT_ISSUE status unresolved price raw terms 1.233477936 pre/post 15 16 decided 2026-10-28
+AHAP 2026-10-09 RIGHT_ISSUE status terms price raw terms 1.219399081 pre/post 15 16 decided 2026-10-30
+BRNA 2026-10-09 RIGHT_ISSUE status same price None terms 0.9959150327 pre/post 15 16 decided 2026-10-30
+BUVA 2026-10-14 RIGHT_ISSUE status terms price raw terms 1.130268096 pre/post 15 16 decided 2026-11-04
+PBSA 2026-10-14 STOCK_SPLIT status same price adjusted terms 2.0 pre/post 15 16 decided 2026-11-04
+MGLV 2026-11-05 RIGHT_ISSUE status pending price None terms 0.9735761589 pre/post 15 3 decided 2026-11-26
+PSSI 2026-11-06 BONUS_SHARE status pending price None terms 1.033333333 pre/post 15 2 decided 2026-11-27
+PPGL 2026-11-03 BONUS_SHARE status pending price None terms 1.666666667 pre/post 0 0 decided 2026-11-24

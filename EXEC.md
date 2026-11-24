@@ -16722,8 +16722,9 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD35 | (answered 2026-11-24: "C ok - masukan EXEC", the fix to reach the live site too: recorded as EXEC-SENSITIVITY-FLAGS, the build waits for the user's go) ERRORS M558 B-2 (a mechanism older than this work, now common): the Backtest's sensitivity grid takes the first threshold as its axis; on a 0/1 flag or a category condition that is a fixed 0.5, so 25 cells give one result and count as 25 trials in the deflated Sharpe. Fixing it (no axis from such a threshold) changes the shared core, so live backtests with flag conditions change too | 2026-11-23 with context | robustness of flag strategies | before the lab indicators leave lab |
   | UD36 | (answered 2026-11-24: "Tunda dulu untuk UD36": deferred; trigger: before the seven lab indicators leave lab, then the fix (re-probe on several price shapes, "whole history" for outputs that remember without limit, a real-price test) is asked again with context; note: by default the chip "No unadjusted price break" hides these stocks, so the missing cell mark shows only with the chip off, beside the row's "Price break" badge) (2026-11-24, re-measured on BBCA and BBRI for every output the registry classes 'window': only lab outputs read further back on real prices: Alpha Volatile direction and outside/back-in flags, Inside Bar break up, Alpha KAMA ENTER SHORT, Alpha Extract's positive, Alpha Divergence BULL DIV, BEAR DIV, BUY A and its swing levels; no released indicator; still open, explained again) ERRORS M558 SC-3: the generator classes an output's history from a synthetic probe; for swing levels (Alpha Divergence, Price Action) real prices reach about 90 bars further back, so a "price break in the lookback" remark can be left out. A fix re-probes every indicator, the released ones too (the shared Screener worker then reads more history for some) | 2026-11-23 with context | one remark of a screen | before the lab indicators leave lab |
   | UD37 | ERRORS M558 I-4: on the beta a non-admin account whose plan is `{"all": true}` is listed the lab indicators (catalogs, worker allow list); the live site never. Matters only if the beta opens to non-admin accounts: should `{"all": true}` leave lab out as it leaves preview out (UD28)? | 2026-11-23 with context | the beta for non-admins | before the beta opens to a non-admin account |
-  | UD38 | ERRORS M559: the Screener hides by default, and labels "history not adjusted", every stock with a split, bonus share or rights issue from 2026-09-12 to its last bar, also when its price history was pulled again (FORU, PBSA, AHAP, BUVA, ENRG, VKTR, pulled again 2026-10-31; 10 stocks flagged on dev 2026-11-24). Proposal: the publisher's measured basis (`adjusted` / `raw`, P9) goes into the Screener's actions data and the Screener flags only what is not adjusted, the Backtest's rule; it reaches the live site (the shared screener-worker), so a deploy confirmation | 2026-11-24 with context | default screens leave out stocks whose prices are correct | before paid launch, or before UD36 |
-  | UD39 | A RECHECK.md (the user's proposal 2026-11-24: "kayaknya perlu ada dibuatkan MD untuk menampung item ini (item yang sudah di solve, tapi belum di recheck apakah perbaikannya tidak ada collateral damage dll). Re-check.MD? ... WDYT?"): one list, across executions, of the fixes no agent other than their author tested out, named in AGENTS.md rule 8. Asked: its source (the step-8 ledger `verification/records/step8_ledger.json`, 422 rows, 212 fixed and not tested out, made the general source with RECHECK.md written from it, or RECHECK.md by hand) and whether the re-check also checks collateral damage | 2026-11-24 with context | where a re-check takes its items from | before the next re-check the user approves |
+  | UD38 | (user 2026-11-24: "Untuk 6 saham yang sudah benar price wise, badge nya bisa di remove. Screener bawaan harus menampilkan data yang sudah benar ... Ok untuk solusi kamu": the goal approved, recorded as EXEC-PRICE-BREAK-BASIS; asked again the same day because the approved solution as written would leave VKTR, AHAP and BUVA hidden, ERRORS M560) ERRORS M559, M560: approve the revised solution (the publisher measures "is the close adjusted for this action" from the sessions either side of the ex-date, the Screener and the Backtest read that one result) and the rule for actions too small to measure (under 10 % price effect: BRNA, MGLV, PSSI now): not a price break, or hidden like today | 2026-11-24 with context | default screens leave out stocks whose prices are correct (beta and live) | before paid launch |
+  | UD39 | (answered 2026-11-24: "UD39 ok - masukan EXEC", read as option A, the recommendation, with the collateral-damage check; recorded as EXEC-RECHECK-LIST, the build waits for the user's go) A RECHECK.md (the user's proposal 2026-11-24: "kayaknya perlu ada dibuatkan MD untuk menampung item ini (item yang sudah di solve, tapi belum di recheck apakah perbaikannya tidak ada collateral damage dll). Re-check.MD? ... WDYT?"): one list, across executions, of the fixes no agent other than their author tested out, named in AGENTS.md rule 8. Asked: its source (the step-8 ledger `verification/records/step8_ledger.json`, 422 rows, 212 fixed and not tested out, made the general source with RECHECK.md written from it, or RECHECK.md by hand) and whether the re-check also checks collateral damage | 2026-11-24 with context | where a re-check takes its items from | before the next re-check the user approves |
+  | UD40 | ERRORS M560, open part: six actions before 2026-09-12 show a step in the stored history on their ex-date that matches the action (CMNP 2020-11-10, BPFI 2022-01-31, BSWD 2022-08-30 and 2023-04-11, FMII 2023-07-07, FITT 2024-06-25); every reader treats actions before that date as adjusted, so nothing marks them, and the stored rows equal TradingView's (D22 scan), so a pull again does not mend them. To be asked with context after UD38 | 2026-11-24 (recorded, not yet asked with context) | long-history indicators and Backtests across those dates on six stocks | after UD38 |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17557,3 +17558,74 @@ konfirmasi user, section "Deploys").
 - **Uji:** grid pada kondisi ya/tidak menggeser setting dan menghasilkan sel berbeda; cadangan A; tanpa kondisi angka;
   kondisi angka biasa (seperti ADX) tidak berubah; gerbang look-ahead tetap hijau.
 - **Pemicu:** go user untuk mengeksekusi.
+
+## EXEC-PRICE-BREAK-BASIS — Screener bawaan menampilkan saham yang harganya sudah benar (ERRORS M559, M560, UD38; dicatat 2026-11-24, menunggu persetujuan revisi dan go)
+
+Kata-kata user 2026-11-24: "Untuk 6 saham yang sudah benar price wise, badge nya bisa di remove. Screener bawaan harus
+menampilkan data yang sudah benar. Jadi maksudmu untuk ke 10 saham itu, kalau user melakukan screen, maka saham2
+tersebut tidak appear dalam screen apapun? Ok untuk solusi kamu." Dicatat, belum dieksekusi (AGENTS.md "Plans"; deploy
+dengan konfirmasi user).
+
+- **Tujuan (disetujui):** saham yang riwayat harganya sudah benar tidak lagi disembunyikan dan tidak diberi badge "Price
+  break"; saham yang harganya memang patah tetap disembunyikan secara bawaan dan tampil dengan badge bila chip "No
+  unadjusted price break" dimatikan (seperti sekarang).
+- **Kenapa solusi yang disetujui direvisi (ERRORS M560, ditemukan sesudah persetujuan):** solusi itu memakai hasil ukur
+  publisher `price` (adjusted/raw). Diukur ulang dengan fungsi publisher sendiri di data dev 2026-11-24: VKTR, AHAP dan
+  BUVA terbaca `raw` padahal sudah ditarik ulang (close sehari sebelum ex 626,91 / 72,17 / 522,00 di bawah harga
+  transaksi broker hari itu 836,89 / 90,63 / 582,27, dan menyambung ke close tanggal ex). Aturan itu membandingkan median
+  15 sesi sebelum dan sesudah ex, sehingga turunnya harga sesudah ex terbaca sebagai aksi yang belum disesuaikan. Tanpa
+  revisi, tiga dari enam saham tetap tersembunyi. Ditanyakan lagi (UD38).
+- **Rencana revisi (menunggu persetujuan):**
+  1. Publisher (`apps/terminal-publisher/publisher.py` `broker_basis`): `price` tiap aksi diputuskan dari close sesi
+     terakhir sebelum ex dan close tanggal ex terhadap faktor syarat aksinya (`terms_factor`), lebih dekat ke faktor =
+     raw, lebih dekat ke 1 = adjusted; bisa diputuskan sejak tanggal ex (tidak menunggu 21 hari, yang hanya untuk basis
+     lot broker). Status dan faktor basis broker tidak berubah. Diuji di 708 aksi sejak 2018 (dev 2026-11-24): semua 7 aksi
+     terukur sejak 2026-09-12 terbaca adjusted (FORU, BAJA, ENRG, VKTR, AHAP, PBSA, BUVA); sebelum 2026-09-12, 208 adjusted
+     dan 6 dengan patahan nyata (UD40).
+  2. Publisher: berkas xsection `actions` membawa `price` tiap aksi dari fungsi yang sama.
+  3. Screener (`apps/edge-bff/screener/src/core/universe.ts` `priceBreakRemarks`, `apps/screener-worker/src/snapshot.ts`):
+     aksi ditandai hanya bila harganya tidak adjusted; satu fungsi dipakai bersama dengan Backtest (`engine.ts` `carried`),
+     bukan dua aturan.
+  4. Aksi terlalu kecil untuk diukur (efek harga di bawah 10 %, `BASIS_PRICE_MIN`; sekarang BRNA 0,4 %, MGLV 2,6 %, PSSI
+     3,3 %): pilihan user (UD38).
+  5. Uji: enam saham tampil tanpa badge; saham dengan patahan nyata tetap tersembunyi; aksi tanpa ukuran mengikuti
+     pilihan user; publisher dengan baris VKTR, AHAP, BUVA, PBSA, FORU; gerbang look-ahead hijau.
+  6. Dokumen: UPDATE_TABLE.md bagian C (langkah 5), `apps/edge-bff/screener/src/core/contract.ts`, CONTRACT Backtest,
+     ERRORS D22, M559, M560.
+- **Hasil yang diharapkan di data hari ini:** tampil tanpa badge FORU, PBSA, AHAP, BUVA, ENRG, VKTR, BAJA; BRNA, MGLV,
+  PSSI menurut pilihan user; PPGL (belum ada bar sesudah ex), BMAS dan PRDA (ex belum lewat) belum ditandai.
+- **Efek lain (lebih benar):** Backtest: nilai Flow AHAP dan BUVA yang melewati tanggal ex tidak lagi dikosongkan
+  (`apps/backtest-worker/src/basis.ts:49`), VKTR tetap (status basis broker `unresolved`); peringatan harga yang
+  disesuaikan muncul untuk ketiganya. Telegram harian "Basis harga lawan data broker" berhenti menyebut AHAP dan BUVA
+  belum ditarik ulang.
+- **Cakupan:** publisher (data kedua situs), screener-worker bersama dan backtest-worker (live ikut). Deploy dengan
+  konfirmasi user.
+- **Pemicu:** persetujuan revisi (UD38), lalu go user.
+
+## EXEC-RECHECK-LIST — satu daftar perbaikan yang belum diuji ulang: RECHECK.md (UD39; dicatat 2026-11-24, menunggu go)
+
+Kata-kata user 2026-11-24: "kayaknya perlu ada dibuatkan MD untuk menampung item ini (item yang sudah di solve, tapi
+belum di recheck apakah perbaikannya tidak ada collateral damage dll). Re-check.MD? Recheck MD perlu dimention juga di
+AGENTS MD dan harus di update, jadi AI bisa refer ke recheck MD untuk cek item yang sudah diperbaiki tapi perbaikannya
+belum di QA, atau untuk retest apakah masalahnya actually solve? WDYT?", lalu "UD39 ok - masukan EXEC" (dibaca: opsi A,
+saran agen, dengan cek collateral damage). Dicatat, belum dieksekusi.
+
+- **Keadaan sekarang:** daftarnya tersebar. `verification/records/step8_ledger.json` (workflow `wf_877859a9-d28`, 422
+  baris, 212 `fixed_not_tested_out`) hanya untuk EXEC-MU-ACCOUNTS langkah 8 dan tidak disebut di AGENTS.md; bagian
+  ronde 2 ERRORS M558 (4 bagian) ada di EXEC.md "Carried open parts"; entri lain menulis "Not tested out by another agent
+  yet" di ERRORS.
+- **Rencana (opsi A):**
+  1. Satu sumber umum untuk semua eksekusi: ledger JSON (baris step-8 dipindahkan dengan kuncinya, ditambah item yang
+     belum ada di sana, ditemukan dengan memindai ERRORS dan EXEC). Per baris: kunci unik (run + id temuan), temuan asli
+     seperti ditulis checker, commit perbaikan, di mana berjalan (branch, beta, live), uji oleh pembuatnya, status
+     (menunggu uji ulang, fixed, partly, not fixed, cannot tell, open, accepted, obsolete), run uji ulang dan ronde.
+  2. `RECHECK.md` ditulis skrip dari ledger (bahasa sederhana, item menunggu per area di atas, lalu hitungan), dengan
+     tes `generated_file` (AGENTS.md "Generated files").
+  3. Tes penjaga: status valid, commit perbaikan ada di Git, entri ERRORS yang menyebut diuji pembuatnya saja punya baris.
+  4. AGENTS.md aturan 8 menyebut RECHECK.md: perbaikan yang belum diuji agen lain masuk di commit yang sama dengan
+     perbaikannya; di akhir ronde perbaikan agen meminta uji ulang dengan hitungan dari RECHECK.md; uji ulang yang
+     disetujui mengambil itemnya dari sana dan memberi agen temuan asli; agen juga memeriksa collateral damage (tes file
+     yang disentuh perbaikan, halaman dan worker yang memakainya); hasilnya memperbarui ledger di tugas yang sama.
+  5. EXEC-MU-ACCOUNTS langkah 8 dan baris "Carried open parts" M558 menunjuk ke RECHECK.md.
+- **Cakupan:** catatan dan tes saja; tidak ada service yang berubah. Masuk `main` dengan konfirmasi user (section "Deploys").
+- **Pemicu:** go user.
