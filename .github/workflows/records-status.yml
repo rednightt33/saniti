@@ -1,5 +1,8 @@
 # AGENTS.md "Findings and fixes", rule 9 (the user, 2026-11-22): the statuses the ERRORS_AND_SOLUTIONS.md headings claim
-# follow the commits each website runs (verification/records/deployed_commits.json). Needs the full history; read-only.
+# follow the commits each website runs (verification/records/deployed_commits.json). Rule 8 (EXEC-RECHECK-LIST, the user
+# 2026-11-24): the re-check ledger (verification/records/recheck_ledger.json) names fix commits that are in git, says
+# where each fix runs as those commits do, and has a row for every entry tested by its author only. Needs the full
+# history; read-only.
 name: Record statuses follow the deploys
 on:
   push:
@@ -17,4 +20,4 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pytest==8.4.2
-      - run: python -m pytest -q -rs scripts/tests/test_record_status.py
+      - run: python -m pytest -q -rs scripts/tests/test_record_status.py scripts/tests/test_recheck_ledger.py

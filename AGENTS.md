@@ -115,6 +115,25 @@ causes of ERRORS M544 (verified findings left unsolved between phases, workflow 
    approval again, tested out alone; at most two rounds, then what remains goes into the register. CI is green as well.
    A fix that no agent other than its author tested out is not called done in a report: until the user approves a
    re-check, the report says the fix was tested by its author only.
+   `RECHECK.md` is the list of those fixes across executions (user 2026-11-24, UD39, EXEC-RECHECK-LIST: "Recheck MD
+   perlu dimention juga di AGENTS MD dan harus di update, jadi AI bisa refer ke recheck MD untuk cek item yang sudah
+   diperbaiki tapi perbaikannya belum di QA"; "UD39 ok - masukan EXEC"). It is written by
+   `python3 scripts/recheck_doc.py --write` from its one source, `verification/records/recheck_ledger.json` (one row per
+   finding, keyed by run plus finding id; the step-8 ledger's rows moved into it on 2026-11-24):
+   - A fix no agent other than its author tested out enters the ledger in the same commit as the fix: its key, the
+     original finding as the checker wrote it (the ERRORS entry's symptom when no checker found it), its fix commits,
+     where it runs, how its author tested it, status `waiting`; RECHECK.md is rewritten with it.
+     `scripts/tests/test_recheck_ledger.py` fails when an ERRORS_AND_SOLUTIONS.md entry says its fix was tested by its
+     author only and no row names it, when a status is unknown, a fix commit is not in Git, or where a fix runs differs
+     from `verification/records/deployed_commits.json` (after a deploy, `python3 scripts/recheck_doc.py --sites`).
+   - At the end of a fix round the agent asks for the re-check as above, with the count from RECHECK.md (the items
+     waiting, per area).
+   - An approved re-check takes its items from RECHECK.md and gives each agent the original findings from the ledger
+     (`finding`; for a row moved from the step-8 ledger, its `title` and `recheck_action`), not the fix summary. Each
+     agent also checks collateral damage: it runs the tests of the files the fix touched (the fix commits' files) and
+     checks the pages and workers that use those files.
+   - The results update the ledger in the same task: the round (run, round, verdict, date, evidence) under the row's
+     `recheck`, its status, then RECHECK.md is rewritten; the ERRORS_AND_SOLUTIONS.md entries and the report follow it.
 9. **Record statuses follow the deploys.** After a deploy the statuses of the entries it carries are updated in the same
    task, and `verification/records/deployed_commits.json` gets the commits the beta and the live site run. A test
    (`scripts/tests/test_record_status.py`, `.github/workflows/records-status.yml`, `scripts/record_status.py`) compares
