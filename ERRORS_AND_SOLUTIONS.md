@@ -8886,6 +8886,41 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M559 — The Screener hides and labels "history not adjusted" stocks whose price history was already pulled again (2026-11-24, OPEN)
+
+- **Symptom:** FORU (rights issue, ex 2026-09-22) and PBSA (split 1:2, ex 2026-10-14) are left out of every default
+  screen by the chip "No unadjusted price break", and when the chip is off their row reads "Price break: ... history
+  not adjusted", although their prices were pulled again in full on 2026-10-31 (D22, EXEC-PRICE-GAP-0917).
+- **Evidence (dev, read-only role, 2026-11-24):** price-affecting actions (`idx_event_annotation`, role EX_DATE, types
+  of `PRICE_ACTION_TYPES`) from 2026-09-12: 13 rows. The close before and on the ex-date: FORU 131.25 then 176 (before
+  the pull 2,560 then 176), PBSA 422.5 then 384 (before 845 then 384), AHAP 72.17 then 78, BUVA 522.00 then 520, ENRG
+  1,063.33 then 1,030, VKTR 626.91 then 670: on one scale. Ten have their ex-date between 2026-09-12 and their last bar
+  (2026-11-23): FORU, BAJA, ENRG, VKTR, AHAP, BRNA, BUVA, PBSA, MGLV, PSSI, so the rule below flags all ten; PPGL (last
+  bar 2026-09-04), BMAS (ex 2026-11-24) and PRDA (ex 2026-12-18) are not flagged yet. At least six of the ten are on
+  the adjusted scale; BAJA, BRNA, MGLV and PSSI moved little on the ex-date and are not settled by this check.
+- **Root cause (verified from code):** the Screener decides by the date alone: `priceBreakRemarks`
+  (`apps/edge-bff/screener/src/core/universe.ts:110-133`, called by `apps/screener-worker/src/snapshot.ts:274`) flags
+  every action of those types with boundary (2026-09-12) <= ex-date <= last bar, and the actions file it reads holds
+  only the type, the date and the ratios (`apps/terminal-publisher/publisher.py:452-456`). The fact it needs is
+  measured already: the publisher's broker basis gives each action its price status (`adjusted`, `raw`; EXEC-
+  BACKTEST-REVAMP P9, 2026-11-16, `publisher.py:284`), and the Backtest uses it (`apps/edge-bff/backtest/src/core/
+  engine.ts:605-607`). The Screener's rule is the TEMPORARY rule of P4 (user 2026-10-28), made before the pull of
+  2026-10-31 and before the measurement; it never expires, so every action handled by UPDATE_TABLE part C stays
+  flagged.
+- **Class:** two readers of one fact (is this history adjusted for this action?) with two rules; every Screener use
+  of the date rule inherits it: the default hiding, the row badge, the cell mark PRICE_BREAK_IN_LOOKBACK, the 1D
+  change remark (`texts.ts` `chg1dBreakText`), and UD36's "whole history" fix would add false cell marks. Later
+  sources revised after the fact (index rebasing, macro revisions) meet the same choice.
+- **Proposed solution (not built, UD38):** the contract between the publisher and the Screener: each action of the
+  actions file carries its measured price status, and the Screener flags an action only when its prices are not
+  adjusted or not known (the Backtest's `carried` rule), derived per action, no list of tickers. It does not cover an
+  action with no measurement (no broker rows around it): it stays flagged, the safe side. The screener-worker is
+  shared, so the change reaches the live site and needs a deploy confirmation; tests: a pulled-again stock shown, a
+  raw-scale stock still hidden, an unmeasured one still hidden.
+- **Status:** OPEN, asked (EXEC.md register UD38).
+- **Lesson:** a TEMPORARY rule that stands in for missing data is tied to that data: when the data arrives (here the
+  pull and the measured basis), every rule that stood in for it is revisited in the same task.
+
 ### M558 — Checker round of the lab Pine indicators before their beta release: 60 findings, two fix rounds (2026-11-23; fixed in `12863820`, `9afa833f` and `c91e2809`, on the beta since 2026-11-23, parts open below)
 
 - **Found by:** the user's "All at once ... jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading
@@ -8953,8 +8988,8 @@ in its staleness check.
   planted read of 20 bars ahead now fails the page test and the worker gate: 1 failed each, restored), the panel and
   the builder share `syncMetric` (`screener/src/forms.ts`), both colour boxes offer every colour on the chart
   (`ctx.indicatorColors`, `ctx.assetColors`), the label boxes snap x and y each on its own pixel ratio. These last
-  fixes were tested out by their author only (the mutation run above): the next checker workflow tests them out
-  (EXEC.md carried part).
+  fixes were tested out by their author only (the mutation run above): a re-check the user approves tests them out
+  (AGENTS.md rule 8 as changed 2026-11-24, model and effort the user's; EXEC.md carried part).
 - **Status:** on the beta since 2026-11-23 (`c91e2809`, RAILWAY_CHANGELOG.md); the re-check round 1 found 31 fixed and
   the rest open or kept as above, its new defects fixed in round 2 and tested out; the live site does not run it.
 
