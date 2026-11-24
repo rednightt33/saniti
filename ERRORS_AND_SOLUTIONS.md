@@ -8937,7 +8937,7 @@ in its staleness check.
   screener-worker heap tests fail on this machine only (SC-6: CI's Backend tests pass them).
 - **Open parts (owner and trigger in EXEC.md, EXEC-MU-ACCOUNTS):** the user's decisions UD33 (Alpha KAMA's warm-up from
   0: V2-1, B-3, N-2; answered 2026-11-24, option B recorded), UD34 (checks against TradingView itself: the HMA rounding N-1, Pine v6 colour constants V1-8,
-  Inside Bar's pointer at `yloc.abovebar`), UD35 (the sensitivity grid on a 0/1 condition, B-2, shared core), UD36 (the
+  Inside Bar's pointer at `yloc.abovebar`), UD35 (the sensitivity grid on a 0/1 condition, B-2, shared core; answered 2026-11-24, option C recorded as EXEC-SENSITIVITY-FLAGS), UD36 (the
   history class of state-machine outputs, SC-3, shared generator), UD37 (a `{"all": true}` plan and lab items on the
   beta, I-4), UD29 (the tripwire, SC-6; answered 2026-11-24, option (a) recorded); the carried parts: all seven lab indicators at once cost about 2x a drag (P-1,
   L-2), DOM tests of the pick (SC-4), the phone's legend rows (V2-5).

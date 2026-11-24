@@ -16719,7 +16719,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD32 | (answered 2026-11-23: "All at once", in this batch) EXEC-PINE-INDICATORS: a TradingView-style colour picker in the Terminal's Style tab (a large grid of colours and tints, a custom colour, opacity, thickness and line style in one box, shared by indicators and the compare lines), in this batch with Y or later | 2026-11-23 with an estimate | the Style tab's colour box | before Y is built (one box) |
   | UD33 | (answered 2026-11-24: "UD33: Alpha KAMA --> ok pakai opsi B, masukan exec dulu": option B, recorded in EXEC-PINE-INDICATORS, not executed yet) EXEC-PINE-INDICATORS (ERRORS M558: V2-1, B-3, N-2): Alpha KAMA starts from 0 as the Pine (T3 and the KAMA recursion), so its first months are far from the price (BBCA bar 100: 95% off; within 2% only after about 200-250 bars); on Monthly (107 bars) it never settles (legend KAMA 548 against a close of 5,675) and pulls the price axis to 0; the Screener and Backtest count those bars as valid ("Close above KAMA" true on 124 of the first 162). Options: (a) keep it as TradingView draws it and say so in the indicator's text; (b) the Terminal draws it only once settled (the numbers unchanged); (c) the Screener and Backtest also treat the unsettled bars as not ready (a later first valid bar) | 2026-11-23 with context (this report) | Alpha KAMA's warm-up, the Monthly view | before Alpha KAMA leaves lab |
   | UD34 | EXEC-PINE-INDICATORS (ERRORS M558: N-1, V1-8, Inside Bar NEW-1): three points only TradingView itself can settle: the HMA option of Alpha Extract (our Hull MA ends with a window of floor(sqrt(n)), TradingView's documented ta.hma likely round(sqrt(n)): every output differs at HMA 23; the released HMA I04 uses floor too), the exact colours of Pine v6's color.red/green/lime, and which way the Inside Bar break labels point at `yloc.abovebar`. Options: (a) the agent checks them through the user's TradingView connection (a small script run on TradingView, nothing published), (b) the user exports a CSV with HMA 23 and a screenshot, (c) keep as is | 2026-11-23 with context | Alpha Extract with HMA; the label colours and pointers | before Alpha Extract and Inside Bar leave lab |
-  | UD35 | (2026-11-24: the user asked which indicators have yes/no outputs and where the grid shows; answered with the derived list: released Supertrend and Parabolic SAR direction (-1/1) and the Flow signals FL09 and FL27 (0/1), the rest lab; the grid is the Robustness tab's "Parameter sensitivity" panel; still open) ERRORS M558 B-2 (a mechanism older than this work, now common): the Backtest's sensitivity grid takes the first threshold as its axis; on a 0/1 flag or a category condition that is a fixed 0.5, so 25 cells give one result and count as 25 trials in the deflated Sharpe. Fixing it (no axis from such a threshold) changes the shared core, so live backtests with flag conditions change too | 2026-11-23 with context | robustness of flag strategies | before the lab indicators leave lab |
+  | UD35 | (answered 2026-11-24: "C ok - masukan EXEC", the fix to reach the live site too: recorded as EXEC-SENSITIVITY-FLAGS, the build waits for the user's go) ERRORS M558 B-2 (a mechanism older than this work, now common): the Backtest's sensitivity grid takes the first threshold as its axis; on a 0/1 flag or a category condition that is a fixed 0.5, so 25 cells give one result and count as 25 trials in the deflated Sharpe. Fixing it (no axis from such a threshold) changes the shared core, so live backtests with flag conditions change too | 2026-11-23 with context | robustness of flag strategies | before the lab indicators leave lab |
   | UD36 | (2026-11-24, re-measured on BBCA and BBRI for every output the registry classes 'window': only lab outputs read further back on real prices: Alpha Volatile direction and outside/back-in flags, Inside Bar break up, Alpha KAMA ENTER SHORT, Alpha Extract's positive, Alpha Divergence BULL DIV, BEAR DIV, BUY A and its swing levels; no released indicator; still open, explained again) ERRORS M558 SC-3: the generator classes an output's history from a synthetic probe; for swing levels (Alpha Divergence, Price Action) real prices reach about 90 bars further back, so a "price break in the lookback" remark can be left out. A fix re-probes every indicator, the released ones too (the shared Screener worker then reads more history for some) | 2026-11-23 with context | one remark of a screen | before the lab indicators leave lab |
   | UD37 | ERRORS M558 I-4: on the beta a non-admin account whose plan is `{"all": true}` is listed the lab indicators (catalogs, worker allow list); the live site never. Matters only if the beta opens to non-admin accounts: should `{"all": true}` leave lab out as it leaves preview out (UD28)? | 2026-11-23 with context | the beta for non-admins | before the beta opens to a non-admin account |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
@@ -17525,3 +17525,33 @@ persetujuan merencanakan bukan perintah eksekusi). Pilihan (a) atau (b) masih te
   (sekitar setengah hari) menunggu go user (AGENTS.md "Plans": persetujuan merencanakan bukan perintah eksekusi).
   Sesudah dibangun: catatan untuk rilis EXEC-PINE-INDICATORS (I54-I60) dan perubahan core M554/M555 dibuat dengan alat
   baru.
+
+## EXEC-SENSITIVITY-FLAGS — grid sensitivitas Backtest untuk kondisi ya/tidak (ERRORS M558 B-2, UD35; dicatat 2026-11-24, menunggu go)
+
+Kata-kata user 2026-11-24: "UD35 juga perlu diperbaiki di kondisi live", lalu "C ok - masukan EXEC". Dicatat untuk
+direncanakan, belum dieksekusi (AGENTS.md "Plans": persetujuan merencanakan bukan perintah eksekusi; deploy dengan
+konfirmasi user, section "Deploys").
+
+- **Cara kerja sekarang (dibaca dari kode `apps/edge-bff/backtest/src/core/robustness.ts` `sensitivityPlan`, `catalog.ts`
+  `threshold`):** grid Robustness → "Parameter sensitivity" berjalan di setiap backtest. Sumbu X = kondisi entry pertama
+  (urutan kondisi entry, huruf A, B, C di lane; urutan penambahan, tidak bisa diurutkan ulang) yang aktif dan punya angka
+  pembanding; kondisi yang membandingkan dua garis dilewati; nilainya ± 2 langkah, langkah 20% (minimal 1 untuk kondisi
+  halaman). Sumbu Y = pengaturan stop yang aktif (SL % ± 2 poin, ATR ± 0,5, reward:risk ± 0,5, tanpa stop: lama tahan ± 5
+  hari). Toggle di samping lane hanya menyembunyikan lane, tidak mengubah grid.
+- **Masalah:** kondisi ya/tidak (angka pembandingnya tetap 0,5) di posisi pertama memberi kolom 0,3-0,7 yang isinya sama,
+  dan 25 sel terhitung 25 percobaan di Deflated Sharpe padahal hanya 5 yang berbeda. Output ya/tidak diturunkan dari data
+  (dijalankan di BBCA dan BBRI): rilis Supertrend dan Parabolic SAR Direction (-1/1), Flow FL09 dan FL27 (0/1); lab I54-I60.
+- **Pilihan user: C.** Untuk kondisi ya/tidak (output yang nilainya kode: 0/1, -1/1, kategori; diturunkan dari registry
+  dan flow-kinds, bukan daftar), sumbu X menggeser setting angka pertama indikator itu (urutan Settings di registry), ± 2
+  langkah 20%, dibulatkan untuk bilangan bulat dan di dalam batas min/max-nya (contoh Supertrend ATR length 10 → 6, 8,
+  10, 12, 14; Price Action BUY Lookback 30 → 18-42). Indikator tanpa setting angka (Inside Bar, Alpha Divergence): cara
+  A, sumbu X pindah ke kondisi berikutnya yang punya angka asli; tanpa kondisi angka sama sekali: hanya sumbu stop (5
+  backtest). Judul kolom grid menyebut apa yang digeser.
+- **Cakupan:** core Backtest bersama (beta dan live): worker upload, lalu `main`; live ikut saat `live` dipindah dengan
+  persetujuan user. Hasil Sensitivity dan Deflated Sharpe strategi dengan kondisi ya/tidak di posisi pertama berubah
+  (lebih benar); strategi lain tidak berubah.
+- **Detail terbuka (diusulkan agen, user boleh ubah):** langkah 20% untuk setting kecil (Lookback 10 → langkah 2); setting
+  pertama sebagai pilihan.
+- **Uji:** grid pada kondisi ya/tidak menggeser setting dan menghasilkan sel berbeda; cadangan A; tanpa kondisi angka;
+  kondisi angka biasa (seperti ADX) tidak berubah; gerbang look-ahead tetap hijau.
+- **Pemicu:** go user untuk mengeksekusi.
