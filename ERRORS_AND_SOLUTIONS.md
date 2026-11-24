@@ -8893,12 +8893,13 @@ in its staleness check.
 - **Evidence (2026-11-24):** found by a read-only scan of every one-day move since 2025-01-01 beyond 35 % (the only
   one); TradingView's daily bars for IDX:WGSH hold the same bar (O 62.5, H 65, L 61.5, C 65, volume 1,228,400), so a
   pull again does not mend it.
-- **Root cause:** suspected, not verified: an error of the source feed for that session (a price on another scale or a
-  wrong print); the check that would confirm it is the exchange's own record of WGSH on 2026-03-31.
+- **Root cause (verified 2026-11-24 from the broker data):** the price bar is wrong in the source: the Regular-board
+  broker VWAP of WGSH on 2026-03-31 is 126.57 (Feature 05), against a stored range of 61.5-65; the days around it agree
+  (2026-03-30 VWAP 125.50 in 121-135, 2026-04-01 127.46 in 123-133). The exchange's own record was not read.
 - **Class:** a source error with no corporate action behind it; no check of ours sees it today (the Screener and the
   Backtest look only at recorded actions, the Backtest's broker check only at broker days).
-- **Solution:** none yet; EXEC.md EXEC-PRICE-DISTORTION, register UD44 (a daily-limit check would mark it), UD45 (what
-  to do when the source holds the same error).
+- **Solution:** the user 2026-11-24, UD45 "A": the bar stays as it is and carries a badge; the daily-limit check of
+  EXEC.md EXEC-PRICE-DISTORTION (a fixed cap of 35 %, UD44) marks it. Not built yet.
 - **Status:** OPEN.
 
 ### M561 — A detected price distortion hides values (Screener rows, Backtest Flow values) instead of marking them (2026-11-24, OPEN)
