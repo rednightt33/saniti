@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "about": "The approved state of apps/backtest-worker for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a worker that differs from origin/main only while its content hash is worker_tree and the versions are these. Recorded with --record and changed only by a deliberate commit (EXEC-MU-RUNTIME).",
-  "base_commit": "597125470d9a7fb258c0c0b76ebc59832aa6c6c7",
-  "recorded_on": "53b710b6187a9d5ae417421ff5cf27c53f390377",
-  "recorded_at": "2026-11-23",
-  "engine_version": "83f48778aac56395",
-  "base_engine_version": "ecc16914a1ed19e3",
-  "registry_version": "514dc3df60a25aff",
-  "worker_tree": "57c643bd9bd10e501c318fb4548b73b496814451ed2985f51568096443f9e49f",
+  "base_commit": "5a7224750c8ec7aa7553c4f357936c0a176cfbb2",
+  "recorded_on": "3609d50c67aafd7e3fa6149a37d745bd4950226c",
+  "recorded_at": "2026-11-24",
+  "engine_version": "6ed4c80f76fcbd09",
+  "base_engine_version": "83f48778aac56395",
+  "registry_version": "2a69cd7d3f01ceaf",
+  "worker_tree": "f6b4726beeb9030656fdae1d44cf9d8f2a019c29865d5acfb91fef03a6f65504",
   "worker_files": 69,
   "exec": {
-    "section": "EXEC-MU-ACCOUNTS",
-    "decision": "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error = betulkan. Yang di benerin di remark untuk step 8 nanti. Setelah itu deploy. (2026-11-23)"
+    "section": "EXEC-PINE-INDICATORS",
+    "decision": "User 2026-11-23 (verbatim in EXEC-PINE-INDICATORS): \"Ok\" (the implementation plan, F3: \"kasus gerbang look-ahead\"; the pilot, then the six others per group), \"Lanjutkan indikator lainnya dulu baru push yo main all at once ya\", \"All at once. Then jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading time, dll dengan 10 agent subsonnet high. Bereskan temuan. Deploy.\" (2026-11-23)"
   },
-  "note": "The check of steps 2-3 (wf_6a8c44c8-978) fixes: the look-ahead gate varies Flow numbers and requires a finite value (F2, F3); calc/flow.ts flowKit hands out a cohort copy (F6). No released output changes: screener-registry.json entries identical, only its source hash and version moved."
+  "note": "The worker test changes of the EXEC-PINE-INDICATORS release, on main since c91e2809, recorded after the fact against main before it (5a722475) after its release and core records (EXEC-TRIPWIRE-LAB, ERRORS M553; the user 2026-11-24: \"UD29: ok with opsi A\", \"Untuk 2-5 bisa go\"): tests/engine.test.ts (ERRORS M554: the price lines are the probe price levels; I55 ib, I56 break_a and I09 direction refused UNKNOWN_OUTPUT), tests/lookahead.test.ts and tests/grammar.test.ts (the category transforms in_categories and category_change in the look-ahead gate and the grammar parity, on I58 color_state). No worker source (src/) changed."
 }

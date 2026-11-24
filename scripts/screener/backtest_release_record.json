@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "about": "The approved indicator release for scripts/screener/check_backtest_untouched.mjs: the tripwire passes apps/edge-bff/terminal/src/calc/indicators.ts and apps/edge-bff/terminal/src/data/indRegistry.json that differ from origin/main only while their content hash is formula_tree and the difference stays within ids (no row of another id added, changed or gone; every other formula computing as the base's), and, while the core and the worker are the base's, only while the versions are these. Recorded with --record-release and changed only by a deliberate commit (EXEC-TRIPWIRE-LAB, ERRORS M553).",
+  "base_commit": "5a7224750c8ec7aa7553c4f357936c0a176cfbb2",
+  "recorded_on": "3609d50c67aafd7e3fa6149a37d745bd4950226c",
+  "recorded_at": "2026-11-24",
+  "engine_version": "6ed4c80f76fcbd09",
+  "base_engine_version": "83f48778aac56395",
+  "registry_version": "2a69cd7d3f01ceaf",
+  "base_registry_version": "514dc3df60a25aff",
+  "formula_tree": "a73c10d33ce4de1d6f7714866072910d0daad7c70a7159432e003c02579a2ffb",
+  "formula_files": 2,
+  "ids": [
+    "I54",
+    "I55",
+    "I56",
+    "I57",
+    "I58",
+    "I59",
+    "I60"
+  ],
+  "exec": {
+    "section": "EXEC-PINE-INDICATORS",
+    "decision": "User 2026-11-23 (verbatim in EXEC-PINE-INDICATORS): \"Di beta saya akan kirimkan pine untuk ditambahkan ke terminal, screener dan backtest\", \"Hanya di beta saja for now ya\" (lab, the seven indicators), \"Ok\" (the pilot Alpha Volatile, then the six others per group), \"Lanjutkan indikator lainnya dulu baru push yo main all at once ya\", \"All at once. Then jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading time, dll dengan 10 agent subsonnet high. Bereskan temuan. Deploy.\"",
+    "date": "2026-11-23"
+  },
+  "note": "The lab release of EXEC-PINE-INDICATORS, on main since c91e2809 (I54 since 37e6be83), recorded after the fact against main before it (5a722475) with --record-release (EXEC-TRIPWIRE-LAB, ERRORS M553; the user 2026-11-24: \"UD29: ok with opsi A\", \"Untuk 2-5 bisa go\"): indRegistry.json adds the rows I54 Alpha Volatile, I55 Inside Bar Detection, I56 Alpha Price Action BUY, I57 Alpha Price Action SELL, I58 Alpha KAMA, I59 Alpha Extract, I60 Alpha Divergence (stage lab), their formulas in the lab module; calc/indicators.ts exports def, srcOf, SRC, Seg, truthy and the display-only DRAWINGS map (Part A step 1), no formula of I01-I53 computing otherwise (the probe)."
+}
