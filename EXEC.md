@@ -17752,5 +17752,5 @@ sepertinya toggle between timeline masih laggy untuk kondisi sekarang. Nanti sek
   3. Legend: baris tampil `--text` #171717 (kontras 17,9), baris tersembunyi #b9b9b9 (2,0); angka awal yang dilaporkan
      agen (#666, 5,7) dikoreksi: warna diam sebelumnya `--text-3` #8f8f8f (3,2), tersembunyi #cdcdcd (1,6); menggantikan
      warna diam EXEC-TERMINAL-LOOK 1.
-  Diuji oleh agen sendiri (aturan 8: uji ulang hanya dengan persetujuan user). Deploy ke beta (push `main`: edge-bff saja)
-  menunggu konfirmasi user; live hanya atas permintaan.
+  Diuji oleh agen sendiri (aturan 8: uji ulang hanya dengan persetujuan user). Di beta sejak 2026-11-24 (user: "Deploy ke
+  beta oke"; `main` `6dee649d`, edge-bff `382cb664` SUCCESS, RAILWAY_CHANGELOG.md); live hanya atas permintaan.

@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-11-24 — The beta on `6dee649d`: the Terminal's Session lines pill, the timeframe built in place, the legend's contrast (the user: "Deploy ke beta oke")
+
+- **The user's words:** "Ok GO" (EXEC-TERMINAL-SESSION-TOGGLE, 2026-11-24), then "Deploy ke beta oke"; the live site does
+  not move (only on the user's request).
+- **Commit `6dee649d`** on `main` (fast-forward from `c91e2809`, 19 commits: the Terminal change `cb688250` and records:
+  EXEC, ERRORS M559-M563, AGENTS.md rule 8, `verification/price_break_basis/`).
+- **edge-bff** deployment `382cb664-bdd4-4f22-849e-230009989669` SUCCESS (its watch path `/apps/edge-bff/**`);
+  screener-worker SKIPPED (no watched path changed); no other service watches the changed paths; nothing else was
+  waiting before the push (read 2026-11-24 from Railway's deployments). Read back: `/terminal-app/` serves
+  `index-DgnCGJ9r.js`, which holds the pill (`Session lines`, `ml.session.lines`) and the in-place switch; `/ready` 200.
+- **CI** of `6dee649d`: read to its end below.
+- **Rollback:** `main` back to `c91e2809` (edge-bff redeploys from it; the change is front-end only, no data or variable).
+
 ## 2026-11-23 — The beta on `c91e2809`: the seven lab Pine indicators, the label boxes, the colour box and the fixes of their checker round (the user: "All at once ... Deploy")
 
 - **The user's words:** "All at once. Then jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading
