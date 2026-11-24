@@ -8886,6 +8886,21 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M562 — WGSH 2026-03-31: a daily bar at half the price between two normal days (2026-11-24, OPEN)
+
+- **Symptom:** `Price_Stock_Indonesia_IDX` WGSH daily: 2026-03-30 close 125, 2026-03-31 close 65 (-48.0 %), 2026-04-01
+  close 128 (+96.9 %); no corporate action on those dates. Both moves are beyond any IDX daily limit of the time.
+- **Evidence (2026-11-24):** found by a read-only scan of every one-day move since 2025-01-01 beyond 35 % (the only
+  one); TradingView's daily bars for IDX:WGSH hold the same bar (O 62.5, H 65, L 61.5, C 65, volume 1,228,400), so a
+  pull again does not mend it.
+- **Root cause:** suspected, not verified: an error of the source feed for that session (a price on another scale or a
+  wrong print); the check that would confirm it is the exchange's own record of WGSH on 2026-03-31.
+- **Class:** a source error with no corporate action behind it; no check of ours sees it today (the Screener and the
+  Backtest look only at recorded actions, the Backtest's broker check only at broker days).
+- **Solution:** none yet; EXEC.md EXEC-PRICE-DISTORTION, register UD44 (a daily-limit check would mark it), UD45 (what
+  to do when the source holds the same error).
+- **Status:** OPEN.
+
 ### M561 — A detected price distortion hides values (Screener rows, Backtest Flow values) instead of marking them (2026-11-24, OPEN)
 
 - **Symptom (the user, 2026-11-24):** "Tadi ada saham yang meskipun price distort, kita hide kan untuk screener. Dan untuk

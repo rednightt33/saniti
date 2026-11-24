@@ -16728,6 +16728,8 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD41 | EXEC-PRICE-DISTORTION, Backtest: "as is" for a Flow value across a corporate action: (A) the value is used in the signal as computed and every trade that read a marked value carries a badge, with the run warning; (B) the value is shown in the lanes but a marked day cannot open a trade | 2026-11-24 with context | Backtest results on stocks with an action | before the build |
   | UD42 | EXEC-PRICE-DISTORTION: do stale stocks (not traded on the evaluation date, hidden by default by the chip "Traded on evaluation date", P4 (a)) follow the same concept (shown by default with their badge), or stay hidden by default | 2026-11-24 with context | the default screen's rows | before the build |
   | UD43 | EXEC-PRICE-DISTORTION: an action too small to measure (under 10 % price effect; BRNA 0.4 %, MGLV 2.6 %, PSSI 3.3 % now): a badge naming its size, or no badge | 2026-11-24 with context | badges on three stocks now | before the build |
+  | UD44 | EXEC-PRICE-DISTORTION, detection (the user's proposal 2026-11-24: one-day moves beyond the exchange's daily limit are distorted): two checks, both from data: (1) the daily limit per price band and date from a table of the exchange's rules (ARA 35/25/20 %, ARB by date; not a flat 30 %, which flags 767 legitimate ARA days since 2025), catching data errors without an action (WGSH 2026-03-31); (2) the ex-date jump against the action's factor, catching small actions inside the limit (VKTR -19.8 % before its pull) | 2026-11-24 with context | which stocks get a badge | before the build |
+  | UD45 | EXEC-PRICE-DISTORTION, an anomaly a pull again cannot mend (TradingView has the same data: WGSH 2026-03-31, the six old steps of UD40, BAJA and BRNA): (A) the badge stays and the data as it is; (B) corrected by us, case by case with the user's go (a bad day replaced or left out, an old step rescaled with the action's factor) | 2026-11-24 with context | the data of those stocks | before the build |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17593,6 +17595,17 @@ dieksekusi (AGENTS.md "Plans"; deploy dengan konfirmasi user).
   flow tanpa tanda. Backtest: nilai harga apa adanya + peringatan; nilai Flow dikosongkan bila jendelanya melewati aksi
   yang belum settled atau hari skala lain (`grammar.ts:176-192`, `pit/series.ts:62-68`), nilai kosong = kondisi tidak
   terpenuhi (`conditions.ts:299`), peringatan FLOW_BASIS_CHANGE (`engine.ts:210`).
+- **Usulan user 2026-11-24 untuk deteksi:** "sudahlah tidak usah pakai cara existing untuk mendeteksi price distortion. Di
+  IHSG atau indonesia, kenaikan harga saham itu dibatasi, maksimal 30% dan turun juga 30% setiap harinya. Jadi kalau ada
+  harga yang diluar range tersebut sudah pasti harganya distort." Diukur di data dev sejak 2025-01-01 (read-only): batas
+  BEI bergantung pada rentang harga (ARA 35 % untuk Rp11-200, 25 % untuk Rp201-5.000, 20 % di atas Rp5.000; saham Rp1-10
+  bergerak Rp1) dan tanggal (ARB 7 % sejak 19 Okt 2026 sementara, sebelumnya 15 %, 35 % direncanakan 2027); 767 hari naik
+  lebih dari 30 % di rentang Rp11-200 itu sah (ARA 35 %), jadi 30 % rata salah menandai; di atas batas rentangnya hanya WGSH
+  2026-03-31 (-48 % lalu +97 %, tanpa aksi, sama di TradingView; ERRORS M562); patahan aksi kecil tetap di dalam batas
+  (VKTR sebelum ditarik ulang -19,8 %, BUVA faktor 1,13). Usulan agen (UD44): dua cek, keduanya dari data: (1) cek batas
+  harian per rentang harga dan tanggal dari tabel aturan bursa (bukan angka di kode; pasar tanpa batas seperti IHSG,
+  obligasi, makro: cek ini tidak berlaku), menangkap kesalahan data tanpa aksi; (2) cek tanggal ex terhadap faktor aksi,
+  menangkap patahan aksi kecil. Yang tidak bisa diperbaiki dengan tarik ulang (data TradingView sama salahnya): UD45.
 - **Rencana (menunggu UD41-UD43, lalu go):**
   1. Satu deteksi di publisher: `price` dari close sesi terakhir sebelum ex dan close tanggal ex terhadap faktor aksi
      (M560; 708 aksi sejak 2018 diuji), diputuskan sejak tanggal ex; hasilnya dibawa berkas `actions` yang dibaca
