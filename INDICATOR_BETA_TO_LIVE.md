@@ -170,9 +170,21 @@ All edits are on the session branch; one commit per indicator (or one per batch)
       ERRORS M523 (CRIT-1).
 13. **Tell the user** the indicator is on the beta only, how to see it, and what Part B will move.
 
-**The tripwire in Part A** (check of steps 2-3, F7): a lab formula moves both engine versions, so the Backtest tripwire
-(`npm run tripwire` in `apps/edge-bff/screener`, not in CI) is recorded in the lab commit with the user's words
-(`--record --exec <section> --decision "<words>" --note "<what>"`), as Part B step 2 records it at release.
+**The tripwire in Part A** (ERRORS M553, EXEC-TRIPWIRE-LAB): the lab commit changes `calc/indicators.ts` and
+`indRegistry.json` (steps 1 and 3), the core (step 6) and both engine versions, so the Backtest tripwire
+(`npm run tripwire` in `apps/edge-bff/screener`, not in CI) is recorded in that commit with the user's words of the EXEC
+section, in this order (each is refused until the one before it is made), and the record files are committed with it:
+1. `npm run tripwire -- --record-release --exec <section> --decision "<the user's words>" --date <YYYY-MM-DD>
+   --ids I54,I55 --note "<what>"` (`scripts/screener/backtest_release_record.json`, the content hash of the two files):
+   refused when an id is no registry id, or a row or a formula of an id it does not name is added, changed or gone
+   (every formula of `main` is run by `main`'s module and by the branch's on a fixed series, at its defaults and with
+   each setting moved);
+2. `npm run tripwire -- --record-core --exec <section> --decision "<words>" --date <YYYY-MM-DD> --note "<what>"`
+   (the regenerated `backtest-registry.json` and `compare-lag.json`, a core change of the release);
+3. `npm run tripwire -- --record --exec <section> --decision "<words>" --note "<what>"`, only when
+   `apps/backtest-worker` changed (a case of the look-ahead gate);
+
+then `npm run tripwire` passes.
 
 ## Part B: release to the live site, on the user's OK
 
@@ -199,10 +211,11 @@ Only when the user names the indicator ("I54 boleh ke live"); never on a schedul
    - the formula's unit test (Part A step 7) now imports `calc/indicators.ts` only;
    - the Feature 04 oracle: a new indicator Feature 04 does not store gets an `ORACLE_NOTES` line
      (`scripts/terminal_indicator_spec.py`) and `scripts/screener/parity_f04.py --write` (SCREENER_ONBOARDING §2.11 Step 4);
-   - the Backtest tripwire (`npm run tripwire` in `apps/edge-bff/screener`; not in CI) flags any registry or worker
-     change: record its baseline with the user's go in the same commit (`--record --exec EXEC-MU-ACCOUNTS --decision
-     "<the user's words>" --note "<what changed>"`, `scripts/screener/check_backtest_untouched.mjs`). Part A records it
-     too.
+   - the Backtest tripwire records, in the same commit, with the user's words of step 1 (`npm run tripwire` in
+     `apps/edge-bff/screener`, not in CI; `scripts/screener/check_backtest_untouched.mjs`), in Part A's order:
+     `--record-release --exec <section> --decision "<the user's words>" --date <YYYY-MM-DD> --ids I54 --note "<what>"`
+     (the formula moved into `calc/indicators.ts`; refused when another formula computes otherwise), then `--record-core`
+     (the regenerated registries) and `--record` when the worker changed; then `npm run tripwire` passes.
 3. **The tests of Part A step 9 again**, the public builds now holding the indicator (`test_3f_public_bundles.py`).
 4. **Commit and push; read its CI runs** (Part A step 10).
 5. **The beta deploy, with the user's confirmation** (Part A step 11; the engine versions change again).
@@ -265,9 +278,11 @@ indicator; these replace its steps 1-8:
 7. **The gates:** the look-ahead gate computes it with every option and its numbers at their minimum, three times the
    default and the maximum, and fails when a registry Flow indicator has no formula or only nulls at its defaults
    (`apps/backtest-worker/tests/lookahead.test.ts`); the screener-worker's catalog count is derived from the generated
-   registry (`tests/flow.test.ts`). **The tripwire:** the engine versions hash the lab module and `flowRegistry.json`, so
-   record its baseline in the lab commit with the user's words (`npm run tripwire` in `apps/edge-bff/screener`; `--record
-   --exec <section> --decision "<words>" --note "<what>"`, `scripts/screener/check_backtest_untouched.mjs`). Part A step 9's
+   registry (`tests/flow.test.ts`). **The tripwire:** the engine versions hash the lab module and `flowRegistry.json`
+   while the core and the worker stay as `main`'s, so the release record holds them: in the lab commit, with the user's
+   words, `npm run tripwire -- --record-release --exec <section> --decision "<words>" --date <YYYY-MM-DD> --ids FL53`
+   `--note "<what>"` in `apps/edge-bff/screener` (a worker baseline, `--record`, approves a worker change only; ERRORS
+   M553). Part A step 9's
    expected changes for a Flow indicator: both engine versions and `screener_registry_version`; `registry_version` stays.
 8. **Its release** (Part B) or preview (Part C) moves the formula into `calc/flow.ts` `FLOW` and out of the lab module;
    the page tests then compute it (`terminal/tests/calc/flow.test.ts` "registry"). No Flow count is pinned in the page
@@ -311,7 +326,8 @@ the preview stage; LIVE_PROMOTION.md §7), so the first preview item's promotion
 7. **Records** (Part B step 8).
 
 **From preview to released** (Part B, when the user says so): the formula is already public, so Part B step 2 is only
-its `releases.json` stage `released` and the tripwire record; then Part B steps 3-8.
+its `releases.json` stage `released`; the tripwire reads nothing that changes, so `npm run tripwire` passes without a
+record (`--record-release` answers "there is no release to record"); then Part B steps 3-8.
 
 ## Notes
 
