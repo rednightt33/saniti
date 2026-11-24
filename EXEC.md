@@ -16722,9 +16722,12 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD35 | (answered 2026-11-24: "C ok - masukan EXEC", the fix to reach the live site too: recorded as EXEC-SENSITIVITY-FLAGS, the build waits for the user's go) ERRORS M558 B-2 (a mechanism older than this work, now common): the Backtest's sensitivity grid takes the first threshold as its axis; on a 0/1 flag or a category condition that is a fixed 0.5, so 25 cells give one result and count as 25 trials in the deflated Sharpe. Fixing it (no axis from such a threshold) changes the shared core, so live backtests with flag conditions change too | 2026-11-23 with context | robustness of flag strategies | before the lab indicators leave lab |
   | UD36 | (answered 2026-11-24: "Tunda dulu untuk UD36": deferred; trigger: before the seven lab indicators leave lab, then the fix (re-probe on several price shapes, "whole history" for outputs that remember without limit, a real-price test) is asked again with context; note: by default the chip "No unadjusted price break" hides these stocks, so the missing cell mark shows only with the chip off, beside the row's "Price break" badge) (2026-11-24, re-measured on BBCA and BBRI for every output the registry classes 'window': only lab outputs read further back on real prices: Alpha Volatile direction and outside/back-in flags, Inside Bar break up, Alpha KAMA ENTER SHORT, Alpha Extract's positive, Alpha Divergence BULL DIV, BEAR DIV, BUY A and its swing levels; no released indicator; still open, explained again) ERRORS M558 SC-3: the generator classes an output's history from a synthetic probe; for swing levels (Alpha Divergence, Price Action) real prices reach about 90 bars further back, so a "price break in the lookback" remark can be left out. A fix re-probes every indicator, the released ones too (the shared Screener worker then reads more history for some) | 2026-11-23 with context | one remark of a screen | before the lab indicators leave lab |
   | UD37 | ERRORS M558 I-4: on the beta a non-admin account whose plan is `{"all": true}` is listed the lab indicators (catalogs, worker allow list); the live site never. Matters only if the beta opens to non-admin accounts: should `{"all": true}` leave lab out as it leaves preview out (UD28)? | 2026-11-23 with context | the beta for non-admins | before the beta opens to a non-admin account |
-  | UD38 | (user 2026-11-24: "Untuk 6 saham yang sudah benar price wise, badge nya bisa di remove. Screener bawaan harus menampilkan data yang sudah benar ... Ok untuk solusi kamu": the goal approved, recorded as EXEC-PRICE-BREAK-BASIS; asked again the same day because the approved solution as written would leave VKTR, AHAP and BUVA hidden, ERRORS M560) ERRORS M559, M560: approve the revised solution (the publisher measures "is the close adjusted for this action" from the sessions either side of the ex-date, the Screener and the Backtest read that one result) and the rule for actions too small to measure (under 10 % price effect: BRNA, MGLV, PSSI now): not a price break, or hidden like today | 2026-11-24 with context | default screens leave out stocks whose prices are correct (beta and live) | before paid launch |
+  | UD38 | (superseded 2026-11-24 by the user's concept "value harus tetap ditampilkan as is dengan badge": EXEC-PRICE-DISTORTION; its parts asked again as UD41-UD43; the detection revision of M560 is in the plan) ERRORS M559, M560 | 2026-11-24 with context | | |
   | UD39 | (answered 2026-11-24: "UD39 ok - masukan EXEC", read as option A, the recommendation, with the collateral-damage check; recorded as EXEC-RECHECK-LIST, the build waits for the user's go) A RECHECK.md (the user's proposal 2026-11-24: "kayaknya perlu ada dibuatkan MD untuk menampung item ini (item yang sudah di solve, tapi belum di recheck apakah perbaikannya tidak ada collateral damage dll). Re-check.MD? ... WDYT?"): one list, across executions, of the fixes no agent other than their author tested out, named in AGENTS.md rule 8. Asked: its source (the step-8 ledger `verification/records/step8_ledger.json`, 422 rows, 212 fixed and not tested out, made the general source with RECHECK.md written from it, or RECHECK.md by hand) and whether the re-check also checks collateral damage | 2026-11-24 with context | where a re-check takes its items from | before the next re-check the user approves |
   | UD40 | ERRORS M560, open part: six actions before 2026-09-12 show a step in the stored history on their ex-date that matches the action (CMNP 2020-11-10, BPFI 2022-01-31, BSWD 2022-08-30 and 2023-04-11, FMII 2023-07-07, FITT 2024-06-25); every reader treats actions before that date as adjusted, so nothing marks them, and the stored rows equal TradingView's (D22 scan), so a pull again does not mend them. To be asked with context after UD38 | 2026-11-24 (recorded, not yet asked with context) | long-history indicators and Backtests across those dates on six stocks | after UD38 |
+  | UD41 | EXEC-PRICE-DISTORTION, Backtest: "as is" for a Flow value across a corporate action: (A) the value is used in the signal as computed and every trade that read a marked value carries a badge, with the run warning; (B) the value is shown in the lanes but a marked day cannot open a trade | 2026-11-24 with context | Backtest results on stocks with an action | before the build |
+  | UD42 | EXEC-PRICE-DISTORTION: do stale stocks (not traded on the evaluation date, hidden by default by the chip "Traded on evaluation date", P4 (a)) follow the same concept (shown by default with their badge), or stay hidden by default | 2026-11-24 with context | the default screen's rows | before the build |
+  | UD43 | EXEC-PRICE-DISTORTION: an action too small to measure (under 10 % price effect; BRNA 0.4 %, MGLV 2.6 %, PSSI 3.3 % now): a badge naming its size, or no badge | 2026-11-24 with context | badges on three stocks now | before the build |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17559,48 +17562,59 @@ konfirmasi user, section "Deploys").
   kondisi angka biasa (seperti ADX) tidak berubah; gerbang look-ahead tetap hijau.
 - **Pemicu:** go user untuk mengeksekusi.
 
-## EXEC-PRICE-BREAK-BASIS — Screener bawaan menampilkan saham yang harganya sudah benar (ERRORS M559, M560, UD38; dicatat 2026-11-24, menunggu persetujuan revisi dan go)
+## EXEC-PRICE-DISTORTION — harga terdistorsi: satu deteksi, nilai ditampilkan apa adanya dengan badge (ERRORS M559, M560, M561; dicatat 2026-11-24, menunggu jawaban UD41-UD43 dan go)
 
-Kata-kata user 2026-11-24: "Untuk 6 saham yang sudah benar price wise, badge nya bisa di remove. Screener bawaan harus
-menampilkan data yang sudah benar. Jadi maksudmu untuk ke 10 saham itu, kalau user melakukan screen, maka saham2
-tersebut tidak appear dalam screen apapun? Ok untuk solusi kamu." Dicatat, belum dieksekusi (AGENTS.md "Plans"; deploy
-dengan konfirmasi user).
+Kata-kata user 2026-11-24 (pertama): "Untuk 6 saham yang sudah benar price wise, badge nya bisa di remove. Screener
+bawaan harus menampilkan data yang sudah benar ... Ok untuk solusi kamu." Lalu, sesudah revisi M560, konsepnya: "Konsepnya
+adalah untuk screener dan backtest ketika sistem mendeteksi adanya price distort, entah itu karena corporate action dan
+lain-lain, maka value harus tetap ditampilkan as is dengan badge. Tadi ada saham yang meskipun price distort, kita hide
+kan untuk screener. Dan untuk backtest ada lagi ternyata nilai indikator flow yang di hide karena price detected as
+distort. Ini masalah boleh kamu identify. First thing first adalah bagaimana sistem kita mendeteksi price yang
+terdistort. Kemudian bagaimana untuk aset-aset yang terdetek price-nya distort dan lain-lain, bagaimana screener atau
+backtest menghandle ini. Kalau screener tadi sudah jelas bahwa aset tersebut pure langsung di hide. Ini aneh dan ini
+salah." Konsep ini menggantikan P4 (a) EXEC-SCREENER (user 2026-10-28 "P4 - pakai A": disembunyikan secara bawaan) dan
+pengosongan nilai Flow EXEC-BACKTEST-REVAMP P9 (user 2026-11-16 "opsi A") serta Stage C2 ("A"). Dicatat, belum
+dieksekusi (AGENTS.md "Plans"; deploy dengan konfirmasi user).
 
-- **Tujuan (disetujui):** saham yang riwayat harganya sudah benar tidak lagi disembunyikan dan tidak diberi badge "Price
-  break"; saham yang harganya memang patah tetap disembunyikan secara bawaan dan tampil dengan badge bila chip "No
-  unadjusted price break" dimatikan (seperti sekarang).
-- **Kenapa solusi yang disetujui direvisi (ERRORS M560, ditemukan sesudah persetujuan):** solusi itu memakai hasil ukur
-  publisher `price` (adjusted/raw). Diukur ulang dengan fungsi publisher sendiri di data dev 2026-11-24: VKTR, AHAP dan
-  BUVA terbaca `raw` padahal sudah ditarik ulang (close sehari sebelum ex 626,91 / 72,17 / 522,00 di bawah harga
-  transaksi broker hari itu 836,89 / 90,63 / 582,27, dan menyambung ke close tanggal ex). Aturan itu membandingkan median
-  15 sesi sebelum dan sesudah ex, sehingga turunnya harga sesudah ex terbaca sebagai aksi yang belum disesuaikan. Tanpa
-  revisi, tiga dari enam saham tetap tersembunyi. Ditanyakan lagi (UD38).
-- **Rencana revisi (menunggu persetujuan):**
-  1. Publisher (`apps/terminal-publisher/publisher.py` `broker_basis`): `price` tiap aksi diputuskan dari close sesi
-     terakhir sebelum ex dan close tanggal ex terhadap faktor syarat aksinya (`terms_factor`), lebih dekat ke faktor =
-     raw, lebih dekat ke 1 = adjusted; bisa diputuskan sejak tanggal ex (tidak menunggu 21 hari, yang hanya untuk basis
-     lot broker). Status dan faktor basis broker tidak berubah. Diuji di 708 aksi sejak 2018 (dev 2026-11-24): semua 7 aksi
-     terukur sejak 2026-09-12 terbaca adjusted (FORU, BAJA, ENRG, VKTR, AHAP, PBSA, BUVA); sebelum 2026-09-12, 208 adjusted
-     dan 6 dengan patahan nyata (UD40).
-  2. Publisher: berkas xsection `actions` membawa `price` tiap aksi dari fungsi yang sama.
-  3. Screener (`apps/edge-bff/screener/src/core/universe.ts` `priceBreakRemarks`, `apps/screener-worker/src/snapshot.ts`):
-     aksi ditandai hanya bila harganya tidak adjusted; satu fungsi dipakai bersama dengan Backtest (`engine.ts` `carried`),
-     bukan dua aturan.
-  4. Aksi terlalu kecil untuk diukur (efek harga di bawah 10 %, `BASIS_PRICE_MIN`; sekarang BRNA 0,4 %, MGLV 2,6 %, PSSI
-     3,3 %): pilihan user (UD38).
-  5. Uji: enam saham tampil tanpa badge; saham dengan patahan nyata tetap tersembunyi; aksi tanpa ukuran mengikuti
-     pilihan user; publisher dengan baris VKTR, AHAP, BUVA, PBSA, FORU; gerbang look-ahead hijau.
-  6. Dokumen: UPDATE_TABLE.md bagian C (langkah 5), `apps/edge-bff/screener/src/core/contract.ts`, CONTRACT Backtest,
-     ERRORS D22, M559, M560.
-- **Hasil yang diharapkan di data hari ini:** tampil tanpa badge FORU, PBSA, AHAP, BUVA, ENRG, VKTR, BAJA; BRNA, MGLV,
-  PSSI menurut pilihan user; PPGL (belum ada bar sesudah ex), BMAS dan PRDA (ex belum lewat) belum ditandai.
-- **Efek lain (lebih benar):** Backtest: nilai Flow AHAP dan BUVA yang melewati tanggal ex tidak lagi dikosongkan
-  (`apps/backtest-worker/src/basis.ts:49`), VKTR tetap (status basis broker `unresolved`); peringatan harga yang
-  disesuaikan muncul untuk ketiganya. Telegram harian "Basis harga lawan data broker" berhenti menyebut AHAP dan BUVA
-  belum ditarik ulang.
+- **Deteksi sekarang (dari kode, 2026-11-24):**
+  1. Screener, aturan tanggal: setiap split, saham bonus, rights issue atau dividen saham dengan tanggal ex dari 2026-09-12
+     sampai bar terakhir = patahan (`apps/edge-bff/screener/src/core/universe.ts:110-133`); tidak tahu riwayat yang sudah
+     ditarik ulang (M559), tidak melihat aksi sebelum 2026-09-12 (UD40).
+  2. Publisher, ukur per aksi (`apps/terminal-publisher/publisher.py:284-330`): `status` (lot broker sudah satu skala
+     dengan harga?) dan `price` (close sudah disesuaikan?); `price` tertipu pergerakan pasar sesudah ex (M560); setiap
+     aksi `pending` 21 hari sesudah ex. Dipakai Backtest dan Telegram, tidak oleh Screener.
+  3. Backtest, cek harian: hari yang harga rata-rata brokernya di luar rentang high-low hari itu (±1 %) = data broker skala
+     lain (`apps/backtest-worker/src/basis.ts:6-10`).
+  4. Backtest, peringatan batas 2026-09-12 dan harga yang disesuaikan (`apps/edge-bff/backtest/src/core/engine.ts:603-614`).
+  5. Tidak terdeteksi: nilai Flow Screener yang melewati aksi (lot broker rights issue skala lama; Screener tidak
+     menyesuaikan lot dan tidak menandai sel flow, `evaluate.ts:196-199`).
+- **Penanganan sekarang:** Screener menyembunyikan saham bawaan (chip "No unadjusted price break", `contract.ts:225-228`,
+  `universe.ts:79`); chip dimatikan: nilai apa adanya + badge baris + tanda sel + peringatan (`screen.ts:191-194`); sel
+  flow tanpa tanda. Backtest: nilai harga apa adanya + peringatan; nilai Flow dikosongkan bila jendelanya melewati aksi
+  yang belum settled atau hari skala lain (`grammar.ts:176-192`, `pit/series.ts:62-68`), nilai kosong = kondisi tidak
+  terpenuhi (`conditions.ts:299`), peringatan FLOW_BASIS_CHANGE (`engine.ts:210`).
+- **Rencana (menunggu UD41-UD43, lalu go):**
+  1. Satu deteksi di publisher: `price` dari close sesi terakhir sebelum ex dan close tanggal ex terhadap faktor aksi
+     (M560; 708 aksi sejak 2018 diuji), diputuskan sejak tanggal ex; hasilnya dibawa berkas `actions` yang dibaca
+     Screener dan Backtest. Aturan tanggal Screener diganti (M559). Aksi sebelum 2026-09-12 yang terukur patah ikut
+     ditandai (UD40: 6 aksi); yang tak terukur sebelum batas dianggap disesuaikan seperti sekarang.
+  2. Satu kebijakan penanganan: nilai selalu dihitung dan ditampilkan apa adanya; deteksi hanya menambah badge. Screener:
+     tidak ada saham yang disembunyikan karena patahan (chip jadi filter pilihan, bawaannya mati); badge baris dan tanda
+     sel seperti sekarang; sel flow yang melewati aksi ikut ditandai. Backtest: nilai Flow tidak dikosongkan (UD41).
+  3. Tanpa look-ahead: pada hari sebelum keputusan faktor sebuah aksi, nilai Flow dihitung dari lot apa adanya (tanpa
+     faktor yang baru diketahui sesudahnya), dengan badge; gerbang look-ahead tetap wajib hijau.
+  4. Uji: saham terdeteksi muncul di screen bawaan dengan badge; enam saham yang sudah ditarik ulang tanpa badge; nilai
+     Flow Backtest yang melewati aksi ada dan ditandai; gerbang look-ahead; publisher dengan baris VKTR, AHAP, BUVA, PBSA,
+     FORU.
+  5. Dokumen: UPDATE_TABLE.md bagian C, CONTRACT Backtest, `screener/src/core/contract.ts`, SCREENER_ONBOARDING, ERRORS
+     D22, M559-M561.
+- **Hasil yang diharapkan di data hari ini:** tanpa badge FORU, PBSA, AHAP, BUVA, ENRG, VKTR, BAJA; BRNA, MGLV, PSSI
+  menurut UD43; semuanya muncul di screen bawaan.
+- **Efek:** hasil screen bawaan bertambah (saham bertanda ikut); hasil Backtest dengan kondisi Flow pada saham yang punya
+  aksi berubah (hari yang dulu kosong sekarang bisa memicu sinyal, ditandai); Telegram berhenti menyebut AHAP dan BUVA.
 - **Cakupan:** publisher (data kedua situs), screener-worker bersama dan backtest-worker (live ikut). Deploy dengan
   konfirmasi user.
-- **Pemicu:** persetujuan revisi (UD38), lalu go user.
+- **Pemicu:** jawaban UD41-UD43, lalu go user.
 
 ## EXEC-RECHECK-LIST — satu daftar perbaikan yang belum diuji ulang: RECHECK.md (UD39; dicatat 2026-11-24, menunggu go)
 

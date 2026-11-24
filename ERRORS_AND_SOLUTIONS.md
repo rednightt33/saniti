@@ -8886,6 +8886,29 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M561 — A detected price distortion hides values (Screener rows, Backtest Flow values) instead of marking them (2026-11-24, OPEN)
+
+- **Symptom (the user, 2026-11-24):** "Tadi ada saham yang meskipun price distort, kita hide kan untuk screener. Dan untuk
+  backtest ada lagi ternyata nilai indikator flow yang di hide karena price detected as distort ... Ini aneh dan ini
+  salah." The concept: "value harus tetap ditampilkan as is dengan badge".
+- **Verified from code:** the Screener drops every row with a PRICE_BREAK remark from every screen by default
+  (`apps/edge-bff/screener/src/core/universe.ts:79`, `contract.ts:225-228`, chip "No unadjusted price break"); the
+  Backtest empties a Flow value whose window reads a broker day off the price range or crosses an action whose basis is
+  pending, unresolved or raw, or not decided yet on that bar (`apps/backtest-worker/src/basis.ts`, `grammar.ts:176-234`,
+  `pit/series.ts:62-68`), and an empty value fails its condition (`apps/edge-bff/backtest/src/core/conditions.ts:299`), so
+  those days open no trade; the run warns FLOW_BASIS_CHANGE (`engine.ts:210`). Both show and mark elsewhere: the
+  Screener with the chip off (row badge, cell mark, warning), the Backtest's price indicators (warnings). The Screener's
+  flow cells are neither rescaled nor marked across an action (`evaluate.ts:196-199`).
+- **Root cause:** no single policy for a data-quality flag: each reader chose hide or mark on its own, from user choices
+  made when the data was worse (P4 (a) 2026-10-28, before the pull of 2026-10-31; P9 option A and Stage C2 2026-11-16),
+  and detection itself lives in three places with three rules (M559, M560, `basis.ts` per-day check).
+- **Class:** every data-quality flag a reader meets (price breaks, broker scale, stale rows, source gaps; later
+  cross-asset and macro revisions): the flag decides a mark, never whether a value exists.
+- **Proposed solution:** EXEC.md EXEC-PRICE-DISTORTION (one detection at the publisher, one handling: values as is with a
+  badge; no look-ahead from a factor decided later); open questions UD41-UD43.
+- **Status:** OPEN.
+- **Lesson:** a quality flag marks a value; hiding it is a separate choice the user makes explicitly, per reader.
+
 ### M560 — The publisher reads three stocks pulled again as "close not reloaded" (broker basis `price`) (2026-11-24, OPEN)
 
 - **Symptom:** the broker basis rows (`apps/terminal-publisher/publisher.py` `broker_basis`), recomputed with the
@@ -8910,7 +8933,7 @@ in its staleness check.
   2023-07-07, FITT 2024-06-25), equal to TradingView's own series; open part, register UD40. A limit-down session on
   the ex-date of an action near 10 % could still be misread; actions under 10 % stay unmeasured (UD38 asks their rule).
   Evidence: `verification/price_break_basis/` (`basis_now.py`, `jump_rule.py` and their 2026-11-24 results, read-only).
-- **Status:** OPEN (EXEC.md EXEC-PRICE-BREAK-BASIS, register UD38, UD40).
+- **Status:** OPEN (EXEC.md EXEC-PRICE-DISTORTION, register UD38, UD40).
 - **Lesson:** a measured flag is checked against a case whose answer is known (here the six stocks pulled again) before
   it is used to hide or show data.
 
@@ -8947,7 +8970,7 @@ in its staleness check.
   raw-scale stock still hidden, an unmeasured one still hidden.
 - **2026-11-24, the user:** the goal approved ("Untuk 6 saham yang sudah benar price wise, badge nya bisa di remove.
   Screener bawaan harus menampilkan data yang sudah benar ... Ok untuk solusi kamu"); the solution revised the same day
-  because the measured status it reads is wrong for three of the six (M560); EXEC.md EXEC-PRICE-BREAK-BASIS.
+  because the measured status it reads is wrong for three of the six (M560); EXEC.md EXEC-PRICE-DISTORTION.
 - **Status:** OPEN, the revision asked (EXEC.md register UD38).
 - **Lesson:** a TEMPORARY rule that stands in for missing data is tied to that data: when the data arrives (here the
   pull and the measured basis), every rule that stood in for it is revisited in the same task.
