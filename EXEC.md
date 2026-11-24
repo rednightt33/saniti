@@ -17371,8 +17371,8 @@ dengan konfirmasi user per deploy.
     panjang smoothing desimal tak berpengaruh, tanda klik backdrop) dibereskan di putaran 2 (`9afa833f`), diuji ulang
     oleh dua agent Opus (`wf_c2fe2424-bf4`). Cek look-ahead data nyata: 214 seri di BBRI, BBCA, GOTO, COCO, 0 bocor
     (`dd925164`). Pertanyaan baru ke user: UD33-UD37 di register.
-  - Keputusan user 2026-11-24 atas UD33: "UD33: Alpha KAMA --> ok pakai opsi B, masukan exec dulu". Opsi B dicatat,
-    belum dieksekusi (menunggu go). Isinya: Terminal menggambar garis Alpha KAMA hanya sejak titik di mana awal data tidak
+  - Keputusan user 2026-11-24 atas UD33: "UD33: Alpha KAMA --> ok pakai opsi B, masukan exec dulu". Opsi B dicatat;
+    go user 2026-11-24: "Deploy ke beta oke. Untuk 2-5 bisa go." (butir 5 daftar agen). Isinya: Terminal menggambar garis Alpha KAMA hanya sejak titik di mana awal data tidak
     lagi berpengaruh; angka KAMA, Screener dan Backtest tidak berubah (opsi C tidak dipilih). Titik itu diukur, bukan
     ditebak: KAMA dihitung dua kali (dari awal data dan dari awal yang lebih belakang); garis ditampilkan mulai bar di
     mana keduanya sama dalam 0,5% harga (cara yang dipakai untuk angka UD33: harian 188-220 bar, mingguan 233-268
@@ -17503,7 +17503,9 @@ dengan konfirmasi user per deploy.
 - Nama di EDGE ("3. ok"): "Alpha Price Action BUY" (Candle A BUY), "Alpha Price Action SELL" (Candle A SELL).
 
 
-## EXEC-TRIPWIRE-LAB — tripwire Backtest untuk rilis indikator (ERRORS M553; dicatat 2026-11-23, menunggu pilihan)
+## EXEC-TRIPWIRE-LAB — tripwire Backtest untuk rilis indikator (ERRORS M553; pilihan (a) 2026-11-24, go user 2026-11-24)
+
+**Go user 2026-11-24:** "Deploy ke beta oke. Untuk 2-5 bisa go." (butir 4 daftar agen: pilihan (a), `--record-release`).
 
 User 2026-11-23: "Ok untuk M553 -- masukan exec dulu". Dicatat untuk direncanakan, belum dieksekusi (AGENTS.md "Plans":
 persetujuan merencanakan bukan perintah eksekusi). Pilihan (a) atau (b) masih terbuka: register keputusan tertunda UD29.
@@ -17540,7 +17542,9 @@ persetujuan merencanakan bukan perintah eksekusi). Pilihan (a) atau (b) masih te
   Sesudah dibangun: catatan untuk rilis EXEC-PINE-INDICATORS (I54-I60) dan perubahan core M554/M555 dibuat dengan alat
   baru.
 
-## EXEC-SENSITIVITY-FLAGS — grid sensitivitas Backtest untuk kondisi ya/tidak (ERRORS M558 B-2, UD35; dicatat 2026-11-24, menunggu go)
+## EXEC-SENSITIVITY-FLAGS — grid sensitivitas Backtest untuk kondisi ya/tidak (ERRORS M558 B-2, UD35; go user 2026-11-24)
+
+**Go user 2026-11-24:** "Deploy ke beta oke. Untuk 2-5 bisa go." (bersama EXEC-PRICE-DISTORTION, satu rilis core Backtest; deploy dengan konfirmasi).
 
 Kata-kata user 2026-11-24: "UD35 juga perlu diperbaiki di kondisi live", lalu "C ok - masukan EXEC". Dicatat untuk
 direncanakan, belum dieksekusi (AGENTS.md "Plans": persetujuan merencanakan bukan perintah eksekusi; deploy dengan
@@ -17570,7 +17574,9 @@ konfirmasi user, section "Deploys").
   kondisi angka biasa (seperti ADX) tidak berubah; gerbang look-ahead tetap hijau.
 - **Pemicu:** go user untuk mengeksekusi.
 
-## EXEC-PRICE-DISTORTION — harga terdistorsi: satu deteksi, nilai ditampilkan apa adanya dengan badge (ERRORS M559-M562; rencana implementasi 2026-11-24, menunggu go)
+## EXEC-PRICE-DISTORTION — harga terdistorsi: satu deteksi, nilai ditampilkan apa adanya dengan badge (ERRORS M559-M562; go user 2026-11-24)
+
+**Go user 2026-11-24:** "Deploy ke beta oke. Untuk 2-5 bisa go." (butir 2 daftar agen: EXEC-PRICE-DISTORTION bersama EXEC-SENSITIVITY-FLAGS dalam satu rilis core Backtest). Penulisan screen tersimpan (F4), deploy beta dan pemindahan `live` tetap ditanyakan saat sampai di sana.
 
 **Kata-kata user (2026-11-24, berurutan):**
 - "Untuk 6 saham yang sudah benar price wise, badge nya bisa di remove. Screener bawaan harus menampilkan data yang
@@ -17670,7 +17676,9 @@ data di bawah 35 % (pemicu: kasus pertama).
 **Pemicu:** go user atas rencana implementasi. Deploy dengan konfirmasi
 user: beta, lalu live dalam rilis yang sama (UD47).
 
-## EXEC-RECHECK-LIST — satu daftar perbaikan yang belum diuji ulang: RECHECK.md (UD39; dicatat 2026-11-24, menunggu go)
+## EXEC-RECHECK-LIST — satu daftar perbaikan yang belum diuji ulang: RECHECK.md (UD39; go user 2026-11-24)
+
+**Go user 2026-11-24:** "Deploy ke beta oke. Untuk 2-5 bisa go." (butir 3 daftar agen).
 
 Kata-kata user 2026-11-24: "kayaknya perlu ada dibuatkan MD untuk menampung item ini (item yang sudah di solve, tapi
 belum di recheck apakah perbaikannya tidak ada collateral damage dll). Re-check.MD? Recheck MD perlu dimention juga di
