@@ -16732,9 +16732,10 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD45 | (answered 2026-11-24: "UD45 A": the badge stays and the data stays as it is; no own corrections) EXEC-PRICE-DISTORTION, an anomaly a pull again cannot mend (TradingView has the same data: WGSH 2026-03-31, the six old steps of UD40, BAJA and BRNA): (A) the badge stays and the data as it is; (B) corrected by us, case by case with the user's go (a bad day replaced or left out, an old step rescaled with the action's factor) | 2026-11-24 with context | the data of those stocks | before the build |
   | UD46 | (answered 2026-11-24: "B", "masukan exec ya": option (b), both chips switched off once in every saved screen, a data write with the user's go at the build) EXEC-PRICE-DISTORTION P-1: the screens users saved hold both hiding chips as explicit values; (a) leave them, (b) switch them off once (a data write, with the user's go) | 2026-11-24 with context | saved screens keep hiding | before the build |
   | UD47 | (answered 2026-11-24: "UD47 ini juga harus langsung masuk ke live": option (b), the whole change reaches the live site at once: the workers and the live page move in the same release, beta first because `live` moves only to a commit the beta runs; the deploy is still confirmed then, with everything that moves, `scripts/live_diff.py --sites`) EXEC-PRICE-DISTORTION P-2: the live site before its promotion: (a) the new Backtest behaviour only for requests from the new page, the Screener's detection at once (six stocks back on live; new anomalies hidden there until the promotion); (b) everything at once on live | 2026-11-24 with context | what paying users see before the promotion | before the build |
-  | UD48 | EXEC-TERMINAL-SESSION-TOGGLE: the lines meant are the thin vertical lines at the start of each trading day on intraday charts (the user wrote "garis horizontal"; the circled lines are vertical) | 2026-11-24 with context | what the pill switches | before the build |
-  | UD49 | EXEC-TERMINAL-SESSION-TOGGLE: the switch is remembered with the layout (like the chart style), on by default | 2026-11-24 with context | where the choice is kept | before the build |
-  | UD50 | EXEC-TERMINAL-SESSION-TOGGLE: the lag: measure first and propose a fix with numbers before building; include the symbol and layout switches, which reload the page the same way | 2026-11-24 with context | the scope of the lag work | before the build |
+  | UD48 | (answered 2026-11-24: "UD48 benar") EXEC-TERMINAL-SESSION-TOGGLE: the lines meant are the thin vertical lines at the start of each trading day on intraday charts (the user wrote "garis horizontal"; the circled lines are vertical) | 2026-11-24 with context | what the pill switches | before the build |
+  | UD49 | (answered 2026-11-24: "UD49 ya") EXEC-TERMINAL-SESSION-TOGGLE: the switch is remembered with the layout (like the chart style), on by default | 2026-11-24 with context | where the choice is kept | before the build |
+  | UD50 | (answered 2026-11-24: "UD 50 tidak usah, untuk ganti timeframe dl saja": the lag work covers the timeframe switch only, not the symbol or layout switch; read as: measure, then fix the timeframe switch, reporting the numbers before and after) EXEC-TERMINAL-SESSION-TOGGLE: the lag: measure first and propose a fix with numbers before building; include the symbol and layout switches, which reload the page the same way | 2026-11-24 with context | the scope of the lag work | before the build |
+  | UD51 | EXEC-TERMINAL-SESSION-TOGGLE item 3: the legend's shown rows in near black (#171717, like TradingView's #131722), hidden rows stay light grey, the values keep their line colours, on every legend row (main chart, indicator panes, Flow panes) | 2026-11-24 with context | the legend's look | before the build |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17697,7 +17698,7 @@ saran agen, dengan cek collateral damage). Dicatat, belum dieksekusi.
 - **Cakupan:** catatan dan tes saja; tidak ada service yang berubah. Masuk `main` dengan konfirmasi user (section "Deploys").
 - **Pemicu:** go user.
 
-## EXEC-TERMINAL-SESSION-TOGGLE — tombol garis awal sesi di chart intraday dan lag ganti timeframe (dicatat 2026-11-24, menunggu konfirmasi user)
+## EXEC-TERMINAL-SESSION-TOGGLE — tombol garis awal sesi, lag ganti timeframe, kontras legend indikator (dicatat 2026-11-24, menunggu konfirmasi legend dan go)
 
 Kata-kata user 2026-11-24 (dengan dua screenshot Terminal MAPI 15M, garis tegak dilingkari dan kotak merah di kanan atas
 sebelah "Search markets"): "Ini timeline 15 menit. Diluar timeline weekly/ monthly/ daily maka kalau kita select akan ada
@@ -17722,4 +17723,15 @@ sepertinya toggle between timeline masih laggy untuk kondisi sekarang. Nanti sek
 - **Rilis:** beta dulu; Terminal sudah rilis, jadi ke live hanya dengan permintaan user.
 - **Pertanyaan (register UD48-UD50):** garis yang dimaksud garis tegak awal sesi; pilihan diingat bersama layout;
   pengukuran lag mencakup juga ganti saham dan ganti layout (mekanisme sama).
-- **Pemicu:** konfirmasi user, lalu go.
+- **Jawaban user 2026-11-24:** "UD48 benar" (garis tegak awal sesi), "UD49 ya" (bawaan menyala, diingat bersama layout),
+  "UD 50 tidak usah, untuk ganti timeframe dl saja" (lag: hanya ganti timeframe; diukur, diperbaiki dengan ganti di tempat
+  tanpa memuat ulang halaman, angka sebelum dan sesudah dilaporkan).
+- **Butir 3, kontras legend (user 2026-11-24, dua screenshot: A TradingView, B EDGE):** "Lihat how contrast screenshot A
+  dalam hal membedakan indicator currently active dan not active vs EDGE. Punya kita bisa dibuat quite contrast sama
+  dengan tradingview. Konfirmasi". Fakta dari kode: label baris aktif `--text-2` #666 (`apps/edge-bff/terminal/src/
+  styles/terminal.css:437`, `:1273`), baris tersembunyi label dan nilai opacity .45 (`:472`, tampak #bababa). Kontras
+  terhadap putih: aktif 5,7, tersembunyi 1,9 (beda 3,0 kali); TradingView aktif #131722 17,9, tersembunyi sekitar #b2b5be
+  2,0. Usulan agen: label baris aktif `--text` #171717 (17,9, beda 9,4 kali dengan baris tersembunyi); baris tersembunyi
+  tetap terang; warna nilai tetap warna garisnya; berlaku untuk semua baris legend (chart utama, panel indikator, panel
+  Flow); `look_check11.mjs` dijalankan sebelum commit. Register UD51.
+- **Pemicu:** konfirmasi UD51, lalu go.
