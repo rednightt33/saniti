@@ -281,6 +281,37 @@ def terms_factor(typ, old, new, price, cum_close=None, later=1.0, cum_vwap=None)
     return cum_vwap * (old + new) / (old * cum_vwap + new * price) if pos(cum_vwap) else None
 
 
+def price_check_factor(typ, old, new, after, exercise):
+    """The action's factor (the price before over the theoretical price after), the Screener's pricecheck.ts termsFactor:
+    split and reverse split new/old; bonus share and stock dividend (old + new)/old; a rights issue P/TERP with TERP the
+    close of its ex-date session (`after`) and P solved from TERP = (old P + new X)/(old + new), so the factor is the same
+    whether the history before is adjusted or not. None when a term is missing."""
+    pos = lambda x: isinstance(x, (int, float)) and math.isfinite(x) and x > 0
+    if not (pos(old) and pos(new)):
+        return None
+    if typ in ('STOCK_SPLIT', 'REVERSE_SPLIT'):
+        return new / old
+    if typ in ('BONUS_SHARE', 'STOCK_DIVIDEND'):
+        return (old + new) / old
+    if typ != 'RIGHT_ISSUE' or not (pos(after) and pos(exercise)):
+        return None
+    before = (after * (old + new) - new * exercise) / old
+    return before / after if pos(before) else None
+
+
+def price_check_side(typ, old, new, exercise, before, on_ex):
+    """EXEC-PRICE-DISTORTION check 2 (pricecheck.ts verdictOf, the same cases in tests/test_price_check.py): 'raw' when
+    the jump from the close before the ex date to the ex date's close is nearer the action's factor than 1 (log terms),
+    'adjusted' when nearer 1, None when the action's effect is under BASIS_PRICE_MIN (cannot be told from a session's own
+    move) or a term or a close is missing."""
+    f = price_check_factor(typ, old, new, on_ex, exercise)
+    num = lambda x: isinstance(x, (int, float)) and math.isfinite(x) and x > 0
+    if f is None or abs(f - 1) < BASIS_PRICE_MIN or not (num(before) and num(on_ex)):
+        return None
+    jump = before / on_ex
+    return 'raw' if abs(math.log(jump) - math.log(f)) < abs(math.log(jump)) else 'adjusted'
+
+
 def broker_basis(actions, days, through):
     """The basis rows (BASIS_COLUMNS) of a ticker's price actions [(ex, type, old, new, price[, no_ex])] (no_ex: the
     action has no ex date and `ex` is its annotation date: unresolved, not measured) from its sessions
@@ -317,9 +348,10 @@ def broker_basis(actions, days, through):
                 status = 'terms'
             elif abs(observed - 1) <= BASIS_TOLERANCE:
                 status = 'same'
-            if own is not None and abs(own - 1) >= BASIS_PRICE_MIN:
-                jump = statistics.median(c for *_, c in pre) / statistics.median(c for *_, c in post)
-                side = 'raw' if abs(math.log(jump) - math.log(own)) < abs(math.log(jump)) else 'adjusted'
+        # EXEC-PRICE-DISTORTION (ERRORS M560, user 2026-11-24): the close's side from the sessions either side of the ex
+        # date, from the ex date on (the 15-session medians read a later fall as the action: VKTR, AHAP, BUVA)
+        if pre and post:
+            side = price_check_side(typ, old, new, price, pre[-1][2], post[0][2])
         factor = terms if status == 'terms' else 1.0
         # the price factor of this action, for the older ones' scale
         carried = terms if status == 'terms' or (status == 'same' and side == 'adjusted') else 1.0 if side == 'raw' else None
