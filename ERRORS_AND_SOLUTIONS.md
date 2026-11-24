@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M563 — A timeframe switch reloaded the whole Terminal page (2026-11-24; fixed on the branch, not deployed)
+### M563 — A timeframe switch reloaded the whole Terminal page (2026-11-24; fixed in `cb688250` on the branch, not deployed)
 
 - **Symptom (the user, 2026-11-24):** "sepertinya toggle between timeline masih laggy untuk kondisi sekarang".
 - **Root cause (verified from code):** every section of the Terminal took the candles once when it started, so a
@@ -8916,7 +8916,7 @@ in its staleness check.
   normally run in an isolated world, unaffected).
 - **Lesson:** a page whose sections read their data once at start can be rebuilt in place only when what each build
   registered globally is owned by that build; owning it centrally (one signal, one list) needs no change in the sections.
-- **Status:** fixed on the branch, tested by its author only; not deployed.
+- **Status:** fixed in `cb688250` on the branch, tested by its author only; not deployed.
 
 ### M562 — WGSH 2026-03-31: a daily bar at half the price between two normal days (2026-11-24, OPEN)
 
