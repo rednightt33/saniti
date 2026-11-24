@@ -19,7 +19,8 @@ import { dateFormat } from '../data/intlCache';
 
 export const LAYOUT_KEYS = ['ml.ind.v1', 'ml.tf', 'ml.chart.style', 'ml.chart.mode', 'ml.vol.on', 'ml.vol.removed', 'ml.events.v1',
   'ml.fi.metric', 'ml.ind.filters', 'ml.flow.filters', 'ml.flow.cum', 'ml.flow.collapsed', 'ml.flow.h', 'ml.flow.ratio',
-  'ml.legend.hidden'] as const;          // EXEC-LEGEND-HIDE: indicator names shown or hidden belong to the layout
+  'ml.legend.hidden',                     // EXEC-LEGEND-HIDE: indicator names shown or hidden belong to the layout
+  'ml.session.lines'] as const;          // EXEC-TERMINAL-SESSION-TOGGLE (UD49): the session lines shown or hidden, with the layout
 /** stored settings that are not part of a layout (prefixes): the ticker, per-ticker drawings, the side panels and windows,
     the compared assets, the Indicators dialog's own preferences and the layout menu's own state */
 export const NOT_LAYOUT = ['ml.symbol', 'ml.tfs', 'ml.draw.', 'ml.drawings', 'ml.stats.', 'ml.broker.', 'ml.acc.', 'ml.fd.', 'ml.win.',

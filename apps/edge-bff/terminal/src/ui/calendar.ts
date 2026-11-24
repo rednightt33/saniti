@@ -3,6 +3,7 @@
    (sessions with broker data) used to be pickable; since EXEC-TERMINAL-PANELS-2 (user 2026-10-27: "buat saja warnanya
    normal dan clickable") every day is, and the panel maps it to its sessions. The footer offers "Select on chart". */
 import { dateFormat } from '../data/intlCache';
+import { onEveryDispose } from '../app/life';
 
 export interface RangeCalendar { from: string; to: string }
 export interface CalendarOptions {
@@ -33,6 +34,7 @@ export function monthGrid(y: number, m: number): string[][] {
 }
 
 let open: { pop: HTMLElement; close: () => void } | null = null;
+onEveryDispose(() => { open = null });                  // EXEC-TERMINAL-SESSION-TOGGLE
 
 export function closeRangeCalendar() { open?.close() }
 

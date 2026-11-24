@@ -156,7 +156,8 @@ CAP = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'exact', area:'local', kind
 # contract 4b (EXEC-MU-ACCOUNTS Phase 1): the account preferences copied to the server (GET/PUT /api/v1/preferences)
 SYNCED = {'edge-model-choice', 'ml.symbol', 'ml.tf', 'ml.fi.metric', 'ml.chart.style', 'ml.chart.mode', 'ml.vol.on',
           'ml.vol.removed', 'ml.ind.v1', 'ml.ind.filters', 'ml.ind.favs', 'ml.legend.hidden', 'ml.events.v1',
-          'ml.flow.filters', 'ml.flow.cum', 'ml.assets.v1', 'ml.my', 'scr.last', 'scr.extraCols', 'edge.watchlist.view'}
+          'ml.flow.filters', 'ml.flow.cum', 'ml.assets.v1', 'ml.my', 'scr.last', 'scr.extraCols', 'edge.watchlist.view',
+          'ml.session.lines'}   # EXEC-TERMINAL-SESSION-TOGGLE (UD49, 2026-11-24): kept with the layout, like ml.chart.style
 
 
 def test_every_user_key_is_sync_or_cache():

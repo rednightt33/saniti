@@ -41,11 +41,18 @@ import { askLocked, lockMark, lockWord, type LockedItem } from './app/locked';
 import { asTimeframe, isIntraday, periodsPerYear, tfLabel, tfTitle, type Timeframe } from './data/timeframe';
 import { keyedCharts, safeCharts } from './data/chartTime';
 import { dateFormat } from './data/intlCache';
+import { disposeLife, lifeId, ownChart, trackLives } from './app/life';
 
 /* EXEC-TERMINAL-WM (user 2026-10-27: "time frame ditambah weekly dan monthly"), live: D, W and M. The page's sections
-   take the candles once when they start, so another timeframe is remembered and the page loads again (its files come
-   from the browser cache); the same button again brings back the first view of the timeframe. */
+   take the candles once when they start; the same button again brings back the first view of the timeframe.
+   EXEC-TERMINAL-SESSION-TOGGLE item 2 (user 2026-11-24, "toggle between timeline masih laggy"; UD50): another
+   timeframe no longer reloads the page. Its data loads while the chart in view stays, then the page is built again in
+   place (app/life.ts: the old build's listeners, timers and charts go, <body> is put back as shipped, the sections start
+   on the new candles): no page, session, script or ticker list to load again. A failure falls back to the reload. */
 let liveCtx: Ctx | null = null;
+let PAGE: { html: string; cls: string } | null = null;      // <body> as the page shipped it (boot)
+let switching = 0;                                         // the newest timeframe click (an older one's data is dropped)
+let pendingTf: string | null = null;                       // the timeframe whose data is loading
 /* EXEC-INTRADAY-FEATURES C3 (user 2026-11-01): the intraday timeframes before D, W and M, those the ticker's /bundle
    answer lists (remembered for the next load, so the buttons are there before the data); one the ticker lacks is off */
 const intradayOrder = (tfs: string[]) => tfs.filter(isIntraday).sort((a, b) => (parseInt(a) * (a.endsWith('h') ? 60 : 1)) - (parseInt(b) * (b.endsWith('h') ? 60 : 1)));
@@ -65,8 +72,10 @@ function timeframeButtons(): Timeframe {
   group.addEventListener('click', (e: any) => {
     const b = e.target.closest('button'); if (!b) return;
     e.stopImmediatePropagation();                           // the reference's handler only zooms
-    if (b.dataset.timeframe === tf) { liveCtx?.resetRange(); return }
-    store.set('ml.tf', b.dataset.timeframe); location.reload();
+    if (b.disabled) return;
+    // the timeframe in view, or the one loading (a click while another loads: the newest wins)
+    if (b.dataset.timeframe === (pendingTf ?? tf)) { if (!pendingTf) liveCtx?.resetRange(); return }
+    switchTimeframe(b.dataset.timeframe);
   }, true);
   return tf;
 }
@@ -138,12 +147,15 @@ function historyNote(M: MarketData) {
   c.parentElement?.appendChild(n);
 }
 
+/** the charts a build makes are its own (app/life.ts removes them when the page is built again) */
+const ownCharts = <T extends { createChart: (...a: any[]) => any }>(lib: T): T => ({ ...lib, createChart:(...a: any[]) => ownChart(lib.createChart(...a)) });
+
 function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   const container = $('chart');
   if (!container) return null;
   const ohlc = M.ohlc;
   const ctx = {
-    M, L:safeCharts(M.intraday ? keyedCharts(L) : L), SYMBOL:M.symbol, INSTRUMENTS:M.instruments, container,
+    M, L:ownCharts(safeCharts(M.intraday ? keyedCharts(L) : L)), SYMBOL:M.symbol, INSTRUMENTS:M.instruments, container,
     dates:ohlc.map(b => b.time), ohlc, volume:M.volume, lineData:M.lineData,
     closes:ohlc.map(b => b.close), N:ohlc.length, idxByTime:new Map(ohlc.map((b, i) => [b.time, i])),
     active:new Map(), catalog:M.catalog, rawSeries, IND_REG
@@ -200,6 +212,7 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
    activity when that panel is open */
 function later(ctx: Ctx, M: MarketData) {
   if (!M.later) return;
+  const life = lifeId(), gone = () => life !== lifeId();       // the page was built again meanwhile: not this build's
   /* QA M6 (2026-11-06): the Flow rows say the files failed instead of "Loading broker data" for ever */
   const failed = () => { ctx.brokerFailed = true; ctx.redrawFlow?.();      // QA round 3 (R2-M3): "—" and no zero line at once
     const note = $('flowNote'); note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.hidden = false;
@@ -211,18 +224,20 @@ function later(ctx: Ctx, M: MarketData) {
   };
   /* F5: the recent years first (Flow and Broker activity), then the whole history replaces them in the Flow Timeline */
   M.later.broker.then(b => {
+    if (gone()) return;
     ctx.flowRows = b.flow;                                 // EXEC-TERMINAL-FLOW-IND: read by the Flow indicators on setFlowData
     step('Flow Timeline', () => ctx.setFlowData(b.combos, b.flowFrom, true, b.flowTo));
     step('Broker activity', () => ctx.setBrokerPanelData(b.broker), () => ctx.brokerPanelFailed?.());
     mark('flow: recent years');
     M.later!.brokerAll.then(all => {
+      if (gone()) return;
       ctx.flowRows = all.flow;
       step('Flow Timeline', () => ctx.setFlowData(all.combos, all.flowFrom, false, all.flowTo)); mark('flow: every year');
       (window as any).__flowAll = true;                    // the whole broker history is in (live checks wait for it)
       if (all.broker.dates.length > b.broker.dates.length)   // EXEC-BROKER-FULL: the whole history
         step('Broker activity', () => ctx.setBrokerPanelData(all.broker), () => ctx.brokerPanelFailed?.());
-    }, failed);
-  }, () => { step('Flow Timeline', () => ctx.setFlowData([], ctx.N)); failed() });
+    }, () => { if (!gone()) failed() });
+  }, () => { if (gone()) return; step('Flow Timeline', () => ctx.setFlowData([], ctx.N)); failed() });
 }
 
 /* a message on the chart, in the reference's own panel style: the loading notice, or a load failure (role alert) */
@@ -244,6 +259,8 @@ const FIXTURE_BUILD = import.meta.env.MODE === 'fixture';
 function boot() {
   const stored = store.get('ml.symbol');
   const params = new URLSearchParams(location.search);
+  trackLives();
+  PAGE = { html:document.body.innerHTML, cls:document.body.className };
   /* EXEC-NAV-LEFT (ERRORS M412): opened by EDGE (?in=edge) the Statistics button is EDGE's; known from the first paint, so
      the Terminal's own folded rail is never drawn while the data loads (the message hand-shake only starts with the chart) */
   if (params.get('in') === 'edge') document.documentElement.classList.add('edge-rail');
@@ -257,9 +274,18 @@ function boot() {
     start(M, M.rawSeries);
     return;
   }
-  /* EXEC-TERMINAL-1026B F4 (user 2026-10-26: "Oke, untuk usulan loading mapi"): before any data, the side panels take the
-     state they will have (closed unless the user left them open) and the chart says what it is loading, instead of the
-     reference's empty page with its sample texts */
+  const loading = prepare(stored);
+  mark('page script');
+  const tf = timeframeButtons();
+  liveData(stored, tf, store.get('ml.fi.metric') === 'price' ? 'price' : 'yield').then(M => { loading.remove(); finish(M) },
+    e => { loading.remove();
+      fail(e instanceof TerminalError ? e.message : 'The terminal could not load its data. Reload the page to try again.') });
+}
+
+/* EXEC-TERMINAL-1026B F4 (user 2026-10-26: "Oke, untuk usulan loading mapi"): before any data, the side panels take the
+   state they will have (closed unless the user left them open) and the chart says what it is loading, instead of the
+   reference's empty page with its sample texts */
+function prepare(stored: string | null): HTMLElement {
   const ws = $('workspace');
   ws.classList.toggle('left-collapsed', (store.get('ml.stats.collapsed') ?? '1') === '1');
   ws.classList.toggle('right-collapsed', (store.get('ml.broker.collapsed') ?? '1') === '1');
@@ -271,10 +297,11 @@ function boot() {
   const loading = document.createElement('div');            // EXEC-TERMINAL-SPIN: a spinning ring, no box
   loading.className = 'ml-boot'; loading.innerHTML = spin(`Loading ${stored || 'MAPI'}`);
   ($('chart')?.parentElement || document.body).appendChild(loading);
-  mark('page script');
-  const tf = timeframeButtons();
-  liveData(stored, tf, store.get('ml.fi.metric') === 'price' ? 'price' : 'yield').then(M => {
-    loading.remove();
+  return loading;
+}
+
+/* the page once its data is there (the first load and a timeframe built in place) */
+function finish(M: MarketData) {
     if (M.timeframes) {
       /* the buttons: every intraday timeframe seen so far (remembered for the next load), the ticker's own enabled and
          the others off with their tooltip (ERRORS M326 F4: the same list was passed twice, so none was ever off) */
@@ -287,8 +314,38 @@ function boot() {
     const ctx = start(M, {}); mark('chart drawn');
     if (M.note) { const n = notice(M.note); setTimeout(() => n.remove(), 6000) }
     if (ctx) later(ctx, M);
-  }, e => { loading.remove();
-    fail(e instanceof TerminalError ? e.message : 'The terminal could not load its data. Reload the page to try again.') });
+}
+
+/* EXEC-TERMINAL-SESSION-TOGGLE item 2: another timeframe in place. The pressed button shows at once and the chart in view
+   stays while the new candles load (a ring over it); then the build ends and the page is built again on them. A newer
+   click wins; a failure (data or build) reloads the page as before. */
+async function switchTimeframe(tf: string) {
+  const ticket = ++switching, stored = store.get('ml.symbol');
+  pendingTf = tf;
+  const group = $('timeframeGroup') as HTMLElement;
+  group.querySelectorAll('button').forEach((x: any) => { const on = x.dataset.timeframe === tf; x.classList.toggle('active', on); x.setAttribute('aria-pressed', String(on)) });
+  document.querySelector('.ml-switch')?.remove();
+  const ring = document.createElement('div');
+  ring.className = 'ml-boot ml-switch'; ring.innerHTML = spin(`Loading ${tfTitle(asTimeframe(tf))}`);
+  ($('chart')?.parentElement || document.body).appendChild(ring);
+  mark('timeframe click');
+  let M: MarketData;
+  try { M = await liveData(stored, asTimeframe(tf), store.get('ml.fi.metric') === 'price' ? 'price' : 'yield', true) }
+  catch (e) { if (ticket === switching) { console.error('Terminal: the timeframe could not be loaded in place, reloading', e); store.set('ml.tf', tf); location.reload() } return }
+  if (ticket !== switching || !PAGE) return;
+  pendingTf = null;
+  try {
+    store.set('ml.tf', tf);
+    disposeLife(); liveCtx = null;
+    document.body.innerHTML = PAGE.html; document.body.className = PAGE.cls;
+    prepare(stored).remove();                                // the panels' state; the data is here already
+    timeframeButtons();
+    finish(M);
+    mark('timeframe drawn');
+  } catch (e) {
+    console.error('Terminal: the timeframe could not be built in place, reloading', e);
+    location.reload();
+  }
 }
 
 boot();

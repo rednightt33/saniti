@@ -76,6 +76,7 @@ export const STORAGE: readonly StorageEntry[] = Object.freeze([
   { key:'ml.fi.metric', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'bond yield or price' },
   { key:'ml.chart.style', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'candle or line' },
   { key:'ml.chart.mode', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'price or return' },
+  { key:'ml.session.lines', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'lines at the start of each trading day on intraday charts' },
   { key:'ml.vol.on', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'volume shown' },
   { key:'ml.vol.removed', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'volume removed' },
   { key:'ml.ind.v1', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'the indicators on the chart' },
@@ -140,6 +141,10 @@ const isUserKey = (key: string, area: StorageArea) => { const e = classify(key, 
 
 export const LAST_LOGIN_KEY = 'edge-last-login';
 const CHANNEL = 'edge-session';
+/* EXEC-TERMINAL-SESSION-TOGGLE: a listener this module adds once for the page's whole life carries a signal that never
+   aborts, so a page that rebuilds itself in place (the Terminal's timeframe switch, terminal/src/app/life.ts, takes down
+   what one build registered) keeps it */
+const PAGE_LONG: AddEventListenerOptions | undefined = typeof AbortController === 'function' ? { signal:new AbortController().signal } : undefined;
 const norm = (login: string) => String(login || '').trim().toLowerCase();
 
 function areaOf(area: 'local' | 'session'): Storage | null {
@@ -457,7 +462,7 @@ export function setRole(r: 'app' | 'shell') {
     addEventListener('message', ((e: MessageEvent) => {
       try { if (e.origin !== location.origin || e.data?.type !== 'edge-session' || e.data?.event !== SIGNED_OUT) return } catch { return }
       fireSignedOut();
-    }) as EventListener);
+    }) as EventListener, PAGE_LONG);
   }
 }
 /** reloads an app page (its in-memory state and singletons must not outlive its account); nothing outside a browser */
@@ -788,7 +793,7 @@ export function preferences(client: { send: SessionClient['send'] }, opts: { del
       try { v = local()?.getItem(key) ?? null } catch { v = null }
       if (v !== null && !state.has(key)) await put(key);                     // once: the server holds it from now on
     }
-    if (!listening && typeof addEventListener === 'function') { listening = true; addEventListener('storage', onStorage as EventListener) }
+    if (!listening && typeof addEventListener === 'function') { listening = true; addEventListener('storage', onStorage as EventListener, PAGE_LONG) }
     return true;
   }
   function stop() { on = false; timers.forEach(t => clearTimeout(t)); timers.clear(); state.clear() }

@@ -1,6 +1,8 @@
 /* EXEC-IND-PRESETS: small dialogs above every other window (a name, a confirmation) and a message line, in the saved
    layouts' look (.lay-* in terminal.css). Escape closes them wherever the focus is, Tab stays inside, and the focus goes
    back to what opened them. */
+import { onEveryDispose } from '../app/life';
+
 const esc = (t: string) => t.replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
 
 function modal(inner: string, label: string, onClose: () => void) {
@@ -53,6 +55,7 @@ export function confirmBox(text: string, yes: string, danger = true) {
 
 /** one message line at the bottom of the window; a failure stays until it is closed */
 let toastEl: HTMLElement | null = null, timer: any = 0;
+onEveryDispose(() => { toastEl = null });               // EXEC-TERMINAL-SESSION-TOGGLE: the line went with the page
 export function say(text: string, error = false) {
   if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'lay-toast top'; toastEl.setAttribute('role', 'status'); toastEl.setAttribute('aria-live', 'polite');
     toastEl.addEventListener('click', e => { if ((e.target as HTMLElement).closest('.lay-tx')) toastEl!.classList.remove('show') }); document.body.appendChild(toastEl) }

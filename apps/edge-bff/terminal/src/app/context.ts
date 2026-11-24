@@ -7,6 +7,7 @@ import type * as LWC from 'lightweight-charts';
 import type { Bar, Combo, CompareSpec, Instrument, MarketData, Point, VolumePoint } from '../data/types';
 import { fromChart } from '../data/chartTime';
 import { numberFormat } from '../data/intlCache';
+import { onEveryDispose } from './life';
 
 export const $ = (id: string): any => document.getElementById(id);
 
@@ -57,6 +58,8 @@ export { spin } from '../ui/spin';
    starts redraws it through onLogos. A government bond shows its country's flag (app/flags.ts, setCountries). */
 let LOGOS: Record<string, string> | null = null, COUNTRY: Record<string, string> = {}, errorHook = false;
 const logoWaiters: (() => void)[] = [];
+// EXEC-TERMINAL-SESSION-TOGGLE: a page built again in place starts with no waiters and hooks the image errors again
+onEveryDispose(() => { logoWaiters.length = 0; errorHook = false; storeWatch.clear() });
 /** run `fn` now and again when the logo list arrives (a part drawn before the list) */
 export const onLogos = (fn: () => void) => { logoWaiters.push(fn); fn() };
 /** ticker → country of the government bonds (ref/fixed_income) */

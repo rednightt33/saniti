@@ -309,7 +309,8 @@ function alignBars(keys: string[], rows: PriceRow[]): Bar[] {
 /* U5 (user 2026-10-26: "automatically load chart dan panel bawah.. lalu panel kiri dan kanan akan load kalau user
    buka/expand the panel"): the page draws as soon as the price is read; the broker data (Flow, Broker activity) and
    the events follow through `later`, IHSG (Statistics, Relative performance) only when that panel asks for it. */
-export async function liveData(stored: string | null, tf: Timeframe = 'D', bondMetric: 'yield' | 'price' = 'yield'): Promise<MarketData> {
+const REFERENCES = new Map<string, Promise<any[]>>();      // the reference lists this page read (liveData)
+export async function liveData(stored: string | null, tf: Timeframe = 'D', bondMetric: 'yield' | 'price' = 'yield', again = false): Promise<MarketData> {
   const csrf = await session();
   mark('session');
   const locksP = lockRules();
@@ -318,7 +319,14 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
      index describes, read as it comes */
   const refFile = (a: any, name: string): string | FileRef => a && (a.sha256 != null || a.bytes != null)
     ? { url:a.url, sha:a.sha256, bytes:a.bytes, name:`ref/${name}` } : a?.url;
-  const reference = (name: string) => once(async () => rowsOf(await download(refFile(await api(`/reference/${name}`, csrf), name))));
+  /* EXEC-TERMINAL-SESSION-TOGGLE item 2: a timeframe built in place (main.ts switchTimeframe, `again`) takes the reference
+     lists the page's last load read; a load of the page reads them (a failed read is asked again next time) */
+  const reference = (name: string) => {
+    let rows = again ? REFERENCES.get(name) : undefined;
+    if (!rows) { rows = once(async () => rowsOf(await download(refFile(await api(`/reference/${name}`, csrf), name)))); rows.catch(() => REFERENCES.delete(name)) }
+    REFERENCES.set(name, rows);
+    return rows;
+  };
   /* the ticker list, the broker list and the files of the remembered ticker are asked for together */
   const tickersP = reference('tickers'), brokerRefP = reference('brokers');
   /* EXEC-TERMINAL-LOGO: ticker → logo version (sha256 prefix); a ticker without one shows its monogram */

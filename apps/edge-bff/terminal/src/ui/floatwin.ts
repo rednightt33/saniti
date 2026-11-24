@@ -3,6 +3,7 @@
    inside the page. Pinned, it can be neither moved nor resized and stays above the others. Its place, size and pin
    are remembered per window (`ml.win.<id>`). */
 import { store } from '../app/context';
+import { onEveryDispose } from '../app/life';
 
 export interface WinTool { act: string; label: string; icon: string }
 export interface WinOptions {
@@ -20,6 +21,7 @@ export interface Win { el: HTMLElement; body: HTMLElement; setSub(html: string):
 const BASE_Z = 50, PIN_Z = 59, KEEP = 48;               // KEEP: px of the title bar that stays inside the page
 const open = new Map<string, Win>();
 let order: string[] = [];                               // back to front
+onEveryDispose(() => { open.clear(); order = [] });     // EXEC-TERMINAL-SESSION-TOGGLE: the windows went with the page
 
 const ICON = {
   pin:'<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5h4M7 2.5v4L4.5 9h7L9 6.5v-4M8 9v4.5"/></svg>',

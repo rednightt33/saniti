@@ -577,6 +577,9 @@ body{font-variant-numeric:tabular-nums}
 .symbol-pill{flex:0 0 auto}
 .mk-search{margin-left:auto;flex:0 1 210px;min-width:40px;height:32px;display:flex;align-items:center;gap:8px;padding:0 8px 0 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-3);font-size:12.5px;text-align:left}
 .mk-search span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* EXEC-TERMINAL-SESSION-TOGGLE: the Session lines pill (intraday only) sits right before Search markets, at the bar's right */
+.ses-pill{margin-left:auto;flex:none;white-space:nowrap}
+.ses-pill + .mk-search{margin-left:4px}                    /* with the bar's 4 px gap: 8 px between the two */
 .mk-search kbd{flex:none;font:500 11px var(--sans);color:var(--text-3);padding:2px 5px;border:1px solid var(--border);border-radius:5px;background:var(--hover)}
 .mk-search:hover{background:var(--hover);color:var(--text-2)}
 /* symbol search dialog — structure and behaviour follow the EDGE "Search markets" dialog */
@@ -1312,11 +1315,14 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
    soft grey (the values keep their colours), the row under the pointer turns dark */
 .chart-legend{gap:6px}
 .ind-row{min-height:22px;font-size:var(--fs-base);line-height:22px}
-.ind-row .ind-k{color:var(--text-3);transition:color .12s}
-.ind-row:hover .ind-k,.ind-row.hov .ind-k,.ind-row:focus-within .ind-k{color:var(--text)}
+/* EXEC-TERMINAL-SESSION-TOGGLE item 3 (user 2026-11-24: "Punya kita bisa dibuat quite contrast sama dengan tradingview"),
+   replacing EXEC-TERMINAL-LOOK 1's soft grey at rest: a shown row is near black at rest, as TradingView's (#131722,
+   contrast 17.9 on white), and a hidden row stays light grey (its text at .3 of that, #b9b9b9, 2.0; TradingView about
+   #b2b5be, 2.0); the values keep their line colours */
+.ind-row .ind-k{color:var(--text);transition:color .12s}
 .ind-row b{font-weight:var(--fw-medium)}
-.ind-row b:not(.up):not(.down){color:var(--text-2)}
-.ind-row:hover b:not(.up):not(.down),.ind-row.hov b:not(.up):not(.down),.ind-row:focus-within b:not(.up):not(.down){color:var(--text)}
+.ind-row b:not(.up):not(.down){color:var(--text)}
+.ind-row.off .ind-k,.ind-row.off b{opacity:.3}
 
 /* EXEC-BROKER-INV-PANEL (user 2026-11-06): Broker Inventory's Brokers / Board / Investor buttons on its pane row (the Flow
    Timeline's buttons, one size smaller), their lists open to the right; "0" at the start of the lines, in the left gutter */

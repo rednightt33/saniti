@@ -10,7 +10,7 @@ let box: HTMLElement | null = null;
 
 function render() {
   if (!on || typeof document === 'undefined') return;
-  if (!box) {
+  if (!box || !box.isConnected) {
     box = document.createElement('pre');
     box.className = 'ml-perf';
     box.setAttribute('aria-label', 'Loading times');

@@ -105,6 +105,7 @@ settles the Screener report's L-U1 (the app has no gzip middleware, the edge com
 | Action | Requests through edge-bff | terminal-api grants (= audit rows) | Files counted in quota | Bytes counted | Bucket downloads cold / warm |
 |---|---|---|---|---|---|
 | Tab open, ticker switch or timeframe change (frame reload, `main.ts:46`, `search.ts:53`) | frame document, session, 3 × `/reference`, 1 × `/bundle` (`live.ts:150-165`) | 4 | 3 + 5 for a stock (price pack, broker archive, 2 yearly broker files, events), 3 + 1 for IHSG | refs about 54 KB (INFERENCE below) + the bundle (FACT examples: IHSG price pack 42,106 B, ERRORS M250; BBRI broker archive 2.2 MB, `BACKTEST_END_TO_END.md:479`; ANTM 21 yearly files 2.38 MB, `FUTURE_PLAN.md`) | 8 / 3 (the refs are never cached) + any file whose sha256 changed |
+| Timeframe change since EXEC-TERMINAL-SESSION-TOGGLE (2026-11-24, built in place, `main.ts` `switchTimeframe`, `app/life.ts`; not deployed when written) | 1 × `/bundle` (the session and the 3 reference lists of the page's last load are reused, `live.ts` `liveData(..., again)`) | 1 | as the row above for the timeframe's files | the timeframe's files | per the browser cache |
 | Relative performance (IHSG) | 1 × `/bundle` | 1 | 1 | about 42 KB | 1 / 0 |
 | Compare series | 1 × `/bundle` per series | 1 | 1 | about 30-40 KB | 1 / 0 |
 | Add asset (at most 2; EXEC-TERMINAL-ASSETS) | 2 × `/bundle` (price, then broker; `live.ts:212-227`) | 2 | 1 + up to 4 | price pack + broker files | up to 5 / 0 |

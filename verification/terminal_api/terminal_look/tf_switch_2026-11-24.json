@@ -1,0 +1,227 @@
+{
+ "what": "EXEC-TERMINAL-SESSION-TOGGLE item 2: the timeframe built in place against the reload, on the local harness (BBRI daily, 15m and 1h bars of dev from 2025-11-01); window listeners differ only by the 13 Playwright puts on the page (its injected script, lines 7978/7994), document listeners equal",
+ "timing_latency_150ms": {
+  "latency_ms": 150,
+  "reload": {
+   "drawn_median": 1337,
+   "flow_median": 1664,
+   "drawn": [
+    1511,
+    1318,
+    1330,
+    1266,
+    1357,
+    1337
+   ],
+   "flow": [
+    1859,
+    1391,
+    1664,
+    1388,
+    1750,
+    1414
+   ]
+  },
+  "inplace": {
+   "drawn_median": 375,
+   "flow_median": 729,
+   "drawn": [
+    419,
+    339,
+    375,
+    326,
+    469,
+    360
+   ],
+   "flow": [
+    729,
+    422,
+    793,
+    392,
+    859,
+    422
+   ]
+  }
+ },
+ "timing_latency_0ms": {
+  "latency_ms": 0,
+  "reload": {
+   "drawn_median": 748,
+   "flow_median": 1096,
+   "drawn": [
+    857,
+    772,
+    748,
+    719,
+    742,
+    712
+   ],
+   "flow": [
+    1198,
+    854,
+    1115,
+    798,
+    1096,
+    798
+   ]
+  },
+  "inplace": {
+   "drawn_median": 415,
+   "flow_median": 777,
+   "drawn": [
+    415,
+    341,
+    435,
+    310,
+    435,
+    312
+   ],
+   "flow": [
+    832,
+    418,
+    830,
+    392,
+    777,
+    381
+   ]
+  }
+ },
+ "parity_public_build_ema_fl03": {
+  "switches": [
+   {
+    "tf": "15m",
+    "drawn_ms": 465,
+    "flow_ms": 1087,
+    "in_place": true,
+    "pill": true
+   },
+   {
+    "tf": "D",
+    "drawn_ms": 327,
+    "flow_ms": 538,
+    "in_place": true,
+    "pill": false
+   },
+   {
+    "tf": "1h",
+    "drawn_ms": 323,
+    "flow_ms": 623,
+    "in_place": true,
+    "pill": true
+   },
+   {
+    "tf": "D",
+    "drawn_ms": 294,
+    "flow_ms": 525,
+    "in_place": true,
+    "pill": false
+   },
+   {
+    "tf": "15m",
+    "drawn_ms": 353,
+    "flow_ms": 917,
+    "in_place": true,
+    "pill": true
+   },
+   {
+    "tf": "D",
+    "drawn_ms": 276,
+    "flow_ms": 485,
+    "in_place": true,
+    "pill": false
+   }
+  ],
+  "fresh": {
+   "win": 49,
+   "doc": 60,
+   "body": 0,
+   "canvases": 27,
+   "rows": 3,
+   "charts": 2
+  },
+  "after": {
+   "win": 36,
+   "doc": 60,
+   "body": 0,
+   "canvases": 27,
+   "rows": 3,
+   "charts": 2
+  },
+  "controls_same": true,
+  "pill_off": {
+   "checked": false,
+   "stored": "0"
+  },
+  "pill_kept_off": true,
+  "errors": []
+ },
+ "parity_lab_build_ema_alpha_kama_fl03": {
+  "switches": [
+   {
+    "tf": "15m",
+    "drawn_ms": 502,
+    "flow_ms": 1094,
+    "in_place": true,
+    "pill": true
+   },
+   {
+    "tf": "D",
+    "drawn_ms": 308,
+    "flow_ms": 533,
+    "in_place": true,
+    "pill": false
+   },
+   {
+    "tf": "1h",
+    "drawn_ms": 323,
+    "flow_ms": 621,
+    "in_place": true,
+    "pill": true
+   },
+   {
+    "tf": "D",
+    "drawn_ms": 302,
+    "flow_ms": 545,
+    "in_place": true,
+    "pill": false
+   },
+   {
+    "tf": "15m",
+    "drawn_ms": 390,
+    "flow_ms": 932,
+    "in_place": true,
+    "pill": true
+   },
+   {
+    "tf": "D",
+    "drawn_ms": 303,
+    "flow_ms": 489,
+    "in_place": true,
+    "pill": false
+   }
+  ],
+  "fresh": {
+   "win": 49,
+   "doc": 60,
+   "body": 0,
+   "canvases": 27,
+   "rows": 4,
+   "charts": 2
+  },
+  "after": {
+   "win": 36,
+   "doc": 60,
+   "body": 0,
+   "canvases": 27,
+   "rows": 4,
+   "charts": 2
+  },
+  "controls_same": true,
+  "pill_off": {
+   "checked": false,
+   "stored": "0"
+  },
+  "pill_kept_off": true,
+  "errors": []
+ }
+}

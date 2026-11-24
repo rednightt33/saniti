@@ -272,5 +272,33 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['d
   await ctx.close();
 }
 LOCK.on = false;
+
+/* EXEC-TERMINAL-SESSION-TOGGLE (user 2026-11-24): on an intraday chart the Session lines pill sits right before Search
+   markets on the toolbar row (its middle within 1 px of the search box's, its right edge 8 px from the box), its switch's
+   knob in the middle of its track, and it is not there on D. The intraday bars come from ix_BBRI_15m.json in the data
+   folder (serve.mjs); without that file this block is skipped and says so. The timeframe is built in place (no page load). */
+for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['phone', devices['iPhone 13']]]) {
+  const ctx = await b.newContext(opt), p = await ctx.newPage(); p.on('pageerror', e => errs.push('session ' + nm + ' ' + e.message));
+  await p.goto(origin + '/terminal-app/'); await p.waitForFunction(() => !document.querySelector('.ml-boot'), null, { timeout:30000 }); await p.waitForTimeout(800);
+  const has15 = await p.$('#timeframeGroup button[data-timeframe="15m"]:not([disabled])');
+  if (!has15) { console.log(`look_check11: no 15m bars in ${DATA} (ix_BBRI_15m.json): the Session lines block is skipped`); await ctx.close(); continue }
+  const onD = await p.evaluate(() => !!document.getElementById('sessionPill'));
+  check(`session pill (${nm}): not on the daily chart`, !onD, onD);
+  const navs = []; p.on('framenavigated', f => { if (f === p.mainFrame()) navs.push(f.url()) });
+  await p.click('#timeframeGroup button[data-timeframe="15m"]');
+  await p.waitForFunction(() => !!document.getElementById('sessionPill') && !document.querySelector('.ml-switch'), null, { timeout:30000 }); await p.waitForTimeout(500);
+  const S = await p.evaluate(() => { const mid = e => { const r = e.getBoundingClientRect(); return r.top + r.height / 2 };
+    const pill = document.getElementById('sessionPill'), box = document.getElementById('symSearch'), t = pill.querySelector('.toggle');
+    const a = t.querySelector('.track').getBoundingClientRect(), h = t.querySelector('.thumb').getBoundingClientRect();
+    return { shown:!!pill.offsetWidth, dy:box.offsetWidth ? Math.round((mid(pill) - mid(box)) * 10) / 10 : null,
+      gap:box.offsetWidth ? Math.round(box.getBoundingClientRect().left - pill.getBoundingClientRect().right) : null,
+      knob:+((h.top + h.height / 2) - (a.top + a.height / 2)).toFixed(2), on:t.querySelector('input').checked } });
+  (R.session ||= {})[nm] = { ...S, reloads:navs.length };
+  check(`session pill (${nm}): shown on 15M, its switch on by default with the knob in the middle of its track`, S.shown && S.on && Math.abs(S.knob) <= 0.5, S);
+  if (S.dy !== null) check(`session pill (${nm}): on the toolbar row beside Search markets (middle within 1 px, 8 px apart)`, Math.abs(S.dy) <= 1 && Math.abs(S.gap - 8) <= 1, S);
+  check(`timeframe (${nm}): 15M built in place (no page load)`, navs.length === 0, navs);
+  await p.screenshot({ path:`${SP}/look11_session_${nm}.png` });
+  await ctx.close();
+}
 console.log(JSON.stringify(R)); console.log('errs', errs); console.log(bad.length ? 'FAIL\n' + bad.join('\n') : 'PASS');
 await b.close(); close(); process.exit(bad.length || errs.length ? 1 : 0);

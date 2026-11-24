@@ -16735,7 +16735,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD48 | (answered 2026-11-24: "UD48 benar") EXEC-TERMINAL-SESSION-TOGGLE: the lines meant are the thin vertical lines at the start of each trading day on intraday charts (the user wrote "garis horizontal"; the circled lines are vertical) | 2026-11-24 with context | what the pill switches | before the build |
   | UD49 | (answered 2026-11-24: "UD49 ya") EXEC-TERMINAL-SESSION-TOGGLE: the switch is remembered with the layout (like the chart style), on by default | 2026-11-24 with context | where the choice is kept | before the build |
   | UD50 | (answered 2026-11-24: "UD 50 tidak usah, untuk ganti timeframe dl saja": the lag work covers the timeframe switch only, not the symbol or layout switch; read as: measure, then fix the timeframe switch, reporting the numbers before and after) EXEC-TERMINAL-SESSION-TOGGLE: the lag: measure first and propose a fix with numbers before building; include the symbol and layout switches, which reload the page the same way | 2026-11-24 with context | the scope of the lag work | before the build |
-  | UD51 | EXEC-TERMINAL-SESSION-TOGGLE item 3: the legend's shown rows in near black (#171717, like TradingView's #131722), hidden rows stay light grey, the values keep their line colours, on every legend row (main chart, indicator panes, Flow panes) | 2026-11-24 with context | the legend's look | before the build |
+  | UD51 | (answered 2026-11-24: "Ok GO") EXEC-TERMINAL-SESSION-TOGGLE item 3: the legend's shown rows in near black (#171717, like TradingView's #131722), hidden rows stay light grey, the values keep their line colours, on every legend row (main chart, indicator panes, Flow panes) | 2026-11-24 with context | the legend's look | before the build |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17698,7 +17698,7 @@ saran agen, dengan cek collateral damage). Dicatat, belum dieksekusi.
 - **Cakupan:** catatan dan tes saja; tidak ada service yang berubah. Masuk `main` dengan konfirmasi user (section "Deploys").
 - **Pemicu:** go user.
 
-## EXEC-TERMINAL-SESSION-TOGGLE — tombol garis awal sesi, lag ganti timeframe, kontras legend indikator (dicatat 2026-11-24, menunggu konfirmasi legend dan go)
+## EXEC-TERMINAL-SESSION-TOGGLE — tombol garis awal sesi, lag ganti timeframe, kontras legend indikator (go user 2026-11-24 "Ok GO")
 
 Kata-kata user 2026-11-24 (dengan dua screenshot Terminal MAPI 15M, garis tegak dilingkari dan kotak merah di kanan atas
 sebelah "Search markets"): "Ini timeline 15 menit. Diluar timeline weekly/ monthly/ daily maka kalau kita select akan ada
@@ -17734,4 +17734,15 @@ sepertinya toggle between timeline masih laggy untuk kondisi sekarang. Nanti sek
   2,0. Usulan agen: label baris aktif `--text` #171717 (17,9, beda 9,4 kali dengan baris tersembunyi); baris tersembunyi
   tetap terang; warna nilai tetap warna garisnya; berlaku untuk semua baris legend (chart utama, panel indikator, panel
   Flow); `look_check11.mjs` dijalankan sebelum commit. Register UD51.
-- **Pemicu:** konfirmasi UD51, lalu go.
+- **Go user 2026-11-24:** "Ok GO" (UD51 dikonfirmasi, ketiga butir dikerjakan; beta dulu, deploy dengan konfirmasi).
+- **Progres 2026-11-24 (di branch, belum di-deploy):**
+  1. Pill "Session lines" (`apps/edge-bff/terminal/src/app/chart.ts` `sessionPill`; `ml.session.lines` di `LAYOUT_KEYS` dan
+     `shared/edge-session.ts` STORAGE, `sync:true` seperti gaya chart; `terminal.css` `.ses-pill`): hanya di 5M, 15M, 1H, 4H,
+     bawaan menyala, berubah seketika, 8 px sebelum Search markets; `look_check11.mjs` blok baru (kenop di tengah, sebaris
+     dengan kotak pencarian, tidak ada di D, 15M tanpa memuat ulang): PASS.
+  2. Ganti timeframe di tempat (ERRORS M563): 1.337 ke 375 ms sampai candle dengan jeda jaringan 150 ms (-72 %).
+  3. Legend: baris tampil `--text` #171717 (kontras 17,9), baris tersembunyi #b9b9b9 (2,0); angka awal yang dilaporkan
+     agen (#666, 5,7) dikoreksi: warna diam sebelumnya `--text-3` #8f8f8f (3,2), tersembunyi #cdcdcd (1,6); menggantikan
+     warna diam EXEC-TERMINAL-LOOK 1.
+  Diuji oleh agen sendiri (aturan 8: uji ulang hanya dengan persetujuan user). Deploy ke beta (push `main`: edge-bff saja)
+  menunggu konfirmasi user; live hanya atas permintaan.

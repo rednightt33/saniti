@@ -31,7 +31,8 @@ describe('safe crosshair', () => {
     const { chart } = fake(true);
     const L = safeCharts({ createChart: () => chart });
     expect(() => L.createChart().setCrosshairPosition(0, 't', {})).not.toThrow();
-    expect(Object.values(MAIN)[0]).toContain('L:safeCharts(');
+    // the page's charts are safe-wrapped; EXEC-TERMINAL-SESSION-TOGGLE: and owned by the build (app/life.ts removes them)
+    expect(Object.values(MAIN)[0]).toMatch(/L:ownCharts\(safeCharts\(/);
   });
 });
 

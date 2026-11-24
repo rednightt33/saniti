@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=e5d0c840d609a78b31f946d7a20d54e1fd538e7c5345102217758e7895430f50 by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=798c906d0f1f24c0d41c2d97763ba8ac05f79a2fba6cdd08b8fb63fbe22c48ca by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -90,6 +90,7 @@ var EdgeSession = (() => {
     { key: "ml.fi.metric", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "bond yield or price" },
     { key: "ml.chart.style", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "candle or line" },
     { key: "ml.chart.mode", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "price or return" },
+    { key: "ml.session.lines", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "lines at the start of each trading day on intraday charts" },
     { key: "ml.vol.on", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "volume shown" },
     { key: "ml.vol.removed", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "volume removed" },
     { key: "ml.ind.v1", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "the indicators on the chart" },
@@ -151,6 +152,7 @@ var EdgeSession = (() => {
   };
   var LAST_LOGIN_KEY = "edge-last-login";
   var CHANNEL = "edge-session";
+  var PAGE_LONG = typeof AbortController === "function" ? { signal: new AbortController().signal } : void 0;
   var norm = (login) => String(login || "").trim().toLowerCase();
   function areaOf(area) {
     try {
@@ -483,7 +485,7 @@ var EdgeSession = (() => {
           return;
         }
         fireSignedOut();
-      }));
+      }), PAGE_LONG);
     }
   }
   function reloadPage() {
@@ -888,7 +890,7 @@ ${identity}`;
       }
       if (!listening2 && typeof addEventListener === "function") {
         listening2 = true;
-        addEventListener("storage", onStorage);
+        addEventListener("storage", onStorage, PAGE_LONG);
       }
       return true;
     }

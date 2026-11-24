@@ -301,8 +301,30 @@ export function initChart(ctx: Ctx) {
 const SESSION_GAP_PX = 24;
 const sessionStarts = (keys: string[]) => keys.map((k, i) => i > 0 && k.slice(0, 10) !== keys[i - 1].slice(0, 10) ? i : -1).filter(i => i >= 0);
 export { sessionStarts };
+/* EXEC-TERMINAL-SESSION-TOGGLE (user 2026-11-24: "ketika lets say awal timeline Daily --> select ke 15 menit, maka akan
+   muncul pills di kotak merah sebelah kanan atas nomor 1 yang fungsinya adalah toggle on dan off garis"; UD48 the lines at
+   the start of each session, UD49 on by default and kept with the layout): a pill before Search markets, on an intraday
+   chart only; it shows or hides the lines at once (no reload). '0' in ml.session.lines hides them. */
+const SESSION_KEY = 'ml.session.lines';
+const sessionLinesOn = () => store.get(SESSION_KEY) !== '0';
+function sessionPill(onChange: (on: boolean) => void) {
+  const search = $('symSearch'); if (!search || $('sessionPill')) return;
+  const pill = document.createElement('label');
+  pill.className = 'pill-toggle ses-pill'; pill.id = 'sessionPill';
+  pill.title = 'Show or hide the line at the start of each trading day';
+  pill.innerHTML = '<span class="pt-label">Session lines</span><span class="toggle t02"><input type="checkbox" id="tglSession" role="switch"'
+    + (sessionLinesOn() ? ' checked' : '') + ' aria-label="Session lines"><span class="track"></span><span class="thumb"></span></span>';
+  search.before(pill);
+  (pill.querySelector('input') as HTMLInputElement).addEventListener('change', e => {
+    const on = (e.target as HTMLInputElement).checked;
+    if (on) store.remove(SESSION_KEY); else store.set(SESSION_KEY, '0');
+    onChange(on);
+  });
+}
 function intradayMarks(ctx: Ctx, chart: any, series: any[], keys: string[], container: HTMLElement) {
   const starts = sessionStarts(keys);
+  let linesOn = sessionLinesOn();
+  const lines: SessionLines[] = [];
   class SessionLines {
     chart: any = null; req: any = null;
     view = { zOrder:() => 'bottom', renderer:() => ({ draw:() => {}, drawBackground:(t: any) => this.paint(t) }) };
@@ -311,7 +333,7 @@ function intradayMarks(ctx: Ctx, chart: any, series: any[], keys: string[], cont
     updateAllViews() {}
     paneViews() { return [this.view] }
     paint(target: any) {
-      if (!this.chart) return;
+      if (!this.chart || !linesOn) return;
       const ts = this.chart.timeScale(), r = ts.getVisibleLogicalRange(); if (!r) return;
       const spacing = ts.options().barSpacing, half = spacing / 2;
       const shown = starts.filter(i => i >= r.from - 1 && i <= r.to + 1);
@@ -328,7 +350,8 @@ function intradayMarks(ctx: Ctx, chart: any, series: any[], keys: string[], cont
       });
     }
   }
-  series.forEach(s => s.attachPrimitive(new SessionLines()));
+  series.forEach(s => { const l = new SessionLines(); lines.push(l); s.attachPrimitive(l) });
+  sessionPill(on => { linesOn = on; lines.forEach(l => l.req?.()) });
   if (!keys.length) return;
   const day = (k: string) => dateFormat('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' }).format(new Date(k.slice(0, 10) + 'T00:00:00Z')).replace('Sept', 'Sep');
   const tf = String(ctx.M.tf || '').toUpperCase(), last = keys[keys.length - 1];

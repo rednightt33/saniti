@@ -8886,6 +8886,38 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M563 — A timeframe switch reloaded the whole Terminal page (2026-11-24; fixed on the branch, not deployed)
+
+- **Symptom (the user, 2026-11-24):** "sepertinya toggle between timeline masih laggy untuk kondisi sekarang".
+- **Root cause (verified from code):** every section of the Terminal took the candles once when it started, so a
+  timeframe click stored the choice and called `location.reload()` (`apps/edge-bff/terminal/src/main.ts:69` before the
+  fix): the page document, the session, three reference lists, the `/bundle` answer, the script and every section were
+  loaded and built again, and the chart was blank meanwhile.
+- **Measured (local harness, `verification/terminal_api/terminal_look/tf_switch_2026-11-24.json`, BBRI daily and 15m/1h
+  bars of dev, median of 6 switches, the old path and the new in one build):** with 150 ms network delay a request, the
+  candles drawn 1,337 ms by the reload, 375 ms in place (-72 %), the Flow Timeline's whole history 1,664 to 729 ms
+  (-56 %); without delay 748 to 415 ms (-45 %).
+- **Solution:** the page builds again in place (`main.ts` `switchTimeframe`; `src/app/life.ts`): the new timeframe's data
+  loads while the chart in view stays (a ring over it), then one build ("life") ends: what it registered on window,
+  document, `<body>` and `<html>` is removed by an AbortSignal it was given, its observers and intervals stop, its charts
+  are removed, module state that held page elements is reset (`onEveryDispose`: logo waiters, storage watchers, floating
+  windows, the calendar, the message line), `<body>` is put back as shipped, and the sections start on the new candles.
+  The session and the reference lists of the last load are reused (`live.ts` `liveData(..., again)`), so a switch asks
+  one `/bundle`. Timeouts are left to run (pending saves still go out); listeners meant for the page's whole life carry
+  a signal of their own (`shared/edge-session.ts` `PAGE_LONG`). A failure reloads the page as before.
+- **Checked:** the parity check (`tf_switch_parity.mjs`, public build with EMA and FL03, lab build with EMA, Alpha KAMA
+  and FL03): six switches all in place, canvases, charts, legend rows and document listeners equal to a fresh load, the
+  search, Events and Indicators controls answer once, no page error; window listeners differ only by the 13 Playwright
+  puts on the page itself. `tests/data/life.test.ts`, the Terminal suite (1,156), `look_check11.mjs` (with the new
+  intraday block), edge-bff `test_3f_public_bundles`, `test_releases`, `test_3f_lab_pages`, `test_storage_registry`.
+- **Class and limits:** the same reload is still used by the ticker switch (`search.ts:58`) and the layout switch
+  (`layouts.ts:189`) (user, UD50: the timeframe only for now). A script injected into the page's own world by a browser
+  extension that adds a listener to window or document while a build runs loses it at the next switch (extensions
+  normally run in an isolated world, unaffected).
+- **Lesson:** a page whose sections read their data once at start can be rebuilt in place only when what each build
+  registered globally is owned by that build; owning it centrally (one signal, one list) needs no change in the sections.
+- **Status:** fixed on the branch, tested by its author only; not deployed.
+
 ### M562 — WGSH 2026-03-31: a daily bar at half the price between two normal days (2026-11-24, OPEN)
 
 - **Symptom:** `Price_Stock_Indonesia_IDX` WGSH daily: 2026-03-30 close 125, 2026-03-31 close 65 (-48.0 %), 2026-04-01

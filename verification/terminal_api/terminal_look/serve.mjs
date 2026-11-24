@@ -118,7 +118,19 @@ export async function serve(DATA, TICKER) {
     if (ref && REFS[ref[1]]) { const key = `/bucket/ref/${ref[1]}`; files.set(key, REFS[ref[1]]); return json({ url:origin + key, sha256:sha(REFS[ref[1]]), bytes:REFS[ref[1]].length, rows:1 }) }
     if (path === '/api/terminal/v1/bundle' && req.method === 'POST') {
       let body = ''; for await (const c of req) body += c;
-      const { ticker, datasets } = JSON.parse(body), out = {};
+      const { ticker, datasets, timeframe } = JSON.parse(body), out = {};
+      /* EXEC-TERMINAL-SESSION-TOGGLE: intraday bars from ix_<TICKER>_<tf>.json (rows [t UTC seconds, o, h, l, c, v]),
+         as terminal-api answers them (datasets.intraday and the ticker's timeframes), so the look check and the
+         timeframe timing run on an intraday chart */
+      const tfs = {};
+      for (const tf of ['5m', '15m', '1h', '4h']) { const rows = load(`ix_${ticker}_${tf}.json`);
+        if (rows?.length) tfs[tf] = { first:new Date(rows[0][0] * 1000).toISOString().slice(0, 10), last:new Date(rows.at(-1)[0] * 1000).toISOString().slice(0, 10), rows:rows.length, bars_per_year:{ '5m':16017, '15m':5652, '1h':1766, '4h':504 }[tf] } }
+      if (timeframe && tfs[timeframe]) {
+        const rows = load(`ix_${ticker}_${timeframe}.json`), doc = { schema_version:1, dataset:'intraday', ticker, timeframe, columns:['t', 'o', 'h', 'l', 'c', 'v'], ...columnar(rows, ['t', 'o', 'h', 'l', 'c', 'v']) };
+        const b = gz(doc), key = `/bucket/intraday/${ticker}/${timeframe}`; files.set(key, b);
+        out.intraday = { utc_offset_seconds:25200, bars_per_year:tfs[timeframe].bars_per_year, first:tfs[timeframe].first, last:tfs[timeframe].last,
+          files:[{ part:'all', url:origin + key, sha256:sha(b), bytes:b.length, rows:rows.length }] };
+      }
       for (const d of datasets) {
         if (LOCK.on && (d === 'broker' || d === 'events')) { out[d] = { locked:true, capability:`terminal.dataset:${d}` }; continue }
         if (d === 'price') { const p = pricePack(ticker); if (!p) { out[d] = { files:[], data_through:null }; continue }
@@ -129,7 +141,7 @@ export async function serve(DATA, TICKER) {
             return { year:y.year, url:origin + key, sha256:sha(y.body), bytes:y.body.length, rows:y.rows } }) }; continue }
         out[d] = { files:[], data_through:null };
       }
-      return json({ ticker, datasets:out, expires_in_seconds:120 });
+      return json({ ticker, datasets:out, ...(Object.keys(tfs).length ? { timeframes:tfs } : {}), expires_in_seconds:120 });
     }
     if (path.startsWith('/api/terminal/v1/logo/')) return json({ error:'no_logo' }, 404);
     if (files.has(path)) { res.writeHead(200, { 'Content-Type':'application/gzip', 'Access-Control-Allow-Origin':'*' }); return res.end(files.get(path)) }
