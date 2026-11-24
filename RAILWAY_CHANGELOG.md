@@ -6,7 +6,7 @@
   not move (only on the user's request).
 - **Commit `6dee649d`** on `main` (fast-forward from `c91e2809`, 19 commits: the Terminal change `cb688250` and records:
   EXEC, ERRORS M559-M563, AGENTS.md rule 8, `verification/price_break_basis/`).
-- **edge-bff** deployment `382cb664-bdd4-4f22-849e-230009989669` SUCCESS (its watch path `/apps/edge-bff/**`);
+- **`edge-bff`** on `6dee649d`: deployment 382cb664-bdd4-4f22-849e-230009989669 SUCCESS (its watch path `/apps/edge-bff/**`);
   screener-worker SKIPPED (no watched path changed); no other service watches the changed paths; nothing else was
   waiting before the push (read 2026-11-24 from Railway's deployments). Read back: `/terminal-app/` serves
   `index-DgnCGJ9r.js`, which holds the pill (`Session lines`, `ml.session.lines`) and the in-place switch; `/ready` 200.
