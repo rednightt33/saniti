@@ -35,14 +35,14 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Perbaikan sesudah ledger langkah 8 (2026-11-22/23) | EXEC-MU-ACCOUNTS | 7 | 3 | 4 | 0 | 0 | 0 |
 | Panduan lab, lab dibuka, jendela registrasi (test-out 2026-11-23) | EXEC-MU-ACCOUNTS | 17 | 0 | 13 | 0 | 4 | 0 |
 | Tahap preview dan Flow lab (cek langkah 2-3) | EXEC-MU-ACCOUNTS | 20 | 0 | 20 | 0 | 0 | 0 |
-| Indikator Pine lab: penutupan ronde 2 (ERRORS M558) | EXEC-PINE-INDICATORS | 3 | 0 | 0 | 3 | 0 | 0 |
-| Terminal: ganti timeframe (ERRORS M563) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 0 | 1 | 0 | 0 |
-| Screener dan Backtest: harga terdistorsi (ERRORS M559-M562) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
-| Backtest: grid sensitivitas kondisi ya/tidak (ERRORS M558 B-2, UD35) | EXEC-SENSITIVITY-FLAGS | 1 | 0 | 0 | 1 | 0 | 0 |
-| Screener: tanda sel Flow dan badge baris saat harga terdistorsi (ERRORS M561, D-1, D-5) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
-| Terminal: gaya EMA yang tersimpan (ERRORS M564) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 0 | 1 | 0 | 0 |
-| Terminal: Statistics, Relative performance tanpa data IHSG (ERRORS M565) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 0 | 1 | 0 | 0 |
-| Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
+| Indikator Pine lab: penutupan ronde 2 (ERRORS M558) | EXEC-PINE-INDICATORS | 3 | 0 | 3 | 0 | 0 | 0 |
+| Terminal: ganti timeframe (ERRORS M563) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 1 | 0 | 0 | 0 |
+| Screener dan Backtest: harga terdistorsi (ERRORS M559-M562) | EXEC-PRICE-DISTORTION | 1 | 0 | 1 | 0 | 0 | 0 |
+| Backtest: grid sensitivitas kondisi ya/tidak (ERRORS M558 B-2, UD35) | EXEC-SENSITIVITY-FLAGS | 1 | 0 | 1 | 0 | 0 | 0 |
+| Screener: tanda sel Flow dan badge baris saat harga terdistorsi (ERRORS M561, D-1, D-5) | EXEC-PRICE-DISTORTION | 1 | 0 | 1 | 0 | 0 | 0 |
+| Terminal: gaya EMA yang tersimpan (ERRORS M564) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 1 | 0 | 0 | 0 |
+| Terminal: Statistics, Relative performance tanpa data IHSG (ERRORS M565) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 1 | 0 | 0 | 0 |
+| Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) | EXEC-PRICE-DISTORTION | 1 | 0 | 1 | 0 | 0 | 0 |
 
 3 item sudah dua ronde diuji ulang. Aturan 8 membolehkan paling banyak dua ronde, lalu sisanya masuk
 register keputusan; uji berikutnya hanya dengan keputusan user:
@@ -322,51 +322,51 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `wf_c2fe2424-bf4/screener:recheck2/NEW-1` | Both look-ahead gates test in_categories with every category chosen, so a read of a later bar passes | `c91e2809`, `2f8b012c` | branch | M558 | 3 |
-| `wf_c2fe2424-bf4/terminal:S-6` | The two colour boxes do not share the colours in use on the chart (indicators' and compare lines') | `c91e2809`, `8530a75e` | branch | M558 | 3 |
-| `wf_c2fe2424-bf4/terminal:NEW-1` | Label boxes snap y with the canvas's horizontal pixel ratio, so their top and bottom fall off the grid | `c91e2809`, `8530a75e` | branch | M558 | 3 |
+| `wf_c2fe2424-bf4/screener:recheck2/NEW-1` | Both look-ahead gates test in_categories with every category chosen, so a read of a later bar passes | `c91e2809`, `2f8b012c` | beta | M558 | 3 |
+| `wf_c2fe2424-bf4/terminal:S-6` | The two colour boxes do not share the colours in use on the chart (indicators' and compare lines') | `c91e2809`, `8530a75e` | beta | M558 | 3 |
+| `wf_c2fe2424-bf4/terminal:NEW-1` | Label boxes snap y with the canvas's horizontal pixel ratio, so their top and bottom fall off the grid | `c91e2809`, `8530a75e` | beta | M558 | 3 |
 
 ### Terminal: ganti timeframe (ERRORS M563) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M563` | A timeframe switch reloaded the whole Terminal page | `cb688250`, `8530a75e` | branch | M563 | 1 |
+| `errors/M563` | A timeframe switch reloaded the whole Terminal page | `cb688250`, `8530a75e` | beta | M563 | 1 |
 
 ### Screener dan Backtest: harga terdistorsi (ERRORS M559-M562) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M559-M562` | Price distortion detected by a date rule, read wrong for three stocks, and hidden instead of marked | `4799ee94`, `e9fc3ab6`, `db7bf27e`, `af806747`, `6b86cf6e`, `fa1f1f60`, `6a2473fd`, `6d254189` | branch | M559, M560, M561, M562 | 1 |
+| `errors/M559-M562` | Price distortion detected by a date rule, read wrong for three stocks, and hidden instead of marked | `4799ee94`, `e9fc3ab6`, `db7bf27e`, `af806747`, `6b86cf6e`, `fa1f1f60`, `6a2473fd`, `6d254189` | beta | M559, M560, M561, M562 | 1 |
 
 ### Backtest: grid sensitivitas kondisi ya/tidak (ERRORS M558 B-2, UD35) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M558-B-2` | The sensitivity grid moved a fixed 0.5 threshold on a yes/no condition | `185c0dd5`, `ff6228c1` | branch | M558 | 1 |
+| `errors/M558-B-2` | The sensitivity grid moved a fixed 0.5 threshold on a yes/no condition | `185c0dd5`, `ff6228c1` | beta | M558 | 1 |
 
 ### Screener: tanda sel Flow dan badge baris saat harga terdistorsi (ERRORS M561, D-1, D-5) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M561-D5` | Flow cells were never marked across a corporate action or a price break; old price breaks kept a row badge forever | `61def35d`, `6d254189` | branch | M561 | 1 |
+| `errors/M561-D5` | Flow cells were never marked across a corporate action or a price break; old price breaks kept a row badge forever | `61def35d`, `6d254189` | beta | M561 | 1 |
 
 ### Terminal: gaya EMA yang tersimpan (ERRORS M564) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M564` | The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch | `8530a75e` | branch | M564 | 0 |
+| `errors/M564` | The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch | `8530a75e` | beta | M564 | 0 |
 
 ### Terminal: Statistics, Relative performance tanpa data IHSG (ERRORS M565) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M565` | Statistics wrote NaN into its SVG lines when IHSG has no close on the chart | `8530a75e` | branch | M565 | 0 |
+| `errors/M565` | Statistics wrote NaN into its SVG lines when IHSG has no close on the chart | `8530a75e` | beta | M565 | 0 |
 
 ### Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M561-UD52-UD55` | A whole-history output was marked for every price break before it however old, and Bollinger at an EMA or RMA basis was classed window | `7d3e5b3c`, `32fdb581` | branch | M561, M558 | 0 |
+| `errors/M561-UD52-UD55` | A whole-history output was marked for every price break before it however old, and Bollinger at an EMA or RMA basis was classed window | `7d3e5b3c`, `32fdb581` | beta | M561, M558 | 0 |
 
 ## Hitungan per status
 

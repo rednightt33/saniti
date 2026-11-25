@@ -1,5 +1,34 @@
 # Railway changelog
 
+## 2026-11-26 — The beta on `cb9bdfb6`: EXEC-PRICE-DISTORTION with EXEC-SENSITIVITY-FLAGS, EXEC-RECHECK-LIST, EXEC-TRIPWIRE-LAB (a), Alpha KAMA B, the Screener quick UI (the user: "you have my approval to deploy")
+
+- **The user's words (2026-11-25):** "Untuk recheck ronde 2, gunakan 5 agent Opus 5,5 medium. Setelah temuan tersebut ada,
+  segera dibereskan, kemudian you have my approval to deploy"; the order "pengecekan 5 agent dengan menggunakan Opus
+  Medium dilakukan setelah run publisher berjalan" and "A, ya" (the publisher run tonight; the migration and the live
+  site after the round-2 fixes); UD56 "Oke, kita go with A" (the full re-measure of the broker basis at this run).
+- **Before:** no deployment waiting or building; 0 EDGE jobs, 0 orc turns, 0 active statements (M340).
+- **Order (worker first, README "Order across services"):**
+  1. **backtest-worker `227c802f`** SUCCESS 18:48 UTC (2026-11-25): CLI upload of `git archive cb9bdfb6` of its
+     Dockerfile's COPY paths with the Dockerfile (its `Backtest look-ahead gate` run 45677620923 green); start line
+     `engine_version="6e8074da8970ef7e"` (as the tripwire computes from the tree), `registry_version="2a69cd7d3f01ceaf"`.
+  2. **`main` `6dee649d` → `cb9bdfb6`** 19:18 UTC (fast-forward, 39 commits; Wait for CI off; every check of `cb9bdfb6`
+     green before the push: Backend tests 45677620986 with its six jobs, look-ahead gate, record statuses, generated
+     files): `edge-bff` `237bc6f9` and `screener-worker` `d4588aef` SUCCESS; the other services SKIPPED (no watched path).
+     The beta's `/version` names `cb9bdfb6`, `/ready` 200; the live site `/ready` 200 on `ec739a06`. screener-worker's
+     first refresh read the 12:05:51 UTC publication (60 broker days, 0 missing).
+  3. **terminal-publisher `b14794ac`** SUCCESS 19:21 UTC: CLI upload of `git archive cb9bdfb6 apps/terminal-publisher`
+     (tree `78a9a6fb0e39def6cf4c08b81f258110cc452ad6`, `publisher.py` sha256 `42fb53e23f6fd70a...`, `EVENTS_FORMAT` 4)
+     with the cron kept (`0,30 0,1,12 * * *`: it built and did not run), then Railway Run Now (19:21:33 UTC, the mutation
+     telegram-monitor uses; away from every tick, so `should_run` lets it publish). The upload also carries the example
+     mode's `examples.py` and the Radar cut by name (EXEC-MU-ACCOUNTS carried part "terminal-publisher's upload").
+- **The run:** in progress (recorded below when it ends).
+- **Shared:** both sites use the new workers from step 1 and 2 (engine and registry versions moved: saved screens and
+  backtests are re-reviewed once); the live page stays on `ec739a06` until `live` moves (UD47 b, step 9 of the order).
+- **Rollback:** the beta: redeploy `edge-bff` `382cb664` (`6dee649d`); screener-worker: redeploy its deployment of
+  `c91e2809` (`071c2415`); backtest-worker: a CLI upload of `git archive 6dee649d` (its previous deployment `3f87892d`
+  was replaced); terminal-publisher: a CLI upload of `git archive acddc51f apps/terminal-publisher` (the code of
+  `42bbcedf`) and a Run Now (format 3 events files are written again).
+
 ## 2026-11-24 — The beta on `6dee649d`: the Terminal's Session lines pill, the timeframe built in place, the legend's contrast (the user: "Deploy ke beta oke")
 
 - **The user's words:** "Ok GO" (EXEC-TERMINAL-SESSION-TOGGLE, 2026-11-24), then "Deploy ke beta oke"; the live site does

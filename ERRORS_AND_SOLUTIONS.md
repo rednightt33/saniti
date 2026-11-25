@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M565 — Statistics: "<polyline> attribute points: Expected number, "0.0,NaN …"" when IHSG has no close on the chart (2026-11-25; fixed in `8530a75e`, on the branch)
+### M565 — Statistics: "<polyline> attribute points: Expected number, "0.0,NaN …"" when IHSG has no close on the chart (2026-11-25; fixed in `8530a75e`, on the beta)
 
 - **Symptom (found in passing by the re-check agents_20261125-terminal, 2026-11-25):** with the Statistics panel open
   the console said `Error: <line> attribute y1: Expected length, "NaN".`, the same for `y2`, and
@@ -8915,9 +8915,9 @@ in its staleness check.
   error left is the harness's own 404 of `/api/terminal/v1/reference/fixed_income`.
 - **Lesson:** a loader answers "none" for a series it does not have; a number standing for "no value" (`NaN`, 0) is
   not data and reaches the drawing as one.
-- **Status:** fixed in `8530a75e`, on the branch, not deployed; tested by its author only (RECHECK.md `errors/M565`).
+- **Status:** fixed in `8530a75e`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site; tested by its author only (RECHECK.md `errors/M565`).
 
-### M564 — The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch (2026-11-25; fixed in `8530a75e`, on the branch)
+### M564 — The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch (2026-11-25; fixed in `8530a75e`, on the beta)
 
 - **Symptom (found in passing by the re-check agents_20261125-terminal, 2026-11-25, probe `ema.mjs`):** an EMA saved
   as `{"ema":{"on":true,"width":2,"color":"#171717"}}` (its `style.out`) came back as `{"ema":{"on":true}}` after a
@@ -8946,7 +8946,7 @@ in its staleness check.
   old `{def:'ma', params:{type:'WMA', ...}, style:{color, width}}`): after the load, a switch to W in place and a reload,
   the saved list, the export and the legend keep `#d6409f/3/Dashed/2` and the WMA `#0070f3/1`, offset 1.
 - **Lesson:** a saved form is told by its shape (what only that form has), never by an id a later definition may take.
-- **Status:** fixed in `8530a75e`, on the branch, not deployed; tested by its author only (RECHECK.md `errors/M564`).
+- **Status:** fixed in `8530a75e`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site; tested by its author only (RECHECK.md `errors/M564`).
 
 ### M563 — A timeframe switch reloaded the whole Terminal page (2026-11-24; fixed in `cb688250`, on the beta since 2026-11-24)
 
@@ -8980,7 +8980,7 @@ in its staleness check.
   registered globally is owned by that build; owning it centrally (one signal, one list) needs no change in the sections.
 - **Status:** fixed in `cb688250`, on the beta since 2026-11-24 (`6dee649d`, RAILWAY_CHANGELOG.md); tested by its author only; the live site does not run it.
 
-### M562 — WGSH 2026-03-31: a daily bar at half the price between two normal days (2026-11-24; marked by `4799ee94`, `e9fc3ab6`, `db7bf27e`, on the branch)
+### M562 — WGSH 2026-03-31: a daily bar at half the price between two normal days (2026-11-24; marked by `4799ee94`, `e9fc3ab6`, `db7bf27e`, on the beta)
 
 - **Symptom:** `Price_Stock_Indonesia_IDX` WGSH daily: 2026-03-30 close 125, 2026-03-31 close 65 (-48.0 %), 2026-04-01
   close 128 (+96.9 %); no corporate action on those dates. Both moves are beyond any IDX daily limit of the time.
@@ -8998,10 +8998,10 @@ in its staleness check.
   date judged by the ex-date check), read by the Screener's row badges (`e9fc3ab6`: "Price anomaly", WGSH's two
   sessions) and the Backtest's trade flags (`db7bf27e`: `flags.distortions` kind `anomaly`, warning
   `PRICE_DISTORTIONS`). The bar itself is unchanged.
-- **Status:** marked by `4799ee94`, `e9fc3ab6` and `db7bf27e`, on the branch, not deployed; tested by its author only
+- **Status:** marked by `4799ee94`, `e9fc3ab6` and `db7bf27e`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site; tested by its author only
   (RECHECK.md `errors/M559-M562`). The source bar stays wrong (UD45 A).
 
-### M561 — A detected price distortion hides values (Screener rows, Backtest Flow values) instead of marking them (2026-11-24; fixed in `e9fc3ab6`, `db7bf27e` and `61def35d`, on the branch)
+### M561 — A detected price distortion hides values (Screener rows, Backtest Flow values) instead of marking them (2026-11-24; fixed in `e9fc3ab6`, `db7bf27e` and `61def35d`, on the beta)
 
 - **Symptom (the user, 2026-11-24):** "Tadi ada saham yang meskipun price distort, kita hide kan untuk screener. Dan untuk
   backtest ada lagi ternyata nilai indikator flow yang di hide karena price detected as distort ... Ini aneh dan ini
@@ -9052,12 +9052,12 @@ in its staleness check.
   flags reach the result; entry conditions only), `6d254189` (the publisher: no side above the market, the side from the
   closes, EVENTS_FORMAT 4, verify against the events files; the migration). The re-check's probes rerun on the fixes:
   0 bars differ between the full and the cut data.
-- **Status:** fixed in `e9fc3ab6`, `db7bf27e`, `61def35d`, then `fa1f1f60`, `6a2473fd` and `6d254189`, on the branch, not
-  deployed; the round-1 fixes tested by their author only, waiting for a round 2 the user approves (RECHECK.md
+- **Status:** fixed in `e9fc3ab6`, `db7bf27e`, `61def35d`, then `fa1f1f60`, `6a2473fd` and `6d254189`, on the beta (`cb9bdfb6`, 2026-11-26), not on the
+  live site; the round-1 fixes tested by their author only, waiting for a round 2 the user approves (RECHECK.md
   `errors/M559-M562`, `errors/M561-D5`); the whole-history part asked (UD55, built on the branch by an agent).
 - **Lesson:** a quality flag marks a value; hiding it is a separate choice the user makes explicitly, per reader.
 
-### M560 — The publisher reads three stocks pulled again as "close not reloaded" (broker basis `price`) (2026-11-24; fixed in `4799ee94`, on the branch)
+### M560 — The publisher reads three stocks pulled again as "close not reloaded" (broker basis `price`) (2026-11-24; fixed in `4799ee94`, on the beta)
 
 - **Symptom:** the broker basis rows (`apps/terminal-publisher/publisher.py` `broker_basis`), recomputed with the
   publisher's own function on dev's rows (read-only role, 2026-11-24, broker data through 2026-11-09), give `price`
@@ -9085,12 +9085,12 @@ in its staleness check.
   of the ex date against the action's factor (`price_check_factor`; a rights issue's factor solved from the ex-date
   close), the Python twin of `pricecheck.ts verdictOf` (`tests/test_price_check.py` holds the two on the same cases).
   Recomputed on dev's rows: VKTR, AHAP and BUVA read `adjusted`.
-- **Status:** fixed in `4799ee94`, on the branch, not deployed (a publisher deploy and a manual run republish the
+- **Status:** fixed in `4799ee94`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site (a publisher deploy and a manual run republish the
   events files); tested by its author only (RECHECK.md `errors/M559-M562`).
 - **Lesson:** a measured flag is checked against a case whose answer is known (here the six stocks pulled again) before
   it is used to hide or show data.
 
-### M559 — The Screener hides and labels "history not adjusted" stocks whose price history was already pulled again (2026-11-24; fixed in `e9fc3ab6`, on the branch)
+### M559 — The Screener hides and labels "history not adjusted" stocks whose price history was already pulled again (2026-11-24; fixed in `e9fc3ab6`, on the beta)
 
 - **Symptom:** FORU (rights issue, ex 2026-09-22) and PBSA (split 1:2, ex 2026-10-14) are left out of every default
   screen by the chip "No unadjusted price break", and when the chip is off their row reads "Price break: ... history
@@ -9128,7 +9128,7 @@ in its staleness check.
   flagged when its ex-date jump is in the history (measured on the snapshot's closes by `pricecheck.ts`, on any date),
   uncertain from 2026-09-12 when it cannot be measured, an anomaly beyond 35 % with no action; the six stocks pulled
   again read adjusted and carry no badge. Nothing is hidden by default (the chips off; UD42 A).
-- **Status:** fixed in `e9fc3ab6`, on the branch, not deployed (screener-worker and the page); tested by its author only
+- **Status:** fixed in `e9fc3ab6`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site (screener-worker and the page); tested by its author only
   (RECHECK.md `errors/M559-M562`).
 - **Lesson:** a TEMPORARY rule that stands in for missing data is tied to that data: when the data arrives (here the
   pull and the measured basis), every rule that stood in for it is revisited in the same task.
@@ -9308,7 +9308,7 @@ in its staleness check.
   screener-worker suite's pointer test, red at `afcf2841`); the pointer moved in `7f193584`.
 - **Status:** on the beta since 2026-11-23 (`afcf2841`, `ce188bbb`, `7f193584` in `c91e2809`); the live site does not run it.
 
-### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23; fixed in `0c2d14d7`, records `99adf57d` (agent commits 3609d50c, 60651af6), on the branch)
+### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23; fixed in `0c2d14d7`, records `99adf57d` (agent commits 3609d50c, 60651af6), on the beta)
 
 - **Found by:** the pilot lab indicator Alpha Volatile (EXEC-PINE-INDICATORS, id I54), Part A "The tripwire in Part A".
 - **Symptom:** `npm run tripwire -- --record-core --exec EXEC-PINE-INDICATORS ...` (and `--record`) in `apps/edge-bff/screener`
@@ -9343,7 +9343,7 @@ in its staleness check.
 - **Verified:** tripwire tests 9/9 (4 new; a mutation with the formula comparison off turns the new test red);
   `scripts/tests/test_generated_files.py` 6/6; records against `5a722475` OK; the records of the EXEC-PINE-INDICATORS
   release (I54-I60) and of its core changes (M554, M555) made in `99adf57d`.
-- **Status:** fixed in `0c2d14d7` and `99adf57d`, on the branch; tested by its author only (RECHECK.md, `errors/M553`).
+- **Status:** fixed in `0c2d14d7` and `99adf57d`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site; tested by its author only (RECHECK.md, `errors/M553`).
   The Screener core changes after it (EXEC-PRICE-DISTORTION, UD36, UD33 B) need a core record before `main`.
 
 ### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed in `61fb22c4`, on the beta since 2026-11-23 (`fb4a5c3c`))
