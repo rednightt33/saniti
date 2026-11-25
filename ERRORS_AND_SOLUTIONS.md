@@ -9075,7 +9075,15 @@ in its staleness check.
 - **Open parts (owner and trigger in EXEC.md, EXEC-MU-ACCOUNTS):** the user's decisions UD33 (Alpha KAMA's warm-up from
   0: V2-1, B-3, N-2; answered 2026-11-24, option B recorded), UD34 (checks against TradingView itself: the HMA rounding N-1, Pine v6 colour constants V1-8,
   Inside Bar's pointer at `yloc.abovebar`), UD35 (the sensitivity grid on a 0/1 condition, B-2, shared core; answered 2026-11-24, option C recorded as EXEC-SENSITIVITY-FLAGS), UD36 (the
-  history class of state-machine outputs, SC-3, shared generator), UD37 (a `{"all": true}` plan and lab items on the
+  history class of state-machine outputs, SC-3, shared generator; fixed in `f1914745`, EXEC-PRICE-DISTORTION F2b, user
+  2026-11-24 "UD36 --> saham itu tampil di semua screen, dan badge menjadi satu-satunya pelindung", "Untuk 2-5 bisa go":
+  the generator follows its cut probe with a reach probe on four seeded price shapes, uptrend, crash, sideways and
+  recovery, a cut every 37 bars, `PROBE.reach`; an output whose value still differs from the full history inside its
+  window is classed recursive; 16 lab outputs moved, I54 x7, I55 ib and break_up, I58 short, I59 positive, I60 x5, no
+  released output changed; `screener/tests/core/reach.test.mjs` cuts the 8 real-price parity fixtures and fails on a
+  window output that reads further back, and on the previous registry on exactly those 16; on the branch, tested by its
+  author only, RECHECK.md `errors/M558-SC-3`; same mechanism still open: Bollinger I27, I28, I29 at basis EMA or RMA
+  read the whole history while classed window, one class per output, released, asked as UD52), UD37 (a `{"all": true}` plan and lab items on the
   beta, I-4), UD29 (the tripwire, SC-6; answered 2026-11-24, option (a) recorded); the carried parts: all seven lab indicators at once cost about 2x a drag (P-1,
   L-2), DOM tests of the pick (SC-4), the phone's legend rows (V2-5).
 - **Lesson for new data:** a Pine port is checked against the Pine's drawing (label styles and sizes, plot styles), not
@@ -9190,7 +9198,7 @@ in its staleness check.
   screener-worker suite's pointer test, red at `afcf2841`); the pointer moved in `7f193584`.
 - **Status:** on the beta since 2026-11-23 (`afcf2841`, `ce188bbb`, `7f193584` in `c91e2809`); the live site does not run it.
 
-### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23, open, asked of the user)
+### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23; fixed in `3609d50c`, records `60651af6`, on the branch)
 
 - **Found by:** the pilot lab indicator Alpha Volatile (EXEC-PINE-INDICATORS, id I54), Part A "The tripwire in Part A".
 - **Symptom:** `npm run tripwire -- --record-core --exec EXEC-PINE-INDICATORS ...` (and `--record`) in `apps/edge-bff/screener`
@@ -9208,9 +9216,25 @@ in its staleness check.
 - **Proposal (asked of the user):** the tripwire's ALWAYS rule accepts a registry release that an EXEC section records
   (the record names the indicator ids and the user's words), and Part A's step names the exact command; or the guide
   drops the record step for Part A and keeps the post-merge check.
-- **Status:** open; recorded as EXEC-TRIPWIRE-LAB (the user 2026-11-23: "Ok untuk M553 -- masukan exec dulu"), the
-  choice (a) or (b) waiting (EXEC-MU-ACCOUNTS pending decisions, UD29). The same refusal also leaves the Backtest core
-  changes of EXEC-PINE-INDICATORS (M554, M555) without a content-hash record.
+- **Solution** (option (a); the user 2026-11-24: "UD29: ok with opsi A", "Untuk 2-5 bisa go"; EXEC-TRIPWIRE-LAB):
+  `check_backtest_untouched.mjs --record-release` writes `scripts/screener/backtest_release_record.json`: the content
+  hash of `calc/indicators.ts` and `indRegistry.json`, the ids, the EXEC section, the user's words and date, and the
+  versions. The check passes a formula-path difference only at that hash and within those ids: no other id's registry
+  row added, changed or removed; no other formula added or removed, and none computing otherwise than `main`'s on a
+  fixed probe series. With the core and the worker equal to main's, the record also approves the versions. The order is
+  release, core, worker. Feature 04 and the Stockbit updater stay unapprovable.
+- **Same mechanism, fixed too:** the lab Flow step (M552 F7, `61fb22c4`) recorded a worker baseline that the check
+  ignores while the worker equals main's, so the tripwire stayed red. Part C "From preview to released" asked for a
+  record of nothing. The tripwire's own tests had failed at every test since the lab loader was added (a fixed copy
+  list, the M458 mechanism; now derived from `SOURCES`).
+- **Covers / does not cover:** covers lab, preview and released technical indicators and lab Flow indicators. Other
+  formulas are compared at defaults and with one setting moved at a time, not every combination. The lab module is
+  pinned by engine_version, not per id. The tripwire still runs by hand, not in CI.
+- **Verified:** tripwire tests 9/9 (4 new; a mutation with the formula comparison off turns the new test red);
+  `scripts/tests/test_generated_files.py` 6/6; records against `5a722475` OK; the records of the EXEC-PINE-INDICATORS
+  release (I54-I60) and of its core changes (M554, M555) made in `60651af6`.
+- **Status:** fixed in `3609d50c` and `60651af6`, on the branch; tested by its author only (RECHECK.md, `errors/M553`).
+  The Screener core changes after it (EXEC-PRICE-DISTORTION, UD36, UD33 B) need a core record before `main`.
 
 ### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed in `61fb22c4`, on the beta since 2026-11-23 (`fb4a5c3c`))
 

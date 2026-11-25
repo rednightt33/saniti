@@ -10883,7 +10883,7 @@
     "cb688250"
    ],
    "fix_note": "cb688250 (switchTimeframe, src/app/life.ts)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "tf_switch_parity.mjs (public build with EMA and FL03, lab build with EMA, Alpha KAMA and FL03: six switches in place, canvases, charts, legend rows and document listeners equal to a fresh load, no page error); tf_switch_compare.mjs (verification/terminal_api/terminal_look/tf_switch_2026-11-24.json: 1,337 to 375 ms with 150 ms delay); tests/data/life.test.ts; the Terminal suite (1,156); look_check11.mjs; edge-bff test_3f_public_bundles, test_releases, test_3f_lab_pages, test_storage_registry (ERRORS M563 \"Checked\")",
    "status": "waiting",
    "open_row": "",
@@ -10892,6 +10892,83 @@
    "tested_out_by": "none",
    "evidence": "ERRORS M563 Status: 'fixed in `cb688250` on the branch, tested by its author only; not deployed'",
    "from": "scan"
+  },
+  {
+   "key": "errors/M553",
+   "execution": "EXEC-TRIPWIRE-LAB",
+   "area": "Backtest: tripwire rilis indikator (ERRORS M553)",
+   "run": "",
+   "finding_id": "M553",
+   "title": "The tripwire refused the record of every indicator release",
+   "finding": "ERRORS M553 symptom: `npm run tripwire -- --record-core --exec EXEC-PINE-INDICATORS ...` (and `--record`) answer \"NOT recorded: formula or Feature 04 paths differ from origin/main (no record approves these): apps/edge-bff/terminal/src/calc/indicators.ts, apps/edge-bff/terminal/src/data/indRegistry.json\". No checker found it; found by the pilot lab indicator (I54).",
+   "errors": [
+    "M553",
+    "M552"
+   ],
+   "fix_commits": [
+    "0c2d14d7",
+    "99adf57d"
+   ],
+   "fix_note": "0c2d14d7 (--record-release, its tests, the guide; agent commit 3609d50c), 99adf57d (the records of I54-I60, M554, M555; agent commit 60651af6)",
+   "runs_on": "branch",
+   "author_test": "node --test scripts/screener/check_backtest_untouched.test.mjs 9/9 (4 new, a mutation with the formula comparison off turns red); scripts/tests/test_generated_files.py 6/6; npm run tripwire OK against 5a722475, e4e3583e and origin/main on the agent commit",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Run the tripwire on a branch that releases one lab indicator (registry row, formula) and on one that also changes another formula or registry row: the first passes only with a release record naming its ids, the second is refused. Collateral: --record-core and --record still refuse while the formula files differ without a release record; Feature 04 and the Stockbit updater stay unapprovable; INDICATOR_BETA_TO_LIVE.md Part A, B, C and the lab Flow step name the commands that work.",
+   "tested_out_by": "none",
+   "evidence": "ERRORS M553 Status: 'fixed in `3609d50c` and `60651af6`, on the branch; tested by its author only'",
+   "from": "fix"
+  },
+  {
+   "key": "errors/M558-SC-3",
+   "execution": "EXEC-PRICE-DISTORTION",
+   "area": "Screener: kelas riwayat indikator (ERRORS M558 SC-3, UD36)",
+   "run": "",
+   "finding_id": "SC-3",
+   "title": "State-machine outputs classed as reading a short window read the whole history",
+   "finding": "ERRORS M558 open part SC-3 (UD36): the history class of state-machine outputs; a value classed window read bars before its window, so a cell crossing an older price break was not marked \"Distorted\" (the user 2026-11-24: \"UD36 --> saham itu tampil di semua screen, dan badge menjadi satu-satunya pelindung\").",
+   "errors": [
+    "M558"
+   ],
+   "fix_commits": [
+    "e926355d"
+   ],
+   "fix_note": "e926355d (reach probe on four price shapes in build-screener-registry.mjs, registry rebuilt, tests/core/reach.test.mjs; agent commit f1914745)",
+   "runs_on": "branch",
+   "author_test": "screener vitest 1368 pass; reach.test.mjs fails on the previous registry on exactly the 16 lab outputs; look-ahead gate 10/10; screener-worker 147/149 (the two heap tests of this machine); onboarding pointers 2/2; test_generated_files 6/6",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Probe several outputs of each class on real prices cut at different starts (the parity fixtures and others): a window output must equal the full history from cut + firstValid on; the 16 moved outputs mark a cell across an older break. Collateral: no released output class changed, backtest-registry.json and compare-lag.json unchanged, the cell-mark rule (evaluate.ts lookbackStart) and the Screener page note for whole-history outputs.",
+   "tested_out_by": "none",
+   "evidence": "ERRORS M558 open parts: 'UD36 ... fixed in `f1914745` ... on the branch, tested by its author only'",
+   "from": "fix"
+  },
+  {
+   "key": "errors/M558-UD33B",
+   "execution": "EXEC-PINE-INDICATORS",
+   "area": "Terminal: Alpha KAMA dari titik settle (ERRORS M558 V2-1, B-3, N-2; UD33 B)",
+   "run": "",
+   "finding_id": "V2-1, B-3, N-2",
+   "title": "Alpha KAMA drawn from the start of the data, far from the price for its first months",
+   "finding": "ERRORS M558 open parts (UD33): Alpha KAMA starts from 0 as the Pine (T3 and the KAMA recursion), so its first months are far from the price (BBCA bar 100: 95% off; within 2% only after about 200-250 bars); the user 2026-11-24: \"UD33: Alpha KAMA --> ok pakai opsi B, masukan exec dulu\", \"Untuk 2-5 bisa go\".",
+   "errors": [
+    "M558"
+   ],
+   "fix_commits": [
+    "3f05a220"
+   ],
+   "fix_note": "3f05a220 (terminal/src/calc/settle.ts, SETTLE.alpha_kama in the lab module, legend note; agent commit b6d28f69)",
+   "runs_on": "branch",
+   "author_test": "Terminal vitest 1165/1165 (settle.test.ts 9 new); tsc clean; npm run build; look_check11.mjs PASS (public build); the lab build in a browser draws KAMA first at D 238, W 318, M none, 15m 278, 1h 296 with no markers before and no page errors; registry:check current; the public bundle holds no alpha_kama",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "On the lab Terminal, open Alpha KAMA on daily, weekly, monthly and intraday charts of several stocks: the line, its colours and the ENTER markers start at the settle bar, the legend note says why, EMA X is drawn. Collateral: the numbers of KAMA in the Screener and the Backtest are unchanged; the public build has no SETTLE entry; the release step moves SETTLE with the formula (INDICATOR_BETA_TO_LIVE.md Part B step 2).",
+   "tested_out_by": "none",
+   "evidence": "EXEC.md EXEC-PINE-INDICATORS, UD33 execution: 'Diuji penulisnya saja (aturan 8)'",
+   "from": "fix"
   }
  ]
 }

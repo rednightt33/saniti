@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 217 item
+## Menunggu uji ulang: 220 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -36,7 +36,10 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Panduan lab, lab dibuka, jendela registrasi (test-out 2026-11-23) | EXEC-MU-ACCOUNTS | 17 | 0 | 13 | 0 | 4 | 0 |
 | Tahap preview dan Flow lab (cek langkah 2-3) | EXEC-MU-ACCOUNTS | 20 | 0 | 20 | 0 | 0 | 0 |
 | Indikator Pine lab: penutupan ronde 2 (ERRORS M558) | EXEC-PINE-INDICATORS | 4 | 0 | 4 | 0 | 0 | 0 |
-| Terminal: ganti timeframe (ERRORS M563) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 0 | 1 | 0 | 0 |
+| Terminal: ganti timeframe (ERRORS M563) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 1 | 0 | 0 | 0 |
+| Backtest: tripwire rilis indikator (ERRORS M553) | EXEC-TRIPWIRE-LAB | 1 | 0 | 0 | 1 | 0 | 0 |
+| Screener: kelas riwayat indikator (ERRORS M558 SC-3, UD36) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
+| Terminal: Alpha KAMA dari titik settle (ERRORS M558 V2-1, B-3, N-2; UD33 B) | EXEC-PINE-INDICATORS | 1 | 0 | 0 | 1 | 0 | 0 |
 
 3 item sudah dua ronde diuji ulang. Aturan 8 membolehkan paling banyak dua ronde, lalu sisanya masuk
 register keputusan; uji berikutnya hanya dengan keputusan user:
@@ -325,13 +328,31 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M563` | A timeframe switch reloaded the whole Terminal page | `cb688250` | branch | M563 | 0 |
+| `errors/M563` | A timeframe switch reloaded the whole Terminal page | `cb688250` | beta | M563 | 0 |
+
+### Backtest: tripwire rilis indikator (ERRORS M553) (1)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `errors/M553` | The tripwire refused the record of every indicator release | `0c2d14d7`, `99adf57d` | branch | M553, M552 | 0 |
+
+### Screener: kelas riwayat indikator (ERRORS M558 SC-3, UD36) (1)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `errors/M558-SC-3` | State-machine outputs classed as reading a short window read the whole history | `e926355d` | branch | M558 | 0 |
+
+### Terminal: Alpha KAMA dari titik settle (ERRORS M558 V2-1, B-3, N-2; UD33 B) (1)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `errors/M558-UD33B` | Alpha KAMA drawn from the start of the data, far from the price for its first months | `3f05a220` | branch | M558 | 0 |
 
 ## Hitungan per status
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 217 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 220 |
 | `fixed` | diuji ulang agen lain: beres | 111 |
 | `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 0 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
@@ -339,7 +360,7 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 | `open` | belum diperbaiki | 90 |
 | `accepted` | diterima user apa adanya | 4 |
 | `obsolete` | tidak berlaku lagi | 5 |
-| **Total** | | **427** |
+| **Total** | | **430** |
 
 Dari 90 baris `open`, 25 punya baris pemilik di PLAN.md atau EXEC.md dan 65 belum
 (aturan 1: setiap bagian yang terbuka butuh pemilik dan pemicu).

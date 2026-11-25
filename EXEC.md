@@ -16627,10 +16627,12 @@ Order of the services (CONTRACT 17, rollback floors):
     ... Tapi juga perlu di-take into account, jangan sampai ada missing item yang terlewat, dalam artian ada temuan yang
     belum ditindaklanjuti atau ada perbaikan yang belum dites perbaikannya. Ini nanti kita cater atau kita jalankan
     semua di langkah 8 untuk final check." → no round 2 now; fix round 1 is finished, recorded and deployed to the beta
-    as planned, and its test-out joins step 8. Step 8 works from the step-8 ledger (workflow `wf_877859a9-d28`, written
-    to `verification/records/step8_ledger.json`): every confirmed checker finding of this execution with its fate; step
-    8 tests out every row whose fix no other agent tested and settles every open row. Rule 8 is unchanged for later
-    rounds unless the user says otherwise; until step 8 a fix of round 1 is reported as "fixed, not tested out".
+    as planned, and its test-out joins step 8. Step 8 works from the step-8 ledger (workflow `wf_877859a9-d28`); its
+    rows moved on 2026-11-24 into the re-check ledger `verification/records/recheck_ledger.json` (EXEC-RECHECK-LIST;
+    `verification/records/step8_ledger.json` keeps the build's notes, groups and critic): every confirmed checker
+    finding of this execution (`execution` EXEC-MU-ACCOUNTS) with its status; step 8 tests out every row whose status is
+    `waiting` (listed in `RECHECK.md`) and settles every `open` row. Rule 8 is unchanged for later rounds unless the user
+    says otherwise; until step 8 a fix of round 1 is reported as "fixed, not tested out".
   - On deploys (2026-11-22): "Tolong untuk selanjutnya, deploy workflow harus dengan konfirmasi saya. masukkan ke
     memori." → AGENTS.md "Deploys": every deploy (a push or fast-forward of `main`, moving `live`, a CLI upload, a
     redeploy, `railway config apply`, a variable change that redeploys) waits for the user's confirmation for that
@@ -16713,17 +16715,17 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD20 | A valid Railway token for telegram-trigger (the Telegram Run Now buttons fail) | 2026-11-03 | the manual restart button | any time |
   | UD25 | Step 9 window, test-out F1: while registration is open any client can make the live site send code emails to any address (per-address and per-hour limits only): (a) keep it open the 24 hours and the agent watches `email_sent` and closes early on a burst, or (b) close it as soon as the user has finished testing | 2026-11-23 (twice, with context; 0 code emails sent 03:24-06:20 UTC) | the window's spam exposure | while the window is open (until 2026-11-24 03:24 UTC) |
   | UD26 | Step 9 window, F2: is the close at 2026-11-24 10:24 WIB confirmed in advance (a variable change that redeploys edge-bff-live), so the agent runs it on time, or asked again then | 2026-11-23 (twice, with context) | the window's close | 2026-11-24 03:24 UTC |
-  | UD29 | (answered 2026-11-24: "UD29: ok with opsi A": option (a), recorded in EXEC-TRIPWIRE-LAB; the build waits for the user's go) ERRORS M553, the Backtest tripwire for indicator releases (EXEC-TRIPWIRE-LAB): (a) the tool takes a release record (the ALWAYS paths' content hash, the ids, the user's words), or (b) the guide drops the record step and the release is evidenced by CI, the formula tests and EXEC | 2026-11-23 with context (the user: "Ok untuk M553 -- masukan exec dulu"; the choice asked again with the options) | the guide's record step; a content-hash record of the Backtest core changes of EXEC-PINE-INDICATORS (M554, M555) | before the next indicator release to the live site or the next Backtest core change |
+  | UD29 | (answered 2026-11-24: "UD29: ok with opsi A": option (a), recorded in EXEC-TRIPWIRE-LAB; go 2026-11-24 "Untuk 2-5 bisa go"; built on the branch, `3609d50c` and records `60651af6`) ERRORS M553, the Backtest tripwire for indicator releases (EXEC-TRIPWIRE-LAB): (a) the tool takes a release record (the ALWAYS paths' content hash, the ids, the user's words), or (b) the guide drops the record step and the release is evidenced by CI, the formula tests and EXEC | 2026-11-23 with context (the user: "Ok untuk M553 -- masukan exec dulu"; the choice asked again with the options) | the guide's record step; a content-hash record of the Backtest core changes of EXEC-PINE-INDICATORS (M554, M555) | before the next indicator release to the live site or the next Backtest core change |
   | UD30 | (answered 2026-11-23: "A" (build now, one beta deploy)) EXEC-PINE-INDICATORS: the TradingView label boxes for Alpha Extract (BULL, BEAR) and Alpha Divergence (SH, SL, BULL DIV, BEAR DIV, BUY A): build them in this batch, before the beta deploy, or after it | 2026-11-23 with context (the user: "Tolong catat ... tampilannya bisa seperti terlampir") | the labels' look on the beta | before the beta deploy of the lab indicators |
   | UD31 | (answered 2026-11-23: "Y", narrowed the same day to the indicators drawn on the price chart, zone overlay) EXEC-PINE-INDICATORS: line style (solid, dashed, dotted) and opacity per output in the Terminal's Style tab: for the seven lab indicators only, or for every Terminal indicator (the released ones change on the beta, then on the live site when it moves) | 2026-11-23 with context | the Style tab change | before the Style tab is changed |
   | UD32 | (answered 2026-11-23: "All at once", in this batch) EXEC-PINE-INDICATORS: a TradingView-style colour picker in the Terminal's Style tab (a large grid of colours and tints, a custom colour, opacity, thickness and line style in one box, shared by indicators and the compare lines), in this batch with Y or later | 2026-11-23 with an estimate | the Style tab's colour box | before Y is built (one box) |
-  | UD33 | (answered 2026-11-24: "UD33: Alpha KAMA --> ok pakai opsi B, masukan exec dulu": option B, recorded in EXEC-PINE-INDICATORS, not executed yet) EXEC-PINE-INDICATORS (ERRORS M558: V2-1, B-3, N-2): Alpha KAMA starts from 0 as the Pine (T3 and the KAMA recursion), so its first months are far from the price (BBCA bar 100: 95% off; within 2% only after about 200-250 bars); on Monthly (107 bars) it never settles (legend KAMA 548 against a close of 5,675) and pulls the price axis to 0; the Screener and Backtest count those bars as valid ("Close above KAMA" true on 124 of the first 162). Options: (a) keep it as TradingView draws it and say so in the indicator's text; (b) the Terminal draws it only once settled (the numbers unchanged); (c) the Screener and Backtest also treat the unsettled bars as not ready (a later first valid bar) | 2026-11-23 with context (this report) | Alpha KAMA's warm-up, the Monthly view | before Alpha KAMA leaves lab |
+  | UD33 | (answered 2026-11-24: "UD33: Alpha KAMA --> ok pakai opsi B, masukan exec dulu": option B, recorded in EXEC-PINE-INDICATORS; executed on the session branch `b6d28f69`, 2026-11-24; not deployed) EXEC-PINE-INDICATORS (ERRORS M558: V2-1, B-3, N-2): Alpha KAMA starts from 0 as the Pine (T3 and the KAMA recursion), so its first months are far from the price (BBCA bar 100: 95% off; within 2% only after about 200-250 bars); on Monthly (107 bars) it never settles (legend KAMA 548 against a close of 5,675) and pulls the price axis to 0; the Screener and Backtest count those bars as valid ("Close above KAMA" true on 124 of the first 162). Options: (a) keep it as TradingView draws it and say so in the indicator's text; (b) the Terminal draws it only once settled (the numbers unchanged); (c) the Screener and Backtest also treat the unsettled bars as not ready (a later first valid bar) | 2026-11-23 with context (this report) | Alpha KAMA's warm-up, the Monthly view | before Alpha KAMA leaves lab |
   | UD34 | EXEC-PINE-INDICATORS (ERRORS M558: N-1, V1-8, Inside Bar NEW-1): three points only TradingView itself can settle: the HMA option of Alpha Extract (our Hull MA ends with a window of floor(sqrt(n)), TradingView's documented ta.hma likely round(sqrt(n)): every output differs at HMA 23; the released HMA I04 uses floor too), the exact colours of Pine v6's color.red/green/lime, and which way the Inside Bar break labels point at `yloc.abovebar`. Options: (a) the agent checks them through the user's TradingView connection (a small script run on TradingView, nothing published), (b) the user exports a CSV with HMA 23 and a screenshot, (c) keep as is | 2026-11-23 with context | Alpha Extract with HMA; the label colours and pointers | before Alpha Extract and Inside Bar leave lab |
   | UD35 | (answered 2026-11-24: "C ok - masukan EXEC", the fix to reach the live site too: recorded as EXEC-SENSITIVITY-FLAGS, the build waits for the user's go) ERRORS M558 B-2 (a mechanism older than this work, now common): the Backtest's sensitivity grid takes the first threshold as its axis; on a 0/1 flag or a category condition that is a fixed 0.5, so 25 cells give one result and count as 25 trials in the deflated Sharpe. Fixing it (no axis from such a threshold) changes the shared core, so live backtests with flag conditions change too | 2026-11-23 with context | robustness of flag strategies | before the lab indicators leave lab |
-  | UD36 | (answered 2026-11-24: "UD36 --> saham itu tampil di semua screen, dan badge menjadi satu-satunya pelindung", read as option (a): the fix joins EXEC-PRICE-DISTORTION, step 2b) (asked again 2026-11-24 with context: the deferral assumed the chip hides these stocks by default; EXEC-PRICE-DISTORTION shows them in every screen, so a missing cell mark on the seven lab indicators shows in normal screens, admin on the beta only; asked: fold the fix into EXEC-PRICE-DISTORTION or keep it deferred) (answered 2026-11-24: "Tunda dulu untuk UD36": deferred; trigger: before the seven lab indicators leave lab, then the fix (re-probe on several price shapes, "whole history" for outputs that remember without limit, a real-price test) is asked again with context; note: by default the chip "No unadjusted price break" hides these stocks, so the missing cell mark shows only with the chip off, beside the row's "Price break" badge) (2026-11-24, re-measured on BBCA and BBRI for every output the registry classes 'window': only lab outputs read further back on real prices: Alpha Volatile direction and outside/back-in flags, Inside Bar break up, Alpha KAMA ENTER SHORT, Alpha Extract's positive, Alpha Divergence BULL DIV, BEAR DIV, BUY A and its swing levels; no released indicator; still open, explained again) ERRORS M558 SC-3: the generator classes an output's history from a synthetic probe; for swing levels (Alpha Divergence, Price Action) real prices reach about 90 bars further back, so a "price break in the lookback" remark can be left out. A fix re-probes every indicator, the released ones too (the shared Screener worker then reads more history for some) | 2026-11-23 with context | one remark of a screen | before the lab indicators leave lab |
+  | UD36 | (answered 2026-11-24: "UD36 --> saham itu tampil di semua screen, dan badge menjadi satu-satunya pelindung", read as option (a): the fix joins EXEC-PRICE-DISTORTION, step 2b; built on the branch `f1914745`, 2026-11-25, not deployed) (asked again 2026-11-24 with context: the deferral assumed the chip hides these stocks by default; EXEC-PRICE-DISTORTION shows them in every screen, so a missing cell mark on the seven lab indicators shows in normal screens, admin on the beta only; asked: fold the fix into EXEC-PRICE-DISTORTION or keep it deferred) (answered 2026-11-24: "Tunda dulu untuk UD36": deferred; trigger: before the seven lab indicators leave lab, then the fix (re-probe on several price shapes, "whole history" for outputs that remember without limit, a real-price test) is asked again with context; note: by default the chip "No unadjusted price break" hides these stocks, so the missing cell mark shows only with the chip off, beside the row's "Price break" badge) (2026-11-24, re-measured on BBCA and BBRI for every output the registry classes 'window': only lab outputs read further back on real prices: Alpha Volatile direction and outside/back-in flags, Inside Bar break up, Alpha KAMA ENTER SHORT, Alpha Extract's positive, Alpha Divergence BULL DIV, BEAR DIV, BUY A and its swing levels; no released indicator; still open, explained again) ERRORS M558 SC-3: the generator classes an output's history from a synthetic probe; for swing levels (Alpha Divergence, Price Action) real prices reach about 90 bars further back, so a "price break in the lookback" remark can be left out. A fix re-probes every indicator, the released ones too (the shared Screener worker then reads more history for some) | 2026-11-23 with context | one remark of a screen | before the lab indicators leave lab |
   | UD37 | ERRORS M558 I-4: on the beta a non-admin account whose plan is `{"all": true}` is listed the lab indicators (catalogs, worker allow list); the live site never. Matters only if the beta opens to non-admin accounts: should `{"all": true}` leave lab out as it leaves preview out (UD28)? | 2026-11-23 with context | the beta for non-admins | before the beta opens to a non-admin account |
   | UD38 | (superseded 2026-11-24 by the user's concept "value harus tetap ditampilkan as is dengan badge": EXEC-PRICE-DISTORTION; its parts asked again as UD41-UD43; the detection revision of M560 is in the plan) ERRORS M559, M560 | 2026-11-24 with context | | |
-  | UD39 | (answered 2026-11-24: "UD39 ok - masukan EXEC", read as option A, the recommendation, with the collateral-damage check; recorded as EXEC-RECHECK-LIST, the build waits for the user's go) A RECHECK.md (the user's proposal 2026-11-24: "kayaknya perlu ada dibuatkan MD untuk menampung item ini (item yang sudah di solve, tapi belum di recheck apakah perbaikannya tidak ada collateral damage dll). Re-check.MD? ... WDYT?"): one list, across executions, of the fixes no agent other than their author tested out, named in AGENTS.md rule 8. Asked: its source (the step-8 ledger `verification/records/step8_ledger.json`, 422 rows, 212 fixed and not tested out, made the general source with RECHECK.md written from it, or RECHECK.md by hand) and whether the re-check also checks collateral damage | 2026-11-24 with context | where a re-check takes its items from | before the next re-check the user approves |
+  | UD39 | (answered 2026-11-24: "UD39 ok - masukan EXEC", read as option A, the recommendation, with the collateral-damage check; recorded as EXEC-RECHECK-LIST, built on the branch, `203e5ada`; go 2026-11-24 "Untuk 2-5 bisa go") A RECHECK.md (the user's proposal 2026-11-24: "kayaknya perlu ada dibuatkan MD untuk menampung item ini (item yang sudah di solve, tapi belum di recheck apakah perbaikannya tidak ada collateral damage dll). Re-check.MD? ... WDYT?"): one list, across executions, of the fixes no agent other than their author tested out, named in AGENTS.md rule 8. Asked: its source (the step-8 ledger `verification/records/step8_ledger.json`, 422 rows, 212 fixed and not tested out, made the general source with RECHECK.md written from it, or RECHECK.md by hand) and whether the re-check also checks collateral damage | 2026-11-24 with context | where a re-check takes its items from | before the next re-check the user approves |
   | UD40 | (settled 2026-11-24 by UD44 and "UD45 A": the ex-date check runs on every date and these steps carry a badge, data as is; EXEC-PRICE-DISTORTION) ERRORS M560, open part: six actions before 2026-09-12 show a step in the stored history on their ex-date that matches the action (CMNP 2020-11-10, BPFI 2022-01-31, BSWD 2022-08-30 and 2023-04-11, FMII 2023-07-07, FITT 2024-06-25); every reader treats actions before that date as adjusted, so nothing marks them, and the stored rows equal TradingView's (D22 scan), so a pull again does not mend them. To be asked with context after UD38 | 2026-11-24 (recorded, not yet asked with context) | long-history indicators and Backtests across those dates on six stocks | after UD38 |
   | UD41 | (answered 2026-11-24: "UD41 A") EXEC-PRICE-DISTORTION, Backtest: "as is" for a Flow value across a corporate action: (A) the value is used in the signal as computed and every trade that read a marked value carries a badge, with the run warning; (B) the value is shown in the lanes but a marked day cannot open a trade | 2026-11-24 with context | Backtest results on stocks with an action | before the build |
   | UD42 | (answered 2026-11-24: "UD42 A") EXEC-PRICE-DISTORTION: do stale stocks (not traded on the evaluation date, hidden by default by the chip "Traded on evaluation date", P4 (a)) follow the same concept (shown by default with their badge), or stay hidden by default | 2026-11-24 with context | the default screen's rows | before the build |
@@ -16736,6 +16738,8 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD49 | (answered 2026-11-24: "UD49 ya") EXEC-TERMINAL-SESSION-TOGGLE: the switch is remembered with the layout (like the chart style), on by default | 2026-11-24 with context | where the choice is kept | before the build |
   | UD50 | (answered 2026-11-24: "UD 50 tidak usah, untuk ganti timeframe dl saja": the lag work covers the timeframe switch only, not the symbol or layout switch; read as: measure, then fix the timeframe switch, reporting the numbers before and after) EXEC-TERMINAL-SESSION-TOGGLE: the lag: measure first and propose a fix with numbers before building; include the symbol and layout switches, which reload the page the same way | 2026-11-24 with context | the scope of the lag work | before the build |
   | UD51 | (answered 2026-11-24: "Ok GO") EXEC-TERMINAL-SESSION-TOGGLE item 3: the legend's shown rows in near black (#171717, like TradingView's #131722), hidden rows stay light grey, the values keep their line colours, on every legend row (main chart, indicator panes, Flow panes) | 2026-11-24 with context | the legend's look | before the build |
+  | UD52 | EXEC-PRICE-DISTORTION F2b (UD36's fix, ERRORS M558 SC-3, same mechanism): the Screener decides once per output how far back a value reads (its history class), at the default settings. Bollinger Bands (I27), %B (I28) and Band Width (I29), released, are classed "window" (they read only the last N bars) at the default SMA basis; at basis EMA or RMA they read the whole history. A screen with those settings then marks the cell "Distorted" only when a price break is inside the last N bars, not when it is further back, though the EMA still carries it. Options: (a) one class per output and setting (the generator probes each basis; the remark rule reads the class of the setting in use), (b) leave it, the influence of an old break on an EMA band fades. Agent's recommendation: (a). | 2026-11-25 with context (end-of-phase report) | the cell marks of I27-I29 at EMA/RMA basis | before EXEC-PRICE-DISTORTION reaches the live site, or the user's choice to leave it |
+  | UD53 | EXEC-RECHECK-LIST (RECHECK.md): (1) three of the four round-2 parts of ERRORS M558 (C-6, S-6, V1-7) have had the two re-check rounds rule 8 allows; a third round is the user's call; (2) after every deploy `python3 scripts/recheck_doc.py --sites` must run (rule 8 says it; rule 9 and INDICATOR_BETA_TO_LIVE.md do not yet); (3) should builds (not fixes) enter the ledger (the step-8 ledger held step 7's build; `cb688250`'s session pill and legend contrast are not in it). | 2026-11-25 with context (end-of-phase report) | the next re-check's scope; the deploy steps' wording | the next re-check the user approves |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -16756,7 +16760,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | All seven lab indicators at once (ERRORS M558 P-1, L-2) | about 2x a drag's cost and 3-10x a crosshair move with all seven on at 4x CPU throttle (offline, software raster); the legend rows and two extra panes carry it | the lab-indicator builder | re-measured on a real device before any of them leaves lab |
   | DOM tests of the category pick (ERRORS M558 SC-4) | the model-level page tests cover the pick (tests/fixture/coded.ts); the add-condition window, builder and the Backtest window's DOM are not driven by a test | the lab-indicator builder | before the lab indicators leave lab |
   | The phone's legend rows (ERRORS M558 V2-5) | with several overlays on, the legend rows cover the price pane of a phone (main clips the same) | the Terminal's owner | before the lab indicators leave lab |
-  | The round 2 close of ERRORS M558, tested out by its author only | one category in both look-ahead gates (a planted leak caught), `syncMetric` in the Customize panel, the shared used colours, the label boxes' x and y ratios | a re-check the user approves (AGENTS.md rule 8, model and effort the user's) | the user's approval |
+  | The round 2 close of ERRORS M558, tested out by its author only | one category in both look-ahead gates (a planted leak caught), `syncMetric` in the Customize panel, the shared used colours, the label boxes' x and y ratios: four rows `waiting` in `RECHECK.md` (`wf_c2fe2424-bf4/screener:recheck2/NEW-1`, `wf_c2fe2424-bf4/screener:recheck2/NEW-2`, `wf_c2fe2424-bf4/terminal:S-6`, `wf_c2fe2424-bf4/terminal:NEW-1`; three of them after two re-check rounds) | a re-check the user approves, taking its items from RECHECK.md (AGENTS.md rule 8, model and effort the user's) | the user's approval |
 
 - **The round's close (2026-11-22, the user's go):** the full edge-bff suite 1214 passed after ERRORS M539 and M547 were
   fixed; CI green; the beta (`e594bba8`) and the live site (`306c1190`) on `ec739a06`, the workers with it
@@ -16878,13 +16882,19 @@ Order of the services (CONTRACT 17, rollback floors):
     (anyone reading the code can see them); only its use and its place in the menus are held to the admin. A secret
     formula stays `lab` (beta only).
 
-- **The step-8 ledger (UD23's answer):** `verification/records/step8_ledger.json` (workflow `wf_877859a9-d28`, 2026-11-22):
-  376 rows: 111 fixed and tested out, 168 fixed and not tested out, 23 open with an owner row, 65 open without one, 4
-  accepted by the user, 5 obsolete; its critic names the findings with no row yet (the unverified lows of the live
-  checker before the switch-on, A2's ATK-4, CW-3, CW-4, A2C-2 to A2C-4, 3e's TL-3 to TL-4, SHELL-3, SHELL-4, 3E-CW-2,
-  3E-CW-3, about 20 NC items of the open-items sweep), contradictions between rows and register rows without a ledger
-  row. Owner: step 8. Trigger: the start of step 8, which first adds the missing rows and settles the contradictions,
-  then tests out every fixed_not_tested_out row and gives every open row an owner or an answer.
+- **The step-8 ledger (UD23's answer):** built by workflow `wf_877859a9-d28` (2026-11-22) with 376 rows, 46 added after
+  it (the fixes and builds of 2026-11-22/23, the check of steps 2-3); on 2026-11-24 its 422 rows moved, keys kept, into
+  `verification/records/recheck_ledger.json`, the re-check ledger of every execution (EXEC-RECHECK-LIST), and
+  `RECHECK.md` lists the ones waiting. This execution's rows there (`execution` EXEC-MU-ACCOUNTS): 212 `waiting` (fixed,
+  not tested out by another agent), 111 `fixed` (tested out), 90 `open` (25 with an owner row, 65 without), 4
+  `accepted` by the user, 5 `obsolete`. `verification/records/step8_ledger.json` keeps the build's notes, its groups and
+  its critic, which names the findings with no row yet (the unverified lows of the live checker before the switch-on,
+  A2's ATK-4, CW-3, CW-4, A2C-2 to A2C-4, 3e's TL-3 to TL-4, SHELL-3, SHELL-4, 3E-CW-2, 3E-CW-3, about 20 NC items of
+  the open-items sweep), contradictions between rows and register rows without a ledger row. Owner: step 8. Trigger:
+  the start of step 8, which first adds the missing rows to the re-check ledger and settles the contradictions, then
+  tests out every `waiting` row of this execution (RECHECK.md; a re-check, so only with the user's explicit approval,
+  the model and effort the user's, AGENTS.md rule 8) and gives every `open` row an owner or an answer; its results
+  update the ledger.
 
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
@@ -17379,6 +17389,17 @@ dengan konfirmasi user per deploy.
     minggu, bulanan tidak pernah selesai dengan data sejak 2018-01-02). Akibat yang sudah dijelaskan ke user: di chart
     Bulanan garis KAMA tidak tampil sama sekali, di Mingguan baru tampil sejak 2023/2024; kecocokan dengan Excel user
     (KAMA 658/658 baris BBCA, 915/915 BBRI) tetap. Detail terbuka: batas 0,5% (nilai desain, diusulkan agen).
+  - Eksekusi UD33 opsi B (go user 2026-11-24 "Untuk 2-5 bisa go"; commit `b6d28f69`, di branch sesi `3f05a220`, belum
+    di-deploy): `terminal/src/calc/settle.ts` (aturan settle, kosong di build publik) dan `SETTLE.alpha_kama` di modul
+    lab. Terminal menghitung KAMA dua kali per chart dan parameter (semua bar, dan tanpa 50 bar pertama; 12 di Bulanan)
+    lalu menggambar garis KAMA, warnanya, dan tanda ENTER LONG/SHORT hanya sejak bar di mana keduanya sama dalam 0,5%
+    close untuk seterusnya. Sebelum itu garis, tanda dan nilai legend kosong, dengan catatan legend "Needs N weeks of
+    history to settle (M so far)" / "Needs more months of history to settle (107 so far)". EMA X tetap digambar. Angka
+    formula, registry, Screener dan Backtest tidak berubah; engine version kedua worker bergeser (calc/ dan lab/
+    di-hash). Terukur di data harness: BBRI harian bar 238 (2018-12-27), BBCA 270 (2019-02-14); mingguan BBRI 318
+    (2024-03-01), BBCA 283 (2023-06-27); bulanan tidak tampil; BBRI 15m bar 278, 1h bar 296. INDICATOR_BETA_TO_LIVE.md
+    Part A langkah 3 dan Part B langkah 2: baris SETTLE ikut pindah saat rilis. Uji: Terminal vitest 1165/1165, look
+    check PASS (build publik). Diuji penulisnya saja (aturan 8). Detail terbuka tetap: batas 0,5%.
   - Deploy beta 2026-11-23 (konfirmasi user "Deploy"): backtest-worker `3f87892d` (CLI upload `c91e2809`, gerbang
     look-ahead hijau), lalu `main` `37e6be83` → `c91e2809`: edge-bff `abd9f587` dan screener-worker `071c2415` SUCCESS.
     Dicek di beta sebagai owner (katalog I54-I60, tujuh screen, preview Backtest I60, Terminal enam indikator lab dan
@@ -17535,6 +17556,30 @@ persetujuan merencanakan bukan perintah eksekusi). Pilihan (a) atau (b) masih te
   bila rilis indikator tidak pernah membawa perubahan core.
 - **Pemicu:** jawaban user atas UD29; dibutuhkan sebelum rilis indikator berikutnya ke live (Part B) atau perubahan core
   Backtest berikutnya.
+- **Dibangun 2026-11-24 (`3609d50c`; di branch sesi `0c2d14d7`):** `scripts/screener/check_backtest_untouched.mjs` mode
+  `--record-release --exec <bagian> --decision "<kata user>" --date <YYYY-MM-DD> --ids I54,... --note "<apa>"` menulis
+  `scripts/screener/backtest_release_record.json`: hash isi dua path rumus ALWAYS (`calc/indicators.ts`,
+  `indRegistry.json`; Feature 04 dan updater Stockbit tetap tidak bisa disetujui catatan apa pun), id yang dirilis (I..
+  atau FL..), bagian EXEC, kata-kata user dan tanggalnya, versi. `check` menerima perbedaan path rumus hanya bila hash-nya
+  sama dan perbedaannya hanya pada id yang disebut: baris registry id lain tidak ditambah, diubah atau dihapus; rumus
+  `calc/indicators.ts` id lain tidak ditambah atau hilang dan dihitung sama dengan rumus `main` (seri tetap 400 bar, nilai
+  bawaan dan tiap setting digeser sendiri). Ditolak: id yang tidak ada di registry, kata user/tanggal/bagian EXEC/id
+  kosong, id ganda, Feature 04 berubah, tidak ada yang dirilis. Bila core dan worker sama dengan `main` (rumus lab atau
+  entri Flow saja), catatan rilis juga memegang versi. Urutan: rilis, core, worker. Catatan dan cek yang ada tidak
+  berubah.
+- **Uji:** `node --test scripts/screener/check_backtest_untouched.test.mjs` 9/9 (4 baru; keenam tes lama gagal semua sejak
+  modul lab masuk loader, daftar salinan kini dari `SOURCES` worker); `scripts/tests/test_generated_files.py` 6/6; uji
+  mutasi (perbandingan rumus dimatikan) gagal seperti seharusnya.
+- **Panduan:** INDICATOR_BETA_TO_LIVE.md Part A (tiga perintah berurutan), Part B langkah 2, lab Flow langkah 7 (`--ids
+  FL..`; baseline worker tidak pernah meloloskannya) dan Part C "From preview to released" (tanpa catatan).
+- **Catatan (`60651af6`; di branch sesi `99adf57d`)** terhadap `main` sebelum rilis (`5a722475`), dengan kata-kata user
+  2026-11-23 dari EXEC-PINE-INDICATORS: rilis I54-I60 (formula_tree `a73c10d3…`), core M554/M555 (core_tree `205a29ea…`,
+  menggantikan catatan EXEC-BACKTEST-REVAMP), worker (worker_tree `f6b4726b…`, menggantikan baseline EXEC-MU-ACCOUNTS).
+  `npm run tripwire` OK terhadap `5a722475`, `e4e3583e` dan `origin/main` pada commit agen; engine_version
+  `6ed4c80f76fcbd09`, registry_version `2a69cd7d3f01ceaf`.
+- **Belum:** diuji penulisnya saja (aturan 8; baris di `RECHECK.md`); tripwire masih di luar CI; tidak ada deploy; file ini
+  tidak dibaca service mana pun. Core Screener dan lab berubah lagi di branch (EXEC-PRICE-DISTORTION, UD36, UD33 B):
+  catatan core dibuat sesudah bagian Backtest F3 selesai, dengan kata-kata user "Untuk 2-5 bisa go".
 - **Keputusan user 2026-11-24:** "UD29: ok with opsi A". Pilihan (a) dicatat: alat tripwire menerima rilis indikator
   yang tercatat di EXEC (mode `--record-release` dengan id indikator dan kata-kata user, berisi hash isi `ALWAYS`), lalu
   catatan core dan worker bisa dibuat seperti biasa; langkah Part A dan B panduan menyebut perintahnya. Eksekusi
@@ -17642,6 +17687,26 @@ basis (status `terms`, `pending`, `unresolved`) atau anomali harga.
 | F7 | Live (UD47): `live` dipindah ke commit beta yang sama di hari yang sama, dengan konfirmasi dan daftar semua yang ikut pindah (R8) | - | live SUCCESS, cek yang sama di live |
 | F8 | Uji ulang perbaikan (aturan 8) hanya bila user menyetujui dan memilih model serta tingkat berpikir | - | - |
 
+**Pelaksanaan (2026-11-24/25, branch `claude/keen-turing-56vw7y`, belum di-deploy):**
+- F0 dan perubahan tempat (bukti, bukan selera): EXPLAIN (ANALYZE, BUFFERS) cek 1 di dev atas seluruh tabel harga harian
+  4,5 detik dan sekitar 93 ribu buffer (sekitar 740 MB baca, cache Postgres ikut naik). Karena itu cek 1 dan cek 2
+  dijalankan oleh pembaca dari harga yang sudah ada di memorinya (snapshot Screener, Backtest), dengan satu aturan
+  bersama `apps/edge-bff/screener/src/core/pricecheck.ts`; publisher hanya memakai kembaran Python-nya
+  (`price_check_side`) untuk kolom `price` blok basis (Telegram, Backtest). Kolom `price`/`effect`/blok `anomalies` di
+  berkas `actions` (F1) tidak dibuat; status basis lot untuk tanda sel Flow (D-5, R1) tetap dari publisher.
+- Langkah 1 (`4799ee94`): `pricecheck.ts` (cek 1: 35 %, tick Rp1 saham Rp10 ke bawah, sesi ex aksi tercatat dinilai cek
+  2; cek 2: lompatan close di tanggal ex lawan faktor aksi, faktor rights dari close sesi ex), uji kasus nyata (VKTR,
+  AHAP, BUVA, FORU, PBSA, PSSI, WGSH); publisher `price_check_side` menggantikan median 15 sesi: VKTR, AHAP, BUVA kini
+  `adjusted` (ERRORS M560).
+- Langkah 2 (`e9fc3ab6`, F2 sebagian): badge baris Screener dari aturan itu (`distortionRemarks`: raw = "unadjusted" di
+  tanggal berapa pun, small/tak terukur sejak 2026-09-12 = "uncertain", anomali 35 % = "anomaly"); kedua chip mati
+  bawaan (contract, validate, universe, universe-ui, 26 preset, `app/screener.py`); teks per jenis. Uji: Screener 1370,
+  screener-worker 146/149 (dua tes heap gagal juga di commit dasar, batas memori mesin ini; satu tes antrean lolos bila
+  dijalankan sendiri).
+- F2b (`e926355d`, agen): UD36 selesai, lihat register UD36; pertanyaan turunan UD52 (Bollinger basis EMA/RMA).
+- Belum: D-1 (badge baris hanya bila sel melewati patahan atau patahan di bar terakhir), D-5 (tanda sel Flow, status
+  basis lot di berkas `actions`), F3 Backtest, F4 migrasi screen tersimpan, F5 dokumen, F6-F7 deploy (konfirmasi user).
+
 **Rollback:** worker dan halaman: revert commit di `main`, `live` kembali ke commit sebelumnya (EXEC.md opsi A); F4:
 kembalikan universe dari tabel cadangan; publisher: run manual dengan versi sebelumnya.
 
@@ -17684,7 +17749,7 @@ Kata-kata user 2026-11-24: "kayaknya perlu ada dibuatkan MD untuk menampung item
 belum di recheck apakah perbaikannya tidak ada collateral damage dll). Re-check.MD? Recheck MD perlu dimention juga di
 AGENTS MD dan harus di update, jadi AI bisa refer ke recheck MD untuk cek item yang sudah diperbaiki tapi perbaikannya
 belum di QA, atau untuk retest apakah masalahnya actually solve? WDYT?", lalu "UD39 ok - masukan EXEC" (dibaca: opsi A,
-saran agen, dengan cek collateral damage). Dicatat, belum dieksekusi.
+saran agen, dengan cek collateral damage). Dibangun 2026-11-24 di `203e5ada` (branch; di branch sesi `6f9e6446`).
 
 - **Keadaan sekarang:** daftarnya tersebar. `verification/records/step8_ledger.json` (workflow `wf_877859a9-d28`, 422
   baris, 212 `fixed_not_tested_out`) hanya untuk EXEC-MU-ACCOUNTS langkah 8 dan tidak disebut di AGENTS.md; bagian
@@ -17704,7 +17769,14 @@ saran agen, dengan cek collateral damage). Dicatat, belum dieksekusi.
      yang disentuh perbaikan, halaman dan worker yang memakainya); hasilnya memperbarui ledger di tugas yang sama.
   5. EXEC-MU-ACCOUNTS langkah 8 dan baris "Carried open parts" M558 menunjuk ke RECHECK.md.
 - **Cakupan:** catatan dan tes saja; tidak ada service yang berubah. Masuk `main` dengan konfirmasi user (section "Deploys").
-- **Pemicu:** go user.
+- **Dibangun 2026-11-24:** `verification/records/recheck_ledger.json` (427 baris: 217 `waiting`, 111 `fixed`, 90 `open`,
+  4 `accepted`, 5 `obsolete`; 422 baris step-8 dipindah dengan kuncinya, `step8_ledger.json` kini penunjuk), `RECHECK.md`
+  (ditulis `scripts/recheck_doc.py --write`; `--check`, `--sites` untuk tempat berjalan dari `deployed_commits.json`),
+  tes `scripts/tests/test_recheck_doc.py` (`generated_file`) dan `test_recheck_ledger.py` (penjaga; ikut
+  `.github/workflows/records-status.yml`), AGENTS.md aturan 8 satu paragraf tambahan. Masuk `main` dengan konfirmasi user.
+- **Terbuka (ditanyakan ke user):** (1) tiga dari empat bagian ronde 2 M558 sudah dua ronde uji ulang (batas aturan 8):
+  ronde ketiga keputusan user; (2) sesudah setiap deploy `recheck_doc.py --sites` perlu dijalankan (aturan 8 menyebutnya,
+  aturan 9 dan INDICATOR_BETA_TO_LIVE.md belum); (3) apakah build (bukan perbaikan) ikut ledger.
 
 ## EXEC-TERMINAL-SESSION-TOGGLE — tombol garis awal sesi, lag ganti timeframe, kontras legend indikator (go user 2026-11-24 "Ok GO")
 
