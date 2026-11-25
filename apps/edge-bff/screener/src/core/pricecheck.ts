@@ -43,6 +43,11 @@ export function termsFactor(type: string, old: number | null, nw: number | null,
   return pos(before) ? before / after : null;
 }
 
+/** Whether an action's factor can show in a session's move (re-check 2026-11-25, finding A): a rights issue priced
+    above the market (factor below 1) moves no price, raw or adjusted, since nobody takes it up; every other factor can.
+    The publisher's twin returns no side for it (price_check_side). */
+export const measurable = (type: string, factor: number | null): boolean => !(type === 'RIGHT_ISSUE' && factor !== null && factor < 1);
+
 /** Check 2 on one action from the closes either side of its ex-date and its factor. */
 export function verdictOf(before: number | null, onEx: number | null, factor: number | null): { verdict: Verdict; jump: number | null } {
   if (!pos(factor)) return { verdict: 'unknown', jump: null };
@@ -68,6 +73,8 @@ export function checkActions(dates: readonly string[], closes: ArrayLike<number 
     const i = firstOnOrAfter(dates, a.ex);
     const before = i > 0 ? closes[i - 1] ?? null : null, onEx = i < dates.length ? closes[i] ?? null : null;
     const factor = termsFactor(a.type, a.ratio_old, a.ratio_new, onEx as number | null, a.exercise ?? null);
+    // a rights issue above the market cannot be told (no factor, so no size is named for it)
+    if (!measurable(a.type, factor)) { out.push({ ex: a.ex, type: a.type, factor: null, verdict: 'small', jump: null }); continue }
     const v = verdictOf(before as number | null, onEx as number | null, factor);
     out.push({ ex: a.ex, type: a.type, factor, ...v });
   }

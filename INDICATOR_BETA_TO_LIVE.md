@@ -181,8 +181,10 @@ section, in this order (each is refused until the one before it is made), and th
    each setting moved);
 2. `npm run tripwire -- --record-core --exec <section> --decision "<words>" --date <YYYY-MM-DD> --note "<what>"`
    (the regenerated `backtest-registry.json` and `compare-lag.json`, a core change of the release);
-3. `npm run tripwire -- --record --exec <section> --decision "<words>" --note "<what>"`, only when
-   `apps/backtest-worker` changed (a case of the look-ahead gate);
+3. `npm run tripwire -- --record --exec <section> --decision "<words>" --note "<what>"`, whenever
+   `apps/backtest-worker` differs from `main` on the branch, by this release or by an earlier change not yet on `main`
+   (a case of the look-ahead gate): the worker record holds the engine version, which the release's formulas move
+   (re-check 2026-11-25: "only when it changed" read as "only when this release changed it");
 
 then `npm run tripwire` passes.
 

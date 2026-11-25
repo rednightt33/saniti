@@ -24,7 +24,7 @@
 import type { BacktestRequest, ExitPhase, ExitReason, Limits, SkippedSignal, SignalTrack } from './contract.ts';
 import type { BasisAction, CorporateAction, PriceSeries, BrokerColumns } from './datafile.ts';
 import { unknownBasis } from './datafile.ts';
-import { capAnomalies, verdictOf } from '../../../screener/src/core/pricecheck.ts';
+import { capAnomalies, measurable, verdictOf } from '../../../screener/src/core/pricecheck.ts';
 import type { FlowData } from './flow.ts';
 import type { Ledger, LedgerTrade } from './ledger.ts';
 import type { Num, Params } from '../../../terminal/src/calc/indicators.ts';
@@ -97,7 +97,7 @@ export function priceDistortions(d: TickerData): PriceDistortion[] {
     seen.add(`${a.type}|${a.date}`);
     const i = barOf(a.date), b = d.basis?.find(x => x.ex === a.date && x.type === a.type);
     let side = b?.price ?? null;
-    if (side === null && b && typeof b.terms === 'number') {
+    if (side === null && b && typeof b.terms === 'number' && measurable(a.type, b.terms)) {
       const v = verdictOf(i > 0 ? C[i - 1] ?? null : null, C[i] ?? null, b.terms).verdict;
       side = v === 'raw' ? 'raw' : v === 'adjusted' ? 'adjusted' : null;
     }

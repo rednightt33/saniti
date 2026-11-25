@@ -222,6 +222,10 @@ class FakeConn:
         if sql == pub.BASIS_ACTIONS_SQL:
             t, types = params
             return sorted((ex, typ, o, n, px) for tk, ex, typ, o, n, px, *_ in self.actions if tk == t and typ in types)
+        if sql == pub.BASIS_SIDES_SQL:                      # the closes either side of an ex date (re-check C)
+            t, ex = params[0], params[1]
+            rows = sorted((x[1], x[5]) for x in self.prices if x[0] == t)
+            return [(next((c for d, c in reversed(rows) if d < ex), None), next((c for d, c in rows if d >= ex), None))]
         if sql == pub.BASIS_DAYS_SQL:
             t, lo, hi = params
             bars, agg = {r[1]: r for r in self.prices if r[0] == t}, {}
@@ -3091,7 +3095,7 @@ def test_the_actions_file_carries_the_events_files_basis_status_and_follows_it()
     # is decided once): no basis statement, the same file
     c = len(conn.calls)
     pub.Publisher(conn, bucket, today=TODAY).run('packs')
-    assert not any(s in (pub.BASIS_ACTIONS_SQL, pub.BASIS_DAYS_SQL) for s, _ in conn.calls[c:])
+    assert not any(s in (pub.BASIS_ACTIONS_SQL, pub.BASIS_DAYS_SQL, pub.BASIS_SIDES_SQL) for s, _ in conn.calls[c:])
     assert xsection(bucket, 'actions')[0] == xsection(other, 'actions')[0]
     conn.brokers = [r[:5] + (r[5] / 1.5 if r[1] < '2026-02-02' else r[5], r[6] / 1.5 if r[1] < '2026-02-02' else r[6]) + r[7:] for r in conn.brokers]
     pub.Publisher(conn, bucket, today=TODAY).run('broker-range', '2026-01-01', '2026-02-28', {'BBCA'})

@@ -206,7 +206,10 @@ EVENT_COLUMNS = ['d', 'role', 'family', 'type', 'action', 'holder', 'holder_role
                  'title', 'detail']
 # EXEC-TERMINAL-T7-T10 T9: bumping the events format re-stamps every ticker, so the next run republishes all files
 # (3: EXEC-BACKTEST-REVAMP P9, the basis block)
-EVENTS_FORMAT = 3
+# (4: EXEC-PRICE-DISTORTION, re-check 2026-11-25: the basis `price` side by price_check_side from the closes either side
+# of the ex date, so every events file is measured again and republished with it, the older actions included; a
+# large update, AGENTS.md "Postgres memory after large updates")
+EVENTS_FORMAT = 4
 EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(ingestion_time)::text '
                     'FROM public.idx_event_annotation GROUP BY ticker')
 
@@ -249,6 +252,12 @@ BASIS_ACTIONS_SQL = ('SELECT coalesce(ex_date, annotation_date)::text, event_typ
                      'amount_per_share::float8, ex_date IS NULL FROM public.idx_event_annotation WHERE ticker = %s '
                      "AND event_family = 'CORPORATE_ACTION' AND event_type = ANY(%s) "
                      'ORDER BY coalesce(ex_date, annotation_date), event_key')
+# EXEC-PRICE-DISTORTION (re-check 2026-11-25, finding C): the published closes either side of an ex date, however far
+# apart (a suspension), as the Screener's pricecheck.ts reads them: the last final daily close before it and the first on
+# or after it (two primary-key walks)
+BASIS_SIDES_SQL = ('SELECT (SELECT close::float8 FROM public."Price_Stock_Indonesia_IDX" WHERE ticker = %s AND timeframe = \'Daily\' '
+                   'AND is_final AND date < %s ORDER BY date DESC LIMIT 1), (SELECT close::float8 FROM public."Price_Stock_Indonesia_IDX" '
+                   'WHERE ticker = %s AND timeframe = \'Daily\' AND is_final AND date >= %s ORDER BY date LIMIT 1)')
 BASIS_DAYS_SQL = ('SELECT b.trade_date::text, ((sum(b.buy_value) + sum(b.sell_value)) / '
                   'nullif(100 * (sum(b.buy_lots) + sum(b.sell_lots)), 0))::float8, p.high::float8, p.low::float8, p.close::float8 '
                   'FROM public."Feature_05_Foreign_Domestic_Broker_Detail" b JOIN public."Price_Stock_Indonesia_IDX" p '
@@ -308,11 +317,15 @@ def price_check_side(typ, old, new, exercise, before, on_ex):
     num = lambda x: isinstance(x, (int, float)) and math.isfinite(x) and x > 0
     if f is None or abs(f - 1) < BASIS_PRICE_MIN or not (num(before) and num(on_ex)):
         return None
+    # a rights issue priced above the market (factor below 1) moves no price, raw or adjusted: nobody takes it up, so the
+    # session tells nothing (re-check 2026-11-25, finding A: read as adjusted, its factor was carried to the older actions)
+    if typ == 'RIGHT_ISSUE' and f < 1:
+        return None
     jump = before / on_ex
     return 'raw' if abs(math.log(jump) - math.log(f)) < abs(math.log(jump)) else 'adjusted'
 
 
-def broker_basis(actions, days, through):
+def broker_basis(actions, days, through, sides=None):
     """The basis rows (BASIS_COLUMNS) of a ticker's price actions [(ex, type, old, new, price[, no_ex])] (no_ex: the
     action has no ex date and `ex` is its annotation date: unresolved, not measured) from its sessions
     [(date, vwap, high, low, close)] around them; `through` is the last broker date. An action after `through` has no
@@ -350,7 +363,11 @@ def broker_basis(actions, days, through):
                 status = 'same'
         # EXEC-PRICE-DISTORTION (ERRORS M560, user 2026-11-24): the close's side from the sessions either side of the ex
         # date, from the ex date on (the 15-session medians read a later fall as the action: VKTR, AHAP, BUVA)
-        if pre and post:
+        # the closes either side from the price table when given (`sides`: ex -> (before, on ex), BASIS_SIDES_SQL; the
+        # sessions the Screener reads, a suspension included), else the broker-joined sessions of the window
+        if sides is not None and ex in sides:
+            side = price_check_side(typ, old, new, price, *sides[ex])
+        elif pre and post:
             side = price_check_side(typ, old, new, price, pre[-1][2], post[0][2])
         factor = terms if status == 'terms' else 1.0
         # the price factor of this action, for the older ones' scale
@@ -952,9 +969,12 @@ def action_basis_column(rows, first, through, basis_of):
     return out
 
 
-def action_basis_problems(doc):
+def action_basis_problems(doc, events_basis=None):
     """verify's check of the `basis` column of an `actions` file (an older file without it has none to check): one value
-    per row, each None or a status of ACTION_BASIS_STATUSES, None on every row that is not a price action."""
+    per row, each None or a status of ACTION_BASIS_STATUSES, None on every row that is not a price action; with
+    `events_basis` (ticker -> the basis rows its published events file holds, [ex, type, factor, status, ...]) every value
+    is also the status action_basis_column takes from them (re-check 2026-11-25, finding V: a wrong but valid status, terms
+    read as same, removed the Screener's marks unseen)."""
     if ACTION_BASIS_COLUMN not in doc.get('columns', []):
         return []
     b, types = doc.get(ACTION_BASIS_COLUMN), doc.get('type', [])
@@ -962,7 +982,28 @@ def action_basis_problems(doc):
         return ['the basis column does not hold one value per row']
     bad = [k for k, (x, typ) in enumerate(zip(b, types))
            if x is not None and (x not in ACTION_BASIS_STATUSES or typ not in PRICE_ACTION_TYPES)]
-    return [f'basis of row {k + 1} is {b[k]!r} for a {types[k]}' for k in bad[:5]]
+    out = [f'basis of row {k + 1} is {b[k]!r} for a {types[k]}' for k in bad[:5]]
+    if events_basis is not None:
+        for k, (t, d, typ, x) in enumerate(zip(doc.get('t', []), doc.get('d', []), types, b)):
+            if x is None:
+                continue
+            found = {r[3] for r in events_basis(t) if r[0] == d and r[1] == typ}
+            want = next((s for s in ACTION_BASIS_STATUSES if s in found), None)
+            if want != x:
+                out.append(f'basis of row {k + 1} ({t} {d} {typ}) is {x!r}, its events file says {want!r}')
+                if len(out) >= 10:
+                    break
+    return out
+
+
+def events_basis_rows(bucket, ticker):
+    """The basis rows the ticker's published events file holds ([ex, type, factor, status]; [] without a file or a block)."""
+    m = bucket.get_json(f'manifest/{ticker}.json') or {}
+    key = m.get('datasets', {}).get('events', {}).get('files', {}).get('all', {}).get('key')
+    b = ((key and bucket.get_json(key[len(PREFIX) + 1:])) or {}).get('basis')
+    if not (isinstance(b, dict) and all(isinstance(b.get(c), list) for c in ('ex', 'type', 'factor', 'status'))):
+        return []
+    return [list(r) for r in zip(b['ex'], b['type'], b['factor'], b['status'])]
 
 
 def xsection_actions_doc(rows, basis=None):
@@ -2457,7 +2498,9 @@ class Publisher:
                     lo, hi = (d - dt.timedelta(days=BASIS_WINDOW_DAYS)).isoformat(), (d + dt.timedelta(days=BASIS_WINDOW_DAYS)).isoformat()
                     for row in self.conn.execute(BASIS_DAYS_SQL, (ticker, lo, hi)).fetchall():
                         days[row[0]] = row
-            self.basis_cache[ticker] = broker_basis(actions, [days[d] for d in sorted(days)], self.basis_through)
+            sides = {ex: tuple(self.conn.execute(BASIS_SIDES_SQL, (ticker, ex, ticker, ex)).fetchone())
+                     for ex, *_ in actions if self.basis_through and ex <= self.basis_through}
+            self.basis_cache[ticker] = broker_basis(actions, [days[d] for d in sorted(days)], self.basis_through, sides)
         return self.basis_cache[ticker]
 
     def changed_events(self, kind, force=False, prices=(), only=None):
@@ -2794,7 +2837,7 @@ def verify_xsection(conn, bucket, kind, pack_sha):
             rows, _ = read_actions(conn, kind, state['price_first_year'])
             if columnar(rows, ACTION_COLUMNS) != {c: doc[c] for c in ACTION_COLUMNS}:
                 problems.append('the rows differ from SQL')
-            problems += action_basis_problems(doc)                 # EXEC-PRICE-DISTORTION D-5
+            problems += action_basis_problems(doc, lambda t: events_basis_rows(bucket, t))   # EXEC-PRICE-DISTORTION D-5
         elif BROKER_DAY_NAME.fullmatch(name):
             problems += broker_day_problems(conn, name, doc, stocks)
         if problems:
