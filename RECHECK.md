@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 222 item
+## Menunggu uji ulang: 223 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -42,6 +42,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Terminal: Alpha KAMA dari titik settle (ERRORS M558 V2-1, B-3, N-2; UD33 B) | EXEC-PINE-INDICATORS | 1 | 0 | 0 | 1 | 0 | 0 |
 | Screener dan Backtest: harga terdistorsi (ERRORS M559-M562) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
 | Backtest: grid sensitivitas kondisi ya/tidak (ERRORS M558 B-2, UD35) | EXEC-SENSITIVITY-FLAGS | 1 | 0 | 0 | 1 | 0 | 0 |
+| Screener: tanda sel Flow dan badge baris saat harga terdistorsi (ERRORS M561, D-1, D-5) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
 
 3 item sudah dua ronde diuji ulang. Aturan 8 membolehkan paling banyak dua ronde, lalu sisanya masuk
 register keputusan; uji berikutnya hanya dengan keputusan user:
@@ -362,11 +363,17 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 |---|---|---|---|---|---|
 | `errors/M558-B-2` | The sensitivity grid moved a fixed 0.5 threshold on a yes/no condition | `185c0dd5` | branch | M558 | 0 |
 
+### Screener: tanda sel Flow dan badge baris saat harga terdistorsi (ERRORS M561, D-1, D-5) (1)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `errors/M561-D5` | Flow cells were never marked across a corporate action or a price break; old price breaks kept a row badge forever | `61def35d` | branch | M561 | 0 |
+
 ## Hitungan per status
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 222 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 223 |
 | `fixed` | diuji ulang agen lain: beres | 111 |
 | `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 0 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
@@ -374,7 +381,7 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 | `open` | belum diperbaiki | 90 |
 | `accepted` | diterima user apa adanya | 4 |
 | `obsolete` | tidak berlaku lagi | 5 |
-| **Total** | | **432** |
+| **Total** | | **433** |
 
 Dari 90 baris `open`, 25 punya baris pemilik di PLAN.md atau EXEC.md dan 65 belum
 (aturan 1: setiap bagian yang terbuka butuh pemilik dan pemicu).

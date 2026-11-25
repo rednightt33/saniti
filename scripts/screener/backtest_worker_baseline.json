@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "about": "The approved state of apps/backtest-worker for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a worker that differs from origin/main only while its content hash is worker_tree and the versions are these. Recorded with --record and changed only by a deliberate commit (EXEC-MU-RUNTIME).",
-  "base_commit": "5a7224750c8ec7aa7553c4f357936c0a176cfbb2",
-  "recorded_on": "3609d50c67aafd7e3fa6149a37d745bd4950226c",
-  "recorded_at": "2026-11-24",
-  "engine_version": "6ed4c80f76fcbd09",
-  "base_engine_version": "83f48778aac56395",
+  "base_commit": "6dee649d1844b02028967a841e97044fc3e6aafe",
+  "recorded_on": "61def35db2556c9e943e32ee9bde4aec934ee407",
+  "recorded_at": "2026-11-25",
+  "engine_version": "55bc5975f9f55934",
+  "base_engine_version": "6ed4c80f76fcbd09",
   "registry_version": "2a69cd7d3f01ceaf",
-  "worker_tree": "f6b4726beeb9030656fdae1d44cf9d8f2a019c29865d5acfb91fef03a6f65504",
+  "worker_tree": "f1561cca49526323a07d2057524100dfd475db71f4d79af258ca0927d4fb0a66",
   "worker_files": 69,
   "exec": {
-    "section": "EXEC-PINE-INDICATORS",
-    "decision": "User 2026-11-23 (verbatim in EXEC-PINE-INDICATORS): \"Ok\" (the implementation plan, F3: \"kasus gerbang look-ahead\"; the pilot, then the six others per group), \"Lanjutkan indikator lainnya dulu baru push yo main all at once ya\", \"All at once. Then jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading time, dll dengan 10 agent subsonnet high. Bereskan temuan. Deploy.\" (2026-11-23)"
+    "section": "EXEC-PRICE-DISTORTION",
+    "decision": "\"Deploy ke beta oke. Untuk 2-5 bisa go.\" (2026-11-24; butir 2 EXEC-PRICE-DISTORTION bersama EXEC-SENSITIVITY-FLAGS dalam satu rilis core Backtest, butir 5 Alpha KAMA opsi B); \"value harus tetap ditampilkan as is dengan badge\"; \"UD41 A\"; \"C ok - masukan EXEC\" (UD35, EXEC-SENSITIVITY-FLAGS)"
   },
-  "note": "The worker test changes of the EXEC-PINE-INDICATORS release, on main since c91e2809, recorded after the fact against main before it (5a722475) after its release and core records (EXEC-TRIPWIRE-LAB, ERRORS M553; the user 2026-11-24: \"UD29: ok with opsi A\", \"Untuk 2-5 bisa go\"): tests/engine.test.ts (ERRORS M554: the price lines are the probe price levels; I55 ib, I56 break_a and I09 direction refused UNKNOWN_OUTPUT), tests/lookahead.test.ts and tests/grammar.test.ts (the category transforms in_categories and category_change in the look-ahead gate and the grammar parity, on I58 color_state). No worker source (src/) changed."
+  "note": "backtest-worker: basis.ts basisDistorted marks instead of emptying, grammar.ts noteDistorted and noteReach, pit/series.ts notes; with EXEC-SENSITIVITY-FLAGS run.ts the grid's per-column check (grid_accepts); tests moved to the new rule (engine, flow-grammar, pit, look-ahead Stage C2, run, result)"
 }

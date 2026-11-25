@@ -232,7 +232,7 @@ Live facts every onboarding meets (FACT unless marked):
   (ERRORS M238, OPEN): a cell's `bars_ago` counts the ticker's own bars and `market_sessions_ago` the IHSG calendar, so
   the two differ there.
 - Prices are stored as received: back-adjusted for splits before 2026-09-12, raw after it (`ADJUSTED_HISTORY_BOUNDARY`,
-  `apps/edge-bff/backtest/src/core/engine.ts:165`; ERRORS D22, OPEN). Eight tickers had a price-affecting action between
+  `apps/edge-bff/backtest/src/core/engine.ts:211`; ERRORS D22, OPEN). Eight tickers had a price-affecting action between
   that date and 2026-10-27 (live L6, report 6.12; the local end-to-end found the same 8 price-break rows).
 - Broker data trails prices until a new Stockbit token starts a round (ERRORS M243).
 - The DIRE funds XCID, XCIS and XSPI are typed `stock/common` with sector `Undefined` (ERRORS D30, OPEN; Part A A1.4).
@@ -838,7 +838,7 @@ Other parity and oracle checks every change must keep green (BRANCH):
 
 | Version | What it hashes | Changes when | Where it shows |
 |---|---|---|---|
-| `price_data` | `dataVersion` (`datafile.ts:369`) over (ticker, `price`, pack sha256) of every ticker of the price file (`snapshot.ts:278`) | a publication changes any price | every answer `versions`; `data_version` pinning |
+| `price_data` | `dataVersion` (`datafile.ts:375`) over (ticker, `price`, pack sha256) of every ticker of the price file (`snapshot.ts:278`) | a publication changes any price | every answer `versions`; `data_version` pinning |
 | `flow_data` | sha256 over the sorted `name:sha256` of the loaded broker day files (EXEC-SCREENER-FLOW-CANDLES P4, BRANCH; `snapshot.ts:283`; null when none) | a broker day loads, changes or leaves the window | every answer; result cache key |
 | `registry` | `registry_version` of `backtest-registry.json`, passed through | `indRegistry.json` or `indicators.ts` changes (a registry release) | every answer; saved items |
 | `screener_registry` | sha256 of the generated `screener-registry.json` without the field (`apps/edge-bff/screener/src/core/registry.ts:79`) | the overlay, the base, the generator or a probe result changes | every answer; saved items |
@@ -1380,7 +1380,7 @@ date and market cap have no source (APPENDIX C.8); market cap has its own plan, 
 The user (2026-10-27): "nanti indikator di backtesting bisa kita tambahkan apabila ternyata indikator di screener ini
 lebih banyak". FACT: the Backtest accepts three condition kinds (`apps/edge-bff/backtest/src/core/contract.ts:52`,
 `Condition = IndicatorCondition | PriceActionCondition | FlowCondition`), flow types `fnet`, `broker`, `top5`
-(`FLOW`, `conditions.ts:252-256`), and within-N windows of 1 to 20 bars (`WINDOW_BARS`, `conditions.ts:321`).
+(`FLOW`, `conditions.ts:259-263`), and within-N windows of 1 to 20 bars (`WINDOW_BARS`, `conditions.ts:328`).
 
 To make a screener-only metric transferable:
 
@@ -1631,7 +1631,7 @@ can differ; the cell's `eval_date` says which value was used). FACT behind the r
   `periods` reused.
 
 **L5 worker (PROPOSED).** The file in the worker's file list (optional), its decoder, staleness check, alignment to
-IHSG's calendar with `asOf` (`datafile.ts:357`, the function the Backtest uses for IHSG), the series' data version
+IHSG's calendar with `asOf` (`datafile.ts:363`, the function the Backtest uses for IHSG), the series' data version
 beside `price_data` and in `sid`. Tests: a holiday on one calendar only, a value published after the cut time, a stale
 series, the gate failing.
 

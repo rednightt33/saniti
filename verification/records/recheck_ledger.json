@@ -11026,6 +11026,31 @@
    "tested_out_by": "none",
    "evidence": "ERRORS M558 UD35 part: 'tested by its author only'",
    "from": "fix"
+  },
+  {
+   "key": "errors/M561-D5",
+   "execution": "EXEC-PRICE-DISTORTION",
+   "area": "Screener: tanda sel Flow dan badge baris saat harga terdistorsi (ERRORS M561, D-1, D-5)",
+   "run": "",
+   "finding_id": "M561-D5",
+   "title": "Flow cells were never marked across a corporate action or a price break; old price breaks kept a row badge forever",
+   "finding": "ERRORS M561 symptom (the user, 2026-11-24): \"Tadi ada saham yang meskipun price distort, kita hide kan untuk screener. Dan untuk backtest ada lagi ternyata nilai indikator flow yang di hide karena price detected as distort ... Ini aneh dan ini salah.\" The concept: \"value harus tetap ditampilkan as is dengan badge\"; asked \"untuk mereka yang tertangkap, maka akan tetap di show seluruhnya, tapi dengan badge, berikut juga untuk cell flownya?\" (yes). Verified from code before the fix: the Screener's flow cells are neither rescaled nor marked across an action (apps/edge-bff/screener/src/core/evaluate.ts:196-199 at 43897a5e); EXEC.md review R1 (the Screener reads no events file, so the lot basis must travel in the actions file), R2 (a worker must stay right with an older actions file) and R5 (an old break such as BSWD 2022 would badge its row forever: D-1).",
+   "errors": [
+    "M561"
+   ],
+   "fix_commits": [
+    "61def35d"
+   ],
+   "fix_note": "61def35d (agent commit a4c8a6aa) (publisher.py action_basis_column and published_basis; build-screener-registry.mjs basisReads, registry rebuilt; condition.ts cellOf, flowStart, bindWindow; evaluate.ts crossedDates, cellRemarkOf; screen.ts shownRemarks; universe.ts flowBasisDates; screener-worker snapshot.ts flowBasis, run.ts flowBasisDates, catalog.ts; texts.ts cellRemarkText)",
+   "runs_on": "branch",
+   "author_test": "screener: tsc, vitest 1394 pass (tests/core/flow-basis.test.ts 19: the probe on the real entries and a planted self-test, rupiah not marked, lots across terms marked, same not, old file marks, a window test, D-1, the words; oracle.test.ts compares remark_dates on 240 random screens), registry:check current; screener-worker 148/150 (the two heap tests of this machine fail, as on the base commit; tests/flow.test.ts \"EXEC-PRICE-DISTORTION D-5\" end to end through the fake terminal with and without the basis column; onboarding pointers 2/2); publisher pytest 265 (action_basis_column, the actions file equals the events file's status, packs mode reads the events file and runs no basis SQL); look-ahead gate 10/10, pit, flow-grammar, grammar 21/21; test_generated_files, test_recheck_ledger, test_recheck_doc",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce on real data (a beta snapshot or the fixtures): a Flow cell of a lots output (FL03 window 20, FL17 against the close) whose sessions cross an action with basis terms, pending or unresolved carries FLOW_BASIS_IN_LOOKBACK naming the date; across a `same` action it does not; a rupiah or transaction output (FL25, FL02, fnet) never; a close-reading one (FL39, FL20, FL45, FL28) carries PRICE_BREAK_IN_LOOKBACK across a row price break; an actions file without the column marks every action in the window; the values, pass and fail are unchanged; a run row keeps an old PRICE_BREAK badge only when a cell crossed it or it is on the last bar, GET /universe keeps every remark. Check the probe: plant a dependence in a made-up entry, and look for an output the probe calls rupiah-only that reads lots at some parameters (the probe varies one parameter at a time around its anchors, whole-number parameters raised by 4). Collateral: the publisher actions file and its verify, the events basis decisions (broker_basis unchanged), the Telegram basis report, the Backtest grammar (it reads conditionSignal, not the cells) and its look-ahead gate, the Screener page tooltips and CSV, the catalog flow block (outputs key and kind only), the counts route, the screener-worker refresh with an old actions file.",
+   "tested_out_by": "none",
+   "evidence": "the fix commit a4c8a6aa and its tests (author_test); EXEC.md EXEC-PRICE-DISTORTION D-1, D-5, R1, R2, R5; ERRORS M561",
+   "from": "fix"
   }
  ]
 }

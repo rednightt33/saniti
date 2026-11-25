@@ -8939,7 +8939,7 @@ in its staleness check.
 - **Status:** marked by `4799ee94`, `e9fc3ab6` and `db7bf27e`, on the branch, not deployed; tested by its author only
   (RECHECK.md `errors/M559-M562`). The source bar stays wrong (UD45 A).
 
-### M561 — A detected price distortion hides values (Screener rows, Backtest Flow values) instead of marking them (2026-11-24; fixed in `e9fc3ab6` and `db7bf27e` on the branch, the Screener Flow cell marks open)
+### M561 — A detected price distortion hides values (Screener rows, Backtest Flow values) instead of marking them (2026-11-24; fixed in `e9fc3ab6`, `db7bf27e` and `61def35d`, on the branch)
 
 - **Symptom (the user, 2026-11-24):** "Tadi ada saham yang meskipun price distort, kita hide kan untuk screener. Dan untuk
   backtest ada lagi ternyata nilai indikator flow yang di hide karena price detected as distort ... Ini aneh dan ini
@@ -8969,12 +8969,15 @@ in its staleness check.
   columns whatever the publisher's later decision (the look-ahead gate's Stage C2 case), so no value on day t reads a
   decision made after t. Saved screens: migration `20261125_001` (UD46 B, written and rehearsed, not applied: the go is
   asked at execution).
-- **Open parts:** the Screener's Flow cells across an action whose lots are not one basis (D-5, with the publisher's
-  `basis` column) and the row badge only where a cell crosses the break (D-1): in progress (EXEC-PRICE-DISTORTION,
-  "Pelaksanaan"); a whole-history output crosses every old break, so its cells and trades are marked for any earlier
-  break (EXEC-PRICE-DISTORTION open part, with UD52).
-- **Status:** fixed in `e9fc3ab6` and `db7bf27e`, on the branch, not deployed; tested by its author only (RECHECK.md
-  `errors/M559-M562`); the parts above open.
+- **The Screener's Flow cells (D-5) and the row badge (D-1), `61def35d`:** the publisher's `actions` file carries each
+  window action's broker lot status (`basis`); the registry generator derives which Flow outputs read the lots or the
+  close (`reads`, a probe, never a list); a Flow cell is marked `FLOW_BASIS_IN_LOOKBACK` across an action whose lots are
+  not one basis, `PRICE_BREAK_IN_LOOKBACK` across a price break when it reads the close, with `remark_dates`; a run row
+  keeps a price-break badge only where a cell crossed it or on the last bar.
+- **Open part:** a whole-history output crosses every old break, so its cells, its row badge and the Backtest trades
+  are marked for any earlier break (EXEC-PRICE-DISTORTION open part, asked as UD55, with UD52).
+- **Status:** fixed in `e9fc3ab6`, `db7bf27e` and `61def35d`, on the branch, not deployed; tested by its authors only
+  (RECHECK.md `errors/M559-M562`, `errors/M561-D5`); the part above asked.
 - **Lesson:** a quality flag marks a value; hiding it is a separate choice the user makes explicitly, per reader.
 
 ### M560 — The publisher reads three stocks pulled again as "close not reloaded" (broker basis `price`) (2026-11-24; fixed in `4799ee94`, on the branch)

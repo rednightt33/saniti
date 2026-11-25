@@ -16741,6 +16741,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD52 | EXEC-PRICE-DISTORTION F2b (UD36's fix, ERRORS M558 SC-3, same mechanism): the Screener decides once per output how far back a value reads (its history class), at the default settings. Bollinger Bands (I27), %B (I28) and Band Width (I29), released, are classed "window" (they read only the last N bars) at the default SMA basis; at basis EMA or RMA they read the whole history. A screen with those settings then marks the cell "Distorted" only when a price break is inside the last N bars, not when it is further back, though the EMA still carries it. Options: (a) one class per output and setting (the generator probes each basis; the remark rule reads the class of the setting in use), (b) leave it, the influence of an old break on an EMA band fades. Agent's recommendation: (a). | 2026-11-25 with context (end-of-phase report) | the cell marks of I27-I29 at EMA/RMA basis | before EXEC-PRICE-DISTORTION reaches the live site, or the user's choice to leave it |
   | UD53 | EXEC-RECHECK-LIST (RECHECK.md): (1) three of the four round-2 parts of ERRORS M558 (C-6, S-6, V1-7) have had the two re-check rounds rule 8 allows; a third round is the user's call; (2) after every deploy `python3 scripts/recheck_doc.py --sites` must run (rule 8 says it; rule 9 and INDICATOR_BETA_TO_LIVE.md do not yet); (3) should builds (not fixes) enter the ledger (the step-8 ledger held step 7's build; `cb688250`'s session pill and legend contrast are not in it). | 2026-11-25 with context (end-of-phase report) | the next re-check's scope; the deploy steps' wording | the next re-check the user approves |
   | UD54 | EXEC-SENSITIVITY-FLAGS (built on the branch, `185c0dd5`): three details the agent applied as proposed: (1) "way A": the X axis goes to the first condition in order that has a setting, a later yes/no condition with a setting included (Inside Bar then Supertrend: Supertrend's ATR length); (2) a whole-number setting under 5 steps by at least 1 (Top N 3 gives 1-5, not 2, 2, 3, 4, 4); (3) FL09's Top N is read only with scope "Top-N": with scope "selected" its five columns are the same. Keep, or change? | 2026-11-25 with context (end-of-phase report) | the grid of yes/no strategies | before the release to the live site |
+  | UD55 | EXEC-PRICE-DISTORTION open part: a value that reads its whole history (RSI, EMA, MACD and 16 lab outputs after UD36) is marked "Distorted" for every price break before it, however old (BSWD's 2022 split badges every BSWD row with an RSI cell and flags every later BSWD trade with an RSI condition), although such an old break no longer moves the value. Options: (a) an effective window per output, measured by the generator (the bars after which cutting the start changes the value by less than a tolerance, e.g. 0.1 % of its size), used for the cell mark, the row badge (D-1) and the Backtest trade flag; the tolerance is your choice; (b) keep marking every earlier break. Agent's recommendation: (a) at 0.1 %. | 2026-11-25 with context (end-of-phase report) | noise in the badges of stocks with an old break | before EXEC-PRICE-DISTORTION reaches the live site, or the user's choice to leave it |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17734,13 +17735,32 @@ basis (status `terms`, `pending`, `unresolved`) atau anomali harga.
   `pgweb` tidak punya akses ke `edge_bff.screener_items`, jadi jumlah screen nyata belum terbaca. **Belum dijalankan:**
   APPLY menunggu go user (data user).
 - F5: CONTRACT.md, BACKTEST_END_TO_END.md, UPDATE_TABLE.md bagian C, ERRORS M559-M562.
-- Sedang dikerjakan agen: D-1 (badge baris hanya bila sel melewati patahan atau patahan di bar terakhir) dan D-5 (tanda
-  sel Flow Screener; kolom `basis` di berkas `actions` publisher; probe di generator registry yang menurunkan output Flow
-  mana yang membaca lot atau close).
+- D-1 dan D-5 (`a4c8a6aa` agen; di branch sesi `61def35d`, belum di-deploy): berkas `actions` publisher mendapat
+  kolom tambahan `basis`: status basis lot broker aksi harga yang tanggal ex-nya di jendela broker Screener, null di
+  tempat lain (`action_basis_column`, `published_basis`: ukuran run ini, lalu blok basis berkas events yang sudah
+  terbit, lalu `basis_of`). Di dev tidak menambah SQL pada run harian (11 aksi di jendela 2026-08-14 s.d. 2026-11-09,
+  semuanya sudah diukur). Generator registry menurunkan `reads`, `reads_from`, `reads_probe` tiap output Flow
+  (`basisReads`, probe di `probeContext`): membaca lot FL01, 03, 05-09, 13-19, 23, 32, 38, 40, 42-44, 46; lot dan close
+  FL20, 39, 45; close dan volume FL28; rupiah atau jumlah transaksi saja (tidak ditandai) FL02, 04, 10-12, 21, 22,
+  24-26, 29, 30, 33-37, 41, 47, 48, fnet; FL27 dan FL31 tidak bisa ditentukan, dibaca sebagai membaca semuanya. Sel
+  Flow mendapat `FLOW_BASIS_IN_LOOKBACK` bila outputnya membaca lot dan jendelanya melewati aksi yang lot-nya belum satu
+  basis (terms, pending, unresolved, atau berkas tanpa kolom: R2), dan `PRICE_BREAK_IN_LOOKBACK` bila membaca close atau
+  volume dan jendelanya melewati patahan harga baris; tanggalnya di `remark_dates`. Baris run dan pratinjau hanya
+  menyimpan badge PRICE_BREAK bila ada sel yang melewatinya atau tanggalnya bar terakhir (D-1); `GET /universe` dan chip
+  tetap membaca semuanya. Uji: Screener 1394, screener-worker 147/150 sesudah digabung (dua tes heap mesin ini, satu
+  pointer dokumen dibetulkan), publisher 265, gerbang look-ahead 10/10. Diuji pembuatnya saja (RECHECK
+  `errors/M561-D5`). Detail agen yang boleh diubah user: setelan probe (lot ×2 dan ×0,5, close ×0,5, volume ×2,
+  toleransi relatif 1e-9), cakupan probe (satu opsi digeser sekali), penandaan berlebih sel Flow satu sesi di dalam tes
+  jendela.
+- Tripwire (sesudah semua di atas digabung): catatan core dan worker dengan kata-kata user 2026-11-24 dibuat
+  (`scripts/screener/backtest_core_baseline.json`, `backtest_worker_baseline.json`, bagian EXEC-PRICE-DISTORTION, mencakup
+  EXEC-SENSITIVITY-FLAGS); `npm run tripwire` OK terhadap `origin/main` `6dee649d`.
 - Bagian terbuka (aturan 7, diajukan): output "seluruh riwayat" (EMA, RSI, dan 16 output lab sesudah UD36) melewati
-  setiap patahan lama, jadi sel Screener dan trade Backtest ditandai untuk patahan bertahun-tahun sebelumnya. Usulan:
-  jendela efektif per output dari probe jangkauan UD36 (sesudah berapa bar awal data tidak lagi berpengaruh dalam
-  toleransi), dipakai aturan lookback Screener dan `Calc.reach`. Bersama UD52.
+  setiap patahan lama, jadi sel Screener dan trade Backtest ditandai untuk patahan bertahun-tahun sebelumnya, dan D-1
+  hanya menolong output berjendela (BSWD 2022 tetap memberi badge baris dengan sel RSI). Usulan: jendela efektif per
+  output dari probe jangkauan UD36 (sesudah berapa bar potongan awal data mengubah nilainya kurang dari toleransi,
+  misalnya 1e-3 dari besarnya), dipakai aturan lookback Screener, D-1 dan `Calc.reach`. Toleransinya nilai desain user:
+  ditanyakan sebagai UD55. Pemilik: eksekusi ini; pemicu: jawaban UD55.
 - Belum: F6-F7 deploy (konfirmasi user), run publisher manual, restart Postgres bila perlu, cek data nyata look-ahead
   (`verification/backtest/lookahead/README.md`) sebelum rilis.
 

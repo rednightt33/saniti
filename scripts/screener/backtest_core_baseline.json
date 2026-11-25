@@ -1,18 +1,18 @@
 {
   "schema": 1,
   "about": "The approved state of apps/edge-bff/backtest/src/core for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a core that differs from origin/main only while its content hash is core_tree (and, while the worker is the base's, the versions are these). Recorded with --record-core and changed only by a deliberate commit (EXEC-SCREENER-FLOW-CANDLES, K2 A).",
-  "base_commit": "5a7224750c8ec7aa7553c4f357936c0a176cfbb2",
-  "recorded_on": "3609d50c67aafd7e3fa6149a37d745bd4950226c",
-  "recorded_at": "2026-11-24",
-  "engine_version": "6ed4c80f76fcbd09",
-  "base_engine_version": "83f48778aac56395",
+  "base_commit": "6dee649d1844b02028967a841e97044fc3e6aafe",
+  "recorded_on": "61def35db2556c9e943e32ee9bde4aec934ee407",
+  "recorded_at": "2026-11-25",
+  "engine_version": "55bc5975f9f55934",
+  "base_engine_version": "6ed4c80f76fcbd09",
   "registry_version": "2a69cd7d3f01ceaf",
-  "core_tree": "205a29ead2a45130be3e31980907790f007dd7be571d3daca13b5fc056effa5f",
+  "core_tree": "d2c384e982f9bf81ba600bf86f15e31b3a730d07bf6890de20a63023a5f70aa6",
   "core_files": 18,
   "exec": {
-    "section": "EXEC-PINE-INDICATORS",
-    "decision": "User 2026-11-23 (verbatim in EXEC-PINE-INDICATORS): \"Ok\" (the implementation plan, F3: the Screener and the Backtest, the registry generators, \"catatan tripwire\"; the pilot, then the six others per group), \"Lanjutkan indikator lainnya dulu baru push yo main all at once ya\", \"All at once. Then jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading time, dll dengan 10 agent subsonnet high. Bereskan temuan. Deploy.\"",
-    "date": "2026-11-23"
+    "section": "EXEC-PRICE-DISTORTION",
+    "decision": "\"Deploy ke beta oke. Untuk 2-5 bisa go.\" (2026-11-24; butir 2 EXEC-PRICE-DISTORTION bersama EXEC-SENSITIVITY-FLAGS dalam satu rilis core Backtest, butir 5 Alpha KAMA opsi B); \"value harus tetap ditampilkan as is dengan badge\"; \"UD41 A\"; \"C ok - masukan EXEC\" (UD35, EXEC-SENSITIVITY-FLAGS)",
+    "date": "2026-11-24"
   },
-  "note": "The core changes of the EXEC-PINE-INDICATORS release, on main since c91e2809, recorded after the fact against main before it (5a722475) after its release record (EXEC-TRIPWIRE-LAB, ERRORS M553; the user 2026-11-24: \"UD29: ok with opsi A\", \"Untuk 2-5 bisa go\"): ERRORS M554 (afcf2841, ce188bbb): engine.ts LEVEL_LINES and lineOf offer and accept only the probe price levels, priceLevels.ts reads them, compare-lag.json schema 2 with price_levels; ERRORS M555 (7f193584): the Screener generator judges a unit on the decayed half of the probe, so compare-lag.json price_levels holds I58 kama and ema_x; backtest-registry.json and compare-lag.json regenerated with the lab rows I54-I60."
+  "note": "Backtest core: Flow values used as computed and marked (FlowNotes.distorted), trade flags.distortions and PRICE_DISTORTIONS (engine.ts priceDistortions, tradeDistortions, the Screener's pricecheck.ts), the basis block's terms read (datafile.ts), Calc.reach; with EXEC-SENSITIVITY-FLAGS the grid's setting axis for a yes/no condition (robustness.ts codedSide); engine_version also moves with the Screener core (D-1, D-5, UD36) and the lab module (UD33 B settle)"
 }
