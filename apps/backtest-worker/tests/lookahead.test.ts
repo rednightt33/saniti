@@ -14,13 +14,14 @@ import * as TF from '../../edge-bff/terminal/src/calc/flow.ts';
 import FLOW_REG from '../../edge-bff/terminal/src/data/flowRegistry.json' with { type: 'json' };
 import { REGISTRY, ValidationError, resolveParams } from '../../edge-bff/backtest/src/core/registry.ts';
 import { Calc, FLOW, PRICE_ACTION, conditionSeries, flowCondition, priceActionCondition } from '../../edge-bff/backtest/src/core/conditions.ts';
-import { CANDLE_IDS, candleSignal } from '../../edge-bff/backtest/src/core/candles.ts';
+import { CANDLE_IDS, candlePattern, candleSignal } from '../../edge-bff/backtest/src/core/candles.ts';
 import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import { prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import { IMPLEMENTED_PATTERNS, IMPLEMENTED_TRANSFORMS, resolveSignal } from '../../edge-bff/screener/src/core/transforms.ts';
 import { resolveSeries, tickerCalc } from '../../edge-bff/screener/src/core/metrics.ts';
 import { SCREENER_REGISTRY } from '../../edge-bff/screener/src/core/registry.ts';
 import { brokerColumns, head, market, type Row, type Ticker } from './lookahead/fixture.ts';
+import { changeBars, cutsFor } from '../../edge-bff/screener/tests/core/cuts.ts';
 import { installBacktestGrammar, seriesOfRef } from '../src/grammar.ts';
 import { onPriceBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
 import type { BasisAction } from '../../edge-bff/backtest/src/core/datafile.ts';
@@ -31,11 +32,31 @@ const TERMINAL_HINDSIGHT = ['FL18', 'FL19', 'FL20', 'FL23', 'FL44', 'FL45', 'FL5
 
 type Out = Record<string, unknown> | null;
 const num = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? v : null;
-/** The first difference on days up to each cut between `run(N)` and `run(cut + 1)`; null when none. */
-function leak(runAt: (n: number) => Out, cuts = CUTS, total = N): string | null {
+/** Which outputs of a check changed after its first cut in one of its cases (re-check of 2026-11-25, recheck2/NEW-1:
+    a read of a later bar can show only where a series changes, cuts.ts): a series that changes in none of
+    the cases the gate checks it in is one the gate cannot see a look-ahead in, so each check asserts it has none. */
+class Coverage {
+  seen = new Set<string>(); moved = new Set<string>();
+  note(name: string, full: Out, total: number, cuts: readonly number[]): void {
+    const lo = Math.min(...cuts);
+    for (const [k, s] of Object.entries(full ?? {})) {
+      if (k.startsWith('_') || !s || typeof (s as ArrayLike<unknown>).length !== 'number') continue;
+      this.seen.add(`${name}.${k}`);
+      if (changeBars(s as ArrayLike<unknown>, total).some(j => j >= lo && j <= total - 2)) this.moved.add(`${name}.${k}`);
+    }
+  }
+  /** the outputs seen that never changed after the first cut */
+  missing(): string[] { return [...this.seen].filter(k => !this.moved.has(k)).sort() }
+}
+/** The first difference on days up to each cut between `run(N)` and `run(cut + 1)`; null when none. The cuts are the
+    fixed ones and, per output, bars where the full run's value changes (cuts.ts cutsFor: a read of the next
+    bar shows only there; re-check of 2026-11-25, recheck2/NEW-1). `cover`: the coverage to note the outputs in, and the
+    name to note them under. */
+function leak(runAt: (n: number) => Out, cuts = CUTS, total = N, cover?: [Coverage, string]): string | null {
   const full = runAt(total);
   if (!full) return null;
-  for (const c of cuts) {
+  cover?.[0].note(cover[1], full, total, cuts);
+  for (const c of cutsFor(full, total, cuts)) {
     const part = runAt(c + 1) ?? {};
     for (const k of new Set([...Object.keys(full), ...Object.keys(part)])) {
       if (k.startsWith('_')) continue;
@@ -58,7 +79,7 @@ test('self-test: a centred moving average (it reads the next bars) is caught', (
 });
 
 test('every registry indicator (53 released and any at the lab stage): defaults, short, long and extreme numbers, every option', () => {
-  const leaks: string[] = []; let runs = 0;
+  const leaks: string[] = [], cover = new Coverage(); let runs = 0;
   // every registry indicator has its formula in this process (a lab one through loader/register.mjs): `safely` below
   // reads a refused setting as no series, so a missing formula would pass the gate unseen (lab dry run, 2026-11-23)
   assert.deepEqual(REGISTRY.indicators.filter(r => typeof F[r.key] !== 'function').map(r => r.id), []);
@@ -87,35 +108,91 @@ test('every registry indicator (53 released and any at the lab stage): defaults,
       let params: Record<string, unknown>;
       try { params = resolveParams(r, v) } catch { continue }
       runs++;
-      const l = leak(n => safely(() => F[r.key](bars(A, n), params)));
+      const l = leak(n => safely(() => F[r.key](bars(A, n), params)), CUTS, N, [cover, r.id]);
       if (l) leaks.push(`${r.id} ${JSON.stringify(v)}: ${l}`);
     }
   }
   assert.ok(runs > 200, `${runs} parameter sets`);
   assert.deepEqual(leaks, []);
+  // every output changes in one of its cases, so a read of a later bar in it can show (cuts.ts)
+  assert.deepEqual(cover.missing(), []);
 });
 
 test('the price-action conditions, every operator, and the core flow conditions', () => {
-  const leaks: string[] = [];
-  for (const [type, spec] of Object.entries(PRICE_ACTION)) for (const op of spec.ops) {
+  const leaks: string[] = [], cover = new Coverage();
+  for (const [type, spec] of Object.entries(PRICE_ACTION)) for (const op of spec.ops) for (const t of M.stocks) {
     const cond = { id: 'x', kind: 'price_action', type, op, ...(spec.value ? { value: type === 'dip' ? -0.02 : 1.5 } : {}) } as Parameters<typeof priceActionCondition>[1];
-    const l = leak(n => ({ s: priceActionCondition(new Calc(bars(A, n)), cond) }));
-    if (l) leaks.push(`${type}:${op}: ${l}`);
+    const total = t.dates.length, cuts = CUTS.filter(c => c < total - 1);
+    const l = leak(n => ({ s: priceActionCondition(new Calc(bars(t, n)), cond) }), cuts, total, [cover, `${type}:${op}`]);
+    if (l) leaks.push(`${t.ticker} ${type}:${op}: ${l}`);
   }
   for (const t of M.stocks) for (const type of Object.keys(FLOW)) for (const length of [1, 5, 20]) {
     const cond = { id: 'f', kind: 'flow', type, op: 'gt', params: { length, ...(type === 'broker' ? { broker: 'SQ' } : {}) }, value: 0 } as Parameters<typeof flowCondition>[1];
     const total = t.dates.length, cuts = CUTS.filter(c => c < total - 1);
     const l = leak(n => { const d = t.dates.slice(0, n), rows = M.rows[t.ticker].filter(r => r.d <= d[d.length - 1]);
-      return safely(() => ({ s: flowCondition(new Calc(head(t, n).bars, flowData(rows, d)), cond) })) }, cuts, total);
+      return safely(() => ({ s: flowCondition(new Calc(head(t, n).bars, flowData(rows, d)), cond) })) }, cuts, total, [cover, type]);
     if (l) leaks.push(`${t.ticker} ${type}(${length}): ${l}`);
   }
   assert.deepEqual(leaks, []);
+  assert.deepEqual(cover.missing(), []);
 });
 
-test('the 20 candlestick patterns', () => {
-  const leaks = CANDLE_IDS.map(id => [id, leak(n => ({ s: candleSignal(bars(A, n), id) }))]).filter(([, l]) => l);
+/** A candle pattern's parameter sets: its defaults, each number at its minimum and maximum, each option. */
+function candleVariants(id: string): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = [{}];
+  for (const q of candlePattern(id).params as { key: string; type: string; min?: number; max?: number; options?: string[] }[]) {
+    if (q.type === 'enum') for (const o of q.options ?? []) out.push({ [q.key]: o });
+    else for (const v of [q.min, q.max]) if (typeof v === 'number') out.push({ [q.key]: v });
+  }
+  return out;
+}
+
+test('the 20 candlestick patterns: their defaults, each setting at its limits and options, on every stock', () => {
+  // re-check of 2026-11-25 (recheck2/NEW-1): at their defaults on one stock three patterns never fired, so the gate could
+  // not see a later bar read in them; each pattern now fires in one of its cases (Coverage)
+  const leaks: string[] = [], cover = new Coverage();
+  for (const id of CANDLE_IDS) for (const v of candleVariants(id)) for (const t of M.stocks) {
+    const total = t.dates.length, cuts = CUTS.filter(c => c < total - 1);
+    const l = leak(n => safely(() => ({ s: candleSignal(bars(t, n), id, v) })), cuts, total, [cover, id]);
+    if (l) leaks.push(`${id} ${t.ticker} ${JSON.stringify(v)}: ${l}`);
+  }
   assert.equal(CANDLE_IDS.length, 20);
   assert.deepEqual(leaks, []);
+  assert.deepEqual(cover.missing(), []);
+  assert.equal(cover.seen.size, 20);
+});
+
+test('self-test: a read of the next bar in a sparse series is caught on the cuts derived from it (a category, a category change, every candlestick pattern)', () => {
+  // re-check of 2026-11-25 (wf_c2fe2424-bf4/screener:recheck2/NEW-1): on the four fixed cuts a read of bar i+1 inside
+  // in_categories or category_change passed the gate, and shifting every pattern one bar ahead turned it red for 2 of
+  // 20. Each causal series below is read one bar ahead in the two ways of cuts.ts: clamped to the data (the
+  // last bar reads itself) and shifted (the last bar 0)
+  const clamped = (s: ArrayLike<unknown>) => Array.from(s, (_, i) => s[Math.min(i + 1, s.length - 1)]);
+  const shifted = (s: ArrayLike<unknown>) => Array.from(s, (_, i) => i + 1 < s.length ? s[i + 1] : 0);
+  const cases: [string, Ticker, number[], (n: number) => ArrayLike<unknown>][] = [];
+  // the category transforms on the registry's coded output (one category of several; every change between two)
+  const coded = (() => { for (const ind of SCREENER_REGISTRY.indicators) for (const o of ind.outputs) if ((o as { categories?: unknown[] }).categories?.length) return { ref: { kind: 'indicator', indicator: ind.id, output: o.key }, keys: ((o as { categories: { key: string }[] }).categories).map(c => c.key) }; return null })();
+  assert.ok(coded, 'an output coded in categories');
+  for (const [fn, args] of [['in_categories', { categories: coded!.keys[0] }], ['category_change', { changes: coded!.keys.flatMap(a => coded!.keys.filter(b => b !== a).map(b => `${a}>${b}`)).join(',') }]] as const)
+    cases.push([fn, A, CUTS, n => resolveSeries({ kind: 'transform', fn, of: coded!.ref, args } as never, 'gate', { capBudgetMs: 2000 } as never).full(tickerCalc({ ticker: A.ticker, dates: A.dates.slice(0, n), bars: bars(A, n) })) as ArrayLike<unknown>]);
+  // every pattern on the first case where it fires (its defaults when it does on a stock)
+  for (const id of CANDLE_IDS) {
+    let found = false;
+    for (const v of candleVariants(id)) for (const t of M.stocks) {
+      if (found) break;
+      const s = safely(() => ({ s: candleSignal(bars(t, t.dates.length), id, v) }))?.s as Uint8Array | undefined;
+      if (s && changeBars(s).some(j => j >= CUTS[0] && j <= t.dates.length - 2)) { found = true; cases.push([`${id} ${JSON.stringify(v)} ${t.ticker}`, t, CUTS.filter(c => c < t.dates.length - 1), n => candleSignal(bars(t, n), id, v)]) }
+    }
+    assert.ok(found, `${id} fires in one of its cases`);
+  }
+  const missed: string[] = [];
+  for (const [name, t, cuts, s] of cases) {
+    assert.equal(leak(n => ({ s: s(n) }), cuts, t.dates.length), null, `${name} itself is causal`);
+    for (const [how, plant] of [['clamped', clamped], ['shifted', shifted]] as const)
+      if (!/cut/.test(leak(n => ({ s: plant(s(n)) }), cuts, t.dates.length) ?? '')) missed.push(`${name} read one bar ahead (${how})`);
+  }
+  assert.equal(cases.length, 22);
+  assert.deepEqual(missed, []);
 });
 
 test('the shared grammar: every transform function and every pattern type it implements', () => {
@@ -134,24 +211,35 @@ test('the shared grammar: every transform function and every pattern type it imp
     return (o?.categories ?? []).map(c => c.key) };
   const catArgs = (fn: string): Record<string, unknown> => { const k = catsOf(ofFor[fn]);
     return fn === 'in_categories' ? { categories: k[0] } : { changes: k.flatMap(a => k.filter(b => b !== a).map(b => `${a}>${b}`)).join(',') } };
-  const leaks: string[] = [], ran = new Set<string>();
+  const leaks: string[] = [], ran = new Set<string>(), cover = new Coverage();
   for (const fn of IMPLEMENTED_TRANSFORMS) {
     const ref: Record<string, unknown> = { kind: 'transform', fn, of: ofFor[fn] ?? close,
       args: fn === 'ratio' ? { by: volume } : fn === 'relative' ? { by: open } : fn === 'in_categories' || fn === 'category_change' ? catArgs(fn) : {} };
     const l = leak(n => { const t = tickerCalc({ ticker: A.ticker, dates: A.dates.slice(0, n), bars: bars(A, n) });
-      const r = resolveSeries(ref as never, 'gate', opts(n)); ran.add(fn); return { s: r.full(t) as ArrayLike<unknown> } });
+      const r = resolveSeries(ref as never, 'gate', opts(n)); ran.add(fn); return { s: r.full(t) as ArrayLike<unknown> } }, CUTS, N, [cover, fn]);
     if (l) leaks.push(`${fn}: ${l}`);
   }
+  // each pattern on every stock at its defaults; a candlestick pattern that changes on none (it seldom fires at its
+  // defaults) also at its settings' limits and options until one changes it (Coverage: else the gate cannot see a later
+  // bar read in it, re-check of 2026-11-25)
   for (const type of IMPLEMENTED_PATTERNS) {
-    let ok = true;
-    const l = leak(n => { const t = tickerCalc({ ticker: A.ticker, dates: A.dates.slice(0, n), bars: bars(A, n) });
-      try { return { s: resolveSignal({ kind: 'pattern', type, params: {} } as never, 'gate', opts(n)).full(t) as ArrayLike<unknown> } } catch { ok = false; return null } });
-    if (ok) ran.add(`pattern:${type}`);
-    if (l) leaks.push(`pattern ${type}: ${l}`);
+    const sets = [{}, ...(CANDLE_IDS.includes(type) ? candleVariants(type).slice(1) : [])];
+    for (const params of sets) {
+      if (params !== sets[0] && !cover.missing().includes(`pattern:${type}.s`)) break;
+      for (const tk of M.stocks) {
+        let ok = true;
+        const total = tk.dates.length, cuts = CUTS.filter(c => c < total - 1), ihsg = (n: number) => opts(M.ihsg.dates.indexOf(tk.dates[n - 1]) + 1);
+        const l = leak(n => { const t = tickerCalc({ ticker: tk.ticker, dates: tk.dates.slice(0, n), bars: bars(tk, n) });
+          try { return { s: resolveSignal({ kind: 'pattern', type, params } as never, 'gate', ihsg(n)).full(t) as ArrayLike<unknown> } } catch { ok = false; return null } }, cuts, total, [cover, `pattern:${type}`]);
+        if (ok) ran.add(`pattern:${type}`);
+        if (l) leaks.push(`pattern ${type} ${tk.ticker} ${JSON.stringify(params)}: ${l}`);
+      }
+    }
   }
   assert.deepEqual(IMPLEMENTED_TRANSFORMS.filter(fn => !ran.has(fn)), [], 'a transform function without a gate case');
   assert.ok(IMPLEMENTED_PATTERNS.filter(t => ran.has(`pattern:${t}`)).length >= 20);
   assert.deepEqual(leaks, []);
+  assert.deepEqual(cover.missing(), []);
 });
 
 /** A Flow parameter's numbers to try beside its default: its minimum, three times its default and its maximum, capped at
@@ -163,12 +251,15 @@ function numericVariants(q: { kind: string; default?: unknown; min?: number; max
 }
 
 test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads future data (ERRORS M448)', () => {
+  // insider rows on sessions after the first cut too (FL31 reads them; without any it never changes and the gate could not
+  // see a later read in it: re-check of 2026-11-25, Coverage), each in the data cut at t only when made on or before t
+  const INSIDER = [{ t: 120, value: 5e8 }, { t: 300, value: -2e8 }, { t: 450, value: 1e8 }, { t: 505, value: 3e8 }];
   const ctxAt = (t: Ticker, rows: Row[], n: number): TF.FlowContext => {
     const d = t.dates.slice(0, n), at = new Map(d.map((x, k) => [x, k])), b = head(t, n).bars;
     return { rows: TF.flowRows(rows.filter(r => r.d <= d[d.length - 1]), n, x => at.get(x) ?? -1), dates: d, close: b.C as number[], volume: b.V as number[],
-      insider: [], classification: { AA: 'Institutional-heavy', BK: 'Retail-heavy', SQ: 'Institutional-heavy', YP: 'Retail-heavy', XL: 'Mixed' } };
+      insider: INSIDER.filter(x => x.t < n), classification: { AA: 'Institutional-heavy', BK: 'Retail-heavy', SQ: 'Institutional-heavy', YP: 'Retail-heavy', XL: 'Mixed' } };
   };
-  const leaking = new Set<string>(); let runs = 0;
+  const leaking = new Set<string>(), cover = new Coverage(); let runs = 0;
   for (const r of (FLOW_REG as { indicators: { id: string; params: { key: string; kind: string; options?: unknown[] }[] }[] }).indicators) {
     const variants: Record<string, unknown>[] = [{}];
     for (const q of r.params as { key: string; kind: string; options?: unknown[]; default?: unknown; min?: number; max?: number }[]) {
@@ -180,11 +271,12 @@ test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads 
     }
     for (const v of variants) {
       runs++;
-      if (leak(n => safely(() => TF.computeFlow(r.id, ctxAt(A, M.rows[A.ticker], n), v) as Out))) leaking.add(r.id);
+      if (leak(n => safely(() => TF.computeFlow(r.id, ctxAt(A, M.rows[A.ticker], n), v) as Out), CUTS, N, [cover, r.id])) leaking.add(r.id);
     }
   }
   assert.ok(runs > 400, `${runs} variants`);
   assert.deepEqual([...leaking].sort(), TERMINAL_HINDSIGHT);
+  assert.deepEqual(cover.missing(), []);
 });
 
 test('every Flow indicator of the registry has a formula and computes at its defaults (the gate above never passes a missing one)', () => {
@@ -271,14 +363,32 @@ test('the engine as a whole: the same request on the full data and on the data c
       entry: { logic: 'all', at_least: 1, window_bars: 1, conditions: [test_('ls', { kind: 'state', lhs: close, op: 'gt', rhs: { kind: 'indicator', indicator: 'I01', output: 'sma', params: { length: 200 } } })] } }), true] as [string, Record<string, unknown>, boolean]),
   ];
   const strip = (x: unknown) => JSON.parse(JSON.stringify(x, (k, v) => k === 'duration_ms' ? undefined : v));
-  for (const [name, q, flow] of cases) for (const k of CUTS) {
+  /** The run's events on the whole period as 0/1 series on AAAA's sessions (the calendar's days): the trades' signal,
+      entry and exit days. A read of a later bar by the engine shows on a cut where an event of the run sits (re-check of
+      2026-11-25, recheck2/NEW-1: the cuts are derived from what the run gives, cuts.ts), so the cuts take
+      those days beside the fixed ones. */
+  const at = new Map(A.dates.map((d, i) => [d, i]));
+  const eventDays = (q: Record<string, unknown>, flow: boolean | 'action'): Record<string, Uint8Array> | null => {
+    let L: ReturnType<typeof run>;
+    try { L = run(prepare(marketAt(null, flow) as never), q as never) } catch (e) { if (e instanceof ValidationError) return null; throw e }
+    const out: Record<string, Uint8Array> = { signal: new Uint8Array(N), entry: new Uint8Array(N), exit: new Uint8Array(N) };
+    for (const t of L.trades) for (const [kind, bar] of [['signal', t.signal_bar], ['entry', t.entry_bar], ['exit', t.exit_bar]] as const) {
+      const i = at.get(L.dates[bar]);
+      if (i !== undefined) out[kind][i] = 1;
+    }
+    return out;
+  };
+  let cutsRun = 0;
+  for (const [name, q, flow] of cases) for (const k of cutsFor(eventDays(q, flow), N, CUTS)) {
     const req = { ...q, period: { ...(q.period as object), to: cutDate(k) } } as never;
     // a refusal is part of the outcome: the same on both, with the same code
     const go = (to: string | null) => { try { return strip(run(prepare(marketAt(to, flow) as never), req)) } catch (e) { if (e instanceof ValidationError) return { refused: e.code }; throw e } };
     const a = go(null), b = go(cutDate(k));
     assert.deepEqual(b, a, `${name} cut ${cutDate(k)}`);
     if (k === CUTS[CUTS.length - 1]) assert.ok(a.trades?.length > 0, `${name}: the case trades (${a.trades?.length})`);
+    cutsRun++;
   }
+  assert.ok(cutsRun > cases.length * CUTS.length, `${cutsRun} cuts`);
 });
 
 test('P9: a corporate action: the published world (prices adjusted, lots scaled back by the factor) gives the traded world\'s signals, and no value on day t reads a later day', () => {

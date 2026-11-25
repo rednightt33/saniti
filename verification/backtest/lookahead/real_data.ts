@@ -1,7 +1,8 @@
 /* EXEC-BACKTEST-REVAMP P6.4: the look-ahead gate on real data (the CI gate, apps/backtest-worker/tests/lookahead.test.ts
    and pit.test.ts, runs on synthetic data). A value on day t may use only data up to t: for each ticker exported by
    export.sh (px.json, br.json), every series the Backtest reads is computed on the whole data and on the data cut at a
-   few days t; every value on a day <= t must be equal. Covered: the 53 indicators at their defaults, the price-action
+   few days t and at days where it changes (the CI gate's cuts.ts, re-check of 2026-11-25); every value on a day <= t
+   must be equal. Covered: the 53 indicators at their defaults, the price-action
    types, the 20 candles, a set of grammar tests, the 41 clean Flow indicators at their defaults, and the 8 point-in-time
    indicators (anchor / start 60 sessions after the first broker day). P9: with the publisher's broker basis of the
    ticker (basis.json, verification/backtest/basis/basis_from_export.py) the lots are put on the price basis and the
@@ -21,6 +22,7 @@ import { installBacktestGrammar, seriesOfRef } from '../../../apps/backtest-work
 import { offBasisCount } from '../../../apps/backtest-worker/src/basis.ts';
 import { brokerBasis, onPriceBasis } from '../../../apps/edge-bff/backtest/src/core/datafile.ts';
 import type { BasisAction } from '../../../apps/edge-bff/backtest/src/core/datafile.ts';
+import { changeBars, cutsOf } from '../../../apps/edge-bff/screener/tests/core/cuts.ts';
 
 installBacktestGrammar();
 type Doc = { columns: string[]; rows: unknown[][] };
@@ -63,21 +65,27 @@ function check(dir: string) {
       { ticker: T.ticker, dates: s(T.dates), broker: { columns: onPriceBasis(columns(T.rows.filter(r => r.d <= last)), T.basis), classification: {}, basis: T.basis } });
   };
   const cuts = [0.35, 0.55, 0.75, 0.9].map(f => Math.floor(N * f));
-  const full = cut(N), parts = cuts.map(cut);
+  const full = cut(N), parts = new Map(cuts.map(k => [k, cut(k)]));
   const firstBroker = T.rows.length ? T.rows[0].d : null, i0 = firstBroker ? T.dates.findIndex(d => d >= firstBroker) : -1;
   const anchor = i0 >= 0 ? T.dates[Math.min(N - 1, i0 + 60)] : null;
-  const leaks: string[] = [], refused: string[] = [], groups: Record<string, number> = {};
-  let series = 0, group = '';
+  const leaks: string[] = [], refused: string[] = [], groups: Record<string, number> = {}, unchanged: string[] = [];
+  let series = 0, group = '', derived = 0;
+  // the four fixed cuts and, per series, cuts on bars where it changes (apps/edge-bff/screener/tests/core/cuts.ts, the CI
+  // gate's rule; re-check of 2026-11-25, recheck2/NEW-1: a read of the next bar in a sparse series shows only there);
+  // a derived cut's data is built for its series and not kept (a cut of a long broker history is large)
   const run = (name: string, f: (c: Calc) => ArrayLike<unknown> | null) => {
     let s: ArrayLike<unknown> | null;
     try { s = f(full) } catch (e) { if (e instanceof ValidationError) { refused.push(`${name}: ${e.code}`); return } throw e }
     if (!s) return;
     series++; groups[group] = (groups[group] ?? 0) + 1;
-    cuts.forEach((k, j) => {
+    // a series that never changes after the first cut cannot show a read of a later bar (listed, not a leak)
+    if (!changeBars(s, N).some(j => j >= cuts[0] - 1 && j <= N - 2)) unchanged.push(name);
+    for (const k of cutsOf(s, N, cuts.map(x => x - 1)).map(c => c + 1)) {
+      if (!parts.has(k)) derived++;
       let p: ArrayLike<unknown> | null;
-      try { p = f(parts[j]) } catch (e) { if (e instanceof ValidationError) return; throw e }
+      try { p = f(parts.get(k) ?? cut(k)) } catch (e) { if (e instanceof ValidationError) continue; throw e }
       for (let i = 0; i < k; i++) if (!near(s![i], p?.[i])) { leaks.push(`${name}: ${T.dates[i]} (cut ${T.dates[k - 1]})`); break }
-    });
+    }
   };
   group = 'indicators';
   for (const r of REGISTRY.indicators) for (const o of r.outputs) run(`${r.id}.${o}`, c => c.out(r.key, { ...DEFAULTS[r.key] })[o]);
@@ -105,8 +113,8 @@ function check(dir: string) {
   // P9: the sessions still off the price basis after the factors (their broker-price values stay empty), without them
   const plain = new Calc(T.bars as never, undefined, { ticker: T.ticker, dates: T.dates, broker: { columns: columns(T.rows), classification: {} } });
   const basis = T.basis.map(a => [a.ex, a.type, a.status, a.factor, a.price]);
-  return { ticker: T.ticker, bars: N, from: T.dates[0], to: T.dates[N - 1], broker_rows: T.rows.length, cuts: cuts.map(k => T.dates[k - 1]), anchor,
-    basis, off_basis_sessions: offBasisCount(full), off_basis_sessions_without_factors: offBasisCount(plain), series, groups, leaks, refused };
+  return { ticker: T.ticker, bars: N, from: T.dates[0], to: T.dates[N - 1], broker_rows: T.rows.length, cuts: cuts.map(k => T.dates[k - 1]), derived_cuts: derived, anchor,
+    basis, off_basis_sessions: offBasisCount(full), off_basis_sessions_without_factors: offBasisCount(plain), series, groups, leaks, refused, unchanged };
 }
 
 const report = process.argv.slice(2).map(check);

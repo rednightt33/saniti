@@ -921,6 +921,15 @@ compute from it.
 2026-11-16: 0 leaks, COCO 799 sessions off the price basis without the factors and 0 with them). The gate also runs a
 corporate action: the published world (adjusted prices, lots scaled back by the factor) gives the traded world's signals
 on every bar whose window does not cross the action, and the engine on the data cut at t with the basis kept whole.
+The cuts are derived from the series checked (re-check of 2026-11-25, `wf_c2fe2424-bf4/screener:recheck2/NEW-1`;
+`apps/edge-bff/screener/tests/core/cuts.ts`, shared by the worker's gate files and the Screener's `asof.test.ts`): a
+value on bar i that reads bar i+1 differs on the data cut at c only on bar c, and only where the full series changes
+(a read clamped to the data) or is not the fill (a shifted array), so each output gets cuts on at least 4 of its change
+bars (all when fewer) and on bars of two different values of it, beside the fixed cuts; the engine case adds the days
+of the run's signals, entries and exits. A check also fails when one of its series changes in none of its cases (the
+gate could not see a later read in it): the 20 candlestick patterns run at each setting's limits and options on every
+stock, FL31 reads insider rows, the Screener's gate has a fourth ticker. Self-test: the category transforms and every
+pattern read one bar ahead (clamped and shifted) are caught; on the fixed cuts alone 41 of those 44 passed.
 
 **13.11 Page port (section 10; Tahap D, user 2026-11-15 "1 setuju, 2a", 2026-11-16 "Opsi C").** The 1:1 reference is the
 user's design file (built on a compiled copy of the page; kept outside the repository, `tests/visual/compare.mjs` takes

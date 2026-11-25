@@ -15,6 +15,7 @@ import { headBars, memoryEnv, rowOf, synth } from '../../edge-bff/screener/tests
 import { GRAMMAR_DEFAULTS, checkTest, grammarProblems, installBacktestGrammar } from '../src/grammar.ts';
 import { REPO_ROOT } from '../src/version.ts';
 import { toApiError } from '../src/errors.ts';
+import { cutsOf } from '../../edge-bff/screener/tests/core/cuts.ts';
 
 installBacktestGrammar();
 
@@ -55,7 +56,9 @@ test('every grammar form: the per-bar series equals the Screener on the data cut
   let on = 0, off = 0;
   for (const [name, t] of Object.entries(TESTS)) {
     const s = conditionSeries(calcOf(), cond('a', t), `entry.conditions[0]`);
-    for (const i of days) { assert.equal(!!s[i], screenerPasses(t, i), `${name} on ${A.dates[i]} (bar ${i})`); if (s[i]) on++; else off++ }
+    // the sampled days and days where the series changes (cuts.ts: a read of the next bar shows only where the
+    // series changes; re-check of 2026-11-25, recheck2/NEW-1)
+    for (const i of cutsOf(s, A.dates.length, days)) { assert.equal(!!s[i], screenerPasses(t, i), `${name} on ${A.dates[i]} (bar ${i})`); if (s[i]) on++; else off++ }
     assert.ok(s.reduce((a, b) => a + b, 0) > 0, `${name} is true somewhere (a test that never passes proves nothing)`);
   }
   console.log(`parity: ${on} passing and ${off} failing sampled days`);

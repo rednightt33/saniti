@@ -3,7 +3,14 @@
 The CI gate (`.github/workflows/backtest-lookahead.yml`: `apps/backtest-worker/tests/lookahead.test.ts`, `pit.test.ts`,
 `flow-grammar.test.ts`, `grammar.test.ts`) runs on synthetic data. This folder runs the same rule on dev's data: a value
 on day t may use only data up to t, so every series the Backtest reads is computed on the whole data and on the data
-cut at four days t, and every value on a day up to t must be equal.
+cut at four days t, and every value on a day up to t must be equal. Since the re-check of 2026-11-25
+(`wf_c2fe2424-bf4/screener:recheck2/NEW-1`) each series is also cut on days where it changes, the CI gate's rule
+(`apps/edge-bff/screener/tests/core/cuts.ts`: a read of the next bar in a sparse series, a flag, a candle, a category,
+shows only there); a derived cut's data is built for its series and dropped. The report adds `derived_cuts` (how many
+such cuts were read) and `unchanged` (the series that never change after the first cut on that stock: the check cannot
+see a read of a later bar in them; not a leak). On the gate's synthetic AAAA and BBBB exported this way, with every
+candle shifted one bar ahead: 4 of 20 caught on the four days, 18 with the derived cuts (the other two fire on neither
+at their defaults, `unchanged`).
 
 1. `export.sh TICKER FROM TO OUTDIR`: the ticker's daily prices (`Price_Stock_Indonesia_IDX`, timeframe Daily) and broker
    rows (`IDX_Broker_Summary`, year by year) through the pgweb service's HTTP API (read-only role). `PGWEB_HOST` and

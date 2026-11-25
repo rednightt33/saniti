@@ -970,7 +970,10 @@ The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13; this is where 
     `Sensitivity.x_param` `setting` with `x_label`, or `none` for the stop axis only; the page's column title names
     what is varied).
 - **Cross-cutting (section 11).** Look-ahead is a CI gate (`.github/workflows/backtest-lookahead.yml`, AGENTS.md
-  "Backtest look-ahead gate"). The real-data check is in `verification/backtest/lookahead/`. edge-bff and
+  "Backtest look-ahead gate"). The real-data check is in `verification/backtest/lookahead/`. The gate's cuts are
+  derived from the series it checks (`apps/edge-bff/screener/tests/core/cuts.ts`, both gates; re-check of 2026-11-25:
+  on four fixed cuts a read of the next bar in a sparse series passed), and each check fails when one of its series
+  changes in none of its cases (CONTRACT.md 13.10). edge-bff and
   screener-worker are to deploy only on green checks (K10 a, applied with the deploy after Gate 3; not live yet, M459); the worker, a CLI upload,
   only after a green run on the uploaded commit, its ID recorded (`apps/backtest-worker/README.md`, Deploy).
 - **Stage C review (ERRORS M458).** An independent review found what the gate did not test; fixed on the branch: the

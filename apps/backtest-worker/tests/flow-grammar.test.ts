@@ -15,6 +15,7 @@ import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { FLOWS } from './lookahead/flow-helpers.ts';
 import { FLOW_BY_ID, indicatorDepth } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import { head, market } from './lookahead/fixture.ts';
+import { cutsOf } from '../../edge-bff/screener/tests/core/cuts.ts';
 import type { Row, Ticker } from './lookahead/fixture.ts';
 import { installBacktestGrammar, seriesOfRef } from '../src/grammar.ts';
 
@@ -98,14 +99,16 @@ test('FL34 reads today\'s classification on every date, and no baseline is lower
 });
 
 test('no look-ahead through the grammar: the series on the data cut at t equals the full series up to t', () => {
-  const rows = M.rows[A.ticker], full = calcAt(A, rows, A.dates.length), cuts = [120, 260, 333, 480];
+  // the data cut at bar c (k = c + 1 bars): the fixed cuts and, per series, bars where it changes (cuts.ts: a
+  // read of the next bar shows only there; re-check of 2026-11-25, recheck2/NEW-1)
+  const rows = M.rows[A.ticker], full = calcAt(A, rows, A.dates.length), base = [119, 259, 332, 479], N = A.dates.length;
   const leaks: string[] = [];
   for (const e of FLOWS) for (const v of e.variants) for (const o of e.outputs) {
     let s: ArrayLike<number | null | undefined>;
     const ref = { kind: 'flow', metric: e.id, output: o, params: v };
     try { s = seriesOfRef(full, ref, 'f') } catch (err) { if (err instanceof ValidationError) continue; throw err }
-    for (const k of cuts) {
-      const p = seriesOfRef(calcAt(A, rows, k), ref, 'f');
+    for (const c of cutsOf(s, N, base)) {
+      const k = c + 1, p = seriesOfRef(calcAt(A, rows, k), ref, 'f');
       for (let i = 0; i < k; i++) if ((p[i] ?? null) !== (s[i] ?? null) && !(Number.isNaN(p[i]) && Number.isNaN(s[i]))) { leaks.push(`${e.id}.${o} ${JSON.stringify(v)} at ${i} cut ${k}`); break }
     }
   }

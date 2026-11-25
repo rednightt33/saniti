@@ -14,6 +14,7 @@ import { onPriceBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { head, market } from './lookahead/fixture.ts';
 import type { Row, Ticker } from './lookahead/fixture.ts';
+import { cutsFor, cutsOf } from '../../edge-bff/screener/tests/core/cuts.ts';
 import { installBacktestGrammar, seriesOfRef } from '../src/grammar.ts';
 import { WARM_UP } from '../src/pit/compute.ts';
 import { checkDRef } from '../src/pit/spec.ts';
@@ -64,7 +65,9 @@ test('no look-ahead: every point-in-time indicator, output and option on the dat
   for (const [id, p, outs] of VARIANTS) for (const o of outs) {
     const s = seriesOfRef(full, ref(id, p, o), 'f');
     assert.ok(Array.from(s).some(v => typeof v === 'number'), `${id}.${o} ${JSON.stringify(p)} has values`);
-    for (const k of [140, 260, 351, 470]) {
+    // the data cut at bar c (k = c + 1 bars): the fixed cuts and the bars where the series changes (cuts.ts: a
+    // read of the next bar shows only there; re-check of 2026-11-25, recheck2/NEW-1)
+    for (const k of cutsOf(s, A.dates.length, [139, 259, 350, 469]).map(c => c + 1)) {
       const part = seriesOfRef(calcAt(A, ROWS, k), ref(id, p, o), 'f');
       for (let i = 0; i < k; i++) if (!near(part[i], s[i])) { leaks.push(`${id}.${o} ${JSON.stringify(p)} bar ${i} cut ${k}`); break }
       checked++;
@@ -179,7 +182,10 @@ test('Stage C F1: no look-ahead in the point-in-time conditions themselves (dSig
   ];
   const full = calcAt(A, ROWS, A.dates.length);
   let compared = 0;
-  for (const [name, t] of conds) for (const k of [110, 150, 260, 390, 520]) {
+  // the fixed cuts and the bars where the condition's signal changes (cuts.ts; re-check of 2026-11-25,
+  // recheck2/NEW-1: a read of the next bar in a sparse 0/1 series shows only there)
+  const whole = (t: unknown) => { try { return { s: conditionSeries(full, { id: 'p', kind: 'test', test: t } as never, 'f') } } catch (e) { if (e instanceof ValidationError) return null; throw e } };
+  for (const [name, t] of conds) for (const k of cutsFor(whole(t), A.dates.length, [110, 150, 260, 390, 520])) {
     const cond = { id: 'p', kind: 'test', test: t } as never, cut = calcAt(A, ROWS, k + 1);
     const at = (c: Calc) => { try { return Array.from(conditionSeries(c, cond, 'f', k)) } catch (e) { if (e instanceof ValidationError) return e.code; throw e } };
     const a = at(full), b = at(cut);

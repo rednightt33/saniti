@@ -12,22 +12,32 @@ import { METRICS_CATALOG } from '../../src/core/catalog.ts';
 import { declaredDerivedSeries } from '../../src/core/condition.ts';
 import { resolveSeries, tickerCalc } from '../../src/core/metrics.ts';
 import type { ResolvedSeries, TickerBars } from '../../src/core/metrics.ts';
-import { INDICATORS } from '../../src/core/registry.ts';
+import { INDICATORS, SCREENER_REGISTRY } from '../../src/core/registry.ts';
 import { IMPLEMENTED_PATTERNS, resolveSignal } from '../../src/core/transforms.ts';
 import { OPTS, synth } from './helpers.ts';
+import { changeBars, cutsOf } from './cuts.ts';
 
 const cut = (t: TickerBars, n: number): TickerBars => {
   const c = (a: ArrayLike<unknown>) => Array.from(a).slice(0, n) as any;
   return { ticker: t.ticker, dates: t.dates.slice(0, n), bars: { O: c(t.bars.O), H: c(t.bars.H), L: c(t.bars.L), C: c(t.bars.C), V: c(t.bars.V), T: t.dates.slice(0, n) } };
 };
 const IX = (() => { const t = synth('IHSG', 3, 420); return { ...t, bars: { ...t.bars, V: t.bars.V.map(() => null) } } })();
-const TICKERS = [synth('CAUA', 11, 420), synth('CAUB', 12, 420), (() => { const t = synth('CAUC', 13, 420); return { ...t, bars: { ...t.bars, V: t.bars.V.map((v, i) => i % 17 === 3 ? 0 : v) } } })()];
+// CAUD (re-check of 2026-11-25): Three White Soldiers and Three Black Crows fire on none of the first three at any of
+// their settings' limits, so the gate could not see a later bar read in them; on CAUD both fire at their defaults
+const TICKERS = [synth('CAUA', 11, 420), synth('CAUB', 12, 420), (() => { const t = synth('CAUC', 13, 420); return { ...t, bars: { ...t.bars, V: t.bars.V.map((v, i) => i % 17 === 3 ? 0 : v) } } })(),
+  synth('CAUD', 14, 420)];
 const same = (a: unknown, b: unknown) => (typeof a === 'number' && Number.isFinite(a) ? a : null) === (typeof b === 'number' && Number.isFinite(b) ? b : null);
 
-function causal(r: ResolvedSeries, ctx: { index: TickerBars }): string | null {
+/** The first bar where the series on the first n bars differs from the full one, at each cut: the fixed ones (60, 151,
+    263, 400 bars) and the bars where the full series changes (cuts.ts: a read of the next bar shows only there, re-check
+    of 2026-11-25, recheck2/NEW-1: on the fixed cuts alone 17 of the 20 candlestick patterns shifted one bar ahead
+    passed). `onMove`: called when the series changes after the first cut on a ticker (a series that never does cannot
+    show a read of a later bar). */
+function causal(r: ResolvedSeries, ctx: { index: TickerBars }, onMove?: () => void): string | null {
   for (const t of TICKERS) {
     const full = r.full(tickerCalc(t));
-    for (const n of [60, 151, 263, 400]) {
+    if (onMove && changeBars(full).some(j => j >= 59 && j <= t.dates.length - 2)) onMove();
+    for (const n of cutsOf(full, t.dates.length, [59, 150, 262, 399]).map(c => c + 1)) {
       const part = resolveAgain(r, { ...ctx, index: cut(ctx.index, n) }).full(tickerCalc(cut(t, n)));        // IHSG cut at the same bar
       for (let i = 0; i < n; i++) if (!same(full[i], part[i])) return `${r.label} on ${t.ticker}: bar ${i} is ${full[i]} on the full history and ${part[i]} on the first ${n} bars`;
     }
@@ -43,13 +53,25 @@ describe('every series a condition reads is causal: its value at a bar never rea
     for (const ind of INDICATORS) for (const o of ind.outputs) list.push(resolveSeries({ kind: 'indicator', indicator: ind.id, output: o.key, params: { ...ind.start_params } }, 'x', ctx));
     list.push(...declaredDerivedSeries(ctx));
     expect(list.length).toBeGreaterThan(76);
-    const bad = list.map(r => causal(r, ctx)).filter(Boolean);
+    const moved = new Set<string>(), bad = list.map(r => causal(r, ctx, () => moved.add(r.label))).filter(Boolean);
     expect(bad).toEqual([]);
+    // each changes on one of the tickers, so a read of a later bar in it can show (cuts.ts)
+    expect(list.map(r => r.label).filter(l => !moved.has(l))).toEqual([]);
   });
-  it('every pattern signal at its catalog defaults', () => {
-    const bad: string[] = [];
-    for (const type of IMPLEMENTED_PATTERNS) { const why = causal(resolveSignal({ kind: 'pattern', type }, 'p', OPTS), ctx); if (why) bad.push(why) }
+  it('every pattern signal at its catalog defaults (a candlestick pattern that fires on no ticker there also at its settings\' limits and options)', () => {
+    const bad: string[] = [], moved = new Set<string>();
+    // a candlestick pattern's settings in the generated catalog (screener-registry.json candles): each number at its
+    // minimum and maximum, each option
+    const variants = (type: string): Record<string, unknown>[] => (SCREENER_REGISTRY.candles.find(c => c.id === type)?.params ?? [])
+      .flatMap((q): Record<string, unknown>[] => q.type === 'enum' ? (q.options ?? []).map(o => ({ [q.key]: o })) : [q.min, q.max].filter(v => typeof v === 'number').map(v => ({ [q.key]: v })));
+    for (const type of IMPLEMENTED_PATTERNS) for (const params of [undefined, ...variants(type)]) {
+      if (params && moved.has(type)) break;
+      const why = causal(resolveSignal({ kind: 'pattern', type, ...(params ? { params } : {}) } as never, 'p', OPTS), ctx, () => moved.add(type));
+      if (why) bad.push(why);
+    }
     expect(bad).toEqual([]);
+    // each pattern fires on one of the tickers in one of its cases, so a read of a later bar in it can show (cuts.ts)
+    expect(IMPLEMENTED_PATTERNS.filter(t => !moved.has(t))).toEqual([]);
   });
   it('the transforms of the catalog, IHSG aligned to each ticker\'s dates', () => {
     const close = { kind: 'price', field: 'close' }, vol = { kind: 'price', field: 'volume' }, rsi = { kind: 'indicator', indicator: 'I13', output: 'rsi' }, obv = { kind: 'indicator', indicator: 'I40', output: 'obv' };
@@ -88,8 +110,10 @@ describe('every series a condition reads is causal: its value at a bar never rea
       refs.push({ kind: 'transform', fn: 'in_categories', of: coded!.of, args: { categories: coded!.keys[0] } },
         { kind: 'transform', fn: 'category_change', of: coded!.of, args: { changes: coded!.keys.flatMap(a => coded!.keys.filter(b => b !== a).map(b => `${a}>${b}`)).join(',') } });
       expect(new Set(refs.map(x => x.fn))).toEqual(new Set(METRICS_CATALOG.transforms.map(x => x.fn)));     // every transform of the catalog
-      const bad = refs.map(x => causal(resolveSeries(x as unknown as MetricRef, 'x', ctx), ctx)).filter(Boolean);
+      const moved = new Set<string>(), bad = refs.map(x => causal(resolveSeries(x as unknown as MetricRef, 'x', ctx), ctx, () => moved.add(x.fn as string))).filter(Boolean);
       expect(bad).toEqual([]);
+      // each changes on one of the tickers, so a read of a later bar in it can show (cuts.ts)
+      expect(refs.map(x => x.fn).filter(fn => !moved.has(fn as string))).toEqual([]);
     } finally { if (dirOut && coded?.of.indicator === st?.id) delete dirOut.categories }
   });
 });
