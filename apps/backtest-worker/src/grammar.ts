@@ -34,7 +34,7 @@ import type { ResolvedSeries, TickerBars } from '../../edge-bff/screener/src/cor
 import { FLOW_BY_ID, indicatorDepth, readsFlow, seriesKeyOf } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import type { FlowBindContext, TickerFlow } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import type { FlowParamValue } from '../../edge-bff/screener/src/core/contract.ts';
-import { basisBlocked } from './basis.ts';
+import { basisDistorted } from './basis.ts';
 import FLOW_REGISTRY from '../../edge-bff/terminal/src/data/flowRegistry.json' with { type: 'json' };
 import { checkDTest, dSignal, hasD } from './pit/evaluate.ts';
 import { dSeries, namedWithoutRows } from './pit/series.ts';
@@ -45,6 +45,7 @@ import type { FlowContext, FlowOut } from '../../edge-bff/terminal/src/calc/flow
 import { SOURCES as SCREENER_SOURCES, registryProblems } from '../../edge-bff/screener/src/core/registry.ts';
 import { IMPLEMENTED_PATTERNS, IMPLEMENTED_TRANSFORMS } from '../../edge-bff/screener/src/core/transforms.ts';
 import { availabilityMap, validateTest } from '../../edge-bff/screener/src/core/validate.ts';
+import { lookbackStart, lookbackStartOfWindow } from '../../edge-bff/screener/src/core/evaluate.ts';
 import type { ValidateContext } from '../../edge-bff/screener/src/core/validate.ts';
 
 /** The grammar's limits (the Screener's own dev values: SCREENER_CAP_BUDGET_MS 4500, SCREENER_WITHIN_MAX 130). */
@@ -176,21 +177,23 @@ export function testRefs(test: unknown, field: string): { ref: string; key: stri
 }
 
 /* EXEC-BACKTEST-REVAMP P3 (K3 a, ERRORS M450), P9 (option A, M458 item 2), Stage C2 (user 2026-11-16 "A", M459 items
-   1, 9): a Flow value reads the broker lots on the published prices' basis (datafile.ts onPriceBasis, the factor the
-   publisher measured per corporate action) and is left empty where its window reads a bar whose basis is not settled by
-   the data up to its own bar (basis.ts basisBlocked: a bar whose broker VWAP is outside its own range, or an action
-   across which the basis is pending, unresolved, not reloaded, or not decided yet on that bar). The actions apply to
-   every family (before Stage C2 only to the broker-price ones, and the lot sums of the others mixed two scales across
-   an unsettled action); the per-day guard to the broker-price ones (the registry's family "Buy VWAP & Implied Cost", or
-   a price unit), derived from the registry. */
+   1, 9), EXEC-PRICE-DISTORTION (user 2026-11-24, UD41 A; ERRORS M561): a Flow value reads the broker lots on the
+   published prices' basis (datafile.ts onPriceBasis, the factor the publisher measured per corporate action) and is
+   used as computed; where its window reads a bar whose basis the data up to its own bar leaves unsettled (basis.ts
+   basisDistorted: a bar whose broker VWAP is outside its own range, or an action across which the basis is pending,
+   unresolved, not reloaded, or not decided yet on that bar) the bar is noted (FlowNotes.distorted: the trade it opens is
+   flagged, the run warns FLOW_BASIS_CHANGE). The actions apply to every family; the per-day guard to the broker-price
+   ones (the registry's family "Buy VWAP & Implied Cost", or a price unit), derived from the registry. */
 const BROKER_PRICE = new Set((FLOW_REGISTRY as { indicators: { id: string; family: string; unit: string }[] }).indicators
   .filter(r => r.family === 'Buy VWAP & Implied Cost' || r.unit === 'price').map(r => r.id));
-/** The bars [lo, lo + N) of the flow window whose value must stay empty, for a series that reads `depth` sessions up to
-    its bar (null: the whole history); `offDays` for a broker-price series. */
-function basisMask(c: Calc, lo: number, N: number, depth: number | null, offDays: boolean): Uint8Array {
-  const mask = new Uint8Array(N);
-  for (let k = 0; k < N; k++) { const i = lo + k; mask[k] = +basisBlocked(c, depth === null ? 0 : i - depth + 1, i, offDays) }
-  return mask;
+/** Notes the bars [lo, lo + N) of the flow window whose value is distorted, for a series that reads `depth` sessions
+    up to its bar (null: the whole history); `offDays` for a broker-price series. Only bars with a value are noted. */
+function noteDistorted(c: Calc, lo: number, s: ArrayLike<unknown>, depth: number | null, offDays: boolean, notes: { distorted: Set<number> }): void {
+  for (let k = 0; k < s.length; k++) {
+    if (s[k] === null || s[k] === undefined) continue;
+    const i = lo + k;
+    if (!notes.distorted.has(i) && basisDistorted(c, depth === null ? 0 : i - depth + 1, i, offDays)) notes.distorted.add(i);
+  }
 }
 
 /* The ticker's broker data as the Screener's flow series read it (flowmetrics.ts TickerFlow): the whole history, one
@@ -205,7 +208,7 @@ function tickerFlow(c: Calc): TickerFlow | undefined {
   if (!f) {
     const cols = b.columns, first = cols.rows ? cols.dates[0] : null, last = cols.rows ? cols.dates[cols.dates.length - 1] : null, memo = new Map<string, FlowOut>();
     const dates = c.meta.dates ?? [], lo = first === null ? 0 : (() => { let i = 0; while (i < dates.length && dates[i] < first) i++; return i })();
-    const notes = c.flowNotes ??= { depth: 0, masked: new Set<number>() };
+    const notes = c.flowNotes ??= { depth: 0, distorted: new Set<number>() };
     // Stage C2 (lens 1 F4): the window's sessions with a broker row; on a session without one (a source gap) a Flow value
     // is empty, as on the data up to that session (the window then ends at the session before)
     const rowDay = new Set(cols.dates), N = (() => { let i = lo; while (i < dates.length && last !== null && dates[i] <= last) i++; return i - lo })();
@@ -230,8 +233,7 @@ function tickerFlow(c: Calc): TickerFlow | undefined {
         try { key = seriesKeyOf(e, o.key, params, 'mask') } catch { continue }
         const s = out[key];
         if (!s) continue;
-        const m = basisMask(c, lo, s.length, d, BROKER_PRICE.has(id));
-        for (let j = 0; j < s.length; j++) if (m[j] && s[j] !== null) { s[j] = null; notes.masked.add(lo + j) }
+        noteDistorted(c, lo, s, d, BROKER_PRICE.has(id), notes);
       }
       memo.set(k, out);
     };
@@ -311,6 +313,27 @@ function perBar(b: BoundCondition, full: (r: ResolvedSeries) => ArrayLike<number
   return out;
 }
 
+/** EXEC-PRICE-DISTORTION D-4 (Calc.reach): per bar, the first bar the series read up to that bar read, by the
+    Screener's lookback rule (condition.ts startOf: a stated window, else evaluate.ts lookbackStart from the series'
+    history class and its first value on this ticker; a Flow series its sessions, flowDepth; the whole history, 0),
+    `extra` the test's within or window length; the earliest over every series computed on this Calc. A remark never
+    changes a result: the reach only decides which price distortions a trade is flagged with. */
+function noteReach(c: Calc, series: readonly ResolvedSeries[], full: (r: ResolvedSeries) => ArrayLike<number | null | undefined>, extra: number): void {
+  const n = c.n, reach = c.reach ??= Int32Array.from({ length: n }, (_, i) => i);
+  for (const r of series) {
+    const s = full(r);
+    let first = -1;
+    for (let i = 0; i < s.length; i++) { const v = s[i]; if (typeof v === 'number' && Number.isFinite(v)) { first = i; break } }
+    const depth = readsFlow(r) ? (r as { flowDepth?: number | null }).flowDepth : undefined;
+    for (let i = 0; i < n; i++) {
+      const at = depth !== undefined ? (depth === null ? null : i - depth + 1 - extra)
+        : r.window !== undefined ? lookbackStartOfWindow(r.window, i, extra) : lookbackStart(r.historyClass, first, i, extra);
+      const st = at === null ? 0 : Math.max(0, at);
+      if (st < reach[i]) reach[i] = st;
+    }
+  }
+}
+
 /** Every series a bound condition reads, a window's inner test included. */
 const seriesOf = (b: BoundCondition): ResolvedSeries[] => [...b.series, ...(b.window ? seriesOf(b.window.inner) : [])];
 
@@ -362,6 +385,7 @@ export function grammarEvaluator(limits: GrammarLimits = GRAMMAR_DEFAULTS): Gram
       }
       const out = perBar(b, full, n);
       if (!out) throw new ValidationError('CONDITION_UNAVAILABLE', `${field}.test`, `${field}: this test has no per-day value.`);
+      noteReach(c, seriesOf(b), full, test.kind === 'event' ? (test as { within: number }).within : test.kind === 'window' ? (test as { length: number }).length : 0);
       return out;
     },
   };

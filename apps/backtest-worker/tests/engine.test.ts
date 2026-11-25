@@ -394,13 +394,27 @@ test('suspension: a held ticker without a bar is marked at its last close and fl
   assert.deepEqual(l.warnings.find(w => w.code === 'DATA_GAP')!.count, 3);
 });
 
-test('corporate actions with ex-date in (entry, exit] are flagged; warnings for the adjusted-history boundary and survivorship', () => {
+test('corporate actions with ex-date in (entry, exit] are flagged; price distortions flag the trades that read them (EXEC-PRICE-DISTORTION); survivorship', () => {
   const b = flat(10); put(b, 3, { v: 2000 });
   const actions = [{ date: DAYS[4], type: 'stock_split' }, { date: DAYS[5], type: 'bonus' }, { date: DAYS[9], type: 'rights' }];
   const t = only(go(market({ AAA: { bars: b, actions } }), request(9)));
   assert.deepEqual(t.flags.corporate_actions, actions.slice(1));
-  const late = weekdays(10, '2026-09-07'), l = go(market({ AAA: { bars: b, dates: late } }, late), (() => { const r = request(9); r.period = { from: late[0], to: late[9], oos_fraction: 0 }; return r })());
-  assert.ok(l.warnings.some(w => w.code === 'ADJUSTED_HISTORY_BOUNDARY'));
+  // before ADJUSTED_HISTORY_BOUNDARY an action that cannot be measured reads as adjusted, as the bulk load left it
+  assert.deepEqual(t.flags.distortions, []);
+  const period = (d: string[]) => { const r = request(9); r.period = { from: d[0], to: d[9], oos_fraction: 0 }; return r };
+  // from the boundary on, an action with no measure (no basis block) is uncertain (UD43); the boundary warning is gone,
+  // replaced by the per-stock detection (the period crossing 2026-09-12 says nothing of a stock's own history)
+  const late = weekdays(10, '2026-09-07'), l = go(market({ AAA: { bars: b, dates: late, actions: [{ date: late[6], type: 'STOCK_SPLIT' }] } }, late), period(late));
+  assert.ok(!l.warnings.some(w => w.code === 'ADJUSTED_HISTORY_BOUNDARY'));
+  assert.deepEqual(only(l).flags.distortions, [{ date: late[6], kind: 'uncertain' }]);
+  assert.deepEqual(l.warnings.find(w => w.code === 'PRICE_DISTORTIONS')?.count, 1);
+  // a session beyond the 35 % cap with no action (WGSH's case): an anomaly, on any date; the value stays as published
+  const w = flat(10); put(w, 3, { v: 2000 }); put(w, 6, { o: 50, h: 50, l: 50, c: 50 });
+  const a = only(go(market({ AAA: { bars: w } }), request(9)));
+  assert.deepEqual(a.flags.distortions, [{ date: DAYS[6], kind: 'anomaly' }, { date: DAYS[7], kind: 'anomaly' }]);
+  // an anomaly after the trade's exit, or before its signal window, does not flag it
+  const after = flat(12); put(after, 3, { v: 2000 }); put(after, 11, { o: 50, h: 50, l: 50, c: 50 });
+  assert.deepEqual(only(go(market({ AAA: { bars: after } }), request(9))).flags.distortions, []);
   const p = go(market({ AAA: { bars: b } }), request(9, q => portfolio(q, 1)));
   assert.deepEqual(p.warnings.map(w => w.code), ['ARB_NOT_MODELLED', 'TICK_NOT_MODELLED', 'SURVIVORSHIP']);
   assert.deepEqual(p.benchmark, { kind: 'ihsg', ticker: 'IHSG' });

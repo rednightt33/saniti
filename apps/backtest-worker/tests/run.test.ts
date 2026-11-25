@@ -182,7 +182,7 @@ test('a single-stock job with the page default settings: every phase in order, a
   assert.equal(r.meta.data_through, THROUGH); assert.equal(r.dates[r.dates.length - 1], THROUGH); assert.ok(r.dates[0] >= q.period.from);
   assert.ok(r.meta.duration_ms > 0 && r.meta.duration_ms <= ms + 1);
   assert.equal(r.robustness.sensitivity!.cells.flat().filter(Boolean).length, 25);
-  assert.deepEqual(r.meta.warnings.map(w => w.code), ['ADJUSTED_HISTORY_BOUNDARY', 'ARB_NOT_MODELLED', 'TICK_NOT_MODELLED', 'SURVIVORSHIP', 'FEW_TRADES']);   // M457
+  assert.deepEqual(r.meta.warnings.map(w => w.code), ['ARB_NOT_MODELLED', 'TICK_NOT_MODELLED', 'SURVIVORSHIP', 'FEW_TRADES']);   // M457
   assertFiniteJson(r); finiteOrNull(r);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(r)), plusZero(r)); // nothing JSON would drop or change (JSON writes -0 as 0)
 });

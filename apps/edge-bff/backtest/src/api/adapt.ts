@@ -22,6 +22,9 @@ export interface PageTradeStats {
 export interface PageTrade {
   id: string; tk: string; sig: number; ei: number; xi: number; entry: number; exit: number; sh: number; cost: number; pnl: number; ret: number;
   bars: number; mae: number; mfe: number; why: string; riskPct: number | null;
+  /** EXEC-PRICE-DISTORTION: what the trade read that is distorted (contract.ts flags.distortions; empty for a result
+      stored before it) */
+  dist: { date: string; kind: 'flow' | 'unadjusted' | 'uncertain' | 'anomaly' }[];
 }
 export interface GridY { k: 'sl' | 'slAtr' | 'slRR' | 'hold'; lbl: string; u: string; step: number; min: number }
 export interface PageCell { sharpe: number; cagr: number; pf: number; n: number; mdd: number }
@@ -75,6 +78,7 @@ export function adaptResult(id: string, res: BacktestResultCore, request: Backte
   const trades: PageTrade[] = res.trades.map(t => ({
     id:t.trade_id, tk:t.ticker, sig:ix(t.signal_date), ei:ix(t.entry_date), xi:ix(t.exit_date), entry:t.entry_price, exit:t.exit_price, sh:t.shares,
     cost:t.cost_idr, pnl:t.pnl_idr, ret:t.return, bars:t.bars_held, mae:t.mae, mfe:t.mfe, why:WHY[t.exit_reason] || t.exit_reason, riskPct:t.initial_risk_pct,
+    dist:t.flags?.distortions ?? [],
   }));
   const s = res.robustness.sensitivity, c0 = s && cards.find(c => c.id === s.condition_id);
   const grid: PageGrid | null = s && c0 ? {

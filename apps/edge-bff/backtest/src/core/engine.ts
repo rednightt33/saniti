@@ -24,6 +24,7 @@
 import type { BacktestRequest, ExitPhase, ExitReason, Limits, SkippedSignal, SignalTrack } from './contract.ts';
 import type { BasisAction, CorporateAction, PriceSeries, BrokerColumns } from './datafile.ts';
 import { unknownBasis } from './datafile.ts';
+import { capAnomalies, verdictOf } from '../../../screener/src/core/pricecheck.ts';
 import type { FlowData } from './flow.ts';
 import type { Ledger, LedgerTrade } from './ledger.ts';
 import type { Num, Params } from '../../../terminal/src/calc/indicators.ts';
@@ -73,6 +74,51 @@ interface Prepared {
   ticker: string; data: TickerData; calc: Calc;
   O: readonly number[]; H: readonly number[]; L: readonly number[]; C: readonly number[];
   scores: Partial<Record<RankBy, Num[]>>; liq: Num[] | null; maps: Map<string, BarMap>;
+  /** EXEC-PRICE-DISTORTION: the ticker's price distortions, by bar (priceDistortions, once per ticker) */
+  distortions?: PriceDistortion[];
+}
+/** A price distortion of a ticker (EXEC-PRICE-DISTORTION, user 2026-11-24; the Screener's rule, pricecheck.ts, as the
+    Screener's row badges read it, universe.ts distortionRemarks): `unadjusted` an action whose ex-date jump is in the
+    published history, `uncertain` one from ADJUSTED_HISTORY_BOUNDARY on that cannot be measured (UD43), `anomaly` a
+    session beyond the 35 % cap with no action (UD44). `bar` the ticker's first bar on or after the date. */
+export interface PriceDistortion { date: string; bar: number; kind: 'unadjusted' | 'uncertain' | 'anomaly' }
+/** The ticker's price distortions, by bar. Whether an action's jump is in the history: the publisher's reading of the
+    close across it (basis `price`, publisher.py price_check_side, the Python twin of pricecheck.ts verdictOf); where it
+    has none and the block gives the action's terms factor, verdictOf on the closes either side of the ex date; else not
+    measured. An action before the boundary that cannot be measured reads as adjusted, as the bulk load left it (the
+    Screener's rule). Values are never changed by it: it only flags trades and counts them (PRICE_DISTORTIONS). */
+export function priceDistortions(d: TickerData): PriceDistortion[] {
+  const dates = d.prices.dates, C = d.prices.bars.C as ArrayLike<number | null>, n = dates.length, out: PriceDistortion[] = [];
+  if (!n) return out;
+  const barOf = (x: string) => { let lo = 0, hi = n; while (lo < hi) { const m = (lo + hi) >> 1; if (dates[m] < x) lo = m + 1; else hi = m } return lo };
+  const seen = new Set<string>();
+  for (const a of d.corporate_actions) {
+    if (a.date > dates[n - 1] || seen.has(`${a.type}|${a.date}`)) continue;
+    seen.add(`${a.type}|${a.date}`);
+    const i = barOf(a.date), b = d.basis?.find(x => x.ex === a.date && x.type === a.type);
+    let side = b?.price ?? null;
+    if (side === null && b && typeof b.terms === 'number') {
+      const v = verdictOf(i > 0 ? C[i - 1] ?? null : null, C[i] ?? null, b.terms).verdict;
+      side = v === 'raw' ? 'raw' : v === 'adjusted' ? 'adjusted' : null;
+    }
+    if (side === 'raw') out.push({ date: a.date, bar: i, kind: 'unadjusted' });
+    else if (side === null && a.date >= ADJUSTED_HISTORY_BOUNDARY) out.push({ date: a.date, bar: i, kind: 'uncertain' });
+  }
+  for (const x of capAnomalies(dates, C, d.corporate_actions.map(a => a.date))) out.push({ date: x.date, bar: barOf(x.date), kind: 'anomaly' });
+  return out.sort((x, y) => x.bar - y.bar || (x.kind < y.kind ? -1 : x.kind > y.kind ? 1 : 0));
+}
+/** The flags.distortions of a trade (EXEC-PRICE-DISTORTION, UD41 A, D-4): `flow` when a Flow value its entry
+    conditions read on the signal bar reads across an unsettled broker basis (FlowNotes.distorted); a price distortion
+    inside the bars the signal read (Calc.reach of the signal bar; the signal bar alone when no grammar condition ran)
+    through the exit bar (the holding period's prices). An action's break counts when the reach starts before its bar
+    (the values mix both sides), an anomaly when the reach holds its bar. */
+export function tradeDistortions(p: Prepared, signalBar: number, exitBar: number): { date: string; kind: PriceDistortion['kind'] | 'flow' }[] {
+  const start = p.calc.reach ? p.calc.reach[signalBar] : signalBar, out: { date: string; kind: PriceDistortion['kind'] | 'flow' }[] = [];
+  const dates = p.data.prices.dates;
+  if (p.calc.flowNotes?.distorted.has(signalBar)) out.push({ date: dates[signalBar], kind: 'flow' });
+  for (const x of p.distortions ??= priceDistortions(p.data))
+    if (x.bar <= exitBar && (x.kind === 'anomaly' ? x.bar >= start : x.bar > start)) out.push({ date: x.date, kind: x.kind });
+  return out;
 }
 export interface Context {
   data: MarketData;
@@ -168,8 +214,9 @@ export const ADJUSTED_HISTORY_BOUNDARY = '2026-09-12';
    from the broker data, per stock, over the sessions they read (the period, and before it as many sessions as the
    longest Flow series reads: its window or baseline; the whole history for a series that reads all of it):
    - FLOW_PRE_2021: those sessions start before 2021 (the 2016-2020 source misses some brokers on some days);
-   - FLOW_BASIS_CHANGE: a Flow value was left empty inside the period, because its window reads broker lots on another
-     basis than the prices, or across an action not decided yet on its bar (the grammar's mask, FlowNotes; Stage C2);
+   - FLOW_BASIS_CHANGE: a Flow value inside the period reads broker lots on another basis than the prices, or across
+     an action not decided yet on its bar (FlowNotes.distorted; Stage C2); EXEC-PRICE-DISTORTION (UD41 A): the value
+     is used as computed and the trades it opened are flagged (before, it was left empty);
    - FLOW_SOURCE_GAP: days the publisher marks as a source gap (buy and sell totals differ) among those sessions;
    - FLOW_ROWS_DROPPED: broker rows on a day without a price bar, which no Flow value reads (as on the Terminal), per
      board;
@@ -195,7 +242,7 @@ function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof reque
     if (startDate < FLOW_PRE_2021 || (notes?.first !== undefined && notes.first < FLOW_PRE_2021 && notes.first <= endDate)) pre.push(p.ticker);
     if (notes?.crossing) crossing.push(p.ticker);
     if (notes && (p.data.basis ?? []).some(a => a.status === 'terms' && a.factor !== 1 && a.ex > startDate)) lots.push(p.ticker);
-    if (notes && [...notes.masked].some(i => i >= i0 && i <= iEnd)) basis.push(p.ticker);
+    if (notes && [...notes.distorted].some(i => i >= i0 && i <= iEnd)) basis.push(p.ticker);
     const g = (p.data.flow?.gap_bars ?? []).filter(i => i >= start && i <= iEnd).length;
     if (g) gap.set(p.ticker, g);
     const u = p.data.flow?.unmatched_dates;
@@ -208,7 +255,7 @@ function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof reque
   if (pre.length) out.push({ code: 'FLOW_PRE_2021', count: pre.length, tickers: list(pre),
     message: `The Flow conditions read broker data from before 2021 for ${stocks(pre.length)}: the 2016-2020 source misses some brokers on some days, so flow values in those years are less complete than later ones.` });
   if (basis.length) out.push({ code: 'FLOW_BASIS_CHANGE', count: basis.length, tickers: list(basis),
-    message: `A Flow value was left empty on some days of the period for ${stocks(basis.length)}: its window reads across a split, bonus share or rights issue whose broker data is not on the basis of the published prices, or whose basis is decided only once the 21 days after its ex date have passed, so its lots or broker prices would mix two scales.` });
+    message: `On some days of the period a Flow value of ${stocks(basis.length)} reads across a split, bonus share or rights issue whose broker data is not on the basis of the published prices, or whose basis is decided only once the 21 days after its ex date have passed, so its lots or broker prices mix two scales. The value is used as computed; the trades it opened are marked "Flow distorted".` });
   if (gap.size) { const days = [...gap.values()].reduce((a, b) => a + b, 0);
     out.push({ code: 'FLOW_SOURCE_GAP', count: days, tickers: list([...gap.keys()]),
       message: `On ${days === 1 ? '1 trading day' : `${days} trading days`} the Flow conditions read (counted per stock), the broker source's buy and sell totals differ: some brokers are missing from those days.` }) }
@@ -485,6 +532,7 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
       initial_risk_pct: q.risk ? q.risk / q.fill : null, entry_condition_ids: q.ids,
       flags: {
         corporate_actions: q.r.p.data.corporate_actions.filter(c => c.date > entryDate && c.date <= exitDate).map(c => ({ date: c.date, type: c.type })),
+        distortions: tradeDistortions(q.r.p, q.r.m.bar[q.j], i),
         stop_and_target_same_bar: q.both, stale_mark: q.stale,
       },
     });
@@ -610,8 +658,15 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
   if (restated.length)
     warnings.push({ code: 'PRICES_RESTATED', count: restated.length, tickers: restated,
       message: `${restated.length === 1 ? '1 stock' : `${restated.length} stocks`} had a split, bonus share or rights issue after the start of the period: the published prices before it are restated with a factor that was known only on that day, so absolute levels on those days (a price, an ATR or a volume threshold) differ from what was traded; ratios and percentages are not affected.` });
-  if (from < ADJUSTED_HISTORY_BOUNDARY && to >= ADJUSTED_HISTORY_BOUNDARY)
-    warnings.push({ code: 'ADJUSTED_HISTORY_BOUNDARY', message: `The period crosses ${ADJUSTED_HISTORY_BOUNDARY}: published prices before it are back-adjusted for splits, bonus shares and rights issues, prices after it are raw. Trades held through a corporate action are marked with it.` });
+  // EXEC-PRICE-DISTORTION (user 2026-11-24, UD41 A, D-4; ERRORS M559-M562): the per-stock detection replaces the warning
+  // that the period crosses ADJUSTED_HISTORY_BOUNDARY (the six stocks pulled again on 2026-10-31 read adjusted; the rule
+  // finds the ones that do not, on any date): the trades whose signal window or holding period reads a price distortion
+  const distorted = trades.filter(t => (t.flags.distortions ?? []).some(x => x.kind !== 'flow'));
+  if (distorted.length) {
+    const tickers = [...new Set(distorted.map(t => t.ticker))].sort(byTicker);
+    warnings.push({ code: 'PRICE_DISTORTIONS', count: distorted.length, tickers,
+      message: `${distorted.length === 1 ? '1 trade' : `${distorted.length} trades`} of ${tickers.length === 1 ? '1 stock' : `${tickers.length} stocks`} read a distorted price in their signal window or while held: a split, bonus share or rights issue whose jump is still in the published history, one too small to measure, or a one-day move beyond 35 % with no corporate action recorded. The prices are used as published; those trades are marked.` });
+  }
   warnings.push({ code: 'ARB_NOT_MODELLED', message: 'Auto-rejection limits are not modelled: a stop fills at the lower of the open and the stop level, with no lower-limit lock; entries are only skipped when the open gaps up by the ARA gap fraction or more (when that option is on).' });
   warnings.push({ code: 'TICK_NOT_MODELLED', message: 'Fills are not rounded to the IDX tick size.' });
   if (!single) warnings.push({ code: 'SURVIVORSHIP', message: 'The stocks are picked from today\'s list of published tickers: stocks delisted before today cannot be picked, which can flatter past results.' });

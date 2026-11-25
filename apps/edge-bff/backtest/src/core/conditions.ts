@@ -42,11 +42,13 @@ export interface CalcMeta {
   broker?: { columns: BrokerColumns; classification: Readonly<Record<string, string>>; basis?: readonly BasisAction[] };
 }
 /** What the grammar noted while it read the ticker's broker data (EXEC-BACKTEST-REVAMP P3; the engine turns it into the
-    run's FLOW_* warnings for the period): the most sessions a Flow series read before its bar (null: its whole
-    history), and the bars where a broker-price value was left empty because its window reads broker rows on another
-    basis than the prices (FLOW_BASIS_CHANGE, ERRORS M450). */
+    run's FLOW_* warnings for the period and the trades' flags): the most sessions a Flow series read before its bar
+    (null: its whole history), and the bars where a Flow value reads across a basis that the data up to that bar leaves
+    unsettled (basis.ts basisDistorted). EXEC-PRICE-DISTORTION (user 2026-11-24, UD41 A: "value harus tetap ditampilkan
+    as is dengan badge"; ERRORS M561): such a value is used as computed and only noted here (FLOW_BASIS_CHANGE, a trade's
+    flags.distortions); before it the value was left empty (ERRORS M450). */
 export interface FlowNotes {
-  depth: number | null; masked: Set<number>;
+  depth: number | null; distorted: Set<number>;
   /** the earliest date a point-in-time Flow series reads (its anchor or start; P4) */
   first?: string;
   /** a point-in-time cohort reads the Nego or Cash board (negotiated crossings; P4, FLOW_CROSSING_BOARDS) */
@@ -73,6 +75,11 @@ export class Calc {
   seriesMemo = new Map<string, ArrayLike<number | null | undefined>>();
   /** set by the grammar when a condition reads the Flow indicators (FlowNotes) */
   flowNotes: FlowNotes | null = null;
+  /** EXEC-PRICE-DISTORTION (D-4): per bar, the first bar a condition's series read up to that bar reads (the Screener's
+      lookback rule, evaluate.ts lookbackStart; 0 for a series that reads its whole history), the earliest over the
+      series the grammar computed on this Calc; null when no grammar condition ran (a trade then reads its signal bar
+      only). The engine flags a trade whose signal window or holding period contains a price distortion. */
+  reach: Int32Array | null = null;
   constructor(bars: Bars, flow?: FlowData, meta: CalcMeta = {}) {
     this.bars = bars; this.n = bars.C.length;
     if (flow && flow.fnet.length !== this.n) throw new RangeError(`Calc: flow data has ${flow.fnet.length} bars, the prices ${this.n}.`);

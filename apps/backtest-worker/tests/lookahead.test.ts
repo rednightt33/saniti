@@ -318,7 +318,7 @@ test('P9: a corporate action: the published world (prices adjusted, lots scaled 
   assert.equal(leak(out as never), null);
 });
 
-test('Stage C2 (user 2026-11-16 "A", ERRORS M459 items 1, 9): before an action is decided, its published status changes no value on day t', () => {
+test('Stage C2 (user 2026-11-16 "A", ERRORS M459 items 1, 9): before an action is decided, its published status changes no value on day t (EXEC-PRICE-DISTORTION: the values are kept, the status only marks)', () => {
   // a rights issue at session EX decided at DEC (ex + 21 days): the full data publish "terms" or, after a drift,
   // "unresolved"; the data cut at t < DEC published "pending". The lots stay scaled as published (the adjusted history,
   // K4 a). Every Flow value (a broker price and a lot sum alike) on a bar before DEC must not depend on which.
@@ -338,7 +338,12 @@ test('Stage C2 (user 2026-11-16 "A", ERRORS M459 items 1, 9): before an action i
       const p = seriesOfRef(world(k + 1, action('pending')), ref, 'f');
       for (let i = 0; i <= k; i++) assert.equal(p[i] ?? null, s[i] ?? null, `${ref.metric} published ${full}, cut at ${k} (decided at ${DEC}): bar ${i}`);
     }
-    // a window across the action (FL17's 10 sessions on bar EX + 3) is empty on every bar before DEC
-    if (ref.metric === 'FL17') assert.equal(s[EX + 3] ?? null, null, `${ref.metric}: not decided yet on bar ${EX + 3}`);
+    // EXEC-PRICE-DISTORTION (user 2026-11-24, UD41 A): a window across the action (FL17's 10 sessions on bar EX + 3) keeps
+    // its value, the same whatever the status, and is noted as distorted on every bar before DEC (the trade's flag)
+    if (ref.metric === 'FL17') {
+      const c = world(N, action(full)), v = seriesOfRef(c, ref, 'f');
+      assert.ok(typeof v[EX + 3] === 'number', `${ref.metric}: the value on bar ${EX + 3} is kept`);
+      assert.ok(c.flowNotes!.distorted.has(EX + 3), `${ref.metric}: not decided yet on bar ${EX + 3}: noted`);
+    }
   }
 });

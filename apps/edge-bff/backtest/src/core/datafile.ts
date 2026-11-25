@@ -306,7 +306,10 @@ export function corporateActions(docs: Columnar[]): CorporateAction[] {
    value across them is left empty, as a value whose basis is not known. */
 export const BASIS_STATUSES = ['terms', 'same', 'pending', 'unresolved'] as const;
 export type BasisStatus = typeof BASIS_STATUSES[number];
-export interface BasisAction { ex: string; type: string; factor: number; status: BasisStatus; price: 'adjusted' | 'raw' | null; decided: string }
+export interface BasisAction { ex: string; type: string; factor: number; status: BasisStatus; price: 'adjusted' | 'raw' | null; decided: string;
+  /** the factor of the action's terms (the block's `terms` column; EXEC-PRICE-DISTORTION reads it when `price` is null:
+      engine.ts priceDistortions); absent in an older block or a test's */
+  terms?: number | null }
 /** the publisher's window (publisher.py BASIS_WINDOW_DAYS), read from a block's rule when it has one */
 export const BASIS_WINDOW_DAYS = 21;
 const plusDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
@@ -330,12 +333,15 @@ export function brokerBasis(docs: Columnar[], actions: readonly CorporateAction[
     // `decided` (Stage C2): a block without the column (none is published) reads ex + the rule's window
     const rule = (b as { rule?: { window_days?: unknown } }).rule, days = typeof rule?.window_days === 'number' ? rule.window_days : BASIS_WINDOW_DAYS;
     const dec = Array.isArray((b as { decided?: unknown }).decided) ? (b as { decided: unknown[] }).decided : null;
+    const termsCol = Array.isArray((b as { terms?: unknown }).terms) ? (b as { terms: unknown[] }).terms : null;
     for (let j = 0; j < ex.length; j++) {
       const f = factor[j], st = status[j], pr = price[j], d = dec ? dec[j] : isDate(ex[j]) ? plusDays(ex[j] as string, days) : null;
       if (!isDate(ex[j]) || !PRICE_ACTION_TYPES.includes(type[j] as string) || typeof f !== 'number' || !Number.isFinite(f) || f <= 0
           || !(BASIS_STATUSES as readonly unknown[]).includes(st) || !(pr === null || pr === 'adjusted' || pr === 'raw') || !isDate(d) || (d as string) < (ex[j] as string))
         throw integrity(`${what}, row ${j + 1}: ${JSON.stringify([ex[j], type[j], f, st, pr, d])} is not an action's basis.`);
-      out.push({ ex: ex[j] as string, type: type[j] as string, factor: st === 'terms' ? f : 1, status: st as BasisStatus, price: pr as BasisAction['price'], decided: d as string });
+      const tf = termsCol ? termsCol[j] : null;
+      out.push({ ex: ex[j] as string, type: type[j] as string, factor: st === 'terms' ? f : 1, status: st as BasisStatus, price: pr as BasisAction['price'], decided: d as string,
+        ...(termsCol ? { terms: typeof tf === 'number' && Number.isFinite(tf) && tf > 0 ? tf : null } : {}) });
     }
   });
   return found ? out.sort((a, b) => a.ex < b.ex ? -1 : a.ex > b.ex ? 1 : 0) : unknownBasis(actions);

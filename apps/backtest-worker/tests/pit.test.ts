@@ -131,19 +131,22 @@ test('edge cases: anchor after the data, before it, no positive buyers, a broker
   seriesOfRef(n, ref('FL18', { anchor: ANCHOR, boards: ['Regular', 'Nego'] }), 'f');
   assert.equal(n.flowNotes?.crossing, true);
   assert.equal(n.flowNotes?.first, ANCHOR);
-  // P9: an action after the anchor whose basis is not settled (unresolved): the price values from the anchor are kept up to
-  // the day before its ex date and empty from it (the span crosses it); one the lots are scaled for (terms) masks nothing
+  // P9, EXEC-PRICE-DISTORTION (user 2026-11-24, UD41 A): an action after the anchor whose basis is not settled
+  // (unresolved): every value from the anchor is kept as computed, and the bars from its ex date on are noted (the span
+  // crosses it); one the lots are scaled for (terms) notes nothing once decided
   const at = A.dates[300], k3 = calcAt(A, ROWS, A.dates.length, [{ ex: at, type: 'STOCK_SPLIT', factor: 1, status: 'unresolved', price: null }]);
   const m = seriesOfRef(k3, ref('FL18', { anchor: ANCHOR }), 'f'), plain = seriesOfRef(calcAt(A, ROWS, A.dates.length), ref('FL18', { anchor: ANCHOR }), 'f');
-  assert.ok(Array.from(m).every((v, i) => i >= 300 ? v === null : v === (plain[i] ?? null)) && k3.flowNotes!.masked.size > 0);
+  assert.ok(Array.from(m).every((v, i) => v === (plain[i] ?? null)), 'the values as computed');
+  assert.ok([...k3.flowNotes!.distorted].every(i => i >= 300) && Array.from(m).every((v, i) => i < 300 || v === null || k3.flowNotes!.distorted.has(i)), 'noted from the ex date on');
   assert.ok(Array.from(seriesOfRef(k3, ref('FL23', { start: START }), 'f')).some(v => typeof v === 'number'), 'lots are not a price: kept (warned)');
   // lots published on the traded scale before a rights issue (1.2x fewer) and scaled back by its factor: the values of
-  // the rows on one basis, nothing masked; the same rows without the factor are off the day's range: empty
+  // the rows on one basis; the same rows without the factor are off the day's range: kept as computed and noted
   const traded = ROWS.map(r => r.d < at ? { ...r, bl: r.bl / 1.2, sl: r.sl / 1.2 } : r), terms = [{ ex: at, type: 'RIGHT_ISSUE', factor: 1.2, status: 'terms' as const, price: 'adjusted' as const }];
   const scaled = seriesOfRef(calcAt(A, traded, A.dates.length, terms), ref('FL18', { anchor: ANCHOR }), 'f');
-  assert.ok(Array.from(scaled).every((v, i) => near(v, plain[i])), 'a terms action: the values on one basis, nothing masked');
-  const unscaled = seriesOfRef(calcAt(A, traded, A.dates.length, [{ ...terms[0], status: 'unresolved', factor: 1 }]), ref('FL18', { anchor: ANCHOR }), 'f');
-  assert.ok(Array.from(unscaled).every(v => v === null), 'the traded scale without its factor: every value from the anchor empty');
+  assert.ok(Array.from(scaled).every((v, i) => near(v, plain[i])), 'a terms action: the values on one basis');
+  const u = calcAt(A, traded, A.dates.length, [{ ...terms[0], status: 'unresolved', factor: 1 }]), unscaled = seriesOfRef(u, ref('FL18', { anchor: ANCHOR }), 'f');
+  assert.ok(Array.from(unscaled).some(v => typeof v === 'number'), 'the traded scale without its factor: the values are kept');
+  assert.ok(Array.from(unscaled).every((v, i) => v === null || u.flowNotes!.distorted.has(i)), 'and every one of them is noted');
 });
 
 test('refusals name the field and the fix', () => {

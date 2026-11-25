@@ -132,7 +132,7 @@ import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import { prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import { sessions, ticker as mkTicker, brokerRows as mkRows } from './lookahead/fixture.ts';
 
-test('P9: broker prices on the price basis; empty only where the data up to the bar leaves the basis unsettled', () => {
+test('P9: broker prices on the price basis; EXEC-PRICE-DISTORTION: every value as computed, noted only where the data up to the bar leaves the basis unsettled', () => {
   const dates = sessions('2026-05-04', 140), t = mkTicker('BASE', 41, dates), base = mkRows(t, 42);
   const terms = dates[30], off = dates[60], unresolved = dates[80], raw = dates[110];
   // as published: the lots before a rights issue the prices carry are on the traded scale (1.5x fewer, so the broker VWAP
@@ -152,32 +152,40 @@ test('P9: broker prices on the price basis; empty only where the data up to the 
   const onBasis = published.map(r => ({ ...r, bl: r.d < terms ? r.bl * 1.5 : r.bl, sl: r.d < terms ? r.sl * 1.5 : r.sl }));
   const calc = () => new Calc(t.bars as never, undefined, { ticker: t.ticker, dates, broker: { columns: cols, classification: CLS, basis } });
   const e17 = FLOWS.find(e => e.id === 'FL17')!, term = terminal(t, onBasis, 'FL17', e17.normalized({ window: 10 }))[e17.seriesKey('value', { window: 10 })];
+  // EXEC-PRICE-DISTORTION (user 2026-11-24, UD41 A): every value is the Terminal's on the price basis, used as computed;
+  // a window across an unsettled basis is only noted (FlowNotes.distorted: the trade's flags, FLOW_BASIS_CHANGE)
   const c = calc(), s = seriesOfRef(c, { kind: 'flow', metric: 'FL17', params: { window: 10 } }, 'f');
-  let kept = 0;
+  const noted: number[] = [];
   for (let i = 0; i < dates.length; i++) {
     const start = Math.max(0, i - 9), from = dates[start], to = dates[i];
-    const blocked = blockedOver(from, to);
-    assert.equal(s[i] ?? null, blocked ? null : term[i] ?? null, `bar ${i} (${dates[i]})`);
-    if (!blocked && i < 30 && s[i] !== null) kept++;
+    assert.equal(s[i] ?? null, term[i] ?? null, `bar ${i} (${dates[i]}): the value as computed`);
+    if (blockedOver(from, to) && term[i] !== null && term[i] !== undefined) noted.push(i);
   }
-  assert.ok(kept >= 15, `the bars before the rights issue keep their values (${kept}); before P9 every one was empty`);
-  assert.equal(c.flowNotes!.masked.size, Array.from(s).filter((v, i) => v === null && term[i] !== null).length);
-  // Stage C2: a Flow indicator that is not a broker price is masked the same way (its lots mix scales across an unsettled
-  // action) and reads the lots on the price basis elsewhere
+  assert.ok(noted.length > 0, 'some windows cross the off day or an unsettled action');
+  assert.deepEqual([...c.flowNotes!.distorted].sort((x, y) => x - y), noted, 'the noted bars are exactly the windows across an unsettled basis');
+  // Stage C2: a Flow indicator that is not a broker price is noted the same way (its lots mix scales across an unsettled
+  // action), never by the per-day guard, and reads the lots on the price basis everywhere
   const fl11 = FLOWS.find(e => e.id === 'FL11')!, d11 = indicatorDepth(FLOW_BY_ID.FL11, 'value', fl11.normalized({}) as never)!;
   const t11 = terminal(t, onBasis, 'FL11', fl11.normalized({}))[fl11.seriesKey('value', {})];
-  same(seriesOfRef(calc(), { kind: 'flow', metric: 'FL11', params: {} }, 'f'),
-    Array.from(t11, (x, i) => blockedOver(dates[Math.max(0, i - d11 + 1)], dates[i], false) ? null : x ?? null), 'FL11 masked where its window crosses');
-  // the bars between the ex date and its decision are empty for a window across it, and keep their values after
+  const c11 = calc();
+  same(seriesOfRef(c11, { kind: 'flow', metric: 'FL11', params: {} }, 'f'), Array.from(t11, x => x ?? null), 'FL11 as computed');
+  // the notes are per indicator: a bar is noted where the window of any output of the computed entry crosses (an output
+  // the condition does not read included: at most the ex bar itself for FL11, whose other output reads one more session)
+  const outs11 = FLOW_BY_ID.FL11.outputs.map(o => indicatorDepth(FLOW_BY_ID.FL11, o.key, fl11.normalized({}) as never)).filter((d): d is number => d !== null);
+  assert.ok(outs11.includes(d11));
+  const n11 = [...c11.flowNotes!.distorted].sort((x, y) => x - y);
+  assert.deepEqual(n11, Array.from(t11, (x, i) => x !== null && x !== undefined && outs11.some(d => blockedOver(dates[Math.max(0, i - d + 1)], dates[i], false)) ? i : -1).filter(i => i >= 0), 'FL11 noted where a window crosses');
+  // the bars between the ex date and its decision keep their value and are noted for a window across it; after it not
   const mid = dates.findIndex(d => d > terms && d < dec(terms)), after = dates.findIndex(d => d >= dec(terms));
-  assert.equal(s[mid], null, 'not decided yet on this bar');
-  assert.ok(s[after + 10] !== null || term[after + 10] === null, 'decided: kept');
-  // an events file without the block: its actions read as unresolved, masked across them only
+  assert.ok(s[mid] !== null && c.flowNotes!.distorted.has(mid), 'not decided yet on this bar: the value is kept and noted');
+  assert.ok(!c.flowNotes!.distorted.has(after + 10), 'decided: not noted');
+  // an events file without the block: its actions read as unresolved, noted across them; the days before it are off the
+  // price basis by their own data (VWAP 1.5x the close, outside the day's range): noted through the per-day guard; a
+  // window after the action and away from the off day is not noted; every value is kept
   const u = new Calc(t.bars as never, undefined, { ticker: t.ticker, dates, broker: { columns: columns(published), classification: CLS, basis: unknownBasis([{ date: terms, type: 'RIGHT_ISSUE' }]) } });
   const su = seriesOfRef(u, { kind: 'flow', metric: 'FL17', params: { window: 10 } }, 'f');
-  // the days before it are off the price basis by their own data (VWAP 1.5x the close, outside the day's range): empty
-  // through the per-day guard; a window after the action and away from the off day keeps its value
-  assert.ok(su[20] === null && su[35] === null && su[50] !== null, 'the per-day guard catches what no factor settled');
+  assert.ok(su[20] !== null && su[35] !== null && su[50] !== null, 'the values are kept');
+  assert.ok(u.flowNotes!.distorted.has(20) && u.flowNotes!.distorted.has(35) && !u.flowNotes!.distorted.has(50), 'the per-day guard notes what no factor settled');
 });
 
 test("the run's Flow warnings: before 2021, basis change, source gaps and dropped rows, per stock over the sessions read", () => {
@@ -209,8 +217,8 @@ test("the run's Flow warnings: before 2021, basis change, source gaps and droppe
   // P7 (K4 a, M449): the rights issue inside the period restates the published prices before it
   assert.deepEqual(a.warnings.filter(x => x.code === 'PRICES_RESTATED').map(x => [x.count, x.tickers]), [[1, ['WARN']]]);
   assert.deepEqual(run(market([]), req(dates.find(d => d >= '2021-03-01')!, 'FL17')).warnings.filter(x => x.code === 'PRICES_RESTATED'), []);
-  // from 2020: FLOW_PRE_2021; Stage C2 (user "A"): FL11 is masked across the unsettled action too (its lots would mix
-  // scales), so the basis change is noted for it as well; without an action none
+  // from 2020: FLOW_PRE_2021; Stage C2 (user "A"): FL11 is noted across the unsettled action too (its lots mix
+  // scales), so the basis change is warned for it as well; without an action none
   const b = codes(run(market([action]), req(dates[25], 'FL11')));
   assert.deepEqual(b.FLOW_PRE_2021, [1, ['WARN']]);
   assert.deepEqual(b.FLOW_BASIS_CHANGE, [1, ['WARN']]);

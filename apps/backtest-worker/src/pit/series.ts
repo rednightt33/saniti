@@ -3,12 +3,13 @@
    computation per family and parameters serves every output (FL18, FL19, FL20, FL44, FL45 and cohort_changed of one
    cohort rule in one pass), kept per ticker. Checked per ticker: the anchor not before its first broker day
    (ANCHOR_BEFORE_DATA; a portfolio leaves such a stock out, signals.ts EXCLUDED_CODES). A named broker without rows
-   is checked up to the period's end by the caller (namedWithoutRows): rows after it never decide a run. A value is left
-   empty where its span from the anchor reads a bar whose basis the data up to that bar leaves unsettled (K3 a, P9,
-   Stage C2: basis.ts basisBlocked; the lots are on the price basis, datafile.ts onPriceBasis), noted for
-   FLOW_BASIS_CHANGE; FLOW_PRE_2021 reads the anchor's date. */
+   is checked up to the period's end by the caller (namedWithoutRows): rows after it never decide a run. A value whose
+   span from the anchor reads a bar whose basis the data up to that bar leaves unsettled (K3 a, P9, Stage C2: basis.ts
+   basisDistorted; the lots are on the price basis, datafile.ts onPriceBasis) is used as computed and noted
+   (EXEC-PRICE-DISTORTION, user 2026-11-24, UD41 A; FLOW_BASIS_CHANGE, a trade's flags.distortions); FLOW_PRE_2021 reads
+   the anchor's date. */
 import type { Calc } from '../../../edge-bff/backtest/src/core/conditions.ts';
-import { basisBlocked } from '../basis.ts';
+import { basisDistorted } from '../basis.ts';
 import { canonicalJson } from '../../../edge-bff/backtest/src/core/hash.ts';
 import { ValidationError } from '../../../edge-bff/backtest/src/core/registry.ts';
 import { brokerFlowRows } from '../../../edge-bff/screener/src/core/flowmetrics.ts';
@@ -57,14 +58,14 @@ export function dSeries(c: Calc, ref: DRef, field: string): Num[] {
   }
   const name = spec.family === 'anchored' ? (ref.output === 'cohort_changed' ? 'cohort_changed' : ref.metric) : ref.output;
   const s = [...out[name]], unit = spec.outputs[ref.output];
-  // K3 a, P9, Stage C2 (user 2026-11-16 "A", M459 items 1, 9): every output from the anchor over an action whose basis
-  // is not settled, or not decided on that bar, is empty (basis.ts; before Stage C2 only the prices and percentages
-  // were, and the lots of a cohort or an inventory mixed two scales across it); the per-day guard reads a price or
-  // percentage only (FL51's share is a ratio of lots)
-  const notes = c.flowNotes ??= { depth: 0, masked: new Set<number>() };
+  // K3 a, P9, Stage C2 (user 2026-11-16 "A", M459 items 1, 9), EXEC-PRICE-DISTORTION (UD41 A): every output from the
+  // anchor over an action whose basis is not settled, or not decided on that bar, is noted as distorted and used as
+  // computed (basis.ts; before EXEC-PRICE-DISTORTION it was left empty); the per-day guard reads a price or percentage
+  // only (FL51's share is a ratio of lots)
+  const notes = c.flowNotes ??= { depth: 0, distorted: new Set<number>() };
   if (!notes.first || anchor < notes.first) notes.first = anchor;
   if ((p.boards as string[]).some(x => x !== 'Regular')) notes.crossing = true;
   const a = candleAt(dates, anchor), offDays = (unit === 'price' || unit === 'pct') && !(ref.metric === 'FL51' && ref.output === 'share');
-  for (let i = a; i < s.length; i++) if (s[i] !== null && basisBlocked(c, a, i, offDays)) { s[i] = null; notes.masked.add(i) }
+  for (let i = a; i < s.length; i++) if (s[i] !== null && !notes.distorted.has(i) && basisDistorted(c, a, i, offDays)) notes.distorted.add(i);
   return s;
 }

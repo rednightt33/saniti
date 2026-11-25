@@ -162,6 +162,11 @@ export interface Trade {
     corporate_actions: { date: string; type: string }[];   // price-affecting actions with ex-date in (entry, exit]
     stop_and_target_same_bar: boolean;                     // both touched in one candle: stop taken (E4)
     stale_mark: boolean;                                   // the exit or a mark used a last close from an earlier day
+    /** EXEC-PRICE-DISTORTION (user 2026-11-24, UD41 A, D-4): what the trade read that is distorted, the values used as
+        computed (engine.ts tradeDistortions): `flow` a Flow value on the signal bar across an unsettled broker basis;
+        `unadjusted`, `uncertain`, `anomaly` a price distortion in the signal window or the holding period (the
+        Screener's rule, pricecheck.ts). Absent in a result computed before it. */
+    distortions?: { date: string; kind: 'flow' | 'unadjusted' | 'uncertain' | 'anomaly' }[];
   };
   streak?: number;                   // place in the current run of wins or losses, 1-based (page "Win / loss streaks")
   streak_length?: number;            // length of that run

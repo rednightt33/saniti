@@ -118,3 +118,15 @@ describe('preview calculations (api/compute.ts)', () => {
     expect(off.ready(legacyCard('broker', 'b1'))).toBe(false);
   });
 });
+
+describe('trade badges (EXEC-PRICE-DISTORTION, results/list.ts distBadges)', () => {
+  it('one badge per kind with its dates, none for a clean trade or a result stored before the flag', async () => {
+    const { distBadges } = await import('../src/results/list.ts');
+    expect(distBadges({ dist: [] })).toBe('');
+    const html = distBadges({ dist: [{ date: '2026-03-31', kind: 'anomaly' }, { date: '2026-04-01', kind: 'anomaly' }, { date: '2026-05-04', kind: 'flow' }] });
+    expect((html.match(/class="pill warn"/g) || []).length).toBe(2);
+    expect(html).toContain('Price anomaly on 2026-03-31, 2026-04-01');
+    expect(html).toContain('>Flow distorted<');
+    expect(html).toContain('computed with the values as published');
+  });
+});
