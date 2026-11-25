@@ -41,16 +41,19 @@ import { askLocked, lockMark, lockWord, type LockedItem } from './app/locked';
 import { asTimeframe, isIntraday, periodsPerYear, tfLabel, tfTitle, type Timeframe } from './data/timeframe';
 import { keyedCharts, safeCharts } from './data/chartTime';
 import { dateFormat } from './data/intlCache';
-import { disposeLife, lifeId, ownChart, trackLives } from './app/life';
+import { disposeLife, lifeId, ownChart, pageShipped, restorePage, shipPage, trackLives } from './app/life';
 
 /* EXEC-TERMINAL-WM (user 2026-10-27: "time frame ditambah weekly dan monthly"), live: D, W and M. The page's sections
    take the candles once when they start; the same button again brings back the first view of the timeframe.
    EXEC-TERMINAL-SESSION-TOGGLE item 2 (user 2026-11-24, "toggle between timeline masih laggy"; UD50): another
    timeframe no longer reloads the page. Its data loads while the chart in view stays, then the page is built again in
-   place (app/life.ts: the old build's listeners, timers and charts go, <body> is put back as shipped, the sections start
-   on the new candles): no page, session, script or ticker list to load again. A failure falls back to the reload. */
+   place (app/life.ts: the old build's listeners, timers and charts go, <body> and <html> are put back as shipped, the
+   sections start on the new candles): no page, session, script or ticker list to load again. A failure falls back to the
+   reload. */
 let liveCtx: Ctx | null = null;
-let PAGE: { html: string; cls: string } | null = null;      // <body> as the page shipped it (boot)
+/* what <html> says about where the page is opened, carried over a switch (life.ts restorePage): a reload learns it again
+   at its load, from ?in=edge (boot) or from EDGE's hello sent at the frame's load event (stats.ts); a switch has no load */
+const EMBEDDING = ['edge-rail'];
 let switching = 0;                                         // the newest timeframe click (an older one's data is dropped)
 let pendingTf: string | null = null;                       // the timeframe whose data is loading
 /* EXEC-INTRADAY-FEATURES C3 (user 2026-11-01): the intraday timeframes before D, W and M, those the ticker's /bundle
@@ -260,7 +263,7 @@ function boot() {
   const stored = store.get('ml.symbol');
   const params = new URLSearchParams(location.search);
   trackLives();
-  PAGE = { html:document.body.innerHTML, cls:document.body.className };
+  shipPage();                                               // <body> and <html> as shipped, before the page changes them
   /* EXEC-NAV-LEFT (ERRORS M412): opened by EDGE (?in=edge) the Statistics button is EDGE's; known from the first paint, so
      the Terminal's own folded rail is never drawn while the data loads (the message hand-shake only starts with the chart) */
   if (params.get('in') === 'edge') document.documentElement.classList.add('edge-rail');
@@ -332,12 +335,12 @@ async function switchTimeframe(tf: string) {
   let M: MarketData;
   try { M = await liveData(stored, asTimeframe(tf), store.get('ml.fi.metric') === 'price' ? 'price' : 'yield', true) }
   catch (e) { if (ticket === switching) { console.error('Terminal: the timeframe could not be loaded in place, reloading', e); store.set('ml.tf', tf); location.reload() } return }
-  if (ticket !== switching || !PAGE) return;
+  if (ticket !== switching || !pageShipped()) return;
   pendingTf = null;
   try {
     store.set('ml.tf', tf);
     disposeLife(); liveCtx = null;
-    document.body.innerHTML = PAGE.html; document.body.className = PAGE.cls;
+    restorePage(EMBEDDING);                                  // <body> and <html> as a reload leaves them (ERRORS M563 re-check)
     prepare(stored).remove();                                // the panels' state; the data is here already
     timeframeButtons();
     finish(M);

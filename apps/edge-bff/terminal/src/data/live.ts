@@ -292,6 +292,15 @@ function alignTo(dates: string[], rows: { d: string; c: number }[], ends: string
   return out;
 }
 
+/** IHSG on every candle of the chart (Statistics → Relative performance), from its closes on the candles (`aligned`, the
+    last ones): a candle before its first close takes its first close. None at all when IHSG has no close on or before
+    the chart's last candle (ERRORS M565: every point was NaN then, and the panel wrote NaN into its lines) */
+export function ihsgOnCandles(dates: string[], aligned: Point[]): Point[] {
+  if (!aligned.length) return [];
+  const first = aligned[0].value, lead = dates.length - aligned.length;
+  return dates.map((t, i) => aligned[i - lead] ?? { time:t, value:first });
+}
+
 /* EXEC-INTRADAY-FEATURES C3: another ticker's bars on the chart's candles by key; a candle it did not trade repeats its
    last close; candles before its first bar are left out */
 function alignBars(keys: string[], rows: PriceRow[]): Bar[] {
@@ -433,9 +442,7 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
   const loadIhsg = async (): Promise<Point[]> => {
     // 3e: a principal that does not hold IHSG (a visitor, the free plan: decision D3) is never sent to ask for it
     if (SYMBOL !== 'IHSG' && locks.ticker('IHSG')) throw new LockedData({ kind:'ticker', id:'IHSG', name:'Composite Index' });
-    const aligned = alignTo(dates, await ihsgRows(), intraday ? dates : ends);
-    const first = aligned.length ? aligned[0].value : NaN;
-    return dates.map((t, i) => aligned[i - (N - aligned.length)] ?? { time:t, value:first });
+    return ihsgOnCandles(dates, alignTo(dates, await ihsgRows(), intraday ? dates : ends));
   };
 
   /* broker files: Flow Timeline (net per broker × investor type × board) and Broker activity (every broker date, EXEC-BROKER-FULL) */

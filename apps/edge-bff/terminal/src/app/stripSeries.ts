@@ -23,9 +23,11 @@ class StripRenderer implements LWC.ICustomSeriesPaneRenderer {
         const b = d.bars[i]; if (!b) continue;
         const p = b.originalData as StripPoint, col = (b as any).barColor || p.color;   // the library hands the point's colour as barColor
         if (p.value === undefined || !col) continue;
-        const x = Math.round(b.x * hr - w / 2);
+        // every edge on a whole bitmap pixel, the right one too (re-check 3 NEW-1, the same mechanism as the label boxes):
+        // each edge by its own position, so cells without a gap still meet
+        const x = Math.round(b.x * hr - w / 2), cw = Math.max(1, Math.round(b.x * hr + w / 2) - x);
         c.fillStyle = col; c.beginPath();
-        if (r >= 1 && (c as any).roundRect) (c as any).roundRect(x, y, w, h, r); else c.rect(x, y, w, h);
+        if (r >= 1 && (c as any).roundRect) (c as any).roundRect(x, y, cw, h, r); else c.rect(x, y, cw, h);
         c.fill();
       }
     });

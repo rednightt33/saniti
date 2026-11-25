@@ -132,7 +132,7 @@ export function initStats(ctx: Ctx) {
   const volRatio = new Float64Array(N).fill(NaN);     // volume / trailing 20D average
   for(let i=19;i<N;i++){ let s=0; for(let k=i-19;k<=i;k++) s+=volume[k].value; volRatio[i] = volume[i].value/(s/20); }
   /* live: IHSG is read the first time the open panel draws Relative performance (EXEC-TERMINAL-UI-1026 U5) */
-  let ihsgSeries = ctx.M.ihsg, ihsgAsked = false, ihsgFailed = false;
+  let ihsgSeries = ctx.M.ihsg, ihsgAsked = false, ihsgFailed = false, ihsgNone = false;
   // 3e: IHSG the principal does not hold (LockedData): its row says Locked and opens the lock box
   let ihsgLocked: LockedItem | null = null;
   $('relStats').addEventListener('click', e => { if (ihsgLocked && (e.target as Element).closest('.st-lock-btn')) askLocked(ihsgLocked) });
@@ -301,12 +301,13 @@ export function initStats(ctx: Ctx) {
     if(FI){ /* hidden */ } else if(!ihsgSeries.length){
       if(ctx.M.loadIhsg && !ihsgAsked){
         ihsgAsked = true;
-        ctx.M.loadIhsg().then(sr => { ihsgSeries = sr; scheduleStats() },
+        // ERRORS M565: IHSG without a close on this chart's candles is said, not drawn as NaN lines
+        ctx.M.loadIhsg().then(sr => { if (sr.some(p => Number.isFinite(p.value))) ihsgSeries = sr; else ihsgNone = true; scheduleStats() },
           e => { if (e instanceof LockedData) ihsgLocked = e.item; else ihsgFailed = true; scheduleStats() });
       }
       $('relChart').innerHTML = '';
       $('relStats').innerHTML = ihsgLocked ? `<div class="st-row st-lock-row"><span>IHSG comparison</span><button class="st-lock-btn" type="button">${lockMark('st-lock')}<span>${lockWord()}</span></button></div>`
-        : ihsgFailed ? empty('IHSG could not be loaded') : `<div class="st-row">${spin('Loading IHSG')}</div>`;
+        : ihsgFailed ? empty('IHSG could not be loaded') : ihsgNone ? empty('No IHSG data for this chart') : `<div class="st-row">${spin('Loading IHSG')}</div>`;
     } else {
       const m0 = closes[a], i0 = ihsgSeries[a].value, mp: number[] = [], ip: number[] = [];
       for(let i=a;i<=b;i++){ mp.push((closes[i]/m0-1)*100); ip.push((ihsgSeries[i].value/i0-1)*100) }

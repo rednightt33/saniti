@@ -22,14 +22,18 @@ import { newPaneId } from '../data/drawingsApi';
 import { StripSeries, STRIP_PANE_PX } from './stripSeries';
 import { followPointer, viewFollower } from './viewFollow';
 import { numberFormat } from '../data/intlCache';
+import { snapBox, snapTo } from '../data/pixelSnap';
+import { drawnColors } from '../data/drawnColors';
+import { migrateSaved } from '../data/migrateSaved';
 
 export function initIndicators(ctx: Ctx) {
   const { L, chart, ohlc, volume, N, closes, BOARDS, INVESTORS, allBrokers, makeFilter, IND_REG, Ind, volCtl, Hist, displayHooks, tipHooks } = ctx;
   const NF = numberFormat('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
   const PALETTE = ['#171717', '#f5a623', '#7928ca', '#12a594', '#d6409f', '#0070f3', '#f23645', '#8f8f8f', '#089981'];
   const LINE_STYLES = { Solid:L.LineStyle.Solid, Dashed:L.LineStyle.Dashed, Dotted:L.LineStyle.Dotted };
-  /* the indicators' colours on the chart, for every colour box (the compare lines' box reads them too: checker S-6) */
-  ctx.indicatorColors = () => list.flatMap(i => [i.style?.color, ...Object.values(i.style?.out || {}).flatMap((o: any) => [o?.color, o?.color2])]).filter(Boolean);
+  /* the indicators' colours on the chart, for every colour box (the compare lines' box reads them too: checker S-6): only
+     those drawn now (its re-check: data/drawnColors.ts), read when a box opens */
+  ctx.indicatorColors = () => list.flatMap(i => drawnColors(i, { inst:drawn(i), part:pt => partShown(i, pt) }, STATE_COLORS));
   /* an output's stored opacity (0-100) and line style, a value the box does not offer read as the default (checker S-8) */
   const opacityOf = (s: any) => { const v = Number(s?.opacity ?? 100); return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 100 };
   const lineStyleOf = (s: any): LineStyleKey => (LINE_STYLE_KEYS as readonly string[]).includes(s?.lineStyle) ? s.lineStyle : 'Solid';
@@ -174,20 +178,23 @@ export function initIndicators(ctx: Ctx) {
   function paintLabels(c, labels, ts, series, paneH: number, ratio = { h:1, v:1 }) {
     if(!labels || !labels.length) return;
     const vr = ts.getVisibleLogicalRange(), from = vr ? Math.floor(vr.from) - 2 : -Infinity, to = vr ? Math.ceil(vr.to) + 2 : Infinity;
-    // re-check V1-7: whole pixels of the chart's own canvas (its bitmap ratio), not the window's devicePixelRatio
-    const px = (v: number) => Math.round(v * ratio.h) / ratio.h, py = (v: number) => Math.round(v * ratio.v) / ratio.v, P = LABEL_P;   // x and y each on their own ratio (re-check 2 NEW-1)
+    /* re-check V1-7: whole pixels of the chart's own canvas (its bitmap ratio), not the window's devicePixelRatio; x and y
+       each on their own ratio (re-check 2 NEW-1), and every edge, the right and the bottom too (re-check 3 NEW-1:
+       data/pixelSnap.ts) */
+    const P = LABEL_P;
     for(let k = labelFrom(labels, from); k < labels.length && labels[k].i <= to; k++) {
       const l = labels[k], x = ts.logicalToCoordinate(l.i), y0 = series.priceToCoordinate(l.price);
       if(x === null || y0 === null) continue;
       const y = y0 + (l.gap ? (l.dir === 'down' ? -l.gap : l.gap) : 0);     // a label on a candle stands clear of its wick
-      const [fs, H] = labelSize(l), font = labelFont(fs), m = measureLabel(c, font, l.text), w = px(m.w + 12), up = l.dir !== 'down';
-      const want = up ? y + P : y - P - H, top = py(Math.max(0, Math.min(paneH - H, want))), left = px(x - w / 2), joined = top === py(want);
+      const [fs, size] = labelSize(l), font = labelFont(fs), m = measureLabel(c, font, l.text), up = l.dir !== 'down';
+      const H = snapTo(size, ratio.v), want = up ? y + P : y - P - H;
+      const { x:left, y:top, w } = snapBox(x - (m.w + 12) / 2, Math.max(0, Math.min(paneH - H, want)), m.w + 12, size, ratio), joined = top === snapTo(want, ratio.v);
       c.fillStyle = l.bg; c.beginPath();
       (c as any).roundRect ? (c as any).roundRect(left, top, w, H, 3) : c.rect(left, top, w, H);
       // the pointer in the box's own winding, so the two overlap as one shape (nonzero fill: one coat of a see-through colour)
       if(joined) { const b = up ? top + .5 : top + H - .5; c.moveTo(x, y); if(up) { c.lineTo(x + P, b); c.lineTo(x - P, b) } else { c.lineTo(x - P, b); c.lineTo(x + P, b) } c.closePath() }
       c.fill('nonzero');
-      c.font = font; c.textBaseline = 'alphabetic'; c.fillStyle = l.fg; c.fillText(l.text, px(x - m.w / 2), top + H / 2 + (m.asc - m.desc) / 2);
+      c.font = font; c.textBaseline = 'alphabetic'; c.fillStyle = l.fg; c.fillText(l.text, snapTo(x - m.w / 2, ratio.h), top + H / 2 + (m.asc - m.desc) / 2);
     }
   }
   /** a label primitive's part of its price scale: the visible labels' prices, and room for their boxes above (a box over
@@ -241,7 +248,9 @@ export function initIndicators(ctx: Ctx) {
           // whole candles: half a bar's spacing beyond each end (logicalToCoordinate takes whole bars only)
           const half = (ts.options().barSpacing || 6) / 2;
           for(const sh of d.shades) { if(off(sh.i0, sh.i1)) continue; const x0 = ts.logicalToCoordinate(sh.i0), x1 = ts.logicalToCoordinate(sh.i1); if(x0 === null || x1 === null) continue;
-            ctx.fillStyle = sh.color; ctx.fillRect((Math.min(x0, x1) - half) * hx, 0, (Math.abs(x1 - x0) + 2 * half) * hx, bitmapSize.height) }
+            // each edge on a whole bitmap pixel by its own position (re-check 3 NEW-1: the label boxes' mechanism), so two ranges side by side still meet
+            const e0 = Math.round((Math.min(x0, x1) - half) * hx), e1 = Math.round((Math.max(x0, x1) + half) * hx);
+            ctx.fillStyle = sh.color; ctx.fillRect(e0, 0, e1 - e0, bitmapSize.height) }
           return;
         }
         for(const sg of d.segments) {
@@ -391,6 +400,11 @@ export function initIndicators(ctx: Ctx) {
      opsi untuk collapse. Sama seperti fungsi collapse flow timeline"): a pane indicator can be folded to its title row; its
      lines are not drawn then (its row keeps the name, value and filters) and the price chart takes the room */
   const drawn = inst => inst.on && !inst.fold;
+  /* an output drawn now: its indicator drawn, the output on, not hidden by its registry entry nor turned off by a
+     parameter (EXEC-FLOW-NEW-3: an output a parameter turns off, FL14 avg, FL50 verdict, FL51 cost lines; bands_mode
+     None). refreshMulti draws by it, and the colour boxes offer what it draws (checker S-6) */
+  const partShown = (inst, pt) => drawn(inst) && !!inst.style.out[pt.o.k]?.on && !pt.o.hidden
+    && !('bands_mode' in inst.params && inst.params.bands_mode === 'None' && /bands_mode/.test(pt.o.cond));
   const FOLD_PX = 30;
   const paneOfInst = inst => (inst.series || inst.parts?.find(pt => pt.series)?.series || inst.lines?.find(l => l.series)?.series)?.getPane() || null;
   /* an indicator that is not a price overlay lives in its own pane under the candles */
@@ -740,9 +754,9 @@ export function initIndicators(ctx: Ctx) {
       if(inst.endPrim && inst.endHost !== host) { try { inst.endHost.detachPrimitive(inst.endPrim) } catch(e) {} inst.endPrim = null }
       if(!inst.endPrim && host) { inst.endPrim = new EndLabels(inst); host.attachPrimitive(inst.endPrim); inst.endHost = host } }
     const breaks = new Set((inst.raw._breaks || []).map(i => i + off));         // calculation restarts here: never draw a line into this bar
-    const dir = inst.disp.direction, bandsOff = 'bands_mode' in p && p.bands_mode === 'None', T = i => ohlc[i].time;
-    // EXEC-FLOW-NEW-3: an output a parameter turns off (FL14 avg, FL50 verdict, FL51 cost lines) is not drawn
-    const shown = pt => drawn(inst) && st.out[pt.o.k].on && !pt.o.hidden && !(bandsOff && /bands_mode/.test(pt.o.cond));
+    const dir = inst.disp.direction, T = i => ohlc[i].time;
+    // EXEC-FLOW-NEW-3: an output a parameter turns off (FL14 avg, FL50 verdict, FL51 cost lines) is not drawn (partShown)
+    const shown = pt => partShown(inst, pt);
     const own = pt => pt.o.scale === 'right' && r.zone === 'overlay';          // a line on the price pane's right axis
     inst.parts.forEach(pt => {
       /* EXEC-PINE-INDICATORS: an output drawn see-through as its source draws it (registry `alpha`, 0..1: Alpha Extract's
@@ -997,14 +1011,16 @@ export function initIndicators(ctx: Ctx) {
       if(!tags.length) return;
       tags.sort((p, q) => p.y - q.y);
       for(let k = 1; k < tags.length; k++) if(tags[k].y - tags[k - 1].y < 18) tags[k].y = tags[k - 1].y + 18;
+      const ratio = labelRatio(target);                     // re-check 3 NEW-1: the tag's every edge on the canvas's pixels
       target.useMediaCoordinateSpace(({ context:c, mediaSize }) => {
         c.font = `600 11px ${getComputedStyle(document.documentElement).getPropertyValue('--mono').trim() || 'Inter, sans-serif'}`;   // the Terminal's font token (ERRORS M411) c.textBaseline = 'middle';
         for(const g of tags) {
-          const w = c.measureText(g.t).width + 10, x = Math.min(g.x + 6, mediaSize.width - w - 2), y = Math.min(Math.max(g.y, 9), mediaSize.height - 9);
-          c.fillStyle = g.c; c.beginPath(); (c as any).roundRect ? (c as any).roundRect(x, y - 8, w, 16, 3) : c.rect(x, y - 8, w, 16); c.fill();
+          const tw = c.measureText(g.t).width + 10, y = Math.min(Math.max(g.y, 9), mediaSize.height - 9);
+          const { x, y:top, w, h } = snapBox(Math.min(g.x + 6, mediaSize.width - tw - 2), y - 8, tw, 16, ratio);
+          c.fillStyle = g.c; c.beginPath(); (c as any).roundRect ? (c as any).roundRect(x, top, w, h, 3) : c.rect(x, top, w, h); c.fill();
           // the code in the middle of its box, from the font's own ink (textBaseline 'middle' sat low in Inter)
           const m = c.measureText(g.t), asc = m.actualBoundingBoxAscent || 8, desc = m.actualBoundingBoxDescent || 0;
-          c.textBaseline = 'alphabetic'; c.fillStyle = '#fff'; c.fillText(g.t, x + 5, y + (asc - desc) / 2); c.textBaseline = 'middle';
+          c.textBaseline = 'alphabetic'; c.fillStyle = '#fff'; c.fillText(g.t, x + 5, top + h / 2 + (asc - desc) / 2); c.textBaseline = 'middle';
         }
       });
     }
@@ -1622,13 +1638,9 @@ export function initIndicators(ctx: Ctx) {
     Hist.push({ undo:() => snaps.forEach(revive), redo:() => snaps.forEach(s => dropForget(s.hid)) });
   };
 
-  /* saved lists from before the registry used 'ma' / 'ema' (one MA indicator with a type switch) */
-  const migrate = o => {
-    if(o.def !== 'ma' && o.def !== 'ema') return o;
-    const key = String(o.params && o.params.type || (o.def === 'ema' ? 'EMA' : 'SMA')).toLowerCase(), st = o.style || {};
-    return { def:key, on:o.on, params:{ length:o.params && o.params.length, source:String(o.params && o.params.source || 'close').toLowerCase() },
-      style:{ out:{ [key]:{ color:st.color, width:st.width } }, offset:o.params && o.params.offset || 0 } };
-  };
+  /* saved lists from before the registry used 'ma' / 'ema' (one MA indicator with a type switch): migrated by their shape,
+     so today's EMA keeps its saved style (ERRORS M564, data/migrateSaved.ts) */
+  const migrate = migrateSaved;
   /* EXEC-TERMINAL-IND-EDIT (user 2026-11-05, R1): a saved choice the settings no longer offer (Rank "Net sell" on an
      indicator with a Side) goes back to the default, rather than staying as a value the dialog cannot show */
   const dropStale = o => {
