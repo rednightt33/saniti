@@ -10,7 +10,8 @@
       enum parameter a user decision narrows with its start value, today P17 a for the I43 anchor), explicit
       overrides with their evidence, and the provisional cost model of the caps (P5);
    3. fields derived here by running the Terminal's own formulas F (apps/edge-bff/terminal/src/calc/indicators.ts) on
-      a deterministic synthetic series, for all 76 outputs: first_valid_bar, history_class (cut probe), unit and
+      a deterministic synthetic series, for all 76 outputs: first_valid_bar, history_class (cut probe, and for the
+      outputs it finds window the reach probe on four price shapes, UD36: reachProbe), unit and
       level_comparable (scaling and shift probes), price_compare_lag (lag probe), inputs per enum option (poison
       probe), the narrowing (degeneracy probe at each numeric minimum, floor probe, the not_accepted rule),
       cost_class (work ratio at two lengths, counted by V8 block coverage, never timed; a class lowered from the
@@ -118,6 +119,18 @@ export function categoryDefaultProblems(k, v, cats, where) {
 const MA_TYPES = ['SMA', 'EMA'];
 
 /* ---- the deterministic synthetic series the probes run on -------------------------------------------------- */
+/** The reach probe's price shapes (UD36, ERRORS M558 SC-3; EXEC-PRICE-DISTORTION step F2b): one series of one regime
+    left a state that real prices keep for a long time unseen (the last swing of a trend, a long compression, a band
+    the price stays outside of after a crash), so the window class was measured on a long uptrend, a crash, a sideways
+    range and a recovery as well. Each shape is a list of stretches: `bars`, the volatility `vol` (sd of the log return
+    per bar) and either `drift` (the mean log return per bar) or `revert` (the share of the log distance to the start
+    price closed per bar, a range). */
+const REACH_SHAPES = [
+  { name: 'uptrend', stretches: [{ bars: 1500, drift: 0.0015, vol: 0.012 }] },
+  { name: 'crash', stretches: [{ bars: 400, drift: 0.0004, vol: 0.012 }, { bars: 60, drift: -0.012, vol: 0.03 }, { bars: 1040, drift: 0.0002, vol: 0.012 }] },
+  { name: 'sideways', stretches: [{ bars: 1500, revert: 0.05, vol: 0.01 }] },
+  { name: 'recovery', stretches: [{ bars: 600, drift: -0.0018, vol: 0.014 }, { bars: 900, drift: 0.0022, vol: 0.014 }] },
+];
 /** Probe settings; recorded in the generated file so a reader knows what the derived fields were measured on. */
 export const PROBE = Object.freeze({
   seed: 20261028, bars: 4000, start: '2016-01-04', cut_at: 1000,
@@ -125,6 +138,8 @@ export const PROBE = Object.freeze({
   tolerance: 1e-9, unit_tolerance: 1e-6, unit_from: 2000, min_common_bars: 100, converged_ratio: 1e-3,
   cost_bars: 10000, cost_long_length: 1000, cost_measure: 'v8_block_coverage_executed_source_chars', cost_tier: '--max-opt=1',
   cost_growth: 2, cost_margin: 2,
+  // the reach probe (reachProbe): every shape cut at cut_from, cut_from + cut_every, ... while cut_margin bars remain
+  reach: Object.freeze({ seed: 20261124, shapes: REACH_SHAPES, cut_from: 30, cut_every: 37, cut_margin: 300, tolerance: 1e-6 }),
 });
 
 function mulberry32(seed) {
@@ -142,6 +157,23 @@ export function fixture(opts = {}) {
     if (i % 200 === 0) mu = (rnd() - 0.5) * 0.006;
     const o = c * (1 + 0.004 * g());
     c = c * Math.exp(mu + 0.02 * g());
+    O.push(o); C.push(c); H.push(Math.max(o, c) * (1 + 0.008 * Math.abs(g()))); L.push(Math.min(o, c) * (1 - 0.008 * Math.abs(g())));
+    V.push(Math.round(1e6 * Math.exp(0.6 * g())));
+    while ([0, 6].includes(new Date(t).getUTCDay())) t += 864e5;
+    T.push(new Date(t).toISOString().slice(0, 10)); t += 864e5;
+  }
+  return { O, H, L, C, V, T };
+}
+/** The OHLCV bars of one reach shape (PROBE.reach.shapes), built as fixture() builds its bars (the same open, high,
+    low and volume noise, weekday dates from PROBE.start), the close following the shape's stretches. Pure function of
+    the shape and `seed` (PROBE.reach.seed plus the shape's index). */
+export function shapeFixture(shape, seed) {
+  const rnd = mulberry32(seed), g = () => { const u = 1 - rnd(), v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) };
+  const O = [], H = [], L = [], C = [], V = [], T = [], c0 = 1000;
+  let c = c0, t = Date.parse(`${PROBE.start}T00:00:00Z`);
+  for (const s of shape.stretches) for (let k = 0; k < s.bars; k++) {
+    const o = c * (1 + 0.004 * g()), mu = s.revert !== undefined ? s.revert * Math.log(c0 / c) : s.drift;
+    c = c * Math.exp(mu + s.vol * g());
     O.push(o); C.push(c); H.push(Math.max(o, c) * (1 + 0.008 * Math.abs(g()))); L.push(Math.min(o, c) * (1 - 0.008 * Math.abs(g())));
     V.push(Math.round(1e6 * Math.exp(0.6 * g())));
     while ([0, 6].includes(new Date(t).getUTCDay())) t += 864e5;
@@ -197,6 +229,49 @@ export function historyClass(full, cut, cutAt, hasAnchor) {
   const head = median(gaps.slice(0, 100)), tail = median(gaps.slice(-100));
   return tail <= tol || tail <= head * PROBE.converged_ratio ? 'recursive' : 'cumulative';
 }
+
+/** Reach probe, one cut (UD36, ERRORS M558 SC-3): the bars before its window that an output's value still depends on.
+    The window class promises that the value at bar t reads only the bars t - firstValid .. t, firstValid being the
+    output's first valid bar on that stock (evaluate.ts lookbackStart, the PRICE_BREAK_IN_LOOKBACK remark). So the
+    output recomputed from the cut at bar cutAt must give, at every bar from cutAt + firstValid on, what the full history
+    gives: both a value, equal within PROBE.reach.tolerance of the output's magnitude, or both none. The answer is the
+    last bar where they differ, counted from that first bar (1: the window is one bar short), 0 when the promise holds.
+    The tolerance is a share of the magnitude far above the residue running sums leave (MFI on real prices: 1e-7 on a
+    scale of 100) and far below a state the cut left out (a 0/1 flag, a swing's price). */
+export function reachBeyond(full, cut, cutAt) {
+  const fv = firstValid(full);
+  if (fv === null) return 0;
+  const tol = PROBE.reach.tolerance * Math.max(scaleOf(full), 1);
+  let last = -1;
+  for (let i = fv; i < cut.length && cutAt + i < full.length; i++) {
+    const a = cut[i], b = full[cutAt + i];
+    if (isN(a) !== isN(b) || (isN(a) && Math.abs(a - b) > tol)) last = i;
+  }
+  return last < 0 ? 0 : last - fv + 1;
+}
+/** Reach probe (UD36): reachBeyond of each output on every shape of PROBE.reach (shapeFixture) at every cut, the
+    longest kept with the shape and the cut that gave it. `run` computes the indicator at its start configuration. */
+export function reachProbe(run, outputs) {
+  const R = PROBE.reach, best = Object.fromEntries(outputs.map(o => [o, { beyond: 0, shape: null, cut: null }]));
+  R.shapes.forEach((shape, k) => {
+    const B = shapeFixture(shape, R.seed + k), full = run(B);
+    for (let c = R.cut_from; c < B.C.length - R.cut_margin; c += R.cut_every) {
+      const part = run(sliceBars(B, c));
+      for (const o of outputs) {
+        const beyond = reachBeyond(full[o], part[o], c);
+        if (beyond > best[o].beyond) best[o] = { beyond, shape: shape.name, cut: c };
+      }
+    }
+  });
+  return best;
+}
+/** The history class of an output from both probes: the cut probe's class, except that an output the cut probe finds
+    window while the reach probe finds its value depending on bars before its window (on any shape) reads the whole
+    history: 'recursive', the existing class whose lookback is the whole history and whose start's effect ends (a state
+    the start left out is rebuilt by a later swing, compression or band exit), rather than 'cumulative' (a level that
+    depends on the start forever, which the page notes as such). Its reach is not bounded by a parameter (the last swing
+    of Alpha Divergence can be a year old), and the contract has no window longer than the first valid bar. */
+export const reachClass = (cutClass, beyond) => cutClass === 'window' && beyond > 0 ? 'recursive' : cutClass;
 
 /** Scaling and shift probes: OHLC x k, volume x m, OHLC + s, volume + sv. A price level scales with k and moves with s
     (comparable with close); a price change scales with k and ignores s; a volume level scales with m and moves with sv
@@ -842,6 +917,9 @@ export async function build({ against = null } = {}) {
     // default anchor makes its bands degenerate); every other field is measured at the start configuration
     const probeParams = ov.probe ? resolveParams(BY_ID[r.id], { ...ov.probe.params }, `overlay ${r.id}.probe.params`) : {};
     const full = run(B), cutOut = run(cut), units = unitProbe(b => run(b, probeParams), B), atProbe = run(B, probeParams);
+    // the history class: the cut probe, then the reach probe on the price shapes for the outputs it finds window (UD36)
+    const cutClass = Object.fromEntries(r.outputs.map(o => [o, historyClass(full[o], cutOut[o], PROBE.cut_at, hasAnchor)]));
+    const windowOuts = r.outputs.filter(o => cutClass[o] === 'window'), reach = windowOuts.length ? reachProbe(b => run(b), windowOuts) : {};
     const inputs = inputsProbe(b => run(b), B, r.outputs);
     const inputsBy = {};
     for (const p of r.params.filter(q => q.type === 'enum')) {
@@ -904,7 +982,7 @@ export async function build({ against = null } = {}) {
         ...(!(spec.tests || []).length && ti.outs.some(x => x.paletteFrom === o) ? { drawing_only: true } : {}),
         unit: u.unit, level_comparable: u.comparable_with !== null, comparable_with: u.comparable_with,
         price_compare_lag: field ? compareLag(field, atProbe[o]) : { gt: 0, lt: 0 },
-        history_class: historyClass(full[o], cutOut[o], PROBE.cut_at, hasAnchor),
+        history_class: reachClass(cutClass[o], reach[o]?.beyond ?? 0),
         first_valid_bar: firstValid(full[o]),
         inputs: inputs[o],
         inputs_by_source: Object.fromEntries(Object.entries(inputsBy).map(([k, opts]) => [k, Object.fromEntries(Object.entries(opts).map(([opt, per]) => [opt, per[o]]))])),

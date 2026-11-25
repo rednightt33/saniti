@@ -451,8 +451,8 @@ export interface LimitEntry { name: LimitName | string; value: number; unit: str
 /** Availability, derived at run time (report 6.12): indicators from the generated registry; every other metric from
     screener-metrics.json `requires` against the files indexed in state.json. */
 export type Availability = 'AVAILABLE' | 'REQUIRES_DATA' | 'REQUIRES_DECISION' | 'NOT_APPLICABLE';
-/** history_class (report 6.8 cut probe): window (equal to full history once its window is full), recursive (decays
-    toward the full-history value), cumulative (never converges: level depends on the start bar), calendar (anchored). */
+/** history_class (report 6.8 cut probe, then the reach probe on four price shapes, UD36): window (equal to full history once its window is full), recursive (the
+    whole history: decays toward its value, or a state a later start rebuilds, e.g. the last swing), cumulative (never converges: level depends on the start bar), calendar (anchored). */
 export type HistoryClass = 'window' | 'recursive' | 'cumulative' | 'calendar';
 /** cost_class (report 6.8): O(N) or O(N·n), from the work of F at two lengths of the parameter (its default L1 and
     L2 = max(1000, 50 x L1), at most a quarter of the fixture's bars), counted, never timed: V8 precise block coverage

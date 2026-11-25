@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "ae69a0330d713449",
+  "screener_registry_version": "882b23a855104047",
   "registry_version": "2a69cd7d3f01ceaf",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "1f926ca2280169b14ffb75d1a2b54403146c9534fb0ecd73e7f21ab62ff4bc0d"
+      "sha256": "6748b613045bbc427be08a5b9d03936c011d503277560294ce80ee603676332d"
     },
     {
       "role": "flow_registry",
@@ -84,7 +84,71 @@
     "cost_measure": "v8_block_coverage_executed_source_chars",
     "cost_tier": "--max-opt=1",
     "cost_growth": 2,
-    "cost_margin": 2
+    "cost_margin": 2,
+    "reach": {
+      "seed": 20261124,
+      "shapes": [
+        {
+          "name": "uptrend",
+          "stretches": [
+            {
+              "bars": 1500,
+              "drift": 0.0015,
+              "vol": 0.012
+            }
+          ]
+        },
+        {
+          "name": "crash",
+          "stretches": [
+            {
+              "bars": 400,
+              "drift": 0.0004,
+              "vol": 0.012
+            },
+            {
+              "bars": 60,
+              "drift": -0.012,
+              "vol": 0.03
+            },
+            {
+              "bars": 1040,
+              "drift": 0.0002,
+              "vol": 0.012
+            }
+          ]
+        },
+        {
+          "name": "sideways",
+          "stretches": [
+            {
+              "bars": 1500,
+              "revert": 0.05,
+              "vol": 0.01
+            }
+          ]
+        },
+        {
+          "name": "recovery",
+          "stretches": [
+            {
+              "bars": 600,
+              "drift": -0.0018,
+              "vol": 0.014
+            },
+            {
+              "bars": 900,
+              "drift": 0.0022,
+              "vol": 0.014
+            }
+          ]
+        }
+      ],
+      "cut_from": 30,
+      "cut_every": 37,
+      "cut_margin": 300,
+      "tolerance": 0.000001
+    }
   },
   "cost_model": {
     "status": "PROVISIONAL (P5): replaced by the Phase 17 measurement on the service, recorded in verification/screener/BENCHMARK.md with CPU and Node version",
@@ -9107,7 +9171,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9151,7 +9215,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9205,7 +9269,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9259,7 +9323,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9313,7 +9377,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9355,7 +9419,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9397,7 +9461,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9482,7 +9546,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 0,
           "inputs": [
             "H",
@@ -9529,7 +9593,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 0,
           "inputs": [
             "H",
@@ -10987,7 +11051,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 101,
           "inputs": [
             "H",
@@ -12041,7 +12105,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 29,
           "inputs": [
             "O",
@@ -12189,7 +12253,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 13,
           "inputs": [
             "H",
@@ -12249,7 +12313,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 13,
           "inputs": [
             "H",
@@ -12309,7 +12373,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 13,
           "inputs": [
             "H",
@@ -12369,7 +12433,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 73,
           "inputs": [
             "H",
@@ -12431,7 +12495,7 @@
             "gt": 0,
             "lt": 0
           },
-          "history_class": "window",
+          "history_class": "recursive",
           "first_valid_bar": 46,
           "inputs": [
             "H",
@@ -12483,7 +12547,7 @@
           "disabled_tests": []
         }
       ],
-      "history_class": "window",
+      "history_class": "recursive",
       "cost_class": "O(N)",
       "description": "Price and SMI divergences at confirmed swing highs and lows, the BUY A breakout after a bullish divergence, and the last swing levels.",
       "overlay": {

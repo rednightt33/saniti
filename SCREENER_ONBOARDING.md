@@ -670,7 +670,15 @@ available; it never runs with a leg removed.
   I43 anchors); plus explicit `overrides` with their evidence (one: I09 `factor` exclusive minimum, ERRORS M257), the
   `cost_reviews` of lowered cost classes (none today) and the provisional `cost_model` of the caps (P5: 5.96 ns per bar per length unit, from one CCI(1000) run). The generator
   derives, by running `F`: `first_valid_bar` per output; `history_class` (window, recursive, cumulative, calendar) by a
-  cut probe; unit and `level_comparable` by scaling and shift probes; `price_compare_lag` by a lag probe; `inputs` per
+  cut probe, then, for an output the cut probe finds window, by a reach probe (UD36, ERRORS M558 SC-3: one series of
+  one regime missed states real prices keep for long, the last swing of Alpha Divergence, a long Inside Bar
+  compression): the output is recomputed from a cut every 37 bars on four seeded price shapes (a long uptrend, a crash,
+  a sideways range, a recovery; `PROBE.reach`), and when its value at a bar whose window the cut holds still differs
+  from the full history (by more than 1e-6 of its magnitude; one bar is enough), it reads the whole history and is
+  classed recursive (`reachProbe`, `reachClass`; `evaluate.ts` `lookbackStart` then gives no window, so the "Distorted"
+  remark covers every price break of the row up to the evaluated bar); `tests/core/reach.test.mjs` cuts the
+  Terminal's real-price parity fixtures (eight stocks) the same way and fails on an output classed window that reads
+  further back; unit and `level_comparable` by scaling and shift probes; `price_compare_lag` by a lag probe; `inputs` per
   enum option by a poison probe; narrowing (an exclusive minimum where the output degenerates; integer-only where `F`
   floors; `not_accepted` parameters hidden); `cost_class` by counting the work F does at two lengths with V8 block
   coverage, never by timing, so the file is the same bytes at any machine load (the count does not see work inside a
