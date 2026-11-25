@@ -53,6 +53,7 @@ import { computeFlow } from '../../terminal/src/calc/flow.ts';
 import { probeContext, probeLength, scaledBars, scaledLots, turnedContext } from '../src/core/flowprobe.ts';
 import { computeEntry } from '../src/core/flowscreener.ts';
 import { movingBars } from '../src/core/effective.ts';
+import { loadFixtures } from '../../terminal/tests/calc/fixtures.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(here, '../../../..');
@@ -188,6 +189,16 @@ export const PROBE = Object.freeze({
     seed: 20261125, shapes: EFFECT_SHAPES, tolerance: 1e-3, probe_tolerance: 1e-5, cut_from: 30, cut_every: 37, room: 1000, margin: 300,
     min_span: 10, end_ratio: 10, decay_ratio: 1.25, raise: Object.freeze([2, 4]), checks: Object.freeze([1.5, 3]), lower: 0.5,
     number_factors: Object.freeze([0.5, 2]), scaling_margin: 0.05,
+    // re-check round 2 (agents_20261126-history, H2-1): a break left in the history scales every price before it by its
+    // factor (and the volumes by the inverse), a perturbation a cut does not bound: the probe also plants such breaks at
+    // break_every and measures the window at the user's `tolerance`. The factors span the actions in the data
+    // (stockbit_corporate_action, 2026-11-26: splits up to 1:100, so the old prices up to 100 times the new; reverse
+    // splits up to 100000:1, so down to 1e-5; RDTX's unrecorded 1:20 of 2026-11-24): 100, 20, 2, 0.5, 0.2, 1e-5
+    break_factors: Object.freeze([100, 20, 2, 0.5, 0.2, 1e-5]), break_every: 111,
+    // and on the Terminal's real-price fixtures (apps/edge-bff/terminal/tests/calc/fixtures: a stock pinned at its floor
+    // for years, GOTO, holds a recursion such as Alpha KAMA's longer than any shape; H2-1): a break every real_every bars
+    // from real_from while real_margin bars follow it, the measure of tests/core/reach.test.mjs
+    real_from: 60, real_every: 97, real_margin: 300,
   }),
 });
 
@@ -248,6 +259,15 @@ export function shapeFixture(shape, seed) {
 }
 const mapBars = (B, f) => ({ O: B.O.map(f.p), H: B.H.map(f.p), L: B.L.map(f.p), C: B.C.map(f.p), V: B.V.map(f.v), T: B.T });
 const sliceBars = (B, from) => ({ O: B.O.slice(from), H: B.H.slice(from), L: B.L.slice(from), C: B.C.slice(from), V: B.V.slice(from), T: B.T.slice(from) });
+/** The Terminal's real-price fixtures as bars (loaded once; effectiveProbe's real breaks, H2-1). */
+let REAL;
+const REAL_BARS = () => REAL ??= loadFixtures().map(f => ({ ticker: f.ticker, bars: { T: f.T, O: f.O, H: f.H, L: f.L, C: f.C, V: f.V } }));
+/** The bars with a break left in the history before bar `at`: every price before it times `f`, every volume divided by it
+    (the unadjusted history of a 1:f split; effectiveProbe's planted breaks, H2-1). */
+export const breakBars = (B, at, f) => {
+  const px = x => x.map((v, i) => i < at && typeof v === 'number' ? v * f : v), vol = x => x.map((v, i) => i < at && typeof v === 'number' ? v / f : v);
+  return { O: px(B.O), H: px(B.H), L: px(B.L), C: px(B.C), V: vol(B.V), T: B.T };
+};
 const median = xs => { const s = [...xs].sort((a, b) => a - b); return s[s.length >> 1] };
 
 /* ---- series helpers ------------------------------------------------------------------------------------------ */
@@ -347,9 +367,12 @@ export const reachClass = (cutClass, beyond) => cutClass === 'window' && beyond 
    measured at probe_tolerance, a hundred times tighter, because a cut of a synthetic shape leaves a smaller gap than
    real prices do: on the eight real-price fixtures the windows at 0.1 % were up to 1.5 times those of the shapes at
    0.1 % (EMA 20: 67 sessions on DEWI against 44), and the decay of a recursion is geometric, so a hundred times the
-   tolerance covers a gap a hundred times larger. A price break is a larger gap than a cut: an unadjusted split of 1:5,
-   1:2 or 2:1 planted on the fixtures every 97 bars moves every output by more than 0.1 % of its magnitude for at most
-   0.78 of its window (measured 2026-11-25). The eight fixtures test both at 0.1 % (tests/core/reach.test.mjs). An
+   tolerance covers a gap a hundred times larger. A price break is a larger gap than a cut, and a split far larger than
+   1:2 a gap no margin bounds (re-check round 2, H2-1: a 1:20 split moved EMA, MACD and ADX past their window, a 5:1
+   reverse split on GOTO, pinned at its floor, held Alpha KAMA 688 moving bars against 140): so the probe also plants
+   breaks of every size the data holds (PROBE.effective.break_factors) on the shapes and on the eight real-price
+   fixtures, measured at the user's tolerance, and the window is the most moving bars any cut or break still differs
+   on. The eight fixtures test both at 0.1 % at every measured setting (tests/core/reach.test.mjs). An
    output gets no window, and keeps the whole history, when its values are
    whole numbers (a flag, a direction, a category: a difference far below the tolerance in the recursion beneath can
    flip it at any later bar), when a difference lasts to the end of a shape (not bounded), or when it does not decay
@@ -425,6 +448,13 @@ const ratio3 = x => Number.isFinite(x) ? Number(x.toPrecision(3)) : null;
 export function effectiveProbe(run, outputs, fieldsOf) {
   const E = PROBE.effective;
   const res = Object.fromEntries(outputs.map(o => [o, { moving: 0, at: null, open: null, decay: 0, decayAt: null, end: 0, endAt: null, whole: true, values: 0 }]));
+  const note = (x, o, at) => {
+    const r = res[o];
+    if (x.open && !r.open) r.open = at;
+    if (x.moving > r.moving) { r.moving = x.moving; r.at = at }
+    if (x.decay > r.decay) { r.decay = x.decay; r.decayAt = at }
+    if (x.end > r.end) { r.end = x.end; r.endAt = at }
+  };
   E.shapes.forEach((shape, k) => {
     const B = shapeFixture(shape, E.seed + k), full = run(B);
     const mv = Object.fromEntries(outputs.map(o => [o, movingBars(B, fieldsOf(o))]));
@@ -432,15 +462,32 @@ export function effectiveProbe(run, outputs, fieldsOf) {
     for (const o of outputs) for (const v of full[o]) if (isN(v)) { res[o].values++; if (!Number.isInteger(v)) res[o].whole = false }
     for (let c = E.cut_from; B.C.length - c >= E.room; c += E.cut_every) {
       const part = run(sliceBars(B, c));
-      for (const o of outputs) {
-        const x = effectiveCut(full[o], part[o], c, mv[o], tol[o]), r = res[o];
-        if (x.open && !r.open) r.open = `${shape.name}@${c}`;
-        if (x.moving > r.moving) { r.moving = x.moving; r.at = `${shape.name}@${c}` }
-        if (x.decay > r.decay) { r.decay = x.decay; r.decayAt = `${shape.name}@${c}` }
-        if (x.end > r.end) { r.end = x.end; r.endAt = `${shape.name}@${c}` }
-      }
+      for (const o of outputs) note(effectiveCut(full[o], part[o], c, mv[o], tol[o]), o, `${shape.name}@${c}`);
+    }
+    // H2-1: breaks of every size the data holds, planted at the cut, measured at the user's tolerance (a known size
+    // needs no margin) from the cut's bar on (the real fixtures follow the shapes)
+    const tolB = Object.fromEntries(outputs.map(o => [o, E.tolerance * scaleOf(full[o])]));
+    for (let c = E.cut_from; B.C.length - c >= E.room; c += E.break_every) for (const f of E.break_factors) {
+      const part = run(breakBars(B, c, f));
+      for (const o of outputs) note(effectiveCut(full[o], Array.from(part[o]).slice(c), c, mv[o], tolB[o]), o, `${shape.name}@${c}x${f}`);
     }
   });
+  // the breaks on the real fixtures, as tests/core/reach.test.mjs measures them: the value on the broken history against
+  // the one on the bars from the break on, which never saw it, at the user's tolerance of the broken history's magnitude
+  for (const { ticker, bars } of REAL_BARS()) for (const f of E.break_factors) {
+    for (let d = E.real_from; d < bars.C.length - E.real_margin; d += E.real_every) {
+      const broken = breakBars(bars, d, f), full = run(broken), part = run(sliceBars(broken, d));
+      for (const o of outputs) {
+        const r = res[o];
+        for (const v of full[o]) if (isN(v)) { r.values++; if (!Number.isInteger(v)) r.whole = false }
+        const x = effectiveCut(full[o], part[o], d, movingBars(broken, fieldsOf(o)), E.tolerance * scaleOf(full[o]));
+        // a real stock ends where its data ends: a difference still there at its last bars is not bounded only when the
+        // break has `room` bars after it, as on the shapes; a later break's count is a lower bound of the window (the
+        // difference was cut by the data's end, not shown to last)
+        note({ ...x, open: x.open && full[o].length - d >= E.room }, o, `${ticker}@${d}x${f}`);
+      }
+    }
+  }
   return Object.fromEntries(outputs.map(o => {
     const r = res[o], ratios = { decay: ratio3(r.decay), end: ratio3(r.end) };
     if (r.whole && r.values) return [o, { bars: null, reason: 'discrete', at: null }];

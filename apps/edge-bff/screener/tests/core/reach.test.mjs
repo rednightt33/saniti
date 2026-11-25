@@ -136,6 +136,16 @@ function realMoving(ind, outs, over) {
       const part = F[ind.key](slice(bars, cut), params);
       for (const o of outs) { const x = G.effectiveCut(full[o], part[o], cut, mv[o], tol[o]); if (x.moving > worst[o].moving) worst[o] = { moving: x.moving, ticker, cut } }
     }
+    // and a break of every size the generator plants (PROBE.effective.break_factors, re-check round 2 H2-1), at its
+    // real-fixture stride: the broken history against the bars from the break on
+    const E = G.PROBE.effective;
+    for (const k of E.break_factors) for (let d = E.real_from; d < bars.C.length - E.real_margin; d += E.real_every) {
+      const broken = G.breakBars(bars, d, k), bf = F[ind.key](broken, params), bp = F[ind.key](slice(broken, d), params);
+      for (const o of outs) {
+        const x = G.effectiveCut(bf[o], bp[o], d, movingBars(broken, inputsOf(ind.outputs.find(y => y.key === o), params)), TOL * G.scaleOf(bf[o]));
+        if (x.moving > worst[o].moving) worst[o] = { moving: x.moving, ticker, cut: `${d} x${k}` };
+      }
+    }
   }
   return worst;
 }
@@ -178,14 +188,18 @@ describe('effective windows on real prices (UD55)', () => {
 
   /* The check's power (as the look-ahead gate's self-test catches a centred average): every window cut to a third is
      caught on these prices, so a probe that measured too short a window would fail above. */
-  it('catches a window that is too short: every window at a third of its length fails on these prices', async () => {
-    const rows = await windowRows(), problems = windowProblems(rows, 1 / 3);
+  // a quarter since re-check round 2 (H2-1): the windows are sized by the largest break the generator plants (a 1:100
+  // split), which its synthetic shapes hold longer than these eight stocks do (Chaikin Oscillator at x1.5: 165 moving
+  // bars, 54 on BBCA), so a third of a window is no longer always reached here; a probe four times too short still is
+  it('catches a window that is too short: every window at a quarter of its length fails on these prices', async () => {
+    const rows = await windowRows(), problems = windowProblems(rows, 1 / 4);
     expect(problems.length).toBe(rows.length);
     expect(problems.some(p => p.startsWith('I13.rsi ') && p.includes(' at start:'))).toBe(true);
   }, 600_000);
 
   /* What the window is for: a price break the data did not adjust. Planted on the fixtures (every price before bar d
-     times k, the volume divided by it: a split of 1:5, 1:2 or 2:1 left in the history, every 97th bar), the value on
+     times k, the volume divided by it: a split of 1:5 or of any size the generator plants, 1:100 to a 100000:1 reverse
+     split, left in the history, every 97th bar), the value on
      the broken history differs from the one on the bars from d on, which never saw the break, for fewer moving bars
      than the window: a cell past it is unmarked rightly. */
   it('a planted unadjusted split moves every output by more than 0.1 % of its magnitude only inside its window', async () => {
@@ -195,7 +209,10 @@ describe('effective windows on real prices (UD55)', () => {
       const outs = ind.outputs.filter(o => o.effective_window?.bars), params = startOf(ind);
       if (!outs.length) continue;
       checked += outs.length;
-      for (const { ticker, bars } of STOCKS) for (const k of [5, 2, 0.5]) for (let d = 60; d < bars.C.length - MARGIN; d += 97) {
+      // the sizes the generator plants (PROBE.effective.break_factors: every size the data holds, 1:100 splits to 100000:1
+      // reverse splits; re-check round 2, H2-1) and 1:5, at its real-fixture stride
+      const E = G.PROBE.effective;
+      for (const { ticker, bars } of STOCKS) for (const k of [5, ...E.break_factors]) for (let d = E.real_from; d < bars.C.length - E.real_margin; d += E.real_every) {
         const at = (x, i) => i < d && x !== null && x !== undefined ? x * k : x;
         const broken = { ...bars, O: bars.O.map(at), H: bars.H.map(at), L: bars.L.map(at), C: bars.C.map(at), V: bars.V.map((x, i) => i < d && x !== null && x !== undefined ? x / k : x) };
         const full = F[ind.key](broken, params), part = F[ind.key](slice(broken, d), params);
