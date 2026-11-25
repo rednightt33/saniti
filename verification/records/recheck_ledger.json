@@ -10815,12 +10815,13 @@
     "M558"
    ],
    "fix_commits": [
-    "c91e2809"
+    "c91e2809",
+    "8530a75e"
    ],
-   "fix_note": "c91e2809 (the close of the rule 8 round 2)",
-   "runs_on": "beta",
+   "fix_note": "c91e2809 (the close of the rule 8 round 2); round-1 fix: 8530a75e (agent commit ab64b8cf)",
+   "runs_on": "branch",
    "author_test": "No test of its own; the Terminal suite (1154) and look_check11 passed (c91e2809: ctx.indicatorColors and ctx.assetColors)",
-   "status": "fixed",
+   "status": "waiting",
    "open_row": "",
    "recheck": [
     {
@@ -10862,12 +10863,13 @@
     "M558"
    ],
    "fix_commits": [
-    "c91e2809"
+    "c91e2809",
+    "8530a75e"
    ],
-   "fix_note": "c91e2809 (the close of the rule 8 round 2)",
-   "runs_on": "beta",
+   "fix_note": "c91e2809 (the close of the rule 8 round 2); round-1 fix: 8530a75e (agent commit ab64b8cf)",
+   "runs_on": "branch",
    "author_test": "No test of its own; the Terminal suite (1154) and look_check11 passed (c91e2809: x and y snapped each on its own pixel ratio)",
-   "status": "partly",
+   "status": "waiting",
    "open_row": "",
    "recheck": [
     {
@@ -10909,12 +10911,13 @@
     "M563"
    ],
    "fix_commits": [
-    "cb688250"
+    "cb688250",
+    "8530a75e"
    ],
-   "fix_note": "cb688250 (switchTimeframe, src/app/life.ts)",
-   "runs_on": "beta",
+   "fix_note": "cb688250 (switchTimeframe, src/app/life.ts); round-1 fix: 8530a75e (agent commit ab64b8cf)",
+   "runs_on": "branch",
    "author_test": "tf_switch_parity.mjs (public build with EMA and FL03, lab build with EMA, Alpha KAMA and FL03: six switches in place, canvases, charts, legend rows and document listeners equal to a fresh load, no page error); tf_switch_compare.mjs (verification/terminal_api/terminal_look/tf_switch_2026-11-24.json: 1,337 to 375 ms with 150 ms delay); tests/data/life.test.ts; the Terminal suite (1,156); look_check11.mjs; edge-bff test_3f_public_bundles, test_releases, test_3f_lab_pages, test_storage_registry (ERRORS M563 \"Checked\")",
-   "status": "partly",
+   "status": "waiting",
    "open_row": "",
    "recheck": [
     {
@@ -11139,6 +11142,56 @@
    "recheck_action": "Reproduce on real data (a beta snapshot or the fixtures): a Flow cell of a lots output (FL03 window 20, FL17 against the close) whose sessions cross an action with basis terms, pending or unresolved carries FLOW_BASIS_IN_LOOKBACK naming the date; across a `same` action it does not; a rupiah or transaction output (FL25, FL02, fnet) never; a close-reading one (FL39, FL20, FL45, FL28) carries PRICE_BREAK_IN_LOOKBACK across a row price break; an actions file without the column marks every action in the window; the values, pass and fail are unchanged; a run row keeps an old PRICE_BREAK badge only when a cell crossed it or it is on the last bar, GET /universe keeps every remark. Check the probe: plant a dependence in a made-up entry, and look for an output the probe calls rupiah-only that reads lots at some parameters (the probe varies one parameter at a time around its anchors, whole-number parameters raised by 4). Collateral: the publisher actions file and its verify, the events basis decisions (broker_basis unchanged), the Telegram basis report, the Backtest grammar (it reads conditionSignal, not the cells) and its look-ahead gate, the Screener page tooltips and CSV, the catalog flow block (outputs key and kind only), the counts route, the screener-worker refresh with an old actions file.",
    "tested_out_by": "agents_20261125-two-areas",
    "evidence": "the fix commit a4c8a6aa and its tests (author_test); EXEC.md EXEC-PRICE-DISTORTION D-1, D-5, R1, R2, R5; ERRORS M561",
+   "from": "fix"
+  },
+  {
+   "key": "errors/M564",
+   "execution": "EXEC-TERMINAL-SESSION-TOGGLE",
+   "area": "Terminal: gaya EMA yang tersimpan (ERRORS M564)",
+   "run": "agents_20261125-terminal",
+   "finding_id": "M564",
+   "title": "The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch",
+   "finding": "ERRORS M564 symptom (found in passing by the re-check agents_20261125-terminal, 2026-11-25, probe ema.mjs): \"EMA loses its saved style on every load and now on every in-place switch: its colour, width and offset go and the legend reads color:undefined. migrate() in src/app/indicators.ts:1626-1631 treats today's ema id as the old pre-registry ema; it dates from 2026-11-06 (5bbebb3f). Reproduction ema.mjs: saved {\"ema\":{\"on\":true,\"width\":2,\"color\":\"#171717\"}} becomes {\"ema\":{\"on\":true}}.\"",
+   "errors": [
+    "M564"
+   ],
+   "fix_commits": [
+    "ab64b8cf"
+   ],
+   "fix_note": "ab64b8cf (src/data/migrateSaved.ts: the old form told by its shape; indicators.ts migrate)",
+   "runs_on": "branch",
+   "author_test": "tests/data/migrate_saved.test.ts (3); the Terminal suite (1,181); the re-check's ema.mjs (the saved style kept after a switch and a reload); ema2.mjs (an EMA saved #d6409f, width 3, dashed, offset 2 and an old {def:ma, type:WMA} entry: after the load, a switch to W in place and a reload the saved list, the export and the legend keep both); look_check11.mjs PASS (ERRORS M564 \"Checked\")",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Save an EMA with its own colour, width, line style and offset (the settings or ml.ind.v1), then load, switch the timeframe in place and reload: the saved list and the legend keep them. Save the pre-registry forms ({def:ma, params:{type, length, source, offset}, style:{color, width}} and {def:ema, ...} with a flat style): they still move to the registry entry of their type. Collateral: a layout and a preset with an EMA (Indicators.import), the other moving averages.",
+   "tested_out_by": "none",
+   "evidence": "ERRORS M564 Status: 'fixed in `ab64b8cf`, on the branch, not deployed; tested by its author only'",
+   "from": "fix"
+  },
+  {
+   "key": "errors/M565",
+   "execution": "EXEC-TERMINAL-SESSION-TOGGLE",
+   "area": "Terminal: Statistics, Relative performance tanpa data IHSG (ERRORS M565)",
+   "run": "agents_20261125-terminal",
+   "finding_id": "M565",
+   "title": "Statistics wrote NaN into its SVG lines when IHSG has no close on the chart",
+   "finding": "ERRORS M565 symptom (found in passing by the re-check agents_20261125-terminal, 2026-11-25): \"console errors '<line>/<polyline> attribute ... NaN' with the Statistics panel open, on fresh and switched pages alike.\" Measured: Error: <line> attribute y1: Expected length, \"NaN\"; y2 the same; Error: <polyline> attribute points: Expected number, \"0.0,NaN 1.1,NaN 2.2,...\" in Relative performance (#relChart), 9 at load and 96 after zooming in, the harness without an IHSG price file.",
+   "errors": [
+    "M565"
+   ],
+   "fix_commits": [
+    "ab64b8cf"
+   ],
+   "fix_note": "ab64b8cf (src/data/live.ts ihsgOnCandles: no series without an IHSG close; stats.ts ihsgNone)",
+   "runs_on": "branch",
+   "author_test": "tests/data/ihsg_candles.test.ts (3); the Terminal suite (1,181); nan.mjs on the harness without IHSG, the panel open, daily and 15m: 0 NaN attributes and no SVG error at load and after zooming in (before 9 and 96), the panel reads \"No IHSG data for this chart\"; with an IHSG file both lines drawn, no error (ERRORS M565 \"Checked\")",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Open the Statistics panel on a ticker whose IHSG series has no close on the chart (the harness without px_IHSG.json, or an intraday timeframe without IHSG bars), at load, after a switch and while zooming: no console error with NaN and no NaN attribute in #statsPanel, the panel says so; with IHSG data the two lines and the rows are drawn. Collateral: the other Statistics sections, compare lines and added assets on the same data.",
+   "tested_out_by": "none",
+   "evidence": "ERRORS M565 Status: 'fixed in `ab64b8cf`, on the branch, not deployed; tested by its author only'",
    "from": "fix"
   }
  ]

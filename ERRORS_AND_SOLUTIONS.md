@@ -8886,6 +8886,68 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M565 — Statistics: "<polyline> attribute points: Expected number, "0.0,NaN …"" when IHSG has no close on the chart (2026-11-25; fixed in `ab64b8cf`, on the branch)
+
+- **Symptom (found in passing by the re-check agents_20261125-terminal, 2026-11-25):** with the Statistics panel open
+  the console said `Error: <line> attribute y1: Expected length, "NaN".`, the same for `y2`, and
+  `Error: <polyline> attribute points: Expected number, "0.0,NaN 1.1,NaN 2.2,…".`, on a fresh page and on a switched
+  one alike. Every such attribute was in Relative performance vs IHSG (`#relChart`: its three grid lines and both
+  lines); 9 errors at load, 96 after zooming the chart in (each redraw of the panel writes them again).
+- **Root cause (verified from the code and the local harness):** `loadIhsg` (`apps/edge-bff/terminal/src/data/live.ts`
+  433-438 before the fix) gave every candle IHSG's close on it and the candles before IHSG's first close that first
+  close. When IHSG had no close on or before the chart's last candle, `alignTo` returned no point and "the first close"
+  was `NaN`: the answer was one point per candle, every value `NaN`. `stats.ts` reads a non-empty series as data,
+  rebased it (`NaN`) and `lineChart` wrote the numbers into the SVG. In the harness of the re-check the IHSG price file
+  is absent (`/bundle` answers no price rows for IHSG). In production the same path is taken whenever IHSG has no close
+  on the chart's candles, for example an intraday timeframe IHSG has no bars of (the bucket holds IHSG's intraday files,
+  ERRORS M342; which timeframes was not read): suspected rare, not seen in a production log (none read).
+- **Class:** a missing series made into numbers (`NaN`) instead of "no data". The other sections of the panel keep only
+  finite values (volatility, volume ratio: `Number.isFinite`), the return, drawdown and seasonality read the chart's
+  own closes; a compare line or an added asset without rows is no series (`loadCompare`, `alignTo` return none):
+  checked, not the same defect.
+- **Solution (`ab64b8cf`):** `ihsgOnCandles` (`live.ts`, exported) returns no series when IHSG has no close on the
+  chart; the panel says "No IHSG data for this chart" for no series and for an answer without a finite value (`stats.ts`,
+  `ihsgNone`), as it says "IHSG could not be loaded" for a failed answer.
+- **Checked:** `tests/data/ihsg_candles.test.ts` (3: the fill before the first close, no series without one, the panel's
+  reading); the Terminal suite (1,181); the probe `nan.mjs` (the re-check's harness data without IHSG, the panel open,
+  daily and 15m): 0 attributes with `NaN` and no SVG error at load and after zooming in (before: 9 and 96), the panel
+  reads "No IHSG data for this chart"; with an IHSG file both lines are drawn and no error is logged. The one console
+  error left is the harness's own 404 of `/api/terminal/v1/reference/fixed_income`.
+- **Lesson:** a loader answers "none" for a series it does not have; a number standing for "no value" (`NaN`, 0) is
+  not data and reaches the drawing as one.
+- **Status:** fixed in `ab64b8cf`, on the branch, not deployed; tested by its author only (RECHECK.md `errors/M565`).
+
+### M564 — The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch (2026-11-25; fixed in `ab64b8cf`, on the branch)
+
+- **Symptom (found in passing by the re-check agents_20261125-terminal, 2026-11-25, probe `ema.mjs`):** an EMA saved
+  as `{"ema":{"on":true,"width":2,"color":"#171717"}}` (its `style.out`) came back as `{"ema":{"on":true}}` after a
+  timeframe switch and after a reload: the legend's colour read `color:undefined`, the line took the chart library's
+  default colour, and its width, line style and offset went. An SMA beside it kept its style.
+- **Root cause (verified from the code):** `migrate()` (`apps/edge-bff/terminal/src/app/indicators.ts` 1626-1631 before
+  the fix) moves a saved list from before the registry, when the reference had one moving average (`ma`, saved as
+  `ema` when its type was EMA) with a type switch among its params and one flat style `{color, width}`. It took every
+  entry with the id `ma` or `ema` for that old form. Today `ema` is the registry's EMA (I02), whose style keeps its
+  colour per output (`style.out.ema`): the migration read `style.color` and `style.width` (undefined), built
+  `{out:{ema:{color:undefined, width:undefined}}, offset:params.offset || 0}`, and `add` merged the undefined values over
+  the defaults (`merge`). Every restore of the saved list runs it: each page load (and so each timeframe switch, by the
+  reload before ERRORS M563 and in place since), a layout and a preset (`Indicators.import`). The code is as old as the
+  repository's first commit (`5bbebb3f`, 2026-11-06).
+- **Class:** a migration that decides the form of a saved entry by its id, when a newer definition reuses the id. The
+  other steps of the restore decide by shape (`dropStale`: an output renamed, a choice no longer offered); no other
+  migration of a saved list keyed on an id was found (`grep` of the apps for the old ids).
+- **Solution (`ab64b8cf`):** `src/data/migrateSaved.ts`: an entry is the old form only when its style has no `out` and
+  it carries what only the old form had (a `type` or an `offset` among its params, a colour or a width at the top of
+  its style, or the id `ma`, which no definition has today); the ids say which indicator the old form was. The old form
+  still moves to the registry entry of its type, and a colour or width it lacks now takes the default instead of
+  `undefined`.
+- **Checked:** `tests/data/migrate_saved.test.ts` (3: today's EMA unchanged, with a stale top-level colour too; the old
+  `ma`/`ema` forms moved; the restore uses it); the Terminal suite (1,181); `ema.mjs` of the re-check: the saved
+  style is kept after the switch and the reload; `ema2.mjs` (an EMA saved `#d6409f`, width 3, dashed, offset 2, and an
+  old `{def:'ma', params:{type:'WMA', ...}, style:{color, width}}`): after the load, a switch to W in place and a reload,
+  the saved list, the export and the legend keep `#d6409f/3/Dashed/2` and the WMA `#0070f3/1`, offset 1.
+- **Lesson:** a saved form is told by its shape (what only that form has), never by an id a later definition may take.
+- **Status:** fixed in `ab64b8cf`, on the branch, not deployed; tested by its author only (RECHECK.md `errors/M564`).
+
 ### M563 — A timeframe switch reloaded the whole Terminal page (2026-11-24; fixed in `cb688250`, on the beta since 2026-11-24)
 
 - **Symptom (the user, 2026-11-24):** "sepertinya toggle between timeline masih laggy untuk kondisi sekarang".
