@@ -149,33 +149,38 @@ function settings(ind) {
   for (const kv of opts) { const [k, v] = JSON.parse(kv), p = ind.params.find(q => q.key === k); out.push([`${k}=${v}`, { [k]: p.type === 'boolean' ? v === 'true' : v }]) }
   return out;
 }
-/** Every (indicator, setting, output) whose window the fixtures exceed: the window historyOf gives there, `scale` x it. */
-function windowProblems(scale = 1) {
-  const problems = [];
-  let checked = 0;
+/** Every (indicator, setting, output) with a window there (historyOf), with the most moving bars the fixtures still
+    differ on at the user's tolerance (realMoving). Measured once for both tests below; it yields to the event loop
+    after each setting, so a slow machine still answers the test runner while it measures. */
+async function measureWindows() {
+  const rows = [];
   for (const ind of REGISTRY.indicators) for (const [name, over] of settings(ind)) {
     const params = { ...startOf(ind), ...over };
-    const W = Object.fromEntries(ind.outputs.map(o => [o.key, historyOf(ind, o, params).effectiveWindow]).filter(([, w]) => w !== null).map(([o, w]) => [o, Math.max(1, Math.floor(w * scale))]));
+    const W = Object.fromEntries(ind.outputs.map(o => [o.key, historyOf(ind, o, params).effectiveWindow]).filter(([, w]) => w !== null));
     if (!Object.keys(W).length) continue;
-    checked += Object.keys(W).length;
-    for (const [o, r] of Object.entries(realMoving(ind, Object.keys(W), over))) if (r.moving >= W[o])
-      problems.push(`${ind.id}.${o} (${ind.name}, ${stageOf(ind.id)}) at ${name}: an effective window of ${W[o]} moving bars, but on ${r.ticker} cut at bar ${r.cut} the value still differs by more than 0.1 % of its magnitude ${r.moving} moving bars after the cut`);
+    for (const [o, real] of Object.entries(realMoving(ind, Object.keys(W), over))) rows.push({ ind, name, output: o, window: W[o], real });
+    await new Promise(resolve => setImmediate(resolve));
   }
-  return { problems, checked };
+  return rows;
 }
+let measured = null;
+const windowRows = () => measured ??= measureWindows();
+/** The rows whose real difference reaches `scale` x their window, as problems. */
+const windowProblems = (rows, scale = 1) => rows.filter(r => r.real.moving >= Math.max(1, Math.floor(r.window * scale))).map(r =>
+  `${r.ind.id}.${r.output} (${r.ind.name}, ${stageOf(r.ind.id)}) at ${r.name}: an effective window of ${Math.max(1, Math.floor(r.window * scale))} moving bars, but on ${r.real.ticker} cut at bar ${r.real.cut} the value still differs by more than 0.1 % of its magnitude ${r.real.moving} moving bars after the cut`);
 
 describe('effective windows on real prices (UD55)', () => {
-  it('beyond its window every output reads the full history\'s value within 0.1 % of its magnitude, on every stock and cut, at every measured setting', () => {
-    const { problems, checked } = windowProblems();
-    expect(checked).toBeGreaterThanOrEqual(80);             // 2026-11-25: 34 outputs at the start, their raised settings and the options
-    expect(problems, 'the generator\'s effective probe (PROBE.effective.shapes in scripts/build-screener-registry.mjs) misses a mechanism of these prices: add a shape that holds it and run npm run registry').toEqual([]);
+  it('beyond its window every output reads the full history\'s value within 0.1 % of its magnitude, on every stock and cut, at every measured setting', async () => {
+    const rows = await windowRows();
+    expect(rows.length).toBeGreaterThanOrEqual(150);        // 2026-11-25: 208, 33 outputs at the start, their raised settings and the options
+    expect(windowProblems(rows), 'the generator\'s effective probe (PROBE.effective.shapes in scripts/build-screener-registry.mjs) misses a mechanism of these prices: add a shape that holds it and run npm run registry').toEqual([]);
   }, 600_000);
 
   /* The check's power (as the look-ahead gate's self-test catches a centred average): every window cut to a third is
      caught on these prices, so a probe that measured too short a window would fail above. */
-  it('catches a window that is too short: every window at a third of its length fails on these prices', () => {
-    const { problems, checked } = windowProblems(1 / 3);
-    expect(problems.length).toBe(checked);
+  it('catches a window that is too short: every window at a third of its length fails on these prices', async () => {
+    const rows = await windowRows(), problems = windowProblems(rows, 1 / 3);
+    expect(problems.length).toBe(rows.length);
     expect(problems.some(p => p.startsWith('I13.rsi ') && p.includes(' at start:'))).toBe(true);
   }, 600_000);
 
@@ -183,21 +188,23 @@ describe('effective windows on real prices (UD55)', () => {
      times k, the volume divided by it: a split of 1:5, 1:2 or 2:1 left in the history, every 97th bar), the value on
      the broken history differs from the one on the bars from d on, which never saw the break, for fewer moving bars
      than the window: a cell past it is unmarked rightly. */
-  it('a planted unadjusted split moves every output by more than 0.1 % of its magnitude only inside its window', () => {
+  it('a planted unadjusted split moves every output by more than 0.1 % of its magnitude only inside its window', async () => {
     const problems = [];
     let checked = 0;
-    for (const ind of REGISTRY.indicators) for (const o of ind.outputs) {
-      const W = o.effective_window?.bars;
-      if (!W) continue;
-      checked++;
-      const params = startOf(ind);
+    for (const ind of REGISTRY.indicators) {
+      const outs = ind.outputs.filter(o => o.effective_window?.bars), params = startOf(ind);
+      if (!outs.length) continue;
+      checked += outs.length;
       for (const { ticker, bars } of STOCKS) for (const k of [5, 2, 0.5]) for (let d = 60; d < bars.C.length - MARGIN; d += 97) {
         const at = (x, i) => i < d && x !== null && x !== undefined ? x * k : x;
         const broken = { ...bars, O: bars.O.map(at), H: bars.H.map(at), L: bars.L.map(at), C: bars.C.map(at), V: bars.V.map((x, i) => i < d && x !== null && x !== undefined ? x / k : x) };
-        const full = F[ind.key](broken, params)[o.key], part = F[ind.key](slice(broken, d), params)[o.key];
-        const x = G.effectiveCut(full, part, d, movingBars(broken, inputsOf(o, params)), TOL * G.scaleOf(full));
-        if (x.moving >= W) problems.push(`${ind.id}.${o.key}: a split x${k} on ${ticker} at bar ${d} still moves it ${x.moving} moving bars later, past its window of ${W}`);
+        const full = F[ind.key](broken, params), part = F[ind.key](slice(broken, d), params);
+        for (const o of outs) {
+          const x = G.effectiveCut(full[o.key], part[o.key], d, movingBars(broken, inputsOf(o, params)), TOL * G.scaleOf(full[o.key]));
+          if (x.moving >= o.effective_window.bars) problems.push(`${ind.id}.${o.key}: a split x${k} on ${ticker} at bar ${d} still moves it ${x.moving} moving bars later, past its window of ${o.effective_window.bars}`);
+        }
       }
+      await new Promise(resolve => setImmediate(resolve));
     }
     expect(checked).toBeGreaterThanOrEqual(30);
     expect(problems).toEqual([]);
