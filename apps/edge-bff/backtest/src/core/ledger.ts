@@ -2,7 +2,7 @@
    events. The production engine (engine.ts) and the mock-up engine of the test fixture both produce this shape, so the
    statistics, tables and robustness numbers are computed by one implementation whichever engine ran.
    Calendar indices (`*_bar`) point into `dates`. Pure types only. */
-import type { BacktestRequest, BacktestResult, ExitPhase, ExitReason, SkippedSignal, SignalTrack, Trade } from './contract.ts';
+import type { BacktestRequest, BacktestResult, Condition, ExitPhase, ExitReason, SkippedSignal, SignalTrack, Trade } from './contract.ts';
 
 export interface LedgerTrade {
   ticker: string;
@@ -56,5 +56,9 @@ export interface ResultInput {
     base_x: number; base_y: number;
     cells: (CellRun | null)[][];     // cells[y][x]; null exactly where the plan has no request (robustness.ts sensitivityPlan)
   };
+  /** The check the run's grid was planned with (robustness.ts sensitivityPlan `accepts`; the worker's run.ts gridAccepts,
+      which adds the grammar's own check of a test condition), so the result's plan has its requests exactly where the run
+      ran a cell; absent: the core's own check. */
+  grid_accepts?: (c: Condition) => boolean;
   duration_ms: number;
 }

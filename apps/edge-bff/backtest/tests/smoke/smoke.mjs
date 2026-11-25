@@ -167,6 +167,38 @@ await at('sensitivity grid with a refused value', async () => {
   });
   expect(g.all === 25 && g.empty === 5 && !g.bad && !g.zeroTrades, `heat cells ${JSON.stringify(g)}: expected 25 with 5 empty and no NaN`);
 });
+/* EXEC-SENSITIVITY-FLAGS (user choice C, 2026-11-24): a yes/no condition first (Supertrend's direction, -1/1) varies
+   its first setting, ATR length 10 -> 6-14, and the column title names it (the template's flow card is not ready
+   without broker data and its MA card has no value, so Supertrend is the first condition with a value) */
+await at('sensitivity grid of a yes/no condition varies its setting', async () => {
+  await page.click('#rail [data-st=\"2\"]');
+  await page.click('#builder [data-tpl="Bandar accumulation"]');
+  await page.click('#wsOpen');
+  await page.waitForSelector('#cw:not([hidden])', { timeout:3000 });
+  await page.fill('#cwQ', 'supertrend');
+  const row = page.locator('#cwList .qrow:not(.na)').filter({ hasText:'Supertrend' }).first();
+  await row.locator('[data-cwcs]').selectOption('event_value|direction|crosses_above');
+  await row.locator('[data-cwadd]').click();
+  await page.fill('#cwQ', '');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#cw[hidden]', { state:'attached', timeout:3000 });
+  await runAndWait();
+  await page.click('#rtabs [data-tab="robust"]');
+  const g = await page.evaluate(() => {
+    const t = document.querySelector('#rbody table.heat'), head = [...t.querySelectorAll('tr:first-child th')].map(h => h.textContent);
+    return { head:head[0], cols:head.slice(1), cells:[...t.querySelectorAll('tr')].slice(1).flatMap(r => [...r.querySelectorAll('td:not(.y)')]).length,
+             sub:[...document.querySelectorAll('#rbody .panel')].find(p => /Parameter sensitivity/.test(p.textContent))?.querySelector('.sub')?.textContent };
+  });
+  expect(/· Supertrend Atr Length →$/.test(g.head) && g.cols.join(',') === '6,8,10,12,14' && g.cells === 25 && /^25 extra backtests: Supertrend Atr Length/.test(g.sub || ''),
+    `the grid of the yes/no condition: ${JSON.stringify(g)}`);
+  // the steps after this one start from the previous step's strategy: Breakout + volume with a volume ratio of 1
+  await page.click('#rail [data-st=\"2\"]');
+  await page.click('#builder [data-tpl="Breakout + volume"]');
+  const card = page.locator('#builder .cond:has(b:text-is("Volume spike"))');
+  if (await card.getAttribute('aria-expanded') !== 'true') await card.locator('.msum').click();
+  const val = card.locator('[data-p="val"]');
+  await val.fill('1'); await val.evaluate(el => el.blur());
+});
 /* the stub's limit is 4 active conditions per list: the template has 3, one more is added, the next is refused */
 await at('condition limit', async () => {
   await page.click('#rail [data-st=\"2\"]');

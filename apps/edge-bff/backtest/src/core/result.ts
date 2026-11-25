@@ -164,10 +164,11 @@ function trades(L: Ledger): Trade[] {
 /* ---- sensitivity ------------------------------------------------------------------------------------------------- */
 const same = (a: readonly unknown[], b: readonly unknown[]) => a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
 
-/** The grid from the cells' runs; the axes must be the request's own plan (robustness.ts sensitivityPlan), and a cell
-    is null exactly where the plan has no request (a threshold conditions.ts refuses). */
+/** The grid from the cells' runs; the axes must be the request's own plan (robustness.ts sensitivityPlan, with the
+    check the run planned it with, `grid_accepts`), and a cell is null exactly where the plan has no request (a
+    threshold or setting the condition refuses). */
 function sensitivity(input: ResultInput, variants: RunVariant[]): Sensitivity | null {
-  const plan = sensitivityPlan(input.request), s = input.sensitivity;
+  const plan = sensitivityPlan(input.request, input.grid_accepts), s = input.sensitivity;
   if (!plan && !s) return null;
   if (!plan || !s) throw new Error(plan ? 'result: the request has a sensitivity grid but the run sent no cells' : 'result: sensitivity cells sent for a request without a grid');
   for (const k of ['condition_id', 'y_key', 'base_x', 'base_y'] as const) if (!Object.is(plan[k], s[k])) throw new Error(`result: sensitivity ${k} ${String(s[k])} is not the request's ${String(plan[k])}`);
@@ -180,8 +181,8 @@ function sensitivity(input: ResultInput, variants: RunVariant[]): Sensitivity | 
     variants.push({ variant_hash: c.variant_hash, sharpe_daily: trialSharpe(cell), kind: 'sensitivity' });
     return cell;
   }));
-  return { condition_id: plan.condition_id, x_param: 'value', x_field: plan.x_field, xs: plan.xs, xs_display: plan.xs_display, y_key: plan.y_key, ys: plan.ys, ys_display: plan.ys_display,
-    base_x: plan.base_x, base_y: plan.base_y, cells };
+  return { condition_id: plan.condition_id, x_param: plan.x_param, x_field: plan.x_field, x_label: plan.x_label, xs: plan.xs, xs_display: plan.xs_display,
+    y_key: plan.y_key, ys: plan.ys, ys_display: plan.ys_display, base_x: plan.base_x, base_y: plan.base_y, cells };
 }
 
 /* EXEC-BACKTEST-REVAMP (rules not asked, "Peringatan statistik baru"; ERRORS M457): what the statistics can and cannot

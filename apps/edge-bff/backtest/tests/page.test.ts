@@ -85,6 +85,31 @@ describe('adapter (api/adapt.ts)', () => {
   });
 });
 
+describe('adapter: the grid of a yes/no condition (EXEC-SENSITIVITY-FLAGS)', () => {
+  // Supertrend's direction (-1/1) first: the grid varies its ATR length (the card's 12), not the threshold 0
+  const card: RegCard = { id:'st1', type:'reg', on:true, ind:'I09', p:{ atr_length:12, factor:3 }, lhs:{ t:'out', o:'direction' }, op:'gt', rhs:{ t:'val', v:0 } };
+  const s = clone(); s.from = '2019-06-03'; s.to = '2022-12-30'; s.conds = [card];
+  const q: BacktestRequest = buildRequest(s, { ready, monteCarloRuns:0 });
+  const res = resultOf(q, 1);
+  it('names the setting it varies and outlines the card\'s own value', () => {
+    const g = res.robustness.sensitivity!;
+    expect([g.x_param, g.x_field, g.x_label, g.xs_display]).toEqual(['setting', 'params.atr_length', 'Atr Length', [7, 10, 12, 14, 17]]);
+    const R = adaptResult('job-st', res, q, [card]);
+    expect([R.grid!.x, R.grid!.xLabel, R.grid!.xs, (R.grid!.cond as any).val]).toEqual(['setting', 'Atr Length', [7, 10, 12, 14, 17], 12]);
+    // the outline follows the card's current setting, as the stop row follows the current stop
+    expect((adaptResult('job-st', res, q, [{ ...card, p:{ ...card.p, atr_length:14 } }]).grid!.cond as any).val).toBe(14);
+  });
+  it('a yes/no condition without a numeric setting: one column, always the current one; a stored result before the change reads as a threshold', () => {
+    const none = JSON.parse(JSON.stringify(res));
+    Object.assign(none.robustness.sensitivity, { x_param:'none', x_label:null, x_field:'rhs.value', xs:[0], xs_display:[0], base_x:0,
+      cells:none.robustness.sensitivity.cells.map((row: unknown[]) => [row[2]]) });
+    const R = adaptResult('job-ib', none, q, [card]);
+    expect([R.grid!.x, R.grid!.xs, (R.grid!.cond as any).val, R.grid!.cells.map(r => r.length)]).toEqual(['none', [0], 0, [1, 1, 1, 1, 1]]);
+    const old = JSON.parse(JSON.stringify(res)); delete old.robustness.sensitivity.x_label; old.robustness.sensitivity.x_param = 'value';
+    expect([adaptResult('job-old', old, q, [card]).grid!.x, adaptResult('job-old', old, q, [card]).grid!.xLabel]).toEqual(['value', null]);
+  });
+});
+
 describe('preview calculations (api/compute.ts)', () => {
   const api = stubApi();
   it('gives the core condition series for a card, null where it cannot be calculated', async () => {

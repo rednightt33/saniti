@@ -176,7 +176,10 @@ A job's error is the same object, carried in `JobStatus.error`.
    lead 2026-10-27, the published prices have no stock bar on a day without an IHSG bar, so on them the calendar is
    IHSG's and PF8 changes no result.
 6. **Sensitivity:** 25 reruns from `sensitivityPlan` (`robustness.ts`) on the same prepared data. Identical cells run
-   once.
+   once. A yes/no first condition (its threshold compares a coded output) varies its first numeric setting instead, or
+   only the stop setting (5 reruns) when it has none and no later condition has an axis (EXEC-SENSITIVITY-FLAGS,
+   CONTRACT.md section 7); `gridAccepts` checks each column of a test condition with the grammar, and `buildResult`
+   plans the grid with the same check.
 7. **Build the result:** `buildResult` (`result.ts`), which computes the statistics, tables, trials and the Monte
    Carlo. The result also carries `variant_hash`, `lineage_key` and `request_hash`, plus the versions (`hash.ts`).
 8. **Pack the result:** JSON, then gzip, on the job thread. A result over `BACKTEST_MAX_RESULT_BYTES` of JSON is

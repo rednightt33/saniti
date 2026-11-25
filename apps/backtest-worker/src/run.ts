@@ -46,7 +46,6 @@ import type { CellRun, ResultInput } from '../../edge-bff/backtest/src/core/ledg
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { buildResult } from '../../edge-bff/backtest/src/core/result.ts';
 import { sensitivityPlan } from '../../edge-bff/backtest/src/core/robustness.ts';
-import { withThreshold } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { Condition } from '../../edge-bff/backtest/src/core/contract.ts';
 import { EXCLUDED_CODES, byTicker, emptyTrack, leftOut, periodSignals, previewRow, requestConditions, track, unlessLeftOut } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { BarMap, Exclusion } from '../../edge-bff/backtest/src/core/signals.ts';
@@ -158,8 +157,8 @@ export async function runJob(request: unknown, context: RunContext, refs: Refs, 
   stop();
 
   /* 4. sensitivity (the hashes read the request's hash form, canonical.ts: the same strategy written two ways is one
-     trial, EXEC-BACKTEST-REVAMP K7 a; a grammar condition's cell whose threshold the Screener's validation refuses is
-     not run) */
+     trial, EXEC-BACKTEST-REVAMP K7 a; a grammar condition's cell whose threshold or setting the Screener's validation
+     refuses is not run; a yes/no condition varies its first numeric setting, EXEC-SENSITIVITY-FLAGS) */
   const variant_hash = await variantHash(hashForm(q));
   const plan = sensitivityPlan(q, gridAccepts);
   let sensitivity: ResultInput['sensitivity'] = null;
@@ -196,7 +195,7 @@ export async function runJob(request: unknown, context: RunContext, refs: Refs, 
   const result = buildResult({
     request: q, ledger,
     versions: { engine_version: env.versions.engine_version, registry_version: env.versions.registry_version, data_version, data_through: lastOf(dataThrough) },
-    tickers: single ? [...checked.tickers] : ledger.per_ticker_signals.map(t => t.ticker), prior_trials: context.prior_trials, ...(context.owner_trials ? { owner_trials: context.owner_trials } : {}), variant_hash, lineage_key, request_hash, sensitivity, duration_ms: 0,
+    tickers: single ? [...checked.tickers] : ledger.per_ticker_signals.map(t => t.ticker), prior_trials: context.prior_trials, ...(context.owner_trials ? { owner_trials: context.owner_trials } : {}), variant_hash, lineage_key, request_hash, sensitivity, grid_accepts: gridAccepts, duration_ms: 0,
   });
   stop();
   report('finalizing', 0, 1);
@@ -220,11 +219,12 @@ async function versionOf(loaded: { files: readonly { ticker: string; dataset: st
 const classificationOf = (refs: Refs): Record<string, string> =>
   Object.fromEntries(refs.brokers.filter(b => typeof b.classification === 'string' && b.classification).map(b => [b.code, b.classification as string]));
 
-/** A sensitivity cell's threshold the grammar's validation accepts (a grammar condition; the others are checked by the
-    plan itself, robustness.ts accepted). */
-export function gridAccepts(c: Condition, value: number): boolean {
+/** A sensitivity cell's condition (its threshold or, for a yes/no condition, its setting; EXEC-SENSITIVITY-FLAGS) the
+    grammar's validation accepts (a grammar condition; the others are checked by the plan itself, robustness.ts
+    accepted). buildResult plans the grid with the same check (ResultInput.grid_accepts). */
+export function gridAccepts(c: Condition): boolean {
   if (c.kind !== 'test') return true;
-  try { checkTest(withThreshold(c, value), 'cell'); return true }
+  try { checkTest(c, 'cell'); return true }
   catch (e) { if (e instanceof ValidationError) return false; throw e }
 }
 

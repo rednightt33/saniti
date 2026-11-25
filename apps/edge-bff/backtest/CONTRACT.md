@@ -329,6 +329,33 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
   0.5 / 0.5; rr: 0.5 / 0.5; else max hold step 5, min 2). Up to 25 full runs: identical cell requests (one variant
   hash) run once, and a cell equal to the run is the run. A cell whose threshold the condition refuses (section 3; the
   grid can step past it, volspike 1 → −1) is null, not run and not a trial; every other cell is a trial.
+  **Yes/no conditions (EXEC-SENSITIVITY-FLAGS, user choice C, 2026-11-24; ERRORS M558 B-2, UD35).** When that
+  condition's threshold is compared with a coded output, the threshold is a formality (0.5, 0) and its columns gave the
+  same trades while the Deflated Sharpe counted 25 trials; x is then the first numeric setting of what it reads
+  (`x_param` `setting`). Coded is read from the registries, never from a list of ids (`robustness.ts codedSide`): an
+  indicator output the Terminal's registry draws as a state or a marker (`indRegistry.json` `outs[].r` `state` or
+  `marker`) or that lists categories (today Supertrend's and Parabolic SAR's `direction`, the lab I54-I60 flags and
+  states, Alpha KAMA's colour state); a Flow output of kind F, "0/1 signal", in the Screener's `flow-kinds.json` (FL09,
+  FL27); a transform with category arguments (`screener-metrics.json` `category_args`: `in_categories`,
+  `category_change`), whose setting is that of the indicator it reads (`of`). Any other transform and every other
+  output keep the threshold axis. The setting is the first of kind integer or number in its registry's Settings order
+  (`backtest-registry.json` params; a Flow indicator's `flowRegistry.json` params of kind int or num, the Terminal's
+  drawing options aside), at the condition's own value (the registry default when it leaves it out): xs = base + k ×
+  step, k = −2..2, step 20 % of the base, at least 1 for a whole number (so Top N 3 gives 1-5 instead of repeating
+  after rounding), rounded to a whole number where the setting is one (six significant digits otherwise; at a base of
+  0 its registry step), clamped into its min and max (a value at or below an exclusive min is a null cell). Supertrend
+  ATR length 10: 6, 8, 10, 12, 14; Alpha Price Action BUY lookback 30: 18, 24, 30, 36, 42; FL09 Top N 3: 1, 2, 3, 4, 5.
+  The cell writes the value into the compared reference's `params` (`x_field`: `params.atr_length`,
+  `test.lhs.params.lookback_length`, `test.metric.params.top`, `test.metric.of.params.kama_length`); the run's own
+  column keeps the condition as it is, so it is the run. A yes/no condition without a numeric setting (Inside Bar,
+  Alpha Divergence) passes x to the next enabled entry condition with a numeric threshold, read by the same rule (way
+  A); none: `x_param` `none`, one column at the condition as it is, and only the stop setting varies (5 runs, the run
+  one of them). `x_label` is the setting's label in its registry (null for a threshold and `none`). Strategies whose
+  first such condition compares a real number are unchanged. The worker checks every column of a test condition with
+  the grammar (`run.ts gridAccepts`) and `buildResult` plans the grid with the same check
+  (`ResultInput.grid_accepts`), so a column the grammar refuses is null in both. Cost: a setting column of a Flow
+  condition computes that Flow series again (up to 4 more series of one indicator; the condition's own budget,
+  `max_flow_series`, is checked on the request).
 - Trials **[D-K3]** (`hash.ts`): the **lineage key** (the line trials are counted in) is the hash of the strategy's
   shape: the mode; in single mode the ticker (the same strategy on another stock is another line), in portfolio mode
   nothing more: the picked stocks are in the variant, not in the line **[D-PF4]** (picking stocks is selection, so
@@ -823,7 +850,9 @@ carries it, `price` adjusted, or without that reading one on or before the bound
 `FLOW_BASIS_CHANGE`, `FLOW_SOURCE_GAP`, `FLOW_ROWS_DROPPED`, `FLOW_CROSSING_BOARDS`, `FLOW_LOTS_RESTATED` (Stage C2: a
 `terms` action after the first session the Flow conditions read; the lots before it are on the prices' share basis), `FEW_TRADES`, `OOS_STRADDLE`,
 `DSR_SAMPLE_RULE`, `ANCHOR_INSIDE_PERIOD`, and `SURVIVORSHIP` in single mode too. The sensitivity grid can vary a grammar
-threshold (`x_field`, e.g. `test.value`; 20 % steps of its base, cells the validation refuses are null). K6 a:
+threshold (`x_field`, e.g. `test.value`; 20 % steps of its base, cells the validation refuses are null), and, for a
+yes/no condition, the first numeric setting of what it reads (`x_param` `setting`, `x_label`; or `none`, the stop axis
+only; section 7, EXEC-SENSITIVITY-FLAGS). K6 a:
 `meta.trials.owner {total, days}` and `robustness.deflated_owner`, a deflated Sharpe over the owner's distinct trials of
 the last 90 days across every line, beside the line's; the new page (Stage D) is to show the stricter of the two, and the
 page today does not read `deflated_owner` yet. `ANCHOR_INSIDE_PERIOD` reads the enabled conditions only.

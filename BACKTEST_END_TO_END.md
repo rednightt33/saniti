@@ -608,6 +608,10 @@ Only the latest job is kept, in memory; after a restart every id is 404 `UNKNOWN
 3. `checkAfterData`, `checkPriceRange` (single), `MarketData`, then the engine: `prepare` + `run` (section 9), progress
    `signals` then `backtest`.
 4. Sensitivity grid (`sensitivityPlan`): up to 25 cells, de-duplicated by variant hash, the run reused as its own cell.
+   A yes/no first condition (its threshold compares a coded output, read from the registries: `robustness.ts
+   codedSide`) varies its first numeric setting, or only the stop setting (5 cells) when it has none and no later
+   condition has an axis (EXEC-SENSITIVITY-FLAGS; CONTRACT.md section 7). Every column of a test condition passes the
+   grammar's check (`run.ts gridAccepts`), which `buildResult` plans the grid with too.
 5. `lineageKey`, `requestHash`, Monte Carlo (`monte_carlo` phase), `buildResult`, `finalizing`; `packResult` caps the
    JSON at `BACKTEST_MAX_RESULT_BYTES` and gzips it; the gzip buffer is transferred to the main thread.
 
@@ -954,7 +958,9 @@ The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13; this is where 
   - New warnings: `PRICES_RESTATED` and the Flow data warnings (engine); `FEW_TRADES`, `OOS_STRADDLE`,
     `DSR_SAMPLE_RULE`, `ANCHOR_INSIDE_PERIOD` (result).
   - `SURVIVORSHIP` in single mode too.
-  - The sensitivity grid takes a grammar threshold.
+  - The sensitivity grid takes a grammar threshold; for a yes/no condition the first numeric setting of what it reads
+    (EXEC-SENSITIVITY-FLAGS, 2026-11-24: `Sensitivity.x_param` `setting` with `x_label`, or `none` for the stop axis
+    only; the page's column title names what is varied).
 - **Cross-cutting (section 11).** Look-ahead is a CI gate (`.github/workflows/backtest-lookahead.yml`, AGENTS.md
   "Backtest look-ahead gate"). The real-data check is in `verification/backtest/lookahead/`. edge-bff and
   screener-worker are to deploy only on green checks (K10 a, applied with the deploy after Gate 3; not live yet, M459); the worker, a CLI upload,

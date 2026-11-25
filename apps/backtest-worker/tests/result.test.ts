@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import type { BacktestRequest, Condition } from '../../edge-bff/backtest/src/core/contract.ts';
 import type { Ledger, LedgerTrade, ResultInput } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { assertFiniteJson, buildResult } from '../../edge-bff/backtest/src/core/result.ts';
-import { cellStats, monteCarlo, sensitivityPlan } from '../../edge-bff/backtest/src/core/robustness.ts';
+import { cellStats, codedSide, monteCarlo, sensitivityPlan, settingAxis } from '../../edge-bff/backtest/src/core/robustness.ts';
 import { canonicalJson, canonicalRequest, lineageKey, requestHash, sha256Hex, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import * as S from '../../edge-bff/backtest/src/core/stats.ts';
 import * as O from './stats-oracle.mjs';
@@ -334,6 +334,99 @@ test('sensitivity: display scales (dip %, flow Rp B), a refused threshold is no 
   assert.equal(sensitivityPlan(request({ sensitivity: true, conditions: [dmi, brk, off, { ...RSI30, id: 'r2', rhs: { type: 'value', value: 25 } }] }))?.condition_id, 'r2');
   assert.equal(sensitivityPlan(request({ sensitivity: true, conditions: [dmi, brk] })), null);
   assert.equal(sensitivityPlan(request({ sensitivity: false })), null);
+});
+
+/* ---- EXEC-SENSITIVITY-FLAGS (user choice C, 2026-11-24): a yes/no condition varies its first numeric setting ------- */
+const ind = (id: string, indicator: string, output: string, value: number, params: Record<string, number | string> = {}): Condition =>
+  ({ id, kind: 'indicator', indicator, params, lhs: { type: 'output', output }, op: 'gt', rhs: { type: 'value', value } });
+const state = (id: string, lhs: Record<string, unknown>, value = 0.5): Condition => ({ id, kind: 'test', test: { kind: 'state', lhs, op: 'gt', rhs: { value } } });
+const indRef = (indicator: string, output: string, params: Record<string, number | string> = {}) => ({ kind: 'indicator', indicator, output, params });
+const flowValue = (id: string, metric: string, output: string, params: Record<string, unknown> = {}): Condition =>
+  ({ id, kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric, output, params }, op: 'gt', value: 0.5 } });
+const ADX25 = ind('a', 'I07', 'adx', 25, { di_length: 14, adx_smoothing: 14 });
+/** the condition of cell [i][j] whose id is the plan's */
+const cellCond = (p: NonNullable<ReturnType<typeof sensitivityPlan>>, i: number, j: number) => p.requests[i][j]!.entry.conditions.find(c => c.id === p.condition_id) as any;
+const at = (o: unknown, path: string) => path.split('.').reduce((v: any, k) => v?.[k], o);
+
+test('a yes/no condition first: the grid varies its first numeric setting (registry order), 20 % steps, whole numbers, inside min and max', async () => {
+  // Supertrend direction (-1/1, indRegistry outs[].r 'state'): ATR length 10 -> 6, 8, 10, 12, 14; the threshold 0 stays
+  const st = sensitivityPlan(request({ sensitivity: true, conditions: [ind('s', 'I09', 'direction', 0), RSI30] }))!;
+  assert.deepEqual([st.condition_id, st.x_param, st.x_field, st.x_label], ['s', 'setting', 'params.atr_length', 'Atr Length']);
+  assert.deepEqual(st.xs, [6, 8, 10, 12, 14]); assert.deepEqual(st.xs_display, st.xs); assert.equal(st.base_x, 10);
+  st.requests.forEach((row, i) => row.forEach((v, j) => {
+    const c = cellCond(st, i, j);
+    assert.equal(c.rhs.value, 0, 'the threshold is not varied');
+    // the run's own value is the run's own condition (the cell that equals the run is the run)
+    if (st.xs[j] === 10) assert.deepEqual(c, ind('s', 'I09', 'direction', 0)); else assert.deepEqual(c.params, { atr_length: st.xs[j] });
+    assert.deepEqual(v!.entry.conditions[1], RSI30, 'the other conditions are unchanged');
+  }));
+  assert.equal(await variantHash(st.requests[2][2]!), await variantHash(request({ sensitivity: true, conditions: [ind('s', 'I09', 'direction', 0), RSI30] })));
+  assert.equal(new Set(await Promise.all(st.requests[2].map(v => variantHash(v!)))).size, 5, 'five distinct variants per row');
+  // the condition's own value is the base; Parabolic SAR's first setting is a fraction (six significant digits)
+  assert.deepEqual(sensitivityPlan(request({ sensitivity: true, conditions: [ind('s', 'I09', 'direction', 0, { atr_length: 12, factor: 3 })] }))!.xs, [7, 10, 12, 14, 17]);
+  const sar = sensitivityPlan(request({ sensitivity: true, conditions: [ind('z', 'I12', 'direction', 0)] }))!;
+  assert.deepEqual([sar.x_field, sar.xs], ['params.start', [0.012, 0.016, 0.02, 0.024, 0.028]]);
+  // a test condition in the Screener's grammar (STATE on Alpha Price Action BUY's break flag): Lookback 30 -> 18-42,
+  // the setting written into the reference it compares; Lookback 10 steps by 2; 3 and 400 stay inside min 3, max 400
+  const pa = sensitivityPlan(request({ sensitivity: true, conditions: [state('p', indRef('I56', 'break_1'))] }))!;
+  assert.deepEqual([pa.x_param, pa.x_field, pa.x_label, pa.xs], ['setting', 'test.lhs.params.lookback_length', 'Lookback N (completed candles)', [18, 24, 30, 36, 42]]);
+  assert.equal(at(cellCond(pa, 0, 0), 'test.lhs.params.lookback_length'), 18); assert.equal(at(cellCond(pa, 0, 0), 'test.rhs.value'), 0.5);
+  const lb = (n: number) => sensitivityPlan(request({ sensitivity: true, conditions: [state('p', indRef('I56', 'break_1', { lookback_length: n }))] }))!.xs;
+  assert.deepEqual(lb(10), [6, 8, 10, 12, 14]); assert.deepEqual(lb(3), [3, 3, 3, 4, 5]); assert.deepEqual(lb(400), [240, 320, 400, 400, 400]);
+  // an EVENT and a window over it read the signal's lhs; a category transform (in_categories, screener-metrics.json
+  // category_args) is 0/1 and varies the indicator it reads (Alpha KAMA's KAMA length 89, min 6)
+  const ev = sensitivityPlan(request({ sensitivity: true, conditions: [{ id: 'e', kind: 'test', test: { kind: 'window', mode: 'ever', length: 5, test: { kind: 'event', within: 3, signal: { lhs: indRef('I09', 'direction'), op: 'crosses_above', rhs: { value: 0 } } } } }] }))!;
+  assert.deepEqual([ev.x_field, ev.xs], ['test.test.signal.lhs.params.atr_length', [6, 8, 10, 12, 14]]);
+  const cat = sensitivityPlan(request({ sensitivity: true, conditions: [{ id: 'k', kind: 'test', test: { kind: 'value', metric: { kind: 'transform', fn: 'in_categories', of: indRef('I58', 'color_state'), args: { categories: 'green' } }, op: 'gt', value: 0.5 } }] }))!;
+  assert.deepEqual([cat.x_param, cat.x_field, cat.x_label, cat.xs], ['setting', 'test.metric.of.params.kama_length', 'KAMA Length', [53, 71, 89, 107, 125]]);
+  // Flow outputs of kind F (flow-kinds.json, "0/1 signal"): FL09 Top N 3 -> 1-5 (at least 1 per step), FL27 Recent 5 -> 3-7
+  const fl = sensitivityPlan(request({ sensitivity: true, conditions: [flowValue('f', 'FL09', 'value')] }))!;
+  assert.deepEqual([fl.x_param, fl.x_field, fl.x_label, fl.xs], ['setting', 'test.metric.params.top', 'Top N', [1, 2, 3, 4, 5]]);
+  assert.equal(at(cellCond(fl, 0, 4), 'test.metric.params.top'), 5);
+  assert.deepEqual(sensitivityPlan(request({ sensitivity: true, conditions: [flowValue('f', 'FL09', 'value', { top: 1 })] }))!.xs, [1, 1, 1, 2, 3]);
+  assert.deepEqual(sensitivityPlan(request({ sensitivity: true, conditions: [flowValue('f', 'FL27', 'net')] }))!.xs, [3, 4, 5, 6, 7]);
+});
+
+test('a yes/no condition without a numeric setting: the next condition with an axis (way A), else the stop setting only; real numbers unchanged', () => {
+  const ib = state('i', indRef('I55', 'ib')), div: Condition = { id: 'd', kind: 'test', test: { kind: 'event', within: 3, signal: { lhs: indRef('I60', 'bull_div'), op: 'crosses_above', rhs: { value: 0.5 } } } };
+  // Inside Bar (no settings), then ADX 25: ADX's threshold, as a plan with ADX alone
+  const a = sensitivityPlan(request({ sensitivity: true, conditions: [ib, ADX25] }))!, adx = sensitivityPlan(request({ sensitivity: true, conditions: [ADX25] }))!;
+  assert.deepEqual([a.condition_id, a.x_param, a.x_field, a.x_label, a.xs], ['a', 'value', 'rhs.value', null, [15, 20, 25, 30, 35]]);
+  assert.deepEqual((({ requests: _r, ...x }) => x)(adx), (({ requests: _r, ...x }) => x)(a));
+  // Alpha Divergence (one setting, an option), then Supertrend direction: Supertrend's ATR length
+  assert.deepEqual((({ condition_id, x_param, xs }) => [condition_id, x_param, xs])(sensitivityPlan(request({ sensitivity: true, conditions: [div, ind('s', 'I09', 'direction', 0)] }))!), ['s', 'setting', [6, 8, 10, 12, 14]]);
+  // no later condition with an axis: one column at the condition as it is, the stop setting varies (5 backtests)
+  for (const c of [ib, div]) {
+    const p = sensitivityPlan(request({ sensitivity: true, conditions: [c, { id: 'b', kind: 'price_action', type: 'breakout', params: { length: 20 }, op: 'close_above_high' }] }))!;
+    assert.deepEqual([p.condition_id, p.x_param, p.x_label, p.xs, p.xs_display, p.base_x], [c.id, 'none', null, [0.5], [0.5], 0.5]);
+    assert.deepEqual(p.ys, [3, 5, 7, 9, 11].map(y => y / 100));
+    assert.deepEqual(p.requests.map(row => row.length), [1, 1, 1, 1, 1]);
+    p.requests.forEach((row, i) => { assert.deepEqual(row[0]!.entry.conditions[0], c); assert.equal(row[0]!.exit.stop.pct, p.ys[i]) });
+  }
+  // a switched-off yes/no condition is skipped as before; no numeric condition at all is still no grid
+  assert.equal(sensitivityPlan(request({ sensitivity: true, conditions: [{ ...ind('s', 'I09', 'direction', 0), enabled: false }, ADX25] }))!.condition_id, 'a');
+  assert.equal(sensitivityPlan(request({ sensitivity: true, conditions: [{ id: 'b', kind: 'price_action', type: 'breakout', params: { length: 20 }, op: 'close_above_high' }] })), null);
+  // real numbers keep their threshold axis: RSI in the grammar, a K-kind Flow output (FL10 -1..1), an indicator line
+  // (Supertrend's own price line), a lag of a flag (a transform other than a category one)
+  const rsiT = sensitivityPlan(request({ sensitivity: true, conditions: [{ id: 'r', kind: 'test', test: { kind: 'value', metric: indRef('I13', 'rsi'), op: 'lt', value: 30 } }] }))!;
+  assert.deepEqual([rsiT.x_param, rsiT.x_field, rsiT.xs], ['value', 'test.value', [18, 24, 30, 36, 42]]);
+  assert.equal(sensitivityPlan(request({ sensitivity: true, conditions: [{ ...flowValue('f', 'FL10', 'value'), test: { kind: 'value', metric: { kind: 'flow', metric: 'FL10', output: 'value', params: {} }, op: 'gt', value: 0.2 } } as Condition] }))!.x_param, 'value');
+  assert.equal(sensitivityPlan(request({ sensitivity: true, conditions: [ind('s', 'I09', 'supertrend', 1000)] }))!.x_param, 'value');
+  assert.equal(sensitivityPlan(request({ sensitivity: true, conditions: [{ id: 'l', kind: 'test', test: { kind: 'value', metric: { kind: 'transform', fn: 'lag', of: indRef('I09', 'direction'), args: { bars: 1 } }, op: 'gt', value: 0 } }] }))!.x_param, 'value');
+  // the caller's check refuses a column: that column is no cell (the worker's grammar check, run.ts gridAccepts)
+  const refused = sensitivityPlan(request({ sensitivity: true, conditions: [ind('s', 'I09', 'direction', 0)] }), c => (c as any).params?.atr_length !== 6)!;
+  assert.deepEqual(refused.requests.map(row => row.map(v => v !== null)), Array(5).fill([false, true, true, true, true]));
+});
+
+test('settingAxis: an exclusive minimum is not clamped onto, a fraction at 0 steps by its registry step', () => {
+  assert.deepEqual(settingAxis({ key: 'x', label: 'X', integer: true, base: 2, min: 1, min_exclusive: true }), [0, 1, 2, 3, 4]);
+  assert.deepEqual(settingAxis({ key: 'x', label: 'X', integer: false, base: 0, min: 0, min_exclusive: false, step: 0.1 }), [0, 0, 0, 0.1, 0.2]);
+  assert.deepEqual(settingAxis({ key: 'x', label: 'X', integer: true, base: 14, min: 1, min_exclusive: false }), [8, 11, 14, 17, 20]);
+  // yes/no is read from the registries: indRegistry render kinds and categories, flow-kinds F, category transforms
+  assert.equal(codedSide(ind('s', 'I09', 'direction', 0))?.setting?.key, 'atr_length');
+  assert.equal(codedSide(ind('s', 'I55', 'ib', 0.5))?.setting, null);
+  assert.equal(codedSide(ind('a', 'I07', 'adx', 25)), null);
+  assert.equal(codedSide(flowValue('f', 'FL13', 'buy')), null);                               // 0-1, kind K: a real number
 });
 
 test('trials and the Deflated Sharpe: run + distinct cells + distinct prior, the trials\' Sharpe variance, page cell numbers', async () => {

@@ -637,6 +637,38 @@ test('a single job with grammar conditions: the core result, a grid on the gramm
   assert.equal(r2.meta.lineage_key, r.meta.lineage_key);
 });
 
+/* EXEC-SENSITIVITY-FLAGS (user choice C, 2026-11-24): a yes/no condition first varies its first numeric setting */
+test('a job whose first condition is yes/no: the grid varies the indicator\'s setting, each column a real parameter change of that condition, the core\'s result', async () => {
+  const dirInd: Condition = { id: 's1', kind: 'indicator', indicator: 'I09', params: {}, lhs: { type: 'output', output: 'direction' }, op: 'gt', rhs: { type: 'value', value: 0 } };
+  const dirTest: Condition = { id: 's1', kind: 'test', test: { kind: 'state', lhs: { kind: 'indicator', indicator: 'I09', output: 'direction', params: {} }, op: 'gt', rhs: { value: 0 } } };
+  for (const [c, field] of [[dirInd, 'params.atr_length'], [dirTest, 'test.lhs.params.atr_length']] as const) {
+    const q = { ...pageDefault('UNVR'), entry: { logic: 'all', at_least: 1, window_bars: 1, conditions: [c] } } as BacktestRequest;
+    const r = await runJob(q, { prior_trials: [] }, refs, env());
+    assert.deepStrictEqual(noDuration(r), noDuration(await direct(q, ['UNVR'], [priceFile('IHSG'), priceFile('UNVR')])));
+    const s = r.robustness.sensitivity!;
+    assert.deepEqual([s.condition_id, s.x_param, s.x_field, s.x_label, s.xs, s.base_x], ['s1', 'setting', field, 'Atr Length', [6, 8, 10, 12, 14], 10]);
+    assert.equal(s.cells.flat().filter(Boolean).length, 25);
+    // the variants the worker ran: each column's condition carries its ATR length (the run's own column is the run)
+    const plan = sensitivityPlan(q, gridAccepts)!;
+    plan.requests.forEach(row => row.forEach((v, j) => {
+      const got = field.split('.').reduce((o: any, k) => o?.[k], v!.entry.conditions[0]);
+      assert.equal(got ?? 10, s.xs[j]);
+    }));
+    // the columns differ: another ATR length flips the trend on other days (on the run's stop row)
+    const sharpe = s.cells[2].map(x => x!.sharpe), trades = s.cells[2].map(x => x!.trades);
+    assert.ok(new Set(sharpe.map(x => x.toFixed(12))).size > 1 || new Set(trades).size > 1, `the five columns differ (${sharpe} / ${trades})`);
+    // the trials: the run, then every distinct cell (25 settings × stops, the run's own cell is the run)
+    assert.equal(r.meta.trials.this_run, 25);
+  }
+  // Inside Bar has no setting and nothing follows: one column, the stop setting only (5 backtests, one of them the run)
+  const ib: Condition = { id: 'i1', kind: 'test', test: { kind: 'state', lhs: { kind: 'indicator', indicator: 'I55', output: 'ib', params: {} }, op: 'gt', rhs: { value: 0.5 } } };
+  const q = { ...pageDefault('UNVR'), entry: { logic: 'all', at_least: 1, window_bars: 1, conditions: [ib] } } as BacktestRequest;
+  const r = await runJob(q, { prior_trials: [] }, refs, env());
+  const s = r.robustness.sensitivity!;
+  assert.deepEqual([s.condition_id, s.x_param, s.xs, s.cells.map(row => row.length)], ['i1', 'none', [0.5], [1, 1, 1, 1, 1]]);
+  assert.equal(r.meta.trials.this_run, 5);
+});
+
 test('grammar conditions: the preview reads IHSG for vs_index; refusals name the field', async () => {
   const q = pageDefault('UNVR'), entry = grammarEntry();
   const p = await runSignals({ schema_version: 1, tickers: ['UNVR', 'BBCA'], period: { from: q.period.from, to: q.period.to }, entry }, refs, env());

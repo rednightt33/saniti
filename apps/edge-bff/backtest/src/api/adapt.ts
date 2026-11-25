@@ -28,8 +28,10 @@ export interface PageTrade {
 }
 export interface GridY { k: 'sl' | 'slAtr' | 'slRR' | 'hold'; lbl: string; u: string; step: number; min: number }
 export interface PageCell { sharpe: number; cagr: number; pf: number; n: number; mdd: number }
-/** cells[y][x]; null: a cell the condition refuses (its threshold is not a value the condition takes), not run */
-export interface PageGrid { cond: any; xs: number[]; ys: number[]; yk: GridY; cells: (PageCell | null)[][] }
+/** cells[y][x]; null: a cell the condition refuses (its threshold is not a value the condition takes), not run.
+    x: what varies on x (contract.ts Sensitivity.x_param: the threshold, a yes/no condition's setting `xLabel`, or nothing:
+    one column, EXEC-SENSITIVITY-FLAGS); `cond.val` is the x of the current settings, the outlined column. */
+export interface PageGrid { cond: any; x: 'value' | 'setting' | 'none'; xLabel: string | null; xs: number[]; ys: number[]; yk: GridY; cells: (PageCell | null)[][] }
 export interface PageMC { bands: number[][]; mdds: number[]; fin: number[]; n: number; below: number[]; actual: number[] }
 
 export interface PageResult {
@@ -72,6 +74,14 @@ export const GRID_Y: Record<string, GridY> = {
   max_hold_bars: {k:'hold', lbl:'Max hold (days)', u:'d', step:5, min:2},
 };
 
+/** The card's current value of the setting a grid varies (x_field ends with params.<key>): a registry card keeps its
+    parameters in `p`, a test card in its Screener card's `params`; the run's own value when the card has none. */
+function settingOf(c: Card, field: string, run: number): number {
+  const key = field.split('.').pop() as string, p: Record<string, unknown> | undefined = c.type === 'reg' ? c.p : c.type === 'test' ? c.sc.params : undefined;
+  const v = p?.[key];
+  return typeof v === 'number' && Number.isFinite(v) ? v : run;
+}
+
 /** `cards`: the entry cards the run was built from (the sensitivity grid names its condition by the card) */
 export function adaptResult(id: string, res: BacktestResultCore, request: BacktestRequest, cards: Card[]): PageResult {
   const days = res.dates, at = new Map(days.map((d, k) => [d, k])), ix = (d: string) => at.get(d) ?? -1;
@@ -81,9 +91,13 @@ export function adaptResult(id: string, res: BacktestResultCore, request: Backte
     dist:t.flags?.distortions ?? [],
   }));
   const s = res.robustness.sensitivity, c0 = s && cards.find(c => c.id === s.condition_id);
+  const x = s?.x_param ?? 'value';                     // a result stored before EXEC-SENSITIVITY-FLAGS varies the threshold
   const grid: PageGrid | null = s && c0 ? {
-    // the heatmap outlines the cell of the current settings by comparing with the card's value (display units)
-    cond: c0.type === 'reg' ? { ...c0, val: (c0 as any).rhs.v } : c0,
+    // the heatmap outlines the cell of the current settings by comparing with the card's value (display units); a
+    // setting by the card's own setting (a reg card's p, a test card's params), one column always
+    cond: x === 'setting' ? { ...c0, val: settingOf(c0, s.x_field, s.base_x) } : x === 'none' ? { ...c0, val: s.xs_display[0] }
+      : c0.type === 'reg' ? { ...c0, val: (c0 as any).rhs.v } : c0,
+    x, xLabel: s.x_label ?? null,
     xs: s.xs_display, ys: s.ys_display, yk: GRID_Y[s.y_key],
     // a cell the condition refuses was not run: it stays null (no numbers, no trade count)
     cells: s.cells.map(row => row.map(c => c ? { sharpe:c.sharpe, cagr:c.cagr, pf:pf(c.profit_factor), n:c.trades, mdd:c.max_drawdown } : null)),
