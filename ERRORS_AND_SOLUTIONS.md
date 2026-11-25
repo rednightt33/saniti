@@ -8976,8 +8976,23 @@ in its staleness check.
   keeps a price-break badge only where a cell crossed it or on the last bar.
 - **Open part:** a whole-history output crosses every old break, so its cells, its row badge and the Backtest trades
   are marked for any earlier break (EXEC-PRICE-DISTORTION open part, asked as UD55, with UD52).
-- **Status:** fixed in `e9fc3ab6`, `db7bf27e` and `61def35d`, on the branch, not deployed; tested by its authors only
-  (RECHECK.md `errors/M559-M562`, `errors/M561-D5`); the part above asked.
+- **Re-check round 1 (2026-11-25, `agents_20261125-*`, Opus high, the user's approval):** not fixed across the three
+  areas. The Backtest part had a look-ahead: removing the mask let a Flow value on a bar between an ex date and its
+  decision read the publisher's later decision (the data of that day was `pending`, the lots unscaled); the gate's case
+  scaled every world with `terms`, so it could not see it (COCO 2026-07-09: FL17 167.3 on the full data, 246.9 on the
+  data cut there). The trade flags did not reach the result. The Screener's 1D note was worded "not adjusted" for every
+  kind and a stock without an action row was never checked for the 35 % cap. The publisher read an above-market rights
+  issue as adjusted and carried its factor to older actions, read its side from the broker window rather than the
+  closes the Screener reads, verified the basis column's form only, and kept the older readings in the published files;
+  the migration aborted on a scalar universe and near the size limit.
+- **Round 1 fixes:** `fa1f1f60` (the Screener), `6a2473fd` (the Backtest: the value on such a bar from the traded lots,
+  the plan's R3 the author had dropped wrongly; the gate models the production path and catches a planted leak; the
+  flags reach the result; entry conditions only), `6d254189` (the publisher: no side above the market, the side from the
+  closes, EVENTS_FORMAT 4, verify against the events files; the migration). The re-check's probes rerun on the fixes:
+  0 bars differ between the full and the cut data.
+- **Status:** fixed in `e9fc3ab6`, `db7bf27e`, `61def35d`, then `fa1f1f60`, `6a2473fd` and `6d254189`, on the branch, not
+  deployed; the round-1 fixes tested by their author only, waiting for a round 2 the user approves (RECHECK.md
+  `errors/M559-M562`, `errors/M561-D5`); the whole-history part asked (UD55, built on the branch by an agent).
 - **Lesson:** a quality flag marks a value; hiding it is a separate choice the user makes explicitly, per reader.
 
 ### M560 — The publisher reads three stocks pulled again as "close not reloaded" (broker basis `price`) (2026-11-24; fixed in `4799ee94`, on the branch)

@@ -17723,8 +17723,8 @@ basis (status `terms`, `pending`, `unresolved`) atau anomali harga.
   (aturan basisBlocked tanpa perubahan) hanya menandai bar (`FlowNotes.distorted`); trade membawa `flags.distortions`
   (flow di bar sinyal; patahan harga di jendela yang dibaca sinyal, `Calc.reach` dari aturan lookback Screener, sampai
   bar keluar), badge di daftar trade dan kolom CSV; peringatan `PRICE_DISTORTIONS` menggantikan
-  `ADJUSTED_HISTORY_BOUNDARY`; `FLOW_BASIS_CHANGE` diganti katanya. **Perubahan rencana R3 (detail agen, dengan bukti):**
-  dua hitungan yang disambung di tanggal keputusan tidak dibuat. Uji gerbang look-ahead Stage C2
+  `ADJUSTED_HISTORY_BOUNDARY`; `FLOW_BASIS_CHANGE` diganti katanya. **Perubahan rencana R3 (detail agen) — SALAH, dikoreksi
+  2026-11-25:** dua hitungan yang disambung di tanggal keputusan tidak dibuat. Uji gerbang look-ahead Stage C2
   (`apps/backtest-worker/tests/lookahead.test.ts`) memodelkan lot yang sudah diskalakan sebagai bagian dari riwayat
   terbit (K4 a, sama seperti harga yang di-adjust) dan hanya mengganti status keputusan; nilai dihitung dari kolom terbit
   apa pun statusnya, jadi tidak membaca keputusan yang dibuat sesudah hari t. Gerbang look-ahead 24/24 (pit, lookahead,
@@ -17770,6 +17770,29 @@ high" (re-check aturan 8 disetujui: 4 agen Opus, tingkat berpikir high, per area
 sel Flow; Backtest dan look-ahead; publisher, tripwire dan migrasi; Terminal dan grid sensitivitas; ditambah empat baris
 ronde 2 M558 karena UD53), "3. Ok boleh" (UD52 (a), UD53 ya dan ya, UD54 tetap, UD55 (a) dengan toleransi 0,1 %).
 Re-check dijalankan 2026-11-25 dari `ad7a18a8`; UD52 dan UD55 dibangun sesudahnya di branch.
+
+**Re-check ronde 1 (2026-11-25, disetujui user "OK - opus high"; 4 agen Opus high, run `agents_20261125-*`) dan
+perbaikannya (belum diuji ulang, menunggu persetujuan user untuk ronde 2):**
+- Screener (agen 1): M561-D5, M558 SC-3 dan ronde-2 NEW-2 beres; M559-M562 sebagian: catatan perubahan 1 hari salah kata
+  untuk anomali dan "uncertain", dan saham tanpa baris aksi tidak pernah dicek batas 35 %. Diperbaiki `fa1f1f60`.
+- Backtest (agen 2): **R3 ternyata wajib.** Dengan nilai Flow tidak lagi dikosongkan, bar antara tanggal ex dan tanggal
+  keputusan membaca keputusan publisher yang dibuat kemudian (di jalur produksi data hari itu `pending`, lot tidak
+  diskalakan); uji gerbang Stage C2 menskalakan semua "dunia" dengan `terms` sehingga tidak melihatnya. Contoh nyata COCO
+  2026-07-09: FL17 penuh 167,3 lawan data terpotong 246,9. Diperbaiki `6a2473fd`: nilai di bar itu dari lot yang
+  diperdagangkan (`BrokerColumns.traded`, grammar `pointInTime`, pit), uji gerbang memodelkan jalur produksi dan menangkap
+  kebocoran yang ditanam; badge trade kini sampai ke hasil (`result.ts`); tanda hanya dari kondisi entry; kartu lama
+  membaca seluruh riwayat untuk tanda harga. Probe agen diulang: 0 bar berbeda.
+- Publisher, tripwire, migrasi (agen 3): M553 beres; M559-M562 dan M561-D5 sebagian. Diperbaiki `6d254189`: rights issue di
+  atas harga pasar tidak bisa dinilai (A); sisi harga dari close sebelum dan sesudah tanggal ex di tabel harga, sama dengan
+  Screener (C, suspensi BSWD); `EVENTS_FORMAT` 4 agar semua berkas events diukur ulang dan diterbitkan ulang (B, update
+  besar saat deploy publisher); verify membandingkan kolom `basis` dengan berkas events (V); migrasi aman untuk universe
+  nilai tunggal dan screen dekat batas 65536 byte (M1, M2), rollback tidak menimpa screen yang disimpan ulang.
+- Terminal dan grid (agen 4): UD33 B dan ronde-2 S-6 beres; M563 sebagian (layar penuh tertinggal saat ganti timeframe),
+  B-2 sebagian (FL27 net/gross dan FL09 scope selected: sumbu tidak mengubah nilai), ronde-2 NEW-1 sebagian (tepi bawah kotak
+  label pada rasio 1,25/1,5). Sedang diperbaiki oleh dua agen (Terminal; grid dan potongan gerbang worker yang melewatkan
+  baca satu bar ke depan, ronde-2 NEW-1 Screener).
+- Cacat baru di luar perbaikan ini (agen 4): gaya EMA tersimpan hilang tiap muat (`migrate()`, sejak `5bbebb3f`), dan error
+  NaN di panel Statistics: dicatat dan diperbaiki agen Terminal.
 
 **Rollback:** worker dan halaman: revert commit di `main`, `live` kembali ke commit sebelumnya (EXEC.md opsi A); F4:
 kembalikan universe dari tabel cadangan; publisher: run manual dengan versi sebelumnya.
