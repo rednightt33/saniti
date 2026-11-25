@@ -11,7 +11,8 @@
    3. backtest     the same run: the event clock over the result calendar (second part);
    4. sensitivity  robustness.ts sensitivityPlan: one engine run per cell on the same prepared data (the indicator
                    memos are reused); identical cell requests (one variant hash) run once, the cell that equals the run
-                   itself reuses the run; a threshold conditions.ts refuses is a null cell;
+                   itself reuses the run; a threshold conditions.ts refuses is a null cell; a yes/no condition's
+                   setting is the first whose columns change its signal on the run's data (engine.ts columnMoves);
    5. monte_carlo  result.ts buildResult: the statistics, tables, trials and the Monte Carlo (this phase covers all
                    of buildResult; the Monte Carlo dominates it with 1000 runs);
    6. finalizing   the result serialised and packed (compute.ts).
@@ -39,7 +40,7 @@ import crypto from 'node:crypto';
 import type { BacktestRequest, BacktestResult, JobContext, JobProgress, PreviewDetail, SignalsPreview, SignalsPreviewRequest, Warning } from '../../edge-bff/backtest/src/core/contract.ts';
 import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { DataError, INDEX_TICKER, dataVersion, unknownBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
-import { Cancelled, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
+import { Cancelled, columnMoves, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { MarketData } from '../../edge-bff/backtest/src/core/engine.ts';
 import { canonicalJson, canonicalRequest, lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import type { CellRun, ResultInput } from '../../edge-bff/backtest/src/core/ledger.ts';
@@ -158,9 +159,12 @@ export async function runJob(request: unknown, context: RunContext, refs: Refs, 
 
   /* 4. sensitivity (the hashes read the request's hash form, canonical.ts: the same strategy written two ways is one
      trial, EXEC-BACKTEST-REVAMP K7 a; a grammar condition's cell whose threshold or setting the Screener's validation
-     refuses is not run; a yes/no condition varies its first numeric setting, EXEC-SENSITIVITY-FLAGS) */
+     refuses is not run; a yes/no condition varies the first numeric setting one of whose columns changes its signal on
+     this run's data, EXEC-SENSITIVITY-FLAGS and its re-check of 2026-11-25: engine.ts columnMoves, which buildResult
+     plans with too) */
   const variant_hash = await variantHash(hashForm(q));
-  const plan = sensitivityPlan(q, gridAccepts);
+  const moves = columnMoves(ctx, q, hooks.shouldStop);
+  const plan = sensitivityPlan(q, gridAccepts, moves);
   let sensitivity: ResultInput['sensitivity'] = null;
   if (plan) {
     const runs = new Map<string, CellRun>([[variant_hash, { ledger, variant_hash }]]);   // a cell equal to the run is the run
@@ -195,7 +199,7 @@ export async function runJob(request: unknown, context: RunContext, refs: Refs, 
   const result = buildResult({
     request: q, ledger,
     versions: { engine_version: env.versions.engine_version, registry_version: env.versions.registry_version, data_version, data_through: lastOf(dataThrough) },
-    tickers: single ? [...checked.tickers] : ledger.per_ticker_signals.map(t => t.ticker), prior_trials: context.prior_trials, ...(context.owner_trials ? { owner_trials: context.owner_trials } : {}), variant_hash, lineage_key, request_hash, sensitivity, grid_accepts: gridAccepts, duration_ms: 0,
+    tickers: single ? [...checked.tickers] : ledger.per_ticker_signals.map(t => t.ticker), prior_trials: context.prior_trials, ...(context.owner_trials ? { owner_trials: context.owner_trials } : {}), variant_hash, lineage_key, request_hash, sensitivity, grid_accepts: gridAccepts, grid_moves: moves, duration_ms: 0,
   });
   stop();
   report('finalizing', 0, 1);

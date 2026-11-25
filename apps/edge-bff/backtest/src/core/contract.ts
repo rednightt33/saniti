@@ -217,10 +217,11 @@ export interface SensitivityCell { sharpe: number; cagr: number; profit_factor: 
 export interface Sensitivity {
   condition_id: string;              // the first enabled entry condition with a numeric threshold (a yes/no one without a numeric setting: the next, below)
   /** what varies on x (EXEC-SENSITIVITY-FLAGS, user choice C, 2026-11-24): 'value' the condition's threshold; 'setting'
-      the first numeric setting of what a yes/no condition reads (its threshold compares a coded output: 0/1, -1/1,
-      categories; robustness.ts codedSide); 'none' nothing: a yes/no condition without a numeric setting and no later
-      condition to vary, so one column (the run's own) and only the stop setting varies. Results stored before the
-      change have no x_label and only 'value'. */
+      a numeric setting of what a yes/no condition reads (its threshold compares a coded output: 0/1, -1/1, categories;
+      robustness.ts codedSide), the first in registry order whose columns change the condition on the run's data
+      (engine.ts columnMoves, re-check of 2026-11-25); 'none' nothing: a yes/no condition without such a setting and no
+      later condition to vary, so one column (the run's own) and only the stop setting varies. Results stored before
+      the change have no x_label and only 'value'. */
   x_param: 'value' | 'setting' | 'none';
   x_field: string;                   // where it sits in that condition: 'rhs.value', 'value', 'test.signal.rhs.value' (EXEC-BACKTEST-REVAMP P2);
                                      // a setting: 'params.atr_length', 'test.lhs.params.lookback_length', 'test.metric.params.top'; 'none': the threshold's place, unchanged

@@ -60,5 +60,9 @@ export interface ResultInput {
       which adds the grammar's own check of a test condition), so the result's plan has its requests exactly where the run
       ran a cell; absent: the core's own check. */
   grid_accepts?: (c: Condition) => boolean;
+  /** Whether a column changes the run's condition on its data (robustness.ts GridMoves; the worker's engine.ts
+      columnMoves): the yes/no grid's setting the run planned with, so the result's plan takes the same one (re-check of
+      ERRORS M558 B-2, 2026-11-25); absent: the first numeric setting. */
+  grid_moves?: (run: Condition, column: Condition) => boolean;
   duration_ms: number;
 }

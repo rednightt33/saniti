@@ -13,17 +13,18 @@ import { loadFixtures } from '../../edge-bff/terminal/tests/calc/fixtures.mjs';
 import type { BacktestRequest, BacktestResult, Condition, JobProgress } from '../../edge-bff/backtest/src/core/contract.ts';
 import { DEFAULT_ENTRY, LEGACY, legacyCard, legacyToCondition } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { LegacyCard } from '../../edge-bff/backtest/src/core/catalog.ts';
-import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
-import { DataError, dataVersion } from '../../edge-bff/backtest/src/core/datafile.ts';
+import { Calc, conditionSeries } from '../../edge-bff/backtest/src/core/conditions.ts';
+import { DataError, dataVersion, onPriceBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
+import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import type { PriceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
-import { Cancelled, MAX_PORTFOLIO_TICKERS, MAX_POSITIONS, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
+import { Cancelled, MAX_PORTFOLIO_TICKERS, MAX_POSITIONS, columnMoves, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { Exclusion } from '../../edge-bff/backtest/src/core/engine.ts';
 import { canonicalJson, lineageKey as coreLineageKey, requestHash as coreRequestHash, variantHash as coreVariantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import { hashForm, lineageForm } from '../src/canonical.ts';
 import type { CellRun } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { assertFiniteJson, buildResult } from '../../edge-bff/backtest/src/core/result.ts';
-import { sensitivityPlan } from '../../edge-bff/backtest/src/core/robustness.ts';
+import { codedSide, sensitivityPlan, settingAxis } from '../../edge-bff/backtest/src/core/robustness.ts';
 import { periodSignals, previewRow, requestConditions, track } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from '../src/config.ts';
 import { WorkerError } from '../src/errors.ts';
@@ -36,6 +37,7 @@ import { checkRequest } from '../src/validate.ts';
 import type { References } from '../src/validate.ts';
 import { ENGINE_VERSION, REGISTRY_VERSION } from '../src/version.ts';
 import { EVENT_COLUMNS, brokerArchive, brokersRef, encode, eventsDoc, pricePack, startFakeTerminal, tickersRef } from './fake-terminal.mjs';
+import { brokerColumns, market as lookMarket } from './lookahead/fixture.ts';
 
 /* ---- the published market: the fixtures' bars as price packs ------------------------------------------------------- */
 interface Fixture { ticker: string; T: string[]; O: number[]; H: number[]; L: number[]; C: number[]; V: (number | null)[] }
@@ -129,7 +131,7 @@ const requestHash = (q: BacktestRequest, v: Parameters<typeof coreRequestHash>[1
 async function direct(q: BacktestRequest, tickers: string[], files: { ticker: string; dataset: string; sha256: string }[], prior: { variant_hash: string; sharpe_daily: number }[] = [],
   excluded?: Exclusion[]): Promise<BacktestResult> {
   const ctx = prepare({ ihsg: series('IHSG'), tickers: Object.fromEntries(tickers.map(t => [t, { prices: series(t), corporate_actions: [] }])), ...(excluded ? { excluded } : {}) });
-  const ledger = run(ctx, q), plan = sensitivityPlan(q, gridAccepts);
+  const ledger = run(ctx, q), moves = columnMoves(ctx, q), plan = sensitivityPlan(q, gridAccepts, moves);
   let sensitivity = null;
   if (plan) {
     const cells: (CellRun | null)[][] = [];
@@ -140,7 +142,7 @@ async function direct(q: BacktestRequest, tickers: string[], files: { ticker: st
   const data_version = await dataVersion(files), v = { engine_version: ENGINE_VERSION, registry_version: REGISTRY_VERSION, data_version };
   // meta.tickers: a portfolio's tickers the run ran on (the ones it left out are in TICKERS_EXCLUDED)
   const ran = q.mode === 'single' ? tickers : ledger.per_ticker_signals.map(t => t.ticker);
-  return buildResult({ request: q, ledger, versions: { ...v, data_through: THROUGH }, tickers: ran, prior_trials: prior, sensitivity, duration_ms: 0,
+  return buildResult({ request: q, ledger, versions: { ...v, data_through: THROUGH }, tickers: ran, prior_trials: prior, sensitivity, grid_accepts: gridAccepts, grid_moves: moves, duration_ms: 0,
     variant_hash: await variantHash(q), lineage_key: await lineageKey(q), request_hash: await requestHash(q, v) });
 }
 const priceFile = (t: string) => ({ ticker: t, dataset: 'price', sha256: encode(PACK.get(t)).sha256 });
@@ -637,6 +639,15 @@ test('a single job with grammar conditions: the core result, a grid on the gramm
   assert.equal(r2.meta.lineage_key, r.meta.lineage_key);
 });
 
+/** How many distinct equities the run and these cell requests give on one stock's bars (the core's run on the same
+    prepared data): the Deflated Sharpe's trials of a run without prior trials. */
+function distinctEquities(q: BacktestRequest, cells: BacktestRequest[], ticker: string): number {
+  const ctx = prepare({ ihsg: series('IHSG'), tickers: { [ticker]: { prices: series(ticker), corporate_actions: [] } } });
+  const seen: number[][] = [];
+  for (const v of [q, ...cells]) { const e = run(ctx, v).equity; if (!seen.some(x => x.length === e.length && x.every((y, k) => Object.is(y, e[k])))) seen.push(e) }
+  return seen.length;
+}
+
 /* EXEC-SENSITIVITY-FLAGS (user choice C, 2026-11-24): a yes/no condition first varies its first numeric setting */
 test('a job whose first condition is yes/no: the grid varies the indicator\'s setting, each column a real parameter change of that condition, the core\'s result', async () => {
   const dirInd: Condition = { id: 's1', kind: 'indicator', indicator: 'I09', params: {}, lhs: { type: 'output', output: 'direction' }, op: 'gt', rhs: { type: 'value', value: 0 } };
@@ -657,8 +668,11 @@ test('a job whose first condition is yes/no: the grid varies the indicator\'s se
     // the columns differ: another ATR length flips the trend on other days (on the run's stop row)
     const sharpe = s.cells[2].map(x => x!.sharpe), trades = s.cells[2].map(x => x!.trades);
     assert.ok(new Set(sharpe.map(x => x.toFixed(12))).size > 1 || new Set(trades).size > 1, `the five columns differ (${sharpe} / ${trades})`);
-    // the trials: the run, then every distinct cell (25 settings × stops, the run's own cell is the run)
-    assert.equal(r.meta.trials.this_run, 25);
+    // the trials: the run, then every cell with a result of its own (25 settings × stops, the run's own cell is the run;
+    // a cell whose equity the run or an earlier cell gave is no new trial: re-check of ERRORS M558 B-2, 2026-11-25),
+    // counted here from the core's own runs of the 25 requests
+    assert.equal(r.meta.trials.this_run, distinctEquities(q, plan.requests.flat().filter(Boolean) as BacktestRequest[], 'UNVR'));
+    assert.ok(r.meta.trials.this_run > 5 && r.meta.trials.this_run <= 25, `${r.meta.trials.this_run} trials`);
   }
   // Inside Bar has no setting and nothing follows: one column, the stop setting only (5 backtests, one of them the run)
   const ib: Condition = { id: 'i1', kind: 'test', test: { kind: 'state', lhs: { kind: 'indicator', indicator: 'I55', output: 'ib', params: {} }, op: 'gt', rhs: { value: 0.5 } } };
@@ -667,6 +681,103 @@ test('a job whose first condition is yes/no: the grid varies the indicator\'s se
   const s = r.robustness.sensitivity!;
   assert.deepEqual([s.condition_id, s.x_param, s.xs, s.cells.map(row => row.length)], ['i1', 'none', [0.5], [1, 1, 1, 1, 1]]);
   assert.equal(r.meta.trials.this_run, 5);
+});
+
+/* Re-check of ERRORS M558 B-2 (2026-11-25): the axis was the first numeric setting whatever the output compared and its
+   options (FL27's net and gross triggers read none of its volume settings, FL09 with chosen brokers no Top N), so five
+   equal columns counted as 25 trials. A setting column must change the compared value: measured on the run's own data
+   (engine.ts columnMoves), never listed. The look-ahead gate's market (broker rows of about 22 brokers on 560 sessions). */
+test('the yes/no grid varies the first setting whose columns change the condition on the run\'s data: FL27 net and gross, FL09 with chosen brokers move on; Supertrend, Price Action and a threshold keep theirs', () => {
+  const M = lookMarket(), A = M.stocks[0];
+  const data = { ihsg: { ticker: 'IHSG', dates: M.ihsg.dates, bars: M.ihsg.bars, dropped: 0 }, classification: {},
+    tickers: Object.fromEntries(M.stocks.map(t => [t.ticker, { prices: { ticker: t.ticker, dates: t.dates, bars: t.bars, dropped: 0 }, corporate_actions: [],
+      flow: flowData(M.rows[t.ticker], t.dates), broker: onPriceBasis(brokerColumns(M.rows[t.ticker]), []) }])) } as never;
+  const request = (c: Condition, mode: 'single' | 'portfolio', more: Condition[] = []): BacktestRequest => {
+    const q = { ...pageDefault('AAAA'), period: { from: A.dates[300], to: A.dates[A.dates.length - 1], oos_fraction: 0 as const },
+      entry: { logic: 'all', at_least: 1, window_bars: 2, conditions: [c, ...more] } } as BacktestRequest;
+    if (mode === 'single') return q;
+    delete q.single;
+    return { ...q, mode: 'portfolio', portfolio: { tickers: ['AAAA', 'BBBB', 'SUSP'], max_positions: 2, rank_by: 'fnet', min_avg_value_20d_idr: 0 } };
+  };
+  const flowFlag = (output: string, params: Record<string, unknown> = {}, metric = 'FL27'): Condition => ({ id: 'f', kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric, output, params }, op: 'gt', value: 0.5 } });
+  const supertrend: Condition = { id: 's', kind: 'indicator', indicator: 'I09', params: {}, lhs: { type: 'output', output: 'direction' }, op: 'gt', rhs: { type: 'value', value: 0 } };
+  const priceAction: Condition = { id: 'p', kind: 'test', test: { kind: 'state', lhs: { kind: 'indicator', indicator: 'I56', output: 'break_1', params: {} }, op: 'gt', rhs: { value: 0.5 } } };
+  const adx: Condition = { id: 'a', kind: 'indicator', indicator: 'I07', params: { di_length: 14, adx_smoothing: 14 }, lhs: { type: 'output', output: 'adx' }, op: 'gt', rhs: { type: 'value', value: 25 } };
+  const SELECTED = { scope: 'selected', brokers: ['AA', 'BK', 'CC'] };
+  // [case, condition, the setting the grid varies (x_field), the settings before it in registry order]
+  const cases: [string, Condition, string, string[]][] = [
+    ['FL27 net', flowFlag('net'), 'test.metric.params.n_net', ['recent', 'baseline', 'volx', 'move']],
+    ['FL27 gross', flowFlag('gross'), 'test.metric.params.n_gross', ['recent', 'baseline', 'volx', 'move', 'n_net', 'x_net']],
+    ['FL09 chosen brokers', flowFlag('value', SELECTED, 'FL09'), 'test.metric.params.window', ['top']],
+    ['FL27 volume flag', flowFlag('value'), 'test.metric.params.recent', []],
+    ['FL09 Top-N', flowFlag('value', {}, 'FL09'), 'test.metric.params.top', []],
+    ['Supertrend direction', supertrend, 'params.atr_length', []],
+    ['Price Action break', priceAction, 'test.lhs.params.lookback_length', []],
+    ['ADX 25', adx, 'rhs.value', []],
+  ];
+  /** the condition's signal on each stock of the run, as the run reads it (up to its last bar in the period) */
+  const signals = (ctx: ReturnType<typeof prepare>, q: BacktestRequest, c: Condition) => (q.mode === 'single' ? ['AAAA'] : ['AAAA', 'BBBB', 'SUSP']).map(t => {
+    const p = ctx.tickers.get(t)!, d = p.data.prices.dates, last = d.filter(x => x <= q.period.to).length - 1;
+    return Array.from(conditionSeries(p.calc, c, 'probe', last)).slice(0, last + 1).join('');
+  });
+  for (const mode of ['single', 'portfolio'] as const) for (const [name, c, field, before] of cases) {
+    const q = request(c, mode), ctx = prepare(data), L = run(ctx, q), moves = columnMoves(ctx, q);
+    const p = sensitivityPlan(q, gridAccepts, moves)!;
+    assert.equal(p.x_field, field, `${mode} ${name}`);
+    assert.ok(L.trades.length > 0, `${mode} ${name}: the run trades`);
+    const own = signals(ctx, q, c), side = codedSide(c);
+    if (!side) { assert.deepEqual([p.x_param, field], ['value', 'rhs.value']); assert.deepEqual(sensitivityPlan(q, gridAccepts), p, `${mode} ${name}: a threshold axis reads no data`); continue }
+    const with_ = (key: string, v: number) => { const x = JSON.parse(JSON.stringify(c)); const ref = side.path.reduce((o: any, k) => o[k], x); ref.params = { ...ref.params, [key]: v }; return x as Condition };
+    // every setting before it: each of its columns gives the run's own signal on every bar of every stock
+    for (const key of before) {
+      const s = side.settings.find(x => x.key === key)!;
+      for (const v of settingAxis(s)) assert.deepEqual(signals(ctx, q, with_(key, v)), own, `${mode} ${name}: ${key} ${v} changes nothing`);
+    }
+    assert.deepEqual(side.settings.slice(0, before.length).map(s => s.key), before, `${mode} ${name}: the settings before it, in registry order`);
+    // the one it varies: at least one column gives another signal, and each column carries its value
+    const key = field.split('.').pop()!, s = side.settings.find(x => x.key === key)!;
+    assert.ok(settingAxis(s).some(v => signals(ctx, q, with_(key, v)).join() !== own.join()), `${mode} ${name}: ${key} changes the signal`);
+    p.requests[2].forEach((v, j) => { const got = field.split('.').reduce((o: any, k) => o?.[k], v!.entry.conditions[0]); assert.equal(got ?? s.base, p.xs[j]) });
+    // without the data (the page's own plan) the first setting, as before: the worker's measure is what moves it on
+    assert.equal(sensitivityPlan(q, gridAccepts)!.x_field, [...side.path, 'params', side.settings[0].key].join('.'));
+    // the result's plan with the same check is the run's (buildResult refuses cells on other axes)
+    assert.deepEqual(sensitivityPlan(q, gridAccepts, moves), p);
+  }
+  // a flag that never fires (a ratio of 1e9): no setting changes it, so x passes to the next condition (way A), and with
+  // none after it only the stop setting varies
+  const never = flowFlag('net', { x_net: 1e9 });
+  for (const [more, x] of [[[adx], ['a', 'value']], [[], ['f', 'none']]] as const) {
+    const q = request(never, 'single', [...more]), ctx = prepare(data);
+    q.entry.logic = 'any';
+    run(ctx, q);
+    const p = sensitivityPlan(q, gridAccepts, columnMoves(ctx, q))!;
+    assert.deepEqual([p.condition_id, p.x_param], x);
+  }
+});
+
+test('a job on FL27\'s net trigger through the worker: the grid varies its N brokers, buildResult plans the same, one trial per distinct result', async () => {
+  // test rows: eight brokers on UNVR's last 150 sessions with nets of either sign (not published values)
+  const fx = FX.get('UNVR')!, days = fx.T.slice(-150), codes = ['YU', 'ZP', 'AA', 'BK', 'CC', 'DX', 'EP', 'FS'];
+  let seed = 5;
+  const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  const rows = days.flatMap(d => codes.map(b => { const bl = Math.round(rnd() * 4e4), sl = Math.round(rnd() * 4e4); return [d, b, rnd() < 0.3 ? 'Foreign' : 'Domestic', 'Regular', bl * 1e4, sl * 1e4, bl, sl, false] }));
+  const doc = brokerArchive('UNVR', rows, [2026, 2026]);
+  const flowFake = await startFakeTerminal({ key: KEY, tickers: market({ UNVR: { broker: { data_through: THROUGH, doc } } }), refs: REFS });
+  try {
+    const on: Config['flow'] = { enabled: true, reason: null };
+    const c = { id: 'n1', kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric: 'FL27', output: 'net', params: {} }, op: 'gt', value: 0.5 } } as Condition;
+    const q = { ...pageDefault('UNVR'), entry: { logic: 'all', at_least: 1, window_bars: 1, conditions: [c] } } as BacktestRequest;
+    q.period.from = days[10];
+    const r = await runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
+    const s = r.robustness.sensitivity!;
+    assert.deepEqual([s.x_param, s.x_field, s.x_label, s.xs, s.base_x], ['setting', 'test.metric.params.n_net', 'Net trigger: N brokers', [1, 2, 3, 4, 5], 3]);
+    assert.ok(r.trades.length > 0, 'the net trigger trades');
+    // the trials are the distinct results of the run and its 25 cells (the run is the centre cell), not 25 settings: at
+    // least as many as the cells with different numbers, at most 25
+    const differ = new Set(s.cells.flat().map(x => JSON.stringify(x))).size;
+    assert.ok(differ > 1 && r.meta.trials.this_run >= differ && r.meta.trials.this_run <= 25, `${r.meta.trials.this_run} trials for ${differ} different cells`);
+    assert.equal(r.robustness.deflated.trials, r.meta.trials.total);
+  } finally { await flowFake.close() }
 });
 
 test('grammar conditions: the preview reads IHSG for vs_index; refusals name the field', async () => {

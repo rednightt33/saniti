@@ -1,7 +1,7 @@
 /* Robustness numbers of the backtest page (backtest.html sections 9 and 10): the Monte Carlo of reshuffled trade
    sequences, the Deflated Sharpe over the strategy line's trials (CONTRACT.md section 7, K3) and the sensitivity grid
    (the page's GRID_Y and xs/ys rules on the first enabled entry condition with a numeric threshold, D-grid; for a yes/no
-   condition the first numeric setting of what it reads, EXEC-SENSITIVITY-FLAGS).
+   condition the first numeric setting of what it reads that changes it on the run's data, EXEC-SENSITIVITY-FLAGS).
    Pure module: no DOM and no Node API. */
 import type { BacktestRequest, Condition, MonteCarlo, Sensitivity, SensitivityCell } from './contract.ts';
 import type { Ledger, LedgerTrade } from './ledger.ts';
@@ -73,12 +73,33 @@ export function distinctVariants(variants: readonly RunVariant[]): RunVariant[] 
   return out;
 }
 
+/** Whether two runs gave one result: the same daily equity, value for value (so the same returns, hence the same trial
+    Sharpe; re-check of ERRORS M558 B-2, 2026-11-25: five setting columns with the same trades were counted as five
+    trials of the Deflated Sharpe). */
+export function sameResult(a: readonly number[], b: readonly number[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return false;
+  return true;
+}
+/** The variants of one run, one per distinct result: the run first, then each cell [y][x] whose equity no earlier one of
+    the list gave (sameResult). A cell that repeats an earlier result (another setting or stop that changed no trade) is
+    no new trial: it is not counted in the Deflated Sharpe and not recorded (meta.trials.variants), as a cell equal to the
+    run's own request is the run. */
+export function distinctResults<T extends RunVariant>(runs: readonly { variant: T; equity: readonly number[] }[]): T[] {
+  const kept: { variant: T; equity: readonly number[] }[] = [];
+  for (const r of runs) if (!kept.some(k => k.variant.variant_hash === r.variant.variant_hash || sameResult(k.equity, r.equity))) kept.push(r);
+  return kept.map(k => k.variant);
+}
+
 /** The trials of the strategy line after this run: the distinct prior variants, then this run's distinct variants.
-    A variant this run evaluated again takes this run's Sharpe (current data). prior = distinct prior variants,
-    this_run = this run's variants not seen before, total = prior + this_run = the number of distinct trials; the
-    Sharpe list follows the same order (prior order from edge-bff, then run, then cells [y][x]). */
-export function trialSet(prior: readonly Trial[], variants: readonly RunVariant[]) {
-  const own = distinctVariants(variants), ownHash = new Set(own.map(v => v.variant_hash));
+    A variant this run evaluated again takes this run's result (current data): its prior entry is replaced by this
+    run's Sharpe, or by the variant of this run that gave the same result (`evaluated`: every hash this run ran, the
+    ones distinctResults merged into an earlier result too; by default the variants'). prior = distinct prior
+    variants, this_run = total - prior, total = the number of distinct trials; the Sharpe list follows the same order
+    (prior order from edge-bff, then run, then cells [y][x]). */
+export function trialSet(prior: readonly Trial[], variants: readonly RunVariant[], evaluated: Iterable<string> = variants.map(v => v.variant_hash)) {
+  const own = distinctVariants(variants), ownHash = new Set([...own.map(v => v.variant_hash), ...evaluated]);
   const seenPrior = new Set<string>(), priorKept: Trial[] = [];
   for (const p of prior) if (!seenPrior.has(p.variant_hash)) { seenPrior.add(p.variant_hash); if (!ownHash.has(p.variant_hash)) priorKept.push(p) }
   const srs = [...priorKept.map(p => p.sharpe_daily), ...own.map(v => v.sharpe_daily)];
@@ -121,8 +142,12 @@ const roundX = (c: Condition, x: number) => c.kind === 'test' ? +x.toPrecision(6
 /* ---- yes/no conditions (EXEC-SENSITIVITY-FLAGS, user choice C, 2026-11-24) ---------------------------------------
    A condition whose threshold compares an output whose values are codes (0/1, -1/1, categories) has its threshold only
    as a formality (0.5, 0): the grid's columns of it gave the same trades, and the Deflated Sharpe counted 25 trials
-   where 5 differed. Such a condition's x axis is the first numeric setting of what it reads instead. Whether an output
-   is coded is read from the registries, never from a list of ids:
+   where 5 differed. Such a condition's x axis is a numeric setting of what it reads instead: the first, in registry
+   order, one of whose columns changes the condition's signal on the run's own data (GridMoves, the worker's
+   engine.ts columnMoves; re-check of 2026-11-25: FL27's net and gross triggers read only their own N and ratio, so
+   its first setting, Recent sessions, gave five equal columns; FL09 with chosen brokers reads no Top N). Whether a
+   setting changes the output is measured on the data, never listed; whether an output is coded is read from the
+   registries, never from a list of ids:
    - an indicator output: the Terminal's registry draws it as a state or a marker (indRegistry.json outs[].r), not as a
      line, a histogram or dots with a value, or it lists categories (outs[].categories): Supertrend's and Parabolic
      SAR's `direction` (-1/1), the lab I54-I60 flags and states, Alpha KAMA's colour state;
@@ -159,33 +184,39 @@ const num = (x: unknown): number | undefined => typeof x === 'number' && Number.
 /** The numeric setting a grid varies: its key and label in its registry, whole or not, the condition's value (the
     registry default when the condition leaves it out) and its bounds. */
 export interface GridSetting { key: string; label: string; integer: boolean; base: number; min?: number; max?: number; min_exclusive: boolean; step?: number }
-/** An indicator's first numeric setting in its registry's Settings order (backtest-registry.json params, the accepted
-    ones), at the condition's parameters; null when it has none (Inside Bar, Alpha Divergence). */
-function indicatorSetting(id: unknown, params: unknown): GridSetting | null {
-  const r = typeof id === 'string' ? BY_ID[id] : undefined, p = r?.params.find(x => x.type === 'integer' || x.type === 'number');
-  if (!p) return null;
-  const base = num(isObj(params) && p.key in params ? params[p.key] : p.default);
-  if (base === undefined) return null;
-  return { key: p.key, label: IND.get(r.id)?.params.find(x => x.k === p.key)?.label || p.key, integer: p.type === 'integer', base, min: p.min, max: p.max, min_exclusive: false, step: p.step };
+/** An indicator's numeric settings in its registry's Settings order (backtest-registry.json params, the accepted ones),
+    at the condition's parameters; none for Inside Bar and Alpha Divergence. */
+function indicatorSettings(id: unknown, params: unknown): GridSetting[] {
+  const r = typeof id === 'string' ? BY_ID[id] : undefined;
+  if (!r) return [];
+  return r.params.filter(x => x.type === 'integer' || x.type === 'number').flatMap(p => {
+    const base = num(isObj(params) && p.key in params ? params[p.key] : p.default);
+    return base === undefined ? [] : [{ key: p.key, label: IND.get(r.id)?.params.find(x => x.k === p.key)?.label || p.key, integer: p.type === 'integer', base, min: p.min, max: p.max, min_exclusive: false, step: p.step }];
+  });
 }
-/** A Flow indicator's first numeric setting in its registry's order (flowRegistry.json params of kind int or num, the
-    Terminal's own drawing options aside), at the reference's parameters; null when it has none. */
-function flowSetting(id: unknown, params: unknown): GridSetting | null {
-  const e = typeof id === 'string' ? FLOWS.get(id) : undefined, p = e?.params.find(x => (x.kind === 'int' || x.kind === 'num') && !x.terminal_only);
-  if (!p) return null;
-  const base = num(isObj(params) && p.key in params ? params[p.key] : p.default);
-  if (base === undefined) return null;
-  return { key: p.key, label: p.label || p.key, integer: p.kind === 'int', base, min: num(p.min), max: num(p.max), min_exclusive: p.min_exclusive === true };
+/** A Flow indicator's numeric settings in its registry's order (flowRegistry.json params of kind int or num, the
+    Terminal's own drawing options aside), at the reference's parameters. */
+function flowSettings(id: unknown, params: unknown): GridSetting[] {
+  const e = typeof id === 'string' ? FLOWS.get(id) : undefined;
+  if (!e) return [];
+  return e.params.filter(x => (x.kind === 'int' || x.kind === 'num') && !x.terminal_only).flatMap(p => {
+    const base = num(isObj(params) && p.key in params ? params[p.key] : p.default);
+    return base === undefined ? [] : [{ key: p.key, label: p.label || p.key, integer: p.kind === 'int', base, min: num(p.min), max: num(p.max), min_exclusive: p.min_exclusive === true }];
+  });
 }
+/** A coded side: the path of the reference whose settings vary, its numeric settings in registry order (`settings`;
+    the grid takes the first one whose columns change the condition on the run's data, GridMoves) and the first of them
+    (`setting`, null: coded, but nothing numeric to vary). */
+export interface CodedSide { path: string[]; setting: GridSetting | null; settings: GridSetting[] }
+const codedOf = (path: string[], settings: GridSetting[]): CodedSide => ({ path, setting: settings[0] ?? null, settings });
 /** When a condition's threshold is compared with a coded output: the path of the reference whose setting varies (from
     the condition's root: [] for an indicator condition, whose parameters are its own `params`; 'test.lhs' and the like
-    for a test) and that setting (null: coded, but nothing numeric to vary). Null when the threshold is compared with a
-    real number (today's axis). */
-export function codedSide(c: Condition): { path: string[]; setting: GridSetting | null } | null {
+    for a test) and its numeric settings. Null when the threshold is compared with a real number (today's axis). */
+export function codedSide(c: Condition): CodedSide | null {
   if (c.kind === 'indicator') {
     if (c.rhs.type !== 'value' || c.lhs.type !== 'output') return null;
     const out = c.lhs.output;
-    return coded(IND.get(c.indicator)?.outs.find(o => o.k === out)) ? { path: [], setting: indicatorSetting(c.indicator, c.params) } : null;
+    return coded(IND.get(c.indicator)?.outs.find(o => o.k === out)) ? codedOf([], indicatorSettings(c.indicator, c.params)) : null;
   }
   if (c.kind !== 'test') return null;
   const at = testThresholdPath(c.test);
@@ -198,19 +229,19 @@ export function codedSide(c: Condition): { path: string[]; setting: GridSetting 
   if (isObj(ref) && ref.kind === 'transform') {
     if (!CATEGORY_FNS.has(String(ref.fn)) || !isObj(ref.of) || ref.of.kind !== 'indicator') return null;
     path.push('of');
-    return { path, setting: indicatorSetting(ref.of.indicator, ref.of.params) };
+    return codedOf(path, indicatorSettings(ref.of.indicator, ref.of.params));
   }
   if (!isObj(ref)) return null;
   if (ref.kind === 'indicator') {
     const out = ref.output;
-    return coded(IND.get(String(ref.indicator))?.outs.find(o => o.k === out)) ? { path, setting: indicatorSetting(ref.indicator, ref.params) } : null;
+    return coded(IND.get(String(ref.indicator))?.outs.find(o => o.k === out)) ? codedOf(path, indicatorSettings(ref.indicator, ref.params)) : null;
   }
   if (ref.kind === 'flow') {
     const e = FLOWS.get(String(ref.metric)), outs = KINDS[String(ref.metric)]?.outputs;
     if (!e || !outs) return null;
     const out = typeof ref.output === 'string' ? ref.output : e.outputs[0], params = isObj(ref.params) ? ref.params : {};
     const defaults = Object.fromEntries(e.params.map(p => [p.key, p.default]));
-    return kindOf(outs[out], params, defaults) === FLAG_KIND ? { path, setting: flowSetting(ref.metric, ref.params) } : null;
+    return kindOf(outs[out], params, defaults) === FLAG_KIND ? codedOf(path, flowSettings(ref.metric, ref.params)) : null;
   }
   return null;
 }
@@ -240,8 +271,9 @@ function withSetting<T extends Condition>(c: T, path: readonly string[], s: Grid
 
 export interface SensitivityPlan {
   condition_id: string;
-  /** what x varies: the condition's threshold ('value'); a yes/no condition's first numeric setting ('setting'); nothing
-      ('none': a yes/no condition without one and no later condition with an axis: one column, the stop setting only) */
+  /** what x varies: the condition's threshold ('value'); a yes/no condition's numeric setting ('setting', the first that
+      changes it on the run's data); nothing ('none': a yes/no condition without such a setting and no later condition
+      with an axis: one column, the stop setting only) */
   x_param: Sensitivity['x_param']; x_field: string; x_label: string | null;
   xs: number[]; xs_display: number[]; y_key: YKey; ys: number[]; ys_display: number[];
   base_x: number; base_y: number;
@@ -251,56 +283,70 @@ export interface SensitivityPlan {
   requests: (BacktestRequest | null)[][];
 }
 
+/** Whether a column of the grid can change the run (EXEC-SENSITIVITY-FLAGS; re-check of ERRORS M558 B-2, 2026-11-25):
+    given the run's own condition and one column's (the same condition with one setting changed), true when the
+    column's condition gives another 0/1 signal than the run's on a bar the entry reads, on some stock of the run, or
+    the one is refused where the other is not. The worker answers it on the run's own data (engine.ts columnMoves); a
+    caller without the data leaves it out, and the grid then takes the first numeric setting, as before. */
+export type GridMoves = (run: Condition, column: Condition) => boolean;
+
 interface XAxis {
   c: Condition; x_param: Sensitivity['x_param']; x_field: string; x_label: string | null; xs: number[]; xs_display: number[]; base_x: number;
-  /** the condition of the column at x (wire units), null when that value is refused */
-  at: (x: number) => Condition | null;
+  /** each column's condition (xs order), null where the condition, conditions.ts or the caller's `accepts` refuses it */
+  cols: (Condition | null)[];
 }
+/** The columns k = +2, -2, +1, -1 first: the farthest from the run's own value is the likeliest to change it. */
+const PROBE_ORDER = [4, 0, 3, 1];
 /** The grid's x axis: the first enabled entry condition with a numeric threshold, in the entry's order (D-grid). When
-    its threshold is compared with a coded output (codedSide): the first numeric setting of what it reads (x 'setting',
-    user choice C); when that has none, the next such condition (way A); a yes/no condition and no axis after it: x
-    'none' on that condition (the stop axis only). Null when no enabled entry condition has a numeric threshold. */
-function xAxis(q: BacktestRequest): XAxis | null {
+    its threshold is compared with a coded output (codedSide): a numeric setting of what it reads (x 'setting', user
+    choice C), the first in registry order one of whose columns changes the condition on the run's data (`moves`;
+    without it the first, as before); when none does or it has none, the next such condition (way A); a yes/no
+    condition and no axis after it: x 'none' on that condition (the stop axis only). Null when no enabled entry
+    condition has a numeric threshold. `check` is the columns' check (conditions.ts and the caller's). */
+function xAxis(q: BacktestRequest, check: (c: Condition | null) => Condition | null, moves?: GridMoves): XAxis | null {
   let first: Condition | null = null;
   for (const c of q.entry.conditions) {
     if (c.enabled === false || threshold(c) === null) continue;
     const side = codedSide(c);
     if (!side) {
       const scale = displayScale(c) as number, base_x = threshold(c) as number, base = base_x / scale, step = stepOf(c, base);
-      const xs_display = KS.map(k => roundX(c, base + k * step));
-      return { c, x_param: 'value', x_field: thresholdField(c) as string, x_label: null, xs: xs_display.map(x => x * scale), xs_display, base_x, at: x => withThreshold(c, x) };
+      const xs_display = KS.map(k => roundX(c, base + k * step)), xs = xs_display.map(x => x * scale);
+      return { c, x_param: 'value', x_field: thresholdField(c) as string, x_label: null, xs, xs_display, base_x, cols: xs.map(x => check(withThreshold(c, x))) };
     }
-    if (side.setting) {
-      const s = side.setting, xs = settingAxis(s);
-      return { c, x_param: 'setting', x_field: [...side.path, 'params', s.key].join('.'), x_label: s.label, xs, xs_display: xs, base_x: s.base,
-        at: x => s.min_exclusive && s.min !== undefined && x <= s.min ? null : withSetting(c, side.path, s, x) };
+    for (const s of moves ? side.settings : side.settings.slice(0, 1)) {
+      const xs = settingAxis(s);
+      const cols = xs.map(x => check(s.min_exclusive && s.min !== undefined && x <= s.min ? null : withSetting(c, side.path, s, x)));
+      // a setting none of whose other columns changes the run's signal (FL27's net trigger reads none of the volume
+      // settings; FL09 with chosen brokers reads no Top N) is no axis: its five columns would repeat one result
+      if (moves && !PROBE_ORDER.some(j => cols[j] !== null && xs[j] !== s.base && moves(c, cols[j] as Condition))) continue;
+      return { c, x_param: 'setting', x_field: [...side.path, 'params', s.key].join('.'), x_label: s.label, xs, xs_display: xs, base_x: s.base, cols };
     }
     first ??= c;
   }
   if (!first) return null;
   const c = first, base_x = threshold(c) as number;
-  return { c, x_param: 'none', x_field: thresholdField(c) as string, x_label: null, xs: [base_x], xs_display: [base_x / (displayScale(c) as number)], base_x, at: () => c };
+  return { c, x_param: 'none', x_field: thresholdField(c) as string, x_label: null, xs: [base_x], xs_display: [base_x / (displayScale(c) as number)], base_x, cols: [check(c)] };
 }
 
 /** The page's grid on the request: x = the first enabled entry condition with a numeric threshold, base in display
     units (catalog.ts DISPLAY; wire ÷ scale), step = max(1, |base| × 0.2 || 1), xs = +(base + k·step).toFixed(2);
     y = the stop setting (pct: step 2 %, min 1 %; atr: 0.5 / 0.5; rr: 0.5 / 0.5; line or none: max hold, step 5,
     min 2), ys = +max(min, y0 + k·step).toFixed(2); k = -2..2. Wire values: x display × scale (catalog.ts), y as
-    GRID_Y.toWire. A yes/no condition varies its first numeric setting instead (xAxis, settingAxis; display = wire).
-    Null when sensitivity is off or no enabled entry condition has a numeric threshold.
+    GRID_Y.toWire. A yes/no condition varies a numeric setting instead (xAxis, settingAxis; display = wire): with
+    `moves` (the worker, on the run's data) the first in registry order whose columns change the condition, else the
+    first. Null when sensitivity is off or no enabled entry condition has a numeric threshold.
     Recovering the display base from the wire (e.g. -0.03 / 0.01 = -2.9999999999999996) can differ from the typed
     value by an ulp; after the page's 2-decimal rounding the axes are the page's for every base of at most 2 decimals
     (the grid values are then multiples of 0.002, far from a rounding boundary). */
-export function sensitivityPlan(q: BacktestRequest, accepts: (c: Condition) => boolean = accepted): SensitivityPlan | null {
+export function sensitivityPlan(q: BacktestRequest, accepts: (c: Condition) => boolean = accepted, moves?: GridMoves): SensitivityPlan | null {
   if (!q.robustness.sensitivity) return null;
-  const ax = xAxis(q);
+  // each column's condition is checked once (the grammar's check of a test condition is not free), then the rows
+  const ax = xAxis(q, c => c && accepted(c) && accepts(c) ? c : null, moves);
   if (!ax) return null;
   const yk = gridY(q), y0 = yk.get(q);
   const ys_display = KS.map(k => +Math.max(yk.min, y0 + k * yk.step).toFixed(2)), ys = ys_display.map(yk.toWire);
   const base_y = yk.key === 'stop_pct' ? q.exit.stop.pct : y0;
-  // each column's condition once (the grammar's check of a test condition is not free), then the rows
-  const cols = ax.xs.map(x => { const c = ax.at(x); return c && accepted(c) && accepts(c) ? c : null });
-  const requests = ys.map(y => cols.map(cell => {
+  const requests = ys.map(y => ax.cols.map(cell => {
     if (!cell) return null;
     const v = JSON.parse(JSON.stringify(q)) as BacktestRequest;
     v.entry.conditions = v.entry.conditions.map(c => c.id === ax.c.id ? JSON.parse(JSON.stringify(cell)) as Condition : c);

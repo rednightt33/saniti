@@ -30,10 +30,11 @@ import type { Ledger, LedgerTrade } from './ledger.ts';
 import type { Num, Params } from '../../../terminal/src/calc/indicators.ts';
 import { isN } from '../../../terminal/src/calc/indicators.ts';
 import display from '../../../terminal/src/data/indRegistry.json' with { type: 'json' };
-import { Calc } from './conditions.ts';
+import { Calc, conditionSeries } from './conditions.ts';
+import type { Condition, Signal } from './conditions.ts';
 import { priceLevels } from './priceLevels.ts';
 import { BY_ID, REGISTRY, ValidationError, indicator, resolveParams } from './registry.ts';
-import { RANK_BY, barMap, byTicker, conditionsWithin, emptyTrack, isIsoDate, leftOut, liquidity, periodSignals, rankScores, requestConditions, resultCalendar, signalSummary, track, unlessLeftOut } from './signals.ts';
+import { RANK_BY, barMap, byTicker, conditionsWithin, emptyTrack, isIsoDate, leftOut, liquidity, lowerBound, periodSignals, rankScores, requestConditions, resultCalendar, signalSummary, track, unlessLeftOut, upperBound } from './signals.ts';
 import type { BarMap, Exclusion, RankBy, TickerSignals } from './signals.ts';
 export { EXCLUDED_CODES } from './signals.ts';
 export type { Exclusion } from './signals.ts';
@@ -677,5 +678,55 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
     dates: dates.slice(), equity, exposure, benchmark_close,
     benchmark: { kind: single ? req.single!.benchmark : 'ihsg', ticker: bench === ihsg ? ihsg.ticker : prep[0].ticker },
     trades, events: { conditions, entries, exits, skipped }, per_ticker_signals: perTicker, warnings,
+  };
+}
+
+/* ---- the sensitivity grid's setting columns (EXEC-SENSITIVITY-FLAGS; re-check of ERRORS M558 B-2, 2026-11-25) ----- */
+/** Whether a column of the yes/no grid changes the run (robustness.ts GridMoves), measured on this run's own data:
+    on each stock the run reads (single: its ticker; portfolio: the picked stocks that were loaded) the column's
+    condition and the run's own are computed as the run computes them (conditions.ts conditionSeries up to the stock's
+    last bar inside the period, `last`) and compared on the bars the entry reads from them: from the condition's window
+    before the period's first bar (the entry on bar j reads the condition's bars j-W+1..j, W = entry.window_bars, 1 for a
+    grammar condition, and switchOns reads the entry on the bar before the first) to the last bar inside the period.
+    The column moves when one of those bars differs on one stock, or when one of the two is refused (a ValidationError)
+    and the other is not or by another code. So a column that moves nothing gives the run's trades: same signals on
+    every bar the entry reads, nothing else of the request changed (the stop rows vary the exit, the same in every
+    column). A stock without a bar inside the period trades nothing either way. Each answer and each stock's own
+    signal are kept per function (the plan is made twice, for the run's cells and in buildResult); the series stay in
+    each stock's Calc memo, so the cells of the chosen setting reuse them. The field is 'sensitivity', not an entry's:
+    the grammar notes no lookback or Flow flag for a trade from it (grammar.ts noteReach, noteEntryFlow). Call it after
+    run(ctx, req): the stocks are prepared by then. Cost: a setting is kept at its first column that moves; one that is
+    not reads its four other columns on every stock (FL27's net trigger: its four volume settings, 16 more FL27 series
+    per stock before its N, about 56 ms each on 2,500 sessions of 120 brokers). `shouldStop` is read before each stock
+    (Cancelled). */
+export function columnMoves(ctx: Context, req: BacktestRequest, shouldStop?: () => boolean): (run: Condition, column: Condition) => boolean {
+  const single = req.mode === 'single';
+  let spans: { calc: Calc; first: number; last: number }[] | null = null;
+  const stocks = () => spans ??= (single ? [req.single!.ticker] : pickedLoaded(ctx.data, req)).map(t => {
+    const p = prepared(ctx, t, single ? 'single.ticker' : 'portfolio.tickers'), d = p.data.prices.dates;
+    return { calc: p.calc, first: lowerBound(d, req.period.from), last: upperBound(d, req.period.to) - 1 };
+  }).filter(s => s.first <= s.last);
+  const signal = (calc: Calc, c: Condition, last: number): Signal | string => {
+    if (shouldStop?.()) throw new Cancelled();
+    try { return conditionSeries(calc, c, 'sensitivity', last) }
+    catch (e) { if (e instanceof ValidationError) return e.code; throw e }
+  };
+  const own = new Map<string, (Signal | string)[]>(), answers = new Map<string, boolean>();
+  return (base, column) => {
+    const key = JSON.stringify([base, column]);
+    let a = answers.get(key);
+    if (a !== undefined) return a;
+    const bk = JSON.stringify(base), S = stocks();
+    let ref = own.get(bk);
+    if (!ref) { ref = S.map(s => signal(s.calc, base, s.last)); own.set(bk, ref) }
+    const W = (base as { kind?: string }).kind === 'test' ? 1 : req.entry.window_bars;
+    a = S.some((s, k) => {
+      const x = ref![k], y = signal(s.calc, column, s.last);
+      if (typeof x === 'string' || typeof y === 'string') return x !== y;
+      for (let i = Math.max(0, s.first - W); i <= s.last; i++) if (x[i] !== y[i]) return true;
+      return false;
+    });
+    answers.set(key, a);
+    return a;
   };
 }

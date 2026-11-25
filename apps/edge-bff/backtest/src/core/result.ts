@@ -10,7 +10,7 @@ import { OWNER_TRIAL_DAYS } from './contract.ts';
 import type { AnnualRow, BacktestRequest, BacktestResult, DrawdownPeriod, ExitReason, MonthlyRow, Sensitivity, SensitivityCell, Trade, Warning, WeekdayRow } from './contract.ts';
 import type { Ledger, LedgerTrade, ResultInput } from './ledger.ts';
 import { finiteOrNull, mean, quant, sd, seriesStats, skew, toSeriesStats, toTradeStats, tradeStats } from './stats.ts';
-import { cellStats, deflatedSharpe, monteCarlo, monteCarloScale, sensitivityPlan, trialSet, trialSharpe } from './robustness.ts';
+import { cellStats, deflatedSharpe, distinctResults, monteCarlo, monteCarloScale, sensitivityPlan, trialSet, trialSharpe } from './robustness.ts';
 import type { RunVariant } from './robustness.ts';
 
 const ROLL = 126;   // the page's rolling-Sharpe window (6 months of trading days)
@@ -168,10 +168,11 @@ function trades(L: Ledger): Trade[] {
 const same = (a: readonly unknown[], b: readonly unknown[]) => a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
 
 /** The grid from the cells' runs; the axes must be the request's own plan (robustness.ts sensitivityPlan, with the
-    check the run planned it with, `grid_accepts`), and a cell is null exactly where the plan has no request (a
-    threshold or setting the condition refuses). */
-function sensitivity(input: ResultInput, variants: RunVariant[]): Sensitivity | null {
-  const plan = sensitivityPlan(input.request, input.grid_accepts), s = input.sensitivity;
+    checks the run planned it with, `grid_accepts` and `grid_moves`), and a cell is null exactly where the plan has no
+    request (a threshold or setting the condition refuses). Each cell's run is added to `runs` (its variant and its
+    equity, for the trials: distinctResults). */
+function sensitivity(input: ResultInput, runs: { variant: RunVariant; equity: readonly number[] }[]): Sensitivity | null {
+  const plan = sensitivityPlan(input.request, input.grid_accepts, input.grid_moves), s = input.sensitivity;
   if (!plan && !s) return null;
   if (!plan || !s) throw new Error(plan ? 'result: the request has a sensitivity grid but the run sent no cells' : 'result: sensitivity cells sent for a request without a grid');
   for (const k of ['condition_id', 'y_key', 'base_x', 'base_y'] as const) if (!Object.is(plan[k], s[k])) throw new Error(`result: sensitivity ${k} ${String(s[k])} is not the request's ${String(plan[k])}`);
@@ -181,7 +182,7 @@ function sensitivity(input: ResultInput, variants: RunVariant[]): Sensitivity | 
     if (!req) { if (c) throw new Error(`result: sensitivity cell [${i}][${j}] has a run but its threshold is refused`); return null }
     if (!c) throw new Error(`result: sensitivity cell [${i}][${j}] is missing`);
     const cell = cellStats(c.ledger);
-    variants.push({ variant_hash: c.variant_hash, sharpe_daily: trialSharpe(cell), kind: 'sensitivity' });
+    runs.push({ variant: { variant_hash: c.variant_hash, sharpe_daily: trialSharpe(cell), kind: 'sensitivity' }, equity: c.ledger.equity });
     return cell;
   }));
   return { condition_id: plan.condition_id, x_param: plan.x_param, x_field: plan.x_field, x_label: plan.x_label, xs: plan.xs, xs_display: plan.xs_display,
@@ -245,11 +246,14 @@ export function buildResult(input: ResultInput): BacktestResult {
   const tsIn = tradeStats(T.filter(t => cutDay == null || t.entry_bar <= cutDay));
   const tsOut = oos ? tradeStats(T.filter(t => cutDay != null && t.entry_bar > cutDay)) : null;   // shown only with OOS stats
 
-  const variants: RunVariant[] = [{ variant_hash: input.variant_hash, sharpe_daily: trialSharpe(st), kind: 'run' }];
-  const grid = sensitivity(input, variants);
-  const tset = trialSet(input.prior_trials, variants);
+  const runs: { variant: RunVariant; equity: readonly number[] }[] = [{ variant: { variant_hash: input.variant_hash, sharpe_daily: trialSharpe(st), kind: 'run' }, equity: vals }];
+  const grid = sensitivity(input, runs);
+  // one trial per distinct result (re-check of ERRORS M558 B-2, 2026-11-25): a cell whose equity the run or an earlier
+  // cell gave is the same trial, whatever its hash; a prior entry of a hash this run ran again is replaced either way
+  const variants = distinctResults(runs), evaluated = runs.map(r => r.variant.variant_hash);
+  const tset = trialSet(input.prior_trials, variants, evaluated);
   // K6 a: the owner's trials across lines (the variants list is complete only after the grid's cells, so after sensitivity())
-  const oset = input.owner_trials ? trialSet(input.owner_trials, variants) : null;
+  const oset = input.owner_trials ? trialSet(input.owner_trials, variants, evaluated) : null;
   const rets = T.map(t => t.return), cal = calendarTables(dates, vals, bench, T), roll = rolling(st.r);
 
   const warnings = [...L.warnings, ...statWarnings(q, T, cutDay, oos !== null, tset.total, dates)];

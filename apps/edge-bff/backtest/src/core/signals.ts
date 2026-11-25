@@ -114,8 +114,8 @@ export function tickerSignals(calc: Calc, req: SignalRequest, active = requestCo
 export const entryEvents = (sig: TickerSignals, first: number, last: number): number[] => switchOns(sig.entry, first, last);
 
 /** The first index of an ascending date list at or after d, and the first one after d (the list's length when none). */
-function lowerBound(a: readonly string[], d: string): number { let lo = 0, hi = a.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (a[mid] < d) lo = mid + 1; else hi = mid } return lo }
-function upperBound(a: readonly string[], d: string): number { let lo = 0, hi = a.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (a[mid] <= d) lo = mid + 1; else hi = mid } return lo }
+export function lowerBound(a: readonly string[], d: string): number { let lo = 0, hi = a.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (a[mid] < d) lo = mid + 1; else hi = mid } return lo }
+export function upperBound(a: readonly string[], d: string): number { let lo = 0, hi = a.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (a[mid] <= d) lo = mid + 1; else hi = mid } return lo }
 
 /** A ticker's signals for a period [from, to], as the backtest and the preview both read them: its bars inside the
     period (first..last; first > last: none), its signals (null without a bar inside the period: it cannot trade and

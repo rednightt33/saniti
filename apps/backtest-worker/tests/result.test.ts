@@ -575,7 +575,7 @@ test('variant hash: only what the engine reads; ids, order, disabled cards, the 
 });
 
 /* ---- the wire --------------------------------------------------------------------------------------------------- */
-test('trials: a run and cells without trades or with a flat equity have a finite daily Sharpe (the page\'s 0), no variant twice', async () => {
+test('trials: a run and cells without trades or with a flat equity have a finite daily Sharpe (the page\'s 0), no variant twice, one trial per result', async () => {
   // stop 1 %: the page's stop rows max(1, 1 + 2k) are 1, 1, 1, 3, 5 %, so rows 0-2 are the same 5 variants (the run among
   // them); the worker runs a variant once and gives every cell of it the same CellRun (run.ts runJob)
   const r = rng(12), q = request({ sensitivity: true, capital: 1e9, stop: { pct: 0.01 } }), p = sensitivityPlan(q)!, dates = calendar(r, 40);
@@ -596,16 +596,26 @@ test('trials: a run and cells without trades or with a flat equity have a finite
     cells.push(out);
   }
   assert.equal(runs.size, 15, '1 run + 4 more variants in rows 0-2 + 10 in rows 3-4');
+  // one trial per distinct result (re-check of ERRORS M558 B-2, 2026-11-25): the 15 variants give two results, the flat
+  // equity (the run's, and every cell with it, with or without a trade of return 0) and the one-day ledger; the first
+  // variant of each, in the run-then-cells order, is the trial
+  const results: { hash: string; equity: number[] }[] = [];
+  for (const [h, c] of runs) if (!results.some(x => x.equity.length === c.ledger.equity.length && x.equity.every((e, k) => e === c.ledger.equity[k]))) results.push({ hash: h, equity: c.ledger.equity });
+  assert.deepEqual(results.map(x => x.equity.length), [40, 1]);
+  assert.equal(results[0].hash, runHash);
   const { requests: _r, ...axes } = p;
+  // cells[0][0] repeats the run's result: its prior entry (0.2) is replaced by the run's, as a variant this run ran again
+  assert.ok(cells[0][0].variant_hash !== runHash && cells[0][0].ledger === flat);
   const prior = [{ variant_hash: cells[0][0].variant_hash, sharpe_daily: 0.2 }, { variant_hash: 'old', sharpe_daily: 0.01 }, { variant_hash: 'old', sharpe_daily: 0.02 }];
   for (const prior_trials of [[], prior]) {
     const R = buildResult(input(q, flat, { variant_hash: runHash, prior_trials, sensitivity: { ...axes, cells } }));
     const v = R.meta.trials.variants;
     assert.equal(new Set(v.map(x => x.variant_hash)).size, v.length, 'no variant_hash twice');
-    assert.deepEqual(v.map(x => x.variant_hash), [...runs.keys()]);
-    assert.deepEqual(v.map(x => x.sharpe_daily), Array(15).fill(0), 'sd 0 or no return: the page\'s sharpe = sd(r) ? ... : 0');
+    assert.deepEqual(v.map(x => x.variant_hash), results.map(x => x.hash));
+    assert.deepEqual(v.map(x => x.sharpe_daily), [0, 0], 'sd 0 or no return: the page\'s sharpe = sd(r) ? ... : 0');
     assert.deepEqual([v[0].kind, v.slice(1).every(x => x.kind === 'sensitivity')], ['run', true]);
-    assert.deepEqual([R.meta.trials.prior, R.meta.trials.this_run, R.meta.trials.total], prior_trials.length ? [2, 14, 16] : [0, 15, 15]);
+    assert.deepEqual([R.meta.trials.prior, R.meta.trials.this_run, R.meta.trials.total], prior_trials.length ? [2, 1, 3] : [0, 2, 2]);
+    assert.equal(R.robustness.deflated.trials, R.meta.trials.total);
     assert.ok(R.robustness.sensitivity!.cells.flat().every(c => c!.sharpe === 0));
     assert.doesNotThrow(() => assertFiniteJson(R));
   }
