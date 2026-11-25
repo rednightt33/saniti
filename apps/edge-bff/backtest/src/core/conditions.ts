@@ -49,6 +49,9 @@ export interface CalcMeta {
     flags.distortions); before it the value was left empty (ERRORS M450). */
 export interface FlowNotes {
   depth: number | null; distorted: Set<number>;
+  /** the bars where a Flow value an entry condition reads is distorted (the trades' `flow` flag; the grammar's
+      noteEntryFlow; re-check 2026-11-25: the run-wide `distorted` holds the exit conditions' too) */
+  entry?: Set<number>;
   /** the earliest date a point-in-time Flow series reads (its anchor or start; P4) */
   first?: string;
   /** a point-in-time cohort reads the Nego or Cash board (negotiated crossings; P4, FLOW_CROSSING_BOARDS) */
@@ -313,6 +316,10 @@ export function flowCondition(c: Calc, cond: FlowCondition, field = 'condition',
     data check). */
 export function conditionSeries(c: Calc, cond: Condition, field = 'condition', last?: number): Signal {
   if (!cond || typeof cond !== 'object') throw new ValidationError('INVALID_CONDITION', field, `${field} must be an object.`);
+  // EXEC-PRICE-DISTORTION D-4 (re-check 2026-11-25): an entry condition of a kind the grammar does not compute (indicator,
+  // flow, breakout cards of the page's own builder) adds no lookback the grammar could measure: its trades read the
+  // whole history for their price-distortion flag (over-marks, never under-marks; Calc.reach)
+  if (cond.kind !== 'test' && field.startsWith('entry')) c.reach = new Int32Array(c.n);
   if (cond.kind === 'indicator') return indicatorCondition(c, cond, field, last);
   if (cond.kind === 'price_action') return priceActionCondition(c, cond, field);
   if (cond.kind === 'flow') return flowCondition(c, cond, field, last);

@@ -318,32 +318,34 @@ test('P9: a corporate action: the published world (prices adjusted, lots scaled 
   assert.equal(leak(out as never), null);
 });
 
-test('Stage C2 (user 2026-11-16 "A", ERRORS M459 items 1, 9): before an action is decided, its published status changes no value on day t (EXEC-PRICE-DISTORTION: the values are kept, the status only marks)', () => {
-  // a rights issue at session EX decided at DEC (ex + 21 days): the full data publish "terms" or, after a drift,
-  // "unresolved"; the data cut at t < DEC published "pending". The lots stay scaled as published (the adjusted history,
-  // K4 a). Every Flow value (a broker price and a lot sum alike) on a bar before DEC must not depend on which.
+test('Stage C2 (user 2026-11-16 "A", ERRORS M459 items 1, 9) and EXEC-PRICE-DISTORTION R3: on the production path no Flow value on day t reads the decision made after t; a planted leak is caught', () => {
+  // a rights issue at session EX decided at DEC (ex + 21 days). As the worker does (terminal.ts: onPriceBasis of the
+  // traded rows by the published basis), each world scales its own columns by its own status: the data cut at t < DEC
+  // published "pending" (the lots unscaled), the full data "terms" (the lots before EX scaled by 1.4) or, after a drift,
+  // "unresolved" (unscaled). Re-check 2026-11-25 (agents_20261125-backtest D1): with the values kept (UD41 A) a bar in
+  // [EX, DEC) whose window crosses EX must give the traded lots' value (grammar.ts pointInTime), else it reads the later
+  // decision. Bars before EX are on the prices' basis, as the prices are adjusted (K4 a): they are restated, not compared.
   const EX = 260, ex = A.dates[EX], dec = new Date(Date.parse(ex + 'T00:00:00Z') + 21 * 86_400_000).toISOString().slice(0, 10);
-  const DEC = A.dates.findIndex(d => d >= dec), rows = M.rows[A.ticker];
+  const DEC = A.dates.findIndex(d => d >= dec), traded = M.rows[A.ticker].map(r => r.d < ex ? { ...r, bl: r.bl / 1.4, sl: r.sl / 1.4 } : r);
   const action = (status: BasisAction['status']): BasisAction[] => [{ ex, type: 'RIGHT_ISSUE', factor: status === 'terms' ? 1.4 : 1, status, price: 'adjusted', decided: dec }];
-  const columns = onPriceBasis(brokerColumns(rows.map(r => r.d < ex ? { ...r, bl: r.bl / 1.4, sl: r.sl / 1.4 } : r)), action('terms'));
-  const world = (n: number, basis: BasisAction[]) => { const h = head(A, n), last = h.dates[h.dates.length - 1];
-    const keep = new Set(Array.from({ length: columns.rows }, (_, k) => k).filter(k => columns.dates[columns.D[k]] <= last));
-    const cut = { ...columns, rows: keep.size, D: columns.D.slice(0, keep.size), B: columns.B.slice(0, keep.size), I: columns.I.slice(0, keep.size), M: columns.M.slice(0, keep.size),
-      BV: columns.BV.slice(0, keep.size), SV: columns.SV.slice(0, keep.size), BL: columns.BL.slice(0, keep.size), SL: columns.SL.slice(0, keep.size), BF: columns.BF.slice(0, keep.size), SF: columns.SF.slice(0, keep.size) };
-    return new Calc(h.bars as never, undefined, { ticker: A.ticker, dates: h.dates, broker: { columns: cut, classification: {}, basis } }) };
-  const refs = [{ kind: 'flow', metric: 'FL17', params: { window: 10 } }, { kind: 'flow', metric: 'FL11', params: {} }, { kind: 'flow', metric: 'FL01', output: 'buy', params: {} }];
+  const world = (n: number, basis: BasisAction[], leak = false) => { const h = head(A, n), last = h.dates[h.dates.length - 1];
+    const cols = onPriceBasis(brokerColumns(traded.filter(r => r.d <= last)), basis);
+    // the planted leak: the published columns without the traded ones (the value always reads the later factor)
+    return new Calc(h.bars as never, undefined, { ticker: A.ticker, dates: h.dates, broker: { columns: leak ? { ...cols, traded: undefined } : cols, classification: {}, basis } }) };
+  const refs = [{ kind: 'flow', metric: 'FL17', params: { window: 10 } }, { kind: 'flow', metric: 'FL11', params: {} }, { kind: 'flow', metric: 'FL01', output: 'buy', params: {} },
+    { kind: 'transform', fn: 'zscore', of: { kind: 'flow', metric: 'FL17', params: { window: 10 } }, params: { length: 40 } }];
+  const differs = (a: unknown, b: unknown) => (a ?? null) === null ? (b ?? null) !== null : (b ?? null) === null || Math.abs((a as number) - (b as number)) > 1e-9 * Math.max(1, Math.abs(a as number));
+  let caught = 0;
   for (const full of ['terms', 'unresolved'] as const) for (const ref of refs) {
-    const s = seriesOfRef(world(N, action(full)), ref, 'f');
-    for (const k of [EX - 5, EX + 3, EX + 9, DEC - 1]) {
-      const p = seriesOfRef(world(k + 1, action('pending')), ref, 'f');
-      for (let i = 0; i <= k; i++) assert.equal(p[i] ?? null, s[i] ?? null, `${ref.metric} published ${full}, cut at ${k} (decided at ${DEC}): bar ${i}`);
-    }
-    // EXEC-PRICE-DISTORTION (user 2026-11-24, UD41 A): a window across the action (FL17's 10 sessions on bar EX + 3) keeps
-    // its value, the same whatever the status, and is noted as distorted on every bar before DEC (the trade's flag)
-    if (ref.metric === 'FL17') {
-      const c = world(N, action(full)), v = seriesOfRef(c, ref, 'f');
-      assert.ok(typeof v[EX + 3] === 'number', `${ref.metric}: the value on bar ${EX + 3} is kept`);
-      assert.ok(c.flowNotes!.distorted.has(EX + 3), `${ref.metric}: not decided yet on bar ${EX + 3}: noted`);
+    const s = seriesOfRef(world(N, action(full)), ref, 'f'), leaky = seriesOfRef(world(N, action(full), true), ref, 'f');
+    for (const k of [EX - 5, EX + 3, EX + 9, DEC - 1, DEC + 4]) {
+      const p = seriesOfRef(world(k + 1, action(k < DEC ? 'pending' : full)), ref, 'f');
+      for (let i = EX; i <= k; i++) assert.ok(!differs(s[i], p[i]), `${JSON.stringify(ref)} published ${full}, cut at ${k} (decided at ${DEC}): bar ${i} full ${s[i]} cut ${p[i]}`);
+      for (let i = EX; i <= k; i++) if (differs(leaky[i], p[i])) caught++;
     }
   }
+  assert.ok(caught > 0, 'the planted leak (the later factor read on a bar before it is decided) is caught');
+  // a window across the action (FL17's 10 sessions on bar EX + 3) keeps its value and is noted as distorted
+  const c = world(N, action('terms')), v = seriesOfRef(c, refs[0], 'f');
+  assert.ok(typeof v[EX + 3] === 'number' && c.flowNotes!.distorted.has(EX + 3), `FL17: bar ${EX + 3} kept and noted`);
 });

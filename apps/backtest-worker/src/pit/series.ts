@@ -44,16 +44,29 @@ export function dSeries(c: Calc, ref: DRef, field: string): Num[] {
   if (!memo) MEMO.set(c, memo = new Map());
   const key = canonicalJson([spec.family, p]);
   let out = memo.get(key);
-  if (!out) {
-    // the bars from the first to the last broker day (the Terminal's FlowRows are on those candles)
+  // the bars from the first to the last broker day (the Terminal's FlowRows are on those candles), on these columns
+  const compute = (columns: typeof cols): Record<string, Num[]> => {
     let lo = 0; while (lo < dates.length && dates[lo] < first) lo++;
     let hi = dates.length - 1; while (hi >= 0 && dates[hi] > last) hi--;
-    const w = dates.slice(lo, hi + 1), R = brokerFlowRows(cols as never, w), C = c.bars.C as ArrayLike<number | null>;
+    const w = dates.slice(lo, hi + 1), R = brokerFlowRows(columns as never, w), C = c.bars.C as ArrayLike<number | null>;
     const close: Num[] = w.map((_, k) => { const v = C[lo + k]; return typeof v === 'number' && Number.isFinite(v) ? v : null });
     const part: Record<string, Num[]> = spec.family === 'anchored' ? anchored(R, w, close, p as unknown as AnchoredParams)
       : spec.family === 'inventory' ? inventory(R, w, p as unknown as InventoryParams) : loaders(R, w, close, p as unknown as LoadersParams);
-    out = {};
-    for (const [k, s] of Object.entries(part)) { const full: Num[] = new Array(dates.length).fill(null); for (let j = 0; j < s.length; j++) full[lo + j] = s[j]; out[k] = full }
+    const res: Record<string, Num[]> = {};
+    for (const [k, s] of Object.entries(part)) { const full: Num[] = new Array(dates.length).fill(null); for (let j = 0; j < s.length; j++) full[lo + j] = s[j]; res[k] = full }
+    return res;
+  };
+  if (!out) {
+    out = compute(cols);
+    // EXEC-PRICE-DISTORTION R3 (re-check 2026-11-25): on a bar before an action's `decided` date whose span from the
+    // anchor crosses its ex date, the value is the one the traded lots give, as the data of that day had them (the
+    // publisher published `pending`, the lots unscaled); grammar.ts pointInTime has the rule
+    const acts = (b.basis ?? []).filter(x => x.status === 'terms' && x.factor !== 1), a0 = candleAt(dates, anchor);
+    const bars = acts.length && cols.traded ? Array.from({ length: dates.length }, (_, i) => i).filter(i => i >= a0 && acts.some(x => dates[a0] < x.ex && x.ex <= dates[i] && dates[i] < (x.decided ?? x.ex))) : [];
+    if (bars.length) {
+      const traded = compute(cols.traded!);
+      for (const [k, s] of Object.entries(out)) for (const i of bars) s[i] = traded[k]?.[i] ?? null;
+    }
     memo.set(key, out);
   }
   const name = spec.family === 'anchored' ? (ref.output === 'cohort_changed' ? 'cohort_changed' : ref.metric) : ref.output;
@@ -68,4 +81,12 @@ export function dSeries(c: Calc, ref: DRef, field: string): Num[] {
   const a = candleAt(dates, anchor), offDays = (unit === 'price' || unit === 'pct') && !(ref.metric === 'FL51' && ref.output === 'share');
   for (let i = a; i < s.length; i++) if (s[i] !== null && !notes.distorted.has(i) && basisDistorted(c, a, i, offDays)) notes.distorted.add(i);
   return s;
+}
+/** The bars of a point-in-time reference's series that are distorted by the rule dSeries notes them with (its span
+    from the anchor; the per-day guard for a price or a percentage): the entry conditions' FlowNotes.entry. */
+export function dDistorted(c: Calc, ref: DRef, s: ArrayLike<Num | undefined>): number[] {
+  const spec = D_SPECS[ref.metric], unit = spec.outputs[ref.output], a = candleAt(c.meta.dates ?? [], ref.params[spec.date] as string);
+  const offDays = (unit === 'price' || unit === 'pct') && !(ref.metric === 'FL51' && ref.output === 'share'), out: number[] = [];
+  for (let i = Math.max(0, a); i < s.length; i++) if (s[i] !== null && s[i] !== undefined && basisDistorted(c, a, i, offDays)) out.push(i);
+  return out;
 }

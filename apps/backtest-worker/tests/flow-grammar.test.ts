@@ -154,11 +154,15 @@ test('P9: broker prices on the price basis; EXEC-PRICE-DISTORTION: every value a
   const e17 = FLOWS.find(e => e.id === 'FL17')!, term = terminal(t, onBasis, 'FL17', e17.normalized({ window: 10 }))[e17.seriesKey('value', { window: 10 })];
   // EXEC-PRICE-DISTORTION (user 2026-11-24, UD41 A): every value is the Terminal's on the price basis, used as computed;
   // a window across an unsettled basis is only noted (FlowNotes.distorted: the trade's flags, FLOW_BASIS_CHANGE)
+  // EXEC-PRICE-DISTORTION R3 (re-check 2026-11-25): on a bar before the rights issue is decided whose window crosses it,
+  // the value is the traded lots' (as the data of that day had them: published `pending`, unscaled)
+  const termTraded = terminal(t, published, 'FL17', e17.normalized({ window: 10 }))[e17.seriesKey('value', { window: 10 })];
   const c = calc(), s = seriesOfRef(c, { kind: 'flow', metric: 'FL17', params: { window: 10 } }, 'f');
   const noted: number[] = [];
   for (let i = 0; i < dates.length; i++) {
     const start = Math.max(0, i - 9), from = dates[start], to = dates[i];
-    assert.equal(s[i] ?? null, term[i] ?? null, `bar ${i} (${dates[i]}): the value as computed`);
+    const undecided = from < terms && terms <= to && to < dec(terms);
+    assert.equal(s[i] ?? null, (undecided ? termTraded[i] : term[i]) ?? null, `bar ${i} (${dates[i]}): the value as computed${undecided ? ' from the traded lots' : ''}`);
     if (blockedOver(from, to) && term[i] !== null && term[i] !== undefined) noted.push(i);
   }
   assert.ok(noted.length > 0, 'some windows cross the off day or an unsettled action');
@@ -223,6 +227,14 @@ test("the run's Flow warnings: before 2021, basis change, source gaps and droppe
   assert.deepEqual(b.FLOW_PRE_2021, [1, ['WARN']]);
   assert.deepEqual(b.FLOW_BASIS_CHANGE, [1, ['WARN']]);
   assert.equal(codes(run(market([]), req(dates[25], 'FL11'))).FLOW_BASIS_CHANGE, undefined);
+  // re-check 2026-11-25 (agents_20261125-backtest): a trade's `flow` flag reads its entry conditions only. The same Flow
+  // condition as an exit signal (the entry a plain RSI) flags no trade, though the run still warns FLOW_BASIS_CHANGE
+  const exitOnly = run(market([action]), { ...(req(dates[25], 'FL11') as object),
+    entry: { logic: 'all', at_least: 1, window_bars: 1, conditions: [{ id: 'r', kind: 'test', test: { kind: 'value', op: 'lt', value: 45, metric: { kind: 'indicator', indicator: 'I13', params: {}, output: 'rsi' } } }] },
+    exit: { ...((req(dates[25], 'FL11') as { exit: object }).exit), signals: { logic: 'any', conditions: [(req(dates[25], 'FL11') as { entry: { conditions: unknown[] } }).entry.conditions[0]] } } } as never);
+  assert.ok(exitOnly.trades.length > 0);
+  assert.ok(exitOnly.trades.every(t => !(t.flags.distortions ?? []).some(x => x.kind === 'flow')), 'an exit condition never flags the entry');
+  assert.deepEqual(codes(exitOnly).FLOW_BASIS_CHANGE, [1, ['WARN']]);
   // no Flow condition: no Flow warning
   const plain = run(market([]), { ...(req(dates[25], 'FL11') as object), entry: { logic: 'all', at_least: 1, window_bars: 1, conditions: [{ id: 'r', kind: 'indicator', indicator: 'I13', params: {}, lhs: { type: 'output', output: 'rsi' }, op: 'lt', rhs: { type: 'value', value: 40 } }] } } as never);
   assert.deepEqual(codes(plain), {});

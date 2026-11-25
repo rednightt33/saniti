@@ -233,6 +233,10 @@ export interface BrokerColumns {
   rows: number; dates: string[]; brokers: string[]; investor_types: string[]; boards: string[];
   D: Int32Array; B: Int32Array; I: Uint8Array; M: Uint8Array;
   BV: Float64Array; SV: Float64Array; BL: Float64Array; SL: Float64Array; BF: Float64Array; SF: Float64Array;
+  /** the columns as traded, before onPriceBasis scaled them (set only when it scaled something): on a bar before an
+      action's `decided` date the Flow values across it are computed from these, as the data of that day had them
+      (backtest-worker grammar.ts, pit/series.ts; EXEC-PRICE-DISTORTION R3, re-check 2026-11-25) */
+  traded?: BrokerColumns;
 }
 export function brokerColumns(docs: Columnar[]): BrokerColumns {
   const dates: string[] = [], brokers: string[] = [], bAt = new Map<string, number>();
@@ -349,12 +353,13 @@ export function brokerBasis(docs: Columnar[], actions: readonly CorporateAction[
 
 /** The broker columns with their lots on the published prices' basis: the buy and sell lots of each date multiplied by
     the factors of the `terms` actions after it (rupiah and transaction counts unchanged), so a broker price (value /
-    lots) compares with the close. The columns themselves when no action is scaled. */
+    lots) compares with the close. The columns themselves when no action is scaled; else the scaled columns keep the
+    traded ones (`traded`). */
 export function onPriceBasis(c: BrokerColumns, basis: readonly BasisAction[]): BrokerColumns {
   const scaled = basis.filter(a => a.status === 'terms' && a.factor !== 1);
   if (!scaled.length || !c.rows) return c;
   const F = c.dates.map(d => scaled.reduce((f, a) => a.ex > d ? f * a.factor : f, 1));
-  return { ...c, BL: Float64Array.from(c.BL, (x, k) => x * F[c.D[k]]), SL: Float64Array.from(c.SL, (x, k) => x * F[c.D[k]]) };
+  return { ...c, BL: Float64Array.from(c.BL, (x, k) => x * F[c.D[k]]), SL: Float64Array.from(c.SL, (x, k) => x * F[c.D[k]]), traded: c.traded ?? c };
 }
 
 /* ---- alignment and version ------------------------------------------------------------------------------------ */

@@ -156,7 +156,10 @@ function trades(L: Ledger): Trade[] {
     cost_idr: t.cost_idr, proceeds_idr: t.proceeds_idr, pnl_idr: t.pnl_idr, return: t.return, mae: t.mae, mfe: t.mfe,
     initial_stop: t.initial_stop, initial_target: t.initial_target, initial_risk_pct: t.initial_risk_pct,
     entry_condition_ids: [...t.entry_condition_ids],
-    flags: { corporate_actions: t.flags.corporate_actions.map(c => ({ ...c })), stop_and_target_same_bar: t.flags.stop_and_target_same_bar, stale_mark: t.flags.stale_mark },
+    flags: { corporate_actions: t.flags.corporate_actions.map(c => ({ ...c })), stop_and_target_same_bar: t.flags.stop_and_target_same_bar, stale_mark: t.flags.stale_mark,
+      // EXEC-PRICE-DISTORTION (re-check 2026-11-25, agents_20261125-backtest D2: the ledger's flags were dropped here, so no
+      // badge reached the page)
+      ...(t.flags.distortions ? { distortions: t.flags.distortions.map(x => ({ ...x })) } : {}) },
     streak: pos[i], streak_length: len[i],
   }));
 }

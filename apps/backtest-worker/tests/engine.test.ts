@@ -412,6 +412,10 @@ test('corporate actions with ex-date in (entry, exit] are flagged; price distort
   const w = flat(10); put(w, 3, { v: 2000 }); put(w, 6, { o: 50, h: 50, l: 50, c: 50 });
   const a = only(go(market({ AAA: { bars: w } }), request(9)));
   assert.deepEqual(a.flags.distortions, [{ date: DAYS[6], kind: 'anomaly' }, { date: DAYS[7], kind: 'anomaly' }]);
+  // a card of the page's own builder (a kind the grammar does not compute) reads the whole history for the flag: an anomaly
+  // long before its signal still flags it (over-marks, never under-marks; re-check 2026-11-25)
+  const far = flat(30); put(far, 3, { o: 50, h: 50, l: 50, c: 50 }); put(far, 25, { v: 2000 });
+  assert.deepEqual(go(market({ AAA: { bars: far } }), request(29)).trades.flatMap(t => t.flags.distortions).map(x => x.kind), ['anomaly', 'anomaly']);
   // an anomaly after the trade's exit, or before its signal window, does not flag it
   const after = flat(12); put(after, 3, { v: 2000 }); put(after, 11, { o: 50, h: 50, l: 50, c: 50 });
   assert.deepEqual(only(go(market({ AAA: { bars: after } }), request(9))).flags.distortions, []);

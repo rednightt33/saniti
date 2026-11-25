@@ -662,3 +662,12 @@ test('K6 a: the owner\'s trials across lines give a second, stricter deflated Sh
   assert.deepEqual(both.robustness.deflated, line.robustness.deflated, 'the line\'s own deflated Sharpe is unchanged');
   assert.ok((both.robustness.deflated_owner!.dsr ?? 0) <= (line.robustness.deflated.dsr ?? 1), 'more trials, a stricter (lower) deflated Sharpe');
 });
+
+test('EXEC-PRICE-DISTORTION (re-check 2026-11-25, agents_20261125-backtest D2): a trade\'s flags.distortions reach the result; a trade without them has none', () => {
+  const T = HT.map((t, k) => k === 0 ? { ...t, flags: { ...t.flags, distortions: [{ date: '2023-12-29', kind: 'anomaly' as const }, { date: '2024-01-02', kind: 'flow' as const }] } } : t);
+  const R = buildResult(input(request(), ledger(HD, HE, HB, T, HS)));
+  const marked = R.trades.filter(t => t.flags.distortions?.length);
+  assert.equal(marked.length, 1);
+  assert.deepEqual(marked[0].flags.distortions, [{ date: '2023-12-29', kind: 'anomaly' }, { date: '2024-01-02', kind: 'flow' }]);
+  assert.ok(R.trades.filter(t => t !== marked[0]).every(t => t.flags.distortions === undefined));
+});

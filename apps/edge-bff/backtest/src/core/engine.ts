@@ -108,14 +108,14 @@ export function priceDistortions(d: TickerData): PriceDistortion[] {
   return out.sort((x, y) => x.bar - y.bar || (x.kind < y.kind ? -1 : x.kind > y.kind ? 1 : 0));
 }
 /** The flags.distortions of a trade (EXEC-PRICE-DISTORTION, UD41 A, D-4): `flow` when a Flow value its entry
-    conditions read on the signal bar reads across an unsettled broker basis (FlowNotes.distorted); a price distortion
+    conditions read on the signal bar reads across an unsettled broker basis (FlowNotes.entry); a price distortion
     inside the bars the signal read (Calc.reach of the signal bar; the signal bar alone when no grammar condition ran)
     through the exit bar (the holding period's prices). An action's break counts when the reach starts before its bar
     (the values mix both sides), an anomaly when the reach holds its bar. */
 export function tradeDistortions(p: Prepared, signalBar: number, exitBar: number): { date: string; kind: PriceDistortion['kind'] | 'flow' }[] {
   const start = p.calc.reach ? p.calc.reach[signalBar] : signalBar, out: { date: string; kind: PriceDistortion['kind'] | 'flow' }[] = [];
   const dates = p.data.prices.dates;
-  if (p.calc.flowNotes?.distorted.has(signalBar)) out.push({ date: dates[signalBar], kind: 'flow' });
+  if ((p.calc.flowNotes?.entry ?? new Set<number>()).has(signalBar)) out.push({ date: dates[signalBar], kind: 'flow' });
   for (const x of p.distortions ??= priceDistortions(p.data))
     if (x.bar <= exitBar && (x.kind === 'anomaly' ? x.bar >= start : x.bar > start)) out.push({ date: x.date, kind: x.kind });
   return out;

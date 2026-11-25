@@ -37,8 +37,9 @@ import type { FlowParamValue } from '../../edge-bff/screener/src/core/contract.t
 import { basisDistorted } from './basis.ts';
 import FLOW_REGISTRY from '../../edge-bff/terminal/src/data/flowRegistry.json' with { type: 'json' };
 import { checkDTest, dSignal, hasD } from './pit/evaluate.ts';
-import { dSeries, namedWithoutRows } from './pit/series.ts';
-import { checkDRef, isD } from './pit/spec.ts';
+import { dDistorted, dSeries, namedWithoutRows } from './pit/series.ts';
+import { D_SPECS, checkDRef, isD } from './pit/spec.ts';
+import { candleAt } from './pit/compute.ts';
 import type { DRef } from './pit/spec.ts';
 import { computeFlow } from '../../edge-bff/terminal/src/calc/flow.ts';
 import type { FlowContext, FlowOut } from '../../edge-bff/terminal/src/calc/flow.ts';
@@ -200,15 +201,18 @@ function noteDistorted(c: Calc, lo: number, s: ArrayLike<unknown>, depth: number
    object per Calc so its FlowContext and computeFlow answers are built once per ticker (the grid's cells reuse them).
    Its memo is where every computeFlow answer passes (flowmetrics.ts memoCall), so the basis mask applies to a Flow
    series wherever it is read (directly or inside a transform), and the notes for the run's warnings are kept there. */
-const FLOWS_OF = new WeakMap<Calc, TickerFlow>();
-function tickerFlow(c: Calc): TickerFlow | undefined {
+const FLOWS_OF = new WeakMap<Calc, TickerFlow>(), FLOWS_TRADED = new WeakMap<Calc, TickerFlow>();
+/** `traded`: the same on the columns as traded (BrokerColumns.traded, the lots before onPriceBasis scaled them), for the
+    values the data of their day computed without a factor decided later (pointInTime); it notes nothing. */
+function tickerFlow(c: Calc, traded = false): TickerFlow | undefined {
   const b = c.meta.broker;
   if (!b) return undefined;
-  let f = FLOWS_OF.get(c);
+  const map = traded ? FLOWS_TRADED : FLOWS_OF;
+  let f = map.get(c);
   if (!f) {
-    const cols = b.columns, first = cols.rows ? cols.dates[0] : null, last = cols.rows ? cols.dates[cols.dates.length - 1] : null, memo = new Map<string, FlowOut>();
+    const cols = traded ? b.columns.traded ?? b.columns : b.columns, first = cols.rows ? cols.dates[0] : null, last = cols.rows ? cols.dates[cols.dates.length - 1] : null, memo = new Map<string, FlowOut>();
     const dates = c.meta.dates ?? [], lo = first === null ? 0 : (() => { let i = 0; while (i < dates.length && dates[i] < first) i++; return i })();
-    const notes = c.flowNotes ??= { depth: 0, distorted: new Set<number>() };
+    const notes = traded ? { depth: 0 as number | null, distorted: new Set<number>() } : c.flowNotes ??= { depth: 0, distorted: new Set<number>() };
     // Stage C2 (lens 1 F4): the window's sessions with a broker row; on a session without one (a source gap) a Flow value
     // is empty, as on the data up to that session (the window then ends at the session before)
     const rowDay = new Set(cols.dates), N = (() => { let i = lo; while (i < dates.length && last !== null && dates[i] <= last) i++; return i - lo })();
@@ -259,9 +263,42 @@ function tickerFlow(c: Calc): TickerFlow | undefined {
     };
     f = { first, last, rows: () => cols, classification: b.classification, memo: { get: k => memo.get(k) ?? members(k), set },
       meter: { context: <T>(build: () => T): T => { const x = build(); ctx = x as unknown as FlowContext; return x } } };
-    FLOWS_OF.set(c, f);
+    map.set(c, f);
   }
   return f;
+}
+
+/* EXEC-PRICE-DISTORTION R3 (re-check of 2026-11-25, agents_20261125-backtest D1): a Flow value is used as computed, so
+   on a bar the data of that day must give the same value. The publisher decides an action's broker basis once its
+   window after the ex date is complete (`decided`); before that date it publishes `pending` and the lots are not
+   scaled (onPriceBasis scales them only for `terms`). So on a bar i before `decided` whose value reads across the ex
+   date (start < ex <= the date of i), the value is the one the traded lots give (BrokerColumns.traded); from `decided`
+   on, the scaled one. Only an action the lots are scaled for (`terms`, factor not 1) makes the two differ. A transform
+   over a Flow series is one series here: its whole window (flowDepth, its operators included) decides. Before the
+   ex date the lots are on the prices' basis, as the prices are adjusted (K4 a, the adjusted history). */
+function scaledActions(c: Calc): { ex: string; decided: string }[] {
+  return (c.meta.broker?.basis ?? []).filter(a => a.status === 'terms' && a.factor !== 1).map(a => ({ ex: a.ex, decided: a.decided ?? a.ex }));
+}
+/** The bars of `s` (a series reading the Flow data, `depth` sessions up to its bar, null: its whole history) whose value
+    the traded lots give, by the rule above. */
+function tradedBars(c: Calc, n: number, depth: number | null | undefined): number[] {
+  const acts = scaledActions(c), dates = c.meta.dates ?? [], out: number[] = [];
+  if (!acts.length) return out;
+  for (let i = 0; i < n; i++) {
+    const from = dates[depth === null || depth === undefined ? 0 : Math.max(0, i - depth + 1)], to = dates[i];
+    if (acts.some(a => from < a.ex && a.ex <= to && to < a.decided)) out.push(i);
+  }
+  return out;
+}
+/** A Flow series as the data of each bar gave it: `s` (on the published, scaled lots) with the bars tradedBars names
+    taken from `traded()` (the same series on the traded lots). `s` itself when no bar needs it. */
+function pointInTime(c: Calc, r: ResolvedSeries, s: ArrayLike<number | null | undefined>, traded: () => ArrayLike<number | null | undefined>): ArrayLike<number | null | undefined> {
+  if (!readsFlow(r)) return s;
+  const bars = tradedBars(c, s.length, (r as { flowDepth?: number | null }).flowDepth);
+  if (!bars.length) return s;
+  const t = traded(), out = Array.from(s);
+  for (const i of bars) out[i] = t[i];
+  return out;
 }
 const flowBind = (f: TickerFlow | undefined): FlowBindContext | undefined => f && ({ sessions: Number.MAX_SAFE_INTEGER, first: f.first, last: f.last, complete: true,
   classification: Object.keys(f.classification).length > 0, allDates: true });
@@ -334,6 +371,22 @@ function noteReach(c: Calc, series: readonly ResolvedSeries[], full: (r: Resolve
   }
 }
 
+/** The bars where a Flow series an entry condition reads is distorted (basis.ts basisDistorted over the series' own
+    window, flowDepth with its operators; the per-day guard when it reads a broker price, a registry id of the family
+    "Buy VWAP & Implied Cost" or a price unit in its key): FlowNotes.entry, the trades' `flow` flag. */
+function noteEntryFlow(c: Calc, series: readonly ResolvedSeries[], full: (r: ResolvedSeries) => ArrayLike<number | null | undefined>): void {
+  const notes = c.flowNotes ??= { depth: 0, distorted: new Set<number>() }, entry = notes.entry ??= new Set<number>();
+  for (const r of series) {
+    if (!readsFlow(r)) continue;
+    const s = full(r), depth = (r as { flowDepth?: number | null }).flowDepth, offDays = (r.key.match(/FL\d+/g) ?? []).some(id => BROKER_PRICE.has(id));
+    for (let i = 0; i < s.length; i++) {
+      const v = s[i];
+      if (typeof v !== 'number' || !Number.isFinite(v) || entry.has(i)) continue;
+      if (basisDistorted(c, depth === null || depth === undefined ? 0 : i - depth + 1, i, offDays)) entry.add(i);
+    }
+  }
+}
+
 /** Every series a bound condition reads, a window's inner test included. */
 const seriesOf = (b: BoundCondition): ResolvedSeries[] => [...b.series, ...(b.window ? seriesOf(b.window.inner) : [])];
 
@@ -355,7 +408,10 @@ export function grammarEvaluator(limits: GrammarLimits = GRAMMAR_DEFAULTS): Gram
       const full = (r: ResolvedSeries) => {
         let s = c.seriesMemo.get(r.key);
         if (!s) {
-          try { s = r.full(tc as never) as ArrayLike<number | null> } catch (e) { throw asValidation(e, `${field}.test`) }
+          try {
+            s = r.full(tc as never) as ArrayLike<number | null>;
+            s = pointInTime(c, r, s, () => r.full({ ...tc, flow: tickerFlow(c, true) } as never) as ArrayLike<number | null>);
+          } catch (e) { throw asValidation(e, `${field}.test`) }
           grammarStats.computed++;
           c.seriesMemo.set(r.key, s);
         }
@@ -385,7 +441,12 @@ export function grammarEvaluator(limits: GrammarLimits = GRAMMAR_DEFAULTS): Gram
       }
       const out = perBar(b, full, n);
       if (!out) throw new ValidationError('CONDITION_UNAVAILABLE', `${field}.test`, `${field}: this test has no per-day value.`);
-      noteReach(c, seriesOf(b), full, test.kind === 'event' ? (test as { within: number }).within : test.kind === 'window' ? (test as { length: number }).length : 0);
+      // a trade's flags read its entry conditions only (contract.ts flags.distortions; re-check 2026-11-25: an exit
+      // condition's Flow series and lookback flagged entries it never read)
+      if (field.startsWith('entry')) {
+        noteReach(c, seriesOf(b), full, test.kind === 'event' ? (test as { within: number }).within : test.kind === 'window' ? (test as { length: number }).length : 0);
+        noteEntryFlow(c, seriesOf(b), full);
+      }
       return out;
     },
   };
@@ -418,7 +479,23 @@ function pitSignal(c: Calc, test: Record<string, unknown>, field: string, cfield
       const miss = namedWithoutRows(c, side as unknown as DRef, until);
       if (miss) throw new ValidationError('UNKNOWN_BROKER', `${f}.params.brokers[${miss[1]}]`, `${f}.params.brokers[${miss[1]}]: ${miss[0]} has no broker rows for ${c.meta.ticker ?? 'this stock'}${last === undefined ? '' : ' up to the end of the period'}.`);
     }
-    const s = d ? dSeries(c, side as unknown as DRef, f) : seriesOfRef(c, side, f, limits);
+    let resolved: ResolvedSeries | undefined;
+    const s = d ? dSeries(c, side as unknown as DRef, f) : seriesOfRef(c, side, f, limits, r => { resolved = r });
+    // a trade's flags read its entry conditions only (noteEntryFlow, noteReach): a point-in-time side reads from its
+    // anchor, another side by its own lookback
+    if (cfield.startsWith('entry')) {
+      if (d) {
+        const notes = c.flowNotes ??= { depth: 0, distorted: new Set<number>() }, entry = notes.entry ??= new Set<number>();
+        for (const i of dDistorted(c, side as unknown as DRef, s)) entry.add(i);
+        const spec = D_SPECS[(side as { metric: string }).metric], a = Math.max(0, candleAt(c.meta.dates ?? [], (side as unknown as DRef).params[spec.date] as string));
+        const reach = c.reach ??= Int32Array.from({ length: n }, (_, i) => i);
+        for (let i = a; i < n; i++) if (a < reach[i]) reach[i] = a;
+      } else if (resolved) {
+        const r0 = resolved;
+        noteReach(c, [r0], () => s, 0);
+        noteEntryFlow(c, [r0], () => s);
+      }
+    }
     let any = false;
     for (let i = 0; i <= upTo && !any; i++) { const v = s[i]; any = typeof v === 'number' && Number.isFinite(v) }
     if (!any) throw new ValidationError(d ? 'FLOW_OUTPUT_EMPTY' : 'INDICATOR_OUTPUT_EMPTY', f, `${cfield}: ${d ? `${(side as { metric: string }).metric}.${(side as { output: string }).output}` : 'a side'} has no value on this ticker's bars${last === undefined ? '' : ' up to the end of the period'}.`);
@@ -428,16 +505,20 @@ function pitSignal(c: Calc, test: Record<string, unknown>, field: string, cfield
 
 /** One reference's series on every bar of a ticker as a condition reads it (tests, and the worker's chart series):
     resolved with the backtest's context (IHSG, the whole broker history), memoized in the Calc. */
-export function seriesOfRef(c: Calc, ref: unknown, field: string, limits: GrammarLimits = GRAMMAR_DEFAULTS): ArrayLike<number | null | undefined> {
+export function seriesOfRef(c: Calc, ref: unknown, field: string, limits: GrammarLimits = GRAMMAR_DEFAULTS, onResolved?: (r: ResolvedSeries) => void): ArrayLike<number | null | undefined> {
   if (isObj(ref) && ref.kind === 'flow' && isD(ref.metric)) return dSeries(c, checkDRef(ref, field), field);
   const flow = tickerFlow(c), index: TickerBars | undefined = c.meta.index ? { ticker: 'IHSG', dates: [...c.meta.index.dates], bars: c.meta.index.bars } : undefined;
   let r: ResolvedSeries;
   try { r = resolveSeries(ref as never, field, { capBudgetMs: limits.capBudgetMs, index, flow: flowBind(flow), catalog: METRICS_CATALOG }) }
   catch (e) { throw asValidation(e, field) }
+  onResolved?.(r);
   let s = c.seriesMemo.get(r.key);
   if (!s) {
     const tc = { ticker: c.meta.ticker ?? '', dates: [...(c.meta.dates ?? [])], bars: c.bars, calc: c, ...(flow ? { flow } : {}) };
-    try { s = r.full(tc as never) as ArrayLike<number | null> } catch (e) { throw asValidation(e, field) }
+    try {
+      s = r.full(tc as never) as ArrayLike<number | null>;
+      s = pointInTime(c, r, s, () => r.full({ ...tc, flow: tickerFlow(c, true) } as never) as ArrayLike<number | null>);
+    } catch (e) { throw asValidation(e, field) }
     grammarStats.computed++;
     c.seriesMemo.set(r.key, s);
   }
