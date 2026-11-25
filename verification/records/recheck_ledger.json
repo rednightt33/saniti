@@ -11195,6 +11195,33 @@
    "tested_out_by": "none",
    "evidence": "ERRORS M565 Status: 'fixed in `ab64b8cf`, on the branch, not deployed; tested by its author only'",
    "from": "fix"
+  },
+  {
+   "key": "errors/M561-UD52-UD55",
+   "execution": "EXEC-PRICE-DISTORTION",
+   "area": "Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55)",
+   "run": "",
+   "finding_id": "M561-UD52-UD55",
+   "title": "A whole-history output was marked for every price break before it however old, and Bollinger at an EMA or RMA basis was classed window",
+   "finding": "ERRORS M561 open part: \"a whole-history output crosses every old break, so its cells, its row badge and the Backtest trades are marked for any earlier break (EXEC-PRICE-DISTORTION open part, asked as UD55, with UD52)\". UD55 as asked (EXEC.md register, 2026-11-25 with context): \"a value that reads its whole history (RSI, EMA, MACD and 16 lab outputs after UD36) is marked \\\"Distorted\\\" for every price break before it, however old (BSWD's 2022 split badges every BSWD row with an RSI cell and flags every later BSWD trade with an RSI condition), although such an old break no longer moves the value.\" UD52 as asked (ERRORS M558 SC-3, same mechanism): \"the Screener decides once per output how far back a value reads (its history class), at the default settings. Bollinger Bands (I27), %B (I28) and Band Width (I29), released, are classed \\\"window\\\" (they read only the last N bars) at the default SMA basis; at basis EMA or RMA they read the whole history. A screen with those settings then marks the cell \\\"Distorted\\\" only when a price break is inside the last N bars, not when it is further back, though the EMA still carries it.\" The user 2026-11-25: \"3. Ok boleh\" (UD52 (a), UD55 (a) at 0.1 %).",
+   "errors": [
+    "M561",
+    "M558"
+   ],
+   "fix_commits": [
+    "7d3e5b3c",
+    "32fdb581"
+   ],
+   "fix_note": "7d3e5b3c (agent 42e2d99e) (build-screener-registry.mjs effectiveProbe, effectiveCut, effectiveDecay, effectiveScaling, historyByOption, PROBE.effective and its five new shapes, registry rebuilt; new src/core/effective.ts movingBars, effectiveStarts, effectiveStartAt; registry.ts historyOf and the EffectiveWindow types; metrics.ts resolveIndicator historyClass and effectiveWindow; evaluate.ts seriesLookbackStart and seriesLookbackStarts; condition.ts startOf; backtest-worker grammar.ts noteReach; docs SCREENER_ONBOARDING.md, BACKTEST_END_TO_END.md, backtest/CONTRACT.md, contract.ts); 32fdb581 (agent 5edf87b3) (reach.test.mjs: the real-price checks share one measurement and yield to the event loop)",
+   "runs_on": "branch",
+   "author_test": "screener: tsc, vitest 1402 pass and 1 skipped (54 files, two full runs clean; tests/core/reach.test.mjs 10: the eight real-price fixtures cut at 0.1 % at 208 settings, start, x1.5, x2, x3 and every option with a window, none exceeds its window; every window at a third fails; planted unadjusted splits x5, x2, x0.5 every 97 bars end inside the window, at most 0.78 of it; the RSI rule; Bollinger I27-I29 recursive at EMA and RMA; tests/core/lookback.test.ts: RSI unmarked on its window's first bar and marked one bar later, a break far older not, its row badge with it, Stochastic RSI and RSI 100 always, Bollinger basis at EMA marked 40 bars after, at SMA not; oracle.test.ts reads the window on its own on 240 random screens), registry:check current; backtest-worker 289/290 (the M463 heap test of this machine), look-ahead gate files 32/32 (lookahead, pit, flow-grammar, grammar with the new reach test: Calc.reach equals the Screener cell mark, the trade flag follows); Backtest page tsc, vitest 107/107; screener-worker 148/150 (the two heap tests of this machine; onboarding pointers 2/2); test_generated_files, test_recheck_ledger, test_recheck_doc",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce on real data (a beta snapshot or the fixtures): an RSI 14 cell on a row whose price break is older than its effective window (175 moving bars of its close: count them on the stock, a pinned or thinly traded one reaches further back; BSWD's breaks of 2022-08-30 and 2023-04-11 were not counted by the author) carries no PRICE_BREAK_IN_LOOKBACK and its row no PRICE_BREAK badge, a recent break still marks both; RSI 28 reads twice the window, RSI 100 (past max_ratio 4) and Stochastic RSI, Parabolic SAR, Supertrend and the 16 lab state outputs the whole history; a Backtest trade with an RSI condition is flagged only for a break inside its window (Calc.reach); Bollinger Bands, %B and Band Width at an EMA or RMA basis are marked past their 20-bar SMA window, at SMA not. Check the probe, not only its result: cut the fixtures at another tolerance or stride, plant a split on other stocks, look for an output whose memory freezes or grows on a regime the nine shapes do not hold (a long suspension, a volume collapse), a setting between the fitted ones (x1.25, x2.5, x3.5) above the rule, and a combination of two options whose class is worse than the worst of theirs. Collateral: the Screener cell remarks and remark_dates (oracle.test.ts), the row badges D-1 and the PRICE_BREAKS_IN_RESULT counts, the Flow cell marks D-5 (flow series keep their flowDepth rule), the transforms (pct_distance, band_position of a recursive output read the whole history), the Backtest trade flags and PRICE_DISTORTIONS warning, its look-ahead gate (a remark never changes a value), the screener-worker start-up source hashes (the new source effective.ts), the registry size and npm run registry time (94 s from 62 s) and the release filter of lab indicators.",
+   "tested_out_by": "none",
+   "evidence": "the fix commits 42e2d99e and 5edf87b3 and their tests (author_test); EXEC.md EXEC-PRICE-DISTORTION open part, register UD52 and UD55, the user 2026-11-25 \"3. Ok boleh\"; ERRORS M561, M558 SC-3",
+   "from": "fix"
   }
  ]
 }

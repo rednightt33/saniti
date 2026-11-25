@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 221 item
+## Menunggu uji ulang: 222 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -42,6 +42,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Screener: tanda sel Flow dan badge baris saat harga terdistorsi (ERRORS M561, D-1, D-5) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
 | Terminal: gaya EMA yang tersimpan (ERRORS M564) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 0 | 1 | 0 | 0 |
 | Terminal: Statistics, Relative performance tanpa data IHSG (ERRORS M565) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 0 | 1 | 0 | 0 |
+| Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
 
 3 item sudah dua ronde diuji ulang. Aturan 8 membolehkan paling banyak dua ronde, lalu sisanya masuk
 register keputusan; uji berikutnya hanya dengan keputusan user:
@@ -361,11 +362,17 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 |---|---|---|---|---|---|
 | `errors/M565` | Statistics wrote NaN into its SVG lines when IHSG has no close on the chart | `ab64b8cf` | branch | M565 | 0 |
 
+### Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) (1)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `errors/M561-UD52-UD55` | A whole-history output was marked for every price break before it however old, and Bollinger at an EMA or RMA basis was classed window | `7d3e5b3c`, `32fdb581` | branch | M561, M558 | 0 |
+
 ## Hitungan per status
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 221 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 222 |
 | `fixed` | diuji ulang agen lain: beres | 115 |
 | `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 0 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
@@ -373,7 +380,7 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 | `open` | belum diperbaiki | 90 |
 | `accepted` | diterima user apa adanya | 4 |
 | `obsolete` | tidak berlaku lagi | 5 |
-| **Total** | | **435** |
+| **Total** | | **436** |
 
 Dari 90 baris `open`, 25 punya baris pemilik di PLAN.md atau EXEC.md dan 65 belum
 (aturan 1: setiap bagian yang terbuka butuh pemilik dan pemicu).
