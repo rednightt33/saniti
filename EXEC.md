@@ -17796,6 +17796,14 @@ perbaikannya (belum diuji ulang, menunggu persetujuan user untuk ronde 2):**
 - Cacat baru di luar perbaikan ini (agen 4): gaya EMA tersimpan hilang tiap muat (`migrate()`, sejak `5bbebb3f`), dan error
   NaN di panel Statistics: dicatat dan diperbaiki agen Terminal.
 
+**Keputusan user 2026-11-25 (sebelum pergi):** "Untuk recheck ronde 2, gunakan 5 agent Opus 5,5 medium. Setelah temuan
+tersebut ada, segera dibereskan, kemudian you have my approval to deploy. Kecuali ada suatu hal yang memang urgent yang
+harus saya tentukan dan berpengaruh terhadap keputusan arsitektur, feel free to proceed." Dibaca agen: re-check ronde 2
+(terakhir menurut aturan 8) dengan 5 agen Opus medium sesudah dua agen yang berjalan digabung; temuannya diperbaiki; lalu
+rilis sesuai rencana yang sudah diputuskan: beta (push `main`, unggah backtest-worker), run publisher berat sekali (UD56 A)
+dan restart Postgres, migrasi screen tersimpan (UD46 B), `live` ke commit beta yang sama di hari yang sama (UD47 b),
+masing-masing dengan cek dan catatan. Berhenti dan bertanya bila muncul keputusan arsitektur yang mendesak.
+
 **Rollback:** worker dan halaman: revert commit di `main`, `live` kembali ke commit sebelumnya (EXEC.md opsi A); F4:
 kembalikan universe dari tabel cadangan; publisher: run manual dengan versi sebelumnya.
 
