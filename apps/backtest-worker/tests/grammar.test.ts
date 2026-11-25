@@ -11,6 +11,8 @@ import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import type { Definition } from '../../edge-bff/screener/src/core/contract.ts';
 import { UNIVERSE_DEFAULTS } from '../../edge-bff/screener/src/core/contract.ts';
 import { runScreen } from '../../edge-bff/screener/src/core/screen.ts';
+import { SBY_ID } from '../../edge-bff/screener/src/core/registry.ts';
+import { tradeDistortions } from '../../edge-bff/backtest/src/core/engine.ts';
 import { headBars, memoryEnv, rowOf, synth } from '../../edge-bff/screener/tests/core/helpers.ts';
 import { GRAMMAR_DEFAULTS, checkTest, grammarProblems, installBacktestGrammar } from '../src/grammar.ts';
 import { REPO_ROOT } from '../src/version.ts';
@@ -144,4 +146,33 @@ test('Stage C F1: the empty-series refusal is decided on the bars up to the peri
   const h = headBars(s, 151);
   assert.throws(() => conditionSeries(new Calc(h.bars as never, undefined, { ticker: 'AAAA', dates: h.dates }), cond, 'f', 150), (e: unknown) => e instanceof ValidationError && e.code === 'INDICATOR_OUTPUT_EMPTY');
   assert.ok(conditionSeries(c, cond, 'f', 250).some(Boolean));
+});
+
+/* EXEC-PRICE-DISTORTION UD55 (the user 2026-11-25, "3. Ok boleh": the effective window "used for the cell mark, the row
+   badge (D-1) and the Backtest trade flag"): Calc.reach, which decides the trade flag (engine.ts tradeDistortions), reads
+   the Screener's lookback rule (evaluate.ts seriesLookbackStarts): an RSI condition reaches back to the first of its
+   window's moving bars, as the Screener marks its cell; an output without a window (Stochastic RSI's K: a reset) reaches
+   bar 0. */
+test('UD55: an RSI condition reaches back its effective window as the Screener marks its cell, Stochastic RSI the whole history; the trade flag follows', () => {
+  const W = SBY_ID.I13.outputs.find(o => o.key === 'rsi')!.effective_window!.bars!;
+  const c = calcOf(), test = { kind: 'value', metric: rsi, op: 'gt', value: 0 };
+  conditionSeries(c, cond('a', test), 'entry.conditions[0]');
+  const C = A.bars.C as number[], last = A.dates.length - 1;
+  // the W-th moving bar back from bar i (a close that differs from the one before), counted here
+  const startAt = (i: number) => { let m = 0; for (let k = i; k >= 0; k--) if ((k === 0 || C[k] !== C[k - 1]) && ++m >= W) return k; return -1 };
+  for (const i of [W + 30, 300, last]) assert.equal(c.reach![i], Math.max(0, startAt(i)), `bar ${i}`);
+  const s = c.reach![last];
+  assert.ok(s > 100, `the reach at the last bar is bounded (${s})`);
+  // the Screener's cell on the same day: unmarked for an ex-date on the reach's first bar, marked one bar later
+  const cell = (d: number) => {
+    const row = rowOf(A, A.dates[last], {}, [{ code: 'PRICE_BREAK', action: 'STOCK_SPLIT', ex_date: A.dates[d], ratio_old: 1, ratio_new: 2, close_ratio: 0.5 }]);
+    return runScreen({ universe: U, conditions: [{ id: 'a', enabled: true, test }], logic: 'all' } as unknown as Definition, memoryEnv([A], IX, [row], A.dates[last])).rows[0].cells[0].remark;
+  };
+  assert.deepEqual([cell(s), cell(s + 1)], [null, 'PRICE_BREAK_IN_LOOKBACK']);
+  // the trade flag: a break after the reach's first bar flags a trade signalled on the last bar, one on it or older not
+  const flags = (bar: number) => tradeDistortions({ calc: c, data: { prices: { dates: A.dates } }, distortions: [{ date: A.dates[bar], bar, kind: 'unadjusted' }] } as never, last, last).map(x => x.kind);
+  assert.deepEqual([flags(s + 1), flags(s), flags(10)], [['unadjusted'], [], []]);
+  const k = calcOf();
+  conditionSeries(k, cond('b', { kind: 'value', metric: { kind: 'indicator', indicator: 'I14', output: 'k', params: {} }, op: 'gt', value: 50 }), 'entry.conditions[0]');
+  assert.equal(k.reach![last], 0);
 });

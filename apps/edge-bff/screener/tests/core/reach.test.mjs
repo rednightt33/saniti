@@ -17,6 +17,8 @@ import { describe, expect, it } from 'vitest';
 import * as G from '../../scripts/build-screener-registry.mjs';      // registers the lab formulas by path (3f TR-2)
 import { DEFAULTS, F } from '../../../terminal/src/calc/indicators.ts';
 import { loadFixtures } from '../../../terminal/tests/calc/fixtures.mjs';
+import { movingBars } from '../../src/core/effective.ts';
+import { historyOf, inputsOf } from '../../src/core/registry.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REGISTRY = JSON.parse(fs.readFileSync(path.join(HERE, '../../src/core/screener-registry.json'), 'utf8'));
@@ -109,4 +111,128 @@ describe('history class on real prices (UD36)', () => {
     expect(G.reachClass('window', swing.beyond)).toBe('recursive');
     expect([G.reachClass('window', 0), G.reachClass('recursive', 0), G.reachClass('cumulative', 3)]).toEqual(['window', 'recursive', 'cumulative']);
   }, 120_000);
+});
+
+/* UD55 and UD52 (EXEC-PRICE-DISTORTION; the user 2026-11-25, "3. Ok boleh": "an effective window per output ... 0.1 % of
+   its size", "one class per output and setting"): the generator measures each recursive output's effective window on
+   synthetic shapes at a tolerance a hundred times tighter than the user's (build-screener-registry.mjs effectiveProbe)
+   and how it grows with the whole-number parameters (effectiveScaling); registry.ts historyOf reads the window of a
+   setting. Here the same cut is made on the real-price fixtures at the user's tolerance, 0.1 % of the output's
+   magnitude (scaleOf), the window counted in moving bars on the output's inputs (effective.ts): beyond its window the
+   value from a cut start must equal the full history's within the tolerance, at the start configuration, with every
+   whole-number parameter raised x1.5, x2 and x3 where the rule covers it, and at every option with a window of its
+   own. */
+const TOL = G.PROBE.effective.tolerance;
+const startOf = ind => ({ ...DEFAULTS[ind.key], ...ind.start_params });
+/** The most moving bars any cut of the fixtures still differs on, at the user's tolerance, per output of `outs` at the
+    start configuration with `over` applied (G.effectiveCut, the generator's own measure), with the stock and the cut. */
+function realMoving(ind, outs, over) {
+  const params = { ...startOf(ind), ...over }, worst = Object.fromEntries(outs.map(o => [o, { moving: 0 }]));
+  for (const { ticker, bars } of STOCKS) {
+    const full = F[ind.key](bars, params);
+    const mv = Object.fromEntries(outs.map(o => [o, movingBars(bars, inputsOf(ind.outputs.find(x => x.key === o), params))]));
+    const tol = Object.fromEntries(outs.map(o => [o, TOL * G.scaleOf(full[o])]));
+    for (let cut = CUT_FROM; cut < bars.C.length - MARGIN; cut += CUT_EVERY) {
+      const part = F[ind.key](slice(bars, cut), params);
+      for (const o of outs) { const x = G.effectiveCut(full[o], part[o], cut, mv[o], tol[o]); if (x.moving > worst[o].moving) worst[o] = { moving: x.moving, ticker, cut } }
+    }
+  }
+  return worst;
+}
+/** The settings each indicator's effective windows are checked at: the start configuration, every whole-number
+    parameter raised by 1.5, 2 and 3, and each option with a window of its own (history_by_option). */
+function settings(ind) {
+  const base = startOf(ind), out = [['start', {}]];
+  for (const f of [1.5, 2, 3]) out.push([`x${f}`, Object.fromEntries(ind.params.filter(p => p.integer && base[p.key] > 0).map(p => [p.key, Math.min(p.max ?? Infinity, Math.round(base[p.key] * f))]))]);
+  const opts = new Set();
+  for (const o of ind.outputs) for (const [k, byOpt] of Object.entries(o.history_by_option ?? {})) for (const [v, h] of Object.entries(byOpt)) if (h.effective_window?.bars) opts.add(JSON.stringify([k, v]));
+  for (const kv of opts) { const [k, v] = JSON.parse(kv), p = ind.params.find(q => q.key === k); out.push([`${k}=${v}`, { [k]: p.type === 'boolean' ? v === 'true' : v }]) }
+  return out;
+}
+/** Every (indicator, setting, output) whose window the fixtures exceed: the window historyOf gives there, `scale` x it. */
+function windowProblems(scale = 1) {
+  const problems = [];
+  let checked = 0;
+  for (const ind of REGISTRY.indicators) for (const [name, over] of settings(ind)) {
+    const params = { ...startOf(ind), ...over };
+    const W = Object.fromEntries(ind.outputs.map(o => [o.key, historyOf(ind, o, params).effectiveWindow]).filter(([, w]) => w !== null).map(([o, w]) => [o, Math.max(1, Math.floor(w * scale))]));
+    if (!Object.keys(W).length) continue;
+    checked += Object.keys(W).length;
+    for (const [o, r] of Object.entries(realMoving(ind, Object.keys(W), over))) if (r.moving >= W[o])
+      problems.push(`${ind.id}.${o} (${ind.name}, ${stageOf(ind.id)}) at ${name}: an effective window of ${W[o]} moving bars, but on ${r.ticker} cut at bar ${r.cut} the value still differs by more than 0.1 % of its magnitude ${r.moving} moving bars after the cut`);
+  }
+  return { problems, checked };
+}
+
+describe('effective windows on real prices (UD55)', () => {
+  it('beyond its window every output reads the full history\'s value within 0.1 % of its magnitude, on every stock and cut, at every measured setting', () => {
+    const { problems, checked } = windowProblems();
+    expect(checked).toBeGreaterThanOrEqual(80);             // 2026-11-25: 34 outputs at the start, their raised settings and the options
+    expect(problems, 'the generator\'s effective probe (PROBE.effective.shapes in scripts/build-screener-registry.mjs) misses a mechanism of these prices: add a shape that holds it and run npm run registry').toEqual([]);
+  }, 600_000);
+
+  /* The check's power (as the look-ahead gate's self-test catches a centred average): every window cut to a third is
+     caught on these prices, so a probe that measured too short a window would fail above. */
+  it('catches a window that is too short: every window at a third of its length fails on these prices', () => {
+    const { problems, checked } = windowProblems(1 / 3);
+    expect(problems.length).toBe(checked);
+    expect(problems.some(p => p.startsWith('I13.rsi ') && p.includes(' at start:'))).toBe(true);
+  }, 600_000);
+
+  /* What the window is for: a price break the data did not adjust. Planted on the fixtures (every price before bar d
+     times k, the volume divided by it: a split of 1:5, 1:2 or 2:1 left in the history, every 97th bar), the value on
+     the broken history differs from the one on the bars from d on, which never saw the break, for fewer moving bars
+     than the window: a cell past it is unmarked rightly. */
+  it('a planted unadjusted split moves every output by more than 0.1 % of its magnitude only inside its window', () => {
+    const problems = [];
+    let checked = 0;
+    for (const ind of REGISTRY.indicators) for (const o of ind.outputs) {
+      const W = o.effective_window?.bars;
+      if (!W) continue;
+      checked++;
+      const params = startOf(ind);
+      for (const { ticker, bars } of STOCKS) for (const k of [5, 2, 0.5]) for (let d = 60; d < bars.C.length - MARGIN; d += 97) {
+        const at = (x, i) => i < d && x !== null && x !== undefined ? x * k : x;
+        const broken = { ...bars, O: bars.O.map(at), H: bars.H.map(at), L: bars.L.map(at), C: bars.C.map(at), V: bars.V.map((x, i) => i < d && x !== null && x !== undefined ? x / k : x) };
+        const full = F[ind.key](broken, params)[o.key], part = F[ind.key](slice(broken, d), params)[o.key];
+        const x = G.effectiveCut(full, part, d, movingBars(broken, inputsOf(o, params)), TOL * G.scaleOf(full));
+        if (x.moving >= W) problems.push(`${ind.id}.${o.key}: a split x${k} on ${ticker} at bar ${d} still moves it ${x.moving} moving bars later, past its window of ${W}`);
+      }
+    }
+    expect(checked).toBeGreaterThanOrEqual(30);
+    expect(problems).toEqual([]);
+  }, 600_000);
+
+  it('the rule: RSI 14 reads a bounded window, RSI 28 twice it, RSI 100 (past max_ratio) and the outputs without one the whole history', () => {
+    const rsiInd = REGISTRY.indicators.find(i => i.id === 'I13'), rsi = rsiInd.outputs[0], e = rsi.effective_window;
+    expect(e.bars).toBeGreaterThan(50);
+    expect(e.scaling.max_ratio).toBeGreaterThanOrEqual(2);
+    const at = length => historyOf(rsiInd, rsi, { ...startOf(rsiInd), length }).effectiveWindow;
+    expect(at(14)).toBe(e.bars);
+    expect(at(28)).toBe(Math.ceil(e.bars * 2 ** e.scaling.exponent * (1 + e.scaling.margin)));
+    expect(at(7)).toBe(e.scaling.lower ? e.bars : null);
+    expect(at(100)).toBe(null);
+    // no window: whole numbers (Supertrend's direction), a reset (Parabolic SAR), a state the reach probe found (UD36)
+    const out = (id, key) => REGISTRY.indicators.find(i => i.id === id).outputs.find(o => o.key === key);
+    expect([out('I09', 'direction'), out('I12', 'sar'), out('I60', 'swing_low')].map(o => o.effective_window.reason)).toEqual(['discrete', 'reset', 'reach']);
+    // cumulative outputs keep the whole history: no window is measured for them
+    expect(REGISTRY.indicators.flatMap(i => i.outputs).filter(o => o.history_class === 'cumulative' && o.effective_window)).toEqual([]);
+  });
+
+  it('UD52: Bollinger Bands, %B and Band Width read a window at the SMA basis and the whole history at EMA and RMA, bounded by an effective window or not', () => {
+    const B = G.fixture(), cut = slice(B, G.PROBE.cut_at);
+    for (const id of ['I27', 'I28', 'I29']) {
+      const ind = REGISTRY.indicators.find(i => i.id === id);
+      for (const o of ind.outputs) {
+        expect([id, o.key, historyOf(ind, o, startOf(ind)).historyClass]).toEqual([id, o.key, 'window']);
+        for (const basis of ['EMA', 'RMA']) {
+          const params = { ...startOf(ind), basis_ma_type: basis }, h = historyOf(ind, o, params);
+          expect([id, o.key, basis, h.historyClass]).toEqual([id, o.key, basis, 'recursive']);
+          expect(o.history_by_option.basis_ma_type[basis].history_class).toBe('recursive');
+          // the cut probe itself: from a later start the value differs inside its window at this basis
+          expect(G.historyClass(F[ind.key](B, params)[o.key], F[ind.key](cut, params)[o.key], G.PROBE.cut_at, false)).toBe('recursive');
+        }
+      }
+    }
+  });
 });

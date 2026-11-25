@@ -44,8 +44,8 @@ import { ScreenerError } from './errors.ts';
 import { METRICS_CATALOG, appliesTo, metricSpec, resolveCatalogParams } from './catalog.ts';
 import type { MetricDefinition, MetricsCatalog } from './catalog.ts';
 import {
-  cellRemarkOf, compareAt, crossSignal, crossedDates, evaluateEvent, evaluateWindow, valuePasses, evaluateState, evaluateStatePattern, evaluateValue, lookbackStart,
-  lookbackStartOfWindow, naReason, signalAt, toCell, viewOfSeries, viewOfTail,
+  cellRemarkOf, compareAt, crossSignal, crossedDates, evaluateEvent, evaluateWindow, valuePasses, evaluateState, evaluateStatePattern, evaluateValue,
+  naReason, seriesLookbackStart, signalAt, toCell, viewOfSeries, viewOfTail,
 } from './evaluate.ts';
 import type { BarView, Evaluation, Operand, SessionOutcome } from './evaluate.ts';
 import { laggedSeries, missingInput, notSeriesRefusal, resolveSeries } from './metrics.ts';
@@ -136,9 +136,10 @@ export interface BoundCondition {
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
 const isValueSide = (s: Side): s is { value: number } => isObj(s) && !('kind' in s) && 'value' in s;
 
-/** The start of a series' lookback at `at` (evaluate.ts lookbackStart, or the stated window of a pattern). */
-const startOf = (r: ResolvedSeries, tail: Tail, at: number, extra: number): number | null =>
-  r.window !== undefined ? lookbackStartOfWindow(r.window, at, extra) : lookbackStart(r.historyClass, tail.firstValid, at, extra);
+/** The start of a series' lookback at input.at (evaluate.ts seriesLookbackStart: the stated window of a pattern, the
+    effective window of a recursive output, UD55, else lookbackStart), on the ticker's bars. */
+const startOf = (r: ResolvedSeries, tail: Tail, input: TickerInput, extra: number): number | null =>
+  seriesLookbackStart(r, input.bars, tail.firstValid, input.at, extra);
 
 /** Reads a series for one ticker as a view; checks that the tail holds the bars an evaluation at `at` reads. A bar
     before the tail reads as missing, which is exact when the full series has no value before the tail (its firstValid
@@ -565,11 +566,11 @@ function cellOf(id: string, e: Evaluation, input: TickerInput, unit: string | nu
   if (ex.length || lots.length) {
     const price: (number | null)[] = [], lot: number[] = [];
     for (const { r, tail, extra } of sides) {
-      if (!readsFlow(r)) { if (ex.length) price.push(startOf(r, tail, at, extra)); continue }
+      if (!readsFlow(r)) { if (ex.length) price.push(startOf(r, tail, input, extra)); continue }
       const reads = r.flowReads ?? FLOW_READS, s = flowStart(input, r, extra);
       if (reads.includes('lots')) lot.push(s);
       if (ex.length && reads.some(x => x !== 'lots')) price.push(s);
-      if (ex.length) for (const p of r.flowPriceSides ?? []) price.push(p.kind === 'price' ? at - extra : startOf(p, input.series(p).tail, at, extra));
+      if (ex.length) for (const p of r.flowPriceSides ?? []) price.push(p.kind === 'price' ? at - extra : startOf(p, input.series(p).tail, input, extra));
     }
     mark = cellRemarkOf(crossedDates(price, input.dates, at, ex), crossedDates(lot, input.dates, at, lots));
   }

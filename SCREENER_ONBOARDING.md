@@ -123,7 +123,7 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
    Backtest show; between the price cron (17:00 WIB) and the end of the 19:00 run the database holds a session the rack
    does not (about 3 hours, TARGET ARCHITECTURE 6.5).
 2. **One formula path (I1).** Every technical number comes from `F` in `indicators.ts` through the Backtest core's
-   `Calc` (`apps/edge-bff/screener/src/core/metrics.ts:380` `series`, the one path). There is no SQL, TA-Lib or Python
+   `Calc` (`apps/edge-bff/screener/src/core/metrics.ts:389` `series`, the one path). There is no SQL, TA-Lib or Python
    copy of a formula. The page side is locked by a test (`apps/edge-bff/screener/tests/bundle/bundle.test.mjs`, "import
    from the screener core only contract.ts and universe.ts, and no formula module"); in the core the rule is stated in
    `transforms.ts`' header and held by review: no test fails when a core file defines an indicator kernel (OPEN).
@@ -159,26 +159,31 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
    with an action row or not; a break between the stock's last two sessions carries `last_session`, and the 1D change
    says it by kind, texts.ts `chg1dBreakText`, re-check 2026-11-25), and their
    price-derived values stay visible: a cell whose lookback contains the break carries `PRICE_BREAK_IN_LOOKBACK`
-   (`apps/edge-bff/screener/src/core/evaluate.ts:205` `priceBreakRemark`, its dates from `evaluate.ts:211` `crossedDates`), and the answer warns
-   `PRICE_BREAKS_IN_RESULT` with the rows and cells. A remark never changes PASS, FAIL or NA. Tests:
+   (`apps/edge-bff/screener/src/core/evaluate.ts:233` `priceBreakRemark`, its dates from `evaluate.ts:239` `crossedDates`), and the answer warns
+   `PRICE_BREAKS_IN_RESULT` with the rows and cells. A remark never changes PASS, FAIL or NA. The lookback is the
+   setting's (the user 2026-11-25, "3. Ok boleh"): its class at the chosen options (UD52: Bollinger Bands, %B and Band
+   Width read the whole history at an EMA or RMA basis, a window at SMA), and for a recursive output (RSI, EMA, MACD)
+   its effective window (UD55): the moving bars after which a bar before them moves its value by less than 0.1 % of its
+   magnitude, so a break older than that no longer marks the cell, nor the row (D-1) nor a Backtest trade
+   (`registry.ts` `historyOf`, `evaluate.ts` `seriesLookbackStart`, section 1.10). Tests:
    `apps/screener-worker/tests/server.test.ts` (the chips), `tests/core/universe.test.ts` "distortionRemarks",
    `tests/core/pricecheck.test.ts`, `tests/core/lookback.test.ts` "PRICE_BREAK_IN_LOOKBACK at the edge of each lookback".
    - **Flow cells (D-5; the user 2026-11-24: "berikut juga untuk cell flownya?", yes).** A flow cell is marked only when
      its output reads what is distorted, a fact the registry generator derives per output by its basis probe
-     (`apps/edge-bff/screener/scripts/build-screener-registry.mjs:908` `basisReads`, section 1.10): `reads` the broker
-     lots, the close, the volume. Over the sessions it reads (`apps/edge-bff/screener/src/core/condition.ts:543`
+     (`apps/edge-bff/screener/scripts/build-screener-registry.mjs:1208` `basisReads`, section 1.10): `reads` the broker
+     lots, the close, the volume. Over the sessions it reads (`apps/edge-bff/screener/src/core/condition.ts:544`
      `flowStart`: its `flowDepth` plus the test's `within`, ending at the evaluated candle, or from the loaded window's
      start when `reads_from` is `window_start`; a window test adds its own sessions), it carries
      `FLOW_BASIS_IN_LOOKBACK` when it reads the lots and crosses the ex date of a price action whose broker lots before it
      are not on one basis with the lots after it, and `PRICE_BREAK_IN_LOOKBACK` when it reads the close or the volume and
-     crosses a `PRICE_BREAK` date (`condition.ts:562` `cellOf`; the price operands of a flow transform keep their own
+     crosses a `PRICE_BREAK` date (`condition.ts:563` `cellOf`; the price operands of a flow transform keep their own
      lookback). The lot basis comes from the publisher: the `actions` file's additive column `basis` (R1;
      `apps/terminal-publisher/publisher.py:937` `action_basis_column`: the events file's status, `terms`, `same`,
      `pending`, `unresolved`, of a price action whose ex date is in the broker window, null elsewhere); the worker keeps
      per ticker the ex dates inside its loaded window whose status is not `same`, a file without the column included (R2;
      `apps/edge-bff/screener/src/core/universe.ts:122` `flowBasisDates`, `apps/screener-worker/src/snapshot.ts:322`). A
      flow output in rupiah or transactions only is never marked. Each marked cell names the dates it crossed in the
-     additive `remark_dates` (`apps/edge-bff/screener/src/core/evaluate.ts:226` `cellRemarkOf`; the page words them, `texts.ts` `cellRemarkText`).
+     additive `remark_dates` (`apps/edge-bff/screener/src/core/evaluate.ts:254` `cellRemarkOf`; the page words them, `texts.ts` `cellRemarkText`).
    - **The row badge (D-1: "badge baris hanya bila ada sel baris itu yang jendelanya melewati patahan, atau tanggal
      patahan sama dengan bar terakhir").** In a run's rows and in the preview a `PRICE_BREAK` remark is kept only when a
      cell's `remark_dates` name its date or the date falls on the row's last bar; `STALE` always stays; `GET /universe`
@@ -347,7 +352,7 @@ and the borrowed backtest-worker files.
   proposed dev values (LOCAL, provisional) is the worker README's "Configuration" table. Tests: `tests/config.test.ts`;
   `tests/readme_config.test.ts` (the README table against `loadConfig` itself).
 - **Start-up check** (`apps/screener-worker/src/version.ts:69-84` `checkStartup`): the screener registry has no problem against the base
-  registry (`registry.ts:167` `registryProblems`); `screener-metrics.json` and `presets.json` pass `catalogProblems`
+  registry (`registry.ts:200` `registryProblems`); `screener-metrics.json` and `presets.json` pass `catalogProblems`
   with the transforms and patterns `transforms.ts` computes (`IMPLEMENTED_TRANSFORMS`, `IMPLEMENTED_PATTERNS`); the
   backtest registry artifact matches its sources; every source `screener-registry.json` names (except the build-only
   oracle script) is in the image with the recorded sha256. Otherwise `startup_check_failed` and exit.
@@ -401,18 +406,18 @@ nothing; skew then deferral; skip unchanged; one refresh at a time; pinning acro
   with `DATA_INTEGRITY` and the previous snapshot keeps serving (`snapshot.ts:265-269`; semantic review S3; test
   `tests/snapshot.test.ts` "no look-ahead (6.5 as-of policy) ...").
 - **Universe rows** (the listed stocks, hidden ones included): name, sector, industry, last, 1D %, ADV20 (the backtest
-  core's `liquidity`, `apps/edge-bff/backtest/src/core/signals.ts:185`, through `metrics.ts:283` `universeAttributes`), first and last bar, bar count,
+  core's `liquidity`, `apps/edge-bff/backtest/src/core/signals.ts:185`, through `metrics.ts:292` `universeAttributes`), first and last bar, bar count,
   `stale`, and the P4 remarks from the `actions` file (`snapshot.ts:275-292`); EXEC-SCREENER-STOCK-LISTS: `indices` and
   `groups`, the codes of the lists of the reference file `stock_lists` the stock is a current member of, restricted to
   the listed stocks, and the catalog's `stock_lists` block with each list's listed stocks (`stocklists.ts:71`
   `stockListsOf`, called at `snapshot.ts:307`). The file is read as `brokers` is (`refresh.ts:445` `stockLists`); one not indexed, missing, off the
   origin, of another sha256 or broken leaves the lists `REQUIRES_DATA` with a plain reason and the Screener running, and
   its sha256 is part of `referenceHash`, so a changed membership is a refresh and another snapshot.
-- **Pinned series** (`snapshot.ts:289-310`): the 53 indicators at `registry.ts:337` `startParams` (the registry
+- **Pinned series** (`snapshot.ts:289-310`): the 53 indicators at `registry.ts:415` `startParams` (the registry
   defaults, except I43 at anchor Week: P17 a does not offer its default Session), 76 outputs; the core's declared
-  derived series of the default cards (`condition.ts:676` `declaredDerivedSeries`: the bar fields, the prior Donchian
+  derived series of the default cards (`condition.ts:677` `declaredDerivedSeries`: the bar fields, the prior Donchian
   bands, the rising lags and vs-MA averages); every series the presets read. 113 series on the real publication (LOCAL).
-  Each is a tail of `SCREENER_WITHIN_MAX` + 1 bars per ticker (`metrics.ts:304` `tailLength`) in one shared
+  Each is a tail of `SCREENER_WITHIN_MAX` + 1 bars per ticker (`metrics.ts:313` `tailLength`) in one shared
   `Float64Array`, written by the pre-warm through the one `series()` path (`prewarmChunk`, `snapshot.ts:454-471`),
   installed in each thread's `SeriesCache` as pinned entries (`:467`). Test: `tests/snapshot.test.ts` "the pre-warm: ...
   each tail equal to the dynamic series() on the same bars".
@@ -427,7 +432,7 @@ nothing; skew then deferral; skip unchanged; one refresh at a time; pinning acro
   `snapshot.ts:577-587`).
 
 Custom parameters are computed per request through the same `series()` call (`metrics.ts:259`), keyed by
-(`price_data`, `screener_engine`, the resolved reference) (`seriesKey`, `metrics.ts:330`), on the ticker's **full**
+(`price_data`, `screener_engine`, the resolved reference) (`seriesKey`, `metrics.ts:339`), on the ticker's **full**
 history then tailed (tails are not exact for recursive and cumulative indicators: EMA 200 is up to 7.7% off with a
 500-bar tail, report 6.5), and kept in the thread's series LRU (one share of `SCREENER_CACHE_BYTES`). "Precomputed"
 and "dynamic" are the same call at two times, so they cannot differ; each condition says which (`source`). Test:
@@ -463,13 +468,16 @@ PASS, FAIL or NA: `STALE` and `PRICE_BREAK` per row, `PRICE_BREAK_IN_LOOKBACK` a
 the broker lots, EXEC-PRICE-DISTORTION D-5, section 1.3 item 8) `FLOW_BASIS_IN_LOOKBACK` per cell, with the dates
 crossed in `remark_dates`; a run row keeps a `PRICE_BREAK` remark only when a cell crossed it or it is on the last bar
 (D-1). A cell's lookback
-(`apps/edge-bff/screener/src/core/evaluate.ts:190-194` `lookbackStart`): its window for window-class series, the whole history for recursive, cumulative and calendar
-ones, one bar for a bar field; an EVENT cross extends each side by `within`, an EVENT pattern by `within - 1` (its
+(`apps/edge-bff/screener/src/core/evaluate.ts:194-198` `lookbackStart`, read through `seriesLookbackStart`): its window for window-class series, for a
+recursive output with an effective window that window (UD55: its moving bars on the output's inputs,
+`apps/edge-bff/screener/src/core/effective.ts`, never shorter than its first full window), the whole history for the
+other recursive outputs and for cumulative and calendar ones, each at the class of the setting in use (UD52,
+`registry.ts` `historyOf`), one bar for a bar field; an EVENT cross extends each side by `within`, an EVENT pattern by `within - 1` (its
 stated window already holds the bar before; semantic review S1); every window-class pattern window is exact (S2;
 test `tests/core/lookback.test.ts` "a window-class pattern reads exactly its stated window").
 
 **As-of policy.** The evaluation date E is `price_through`. Each ticker is evaluated at its own last bar on or before E
-(`evaluate.ts:83` `evaluationBar`); a ticker whose last bar is before E is STALE (hidden by default). `bars_ago`
+(`evaluate.ts:86` `evaluationBar`); a ticker whose last bar is before E is STALE (hidden by default). `bars_ago`
 counts the ticker's own bars. Every series a condition reads is causal (test `tests/core/asof.test.ts`).
 
 **Match and near** (`match.ts`): `need = entryNeed(logic, at_least, active)` of the backtest core
@@ -540,7 +548,7 @@ with K - 1 it rose 1.6 times.
 |---|---|---|---|
 | Result cache: run and preview answers as gzip bytes with `ETag` | `resultKey`: kind, `sid`, `screener_engine`, `registry`, `screener_registry`, `definition_hash`, `exhaustive`, `explain` (preview adds the ticker); nothing of the owner | one share of `SCREENER_CACHE_BYTES`, LRU; the presets pinned | `run.ts:324-325`, `server.ts:102-127` |
 | Counts cache | (snapshot, definition hash) | 50,000 entries (`COUNTS_KEEP`), LRU; the presets pinned | `server.ts:133-154` |
-| Series LRU (custom parameters) and the pinned tails | `seriesKey` (`metrics.ts:330`) per ticker | one share of `SCREENER_CACHE_BYTES` per compute thread; pinned tails not counted | `metrics.ts:337` `SeriesCache`, `snapshot.ts:452-468` |
+| Series LRU (custom parameters) and the pinned tails | `seriesKey` (`metrics.ts:339`) per ticker | one share of `SCREENER_CACHE_BYTES` per compute thread; pinned tails not counted | `metrics.ts:346` `SeriesCache`, `snapshot.ts:452-468` |
 | One request's views | ticker | `CALC_KEEP` 256 tickers hold a `Calc` (released on eviction) | `run.ts:408`, `:417-457` |
 | Disk cache of the files | sha256 | `SCREENER_CACHE_DIR_BYTES` in `SCREENER_CACHE_DIR` (the container's disk, no volume) | `TerminalClient` `DiskCache` |
 | Catalog and universe documents | the publication and its outcome | one each | `apps/screener-worker/src/catalog.ts:94-121` (JSON, gzip level 9, `ETag` = sha256 of the JSON bytes) |
@@ -563,7 +571,7 @@ window and refused after it ...".
 Header `x-screener-worker-key` (at least 32 characters, compared in constant time, `server.ts:157-161`) on every route
 except `/health` and `/ready`; `x-screener-owner` (16 hex: the first 16 of HMAC-SHA256(`SCREENER_WORKER_KEY`,
 `owner_key`) computed by edge-bff) selects the owner's lane and budget (`server.ts:430-435`). Routes (`server.ts` header
-`:5-16`, `contract.ts:715` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
+`:5-16`, `contract.ts:722` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
 state), `GET /ready` (200 only with a loaded snapshot, else 503 `SCREENER_NOT_READY` with `Retry-After`: the Railway
 healthcheck), `GET /v1/catalog` and `/v1/universe` (`ETag`, `304`), `POST /v1/run`, `/v1/preview`, `/v1/counts` (gzip
 with `ETag`), `POST /v1/validate` (`{valid, definition_hash, normalized, versions}`; `versions` is additive,
@@ -708,7 +716,26 @@ available; it never runs with a leg removed.
   classed recursive (`reachProbe`, `reachClass`; `evaluate.ts` `lookbackStart` then gives no window, so the "Distorted"
   remark covers every price break of the row up to the evaluated bar); `tests/core/reach.test.mjs` cuts the
   Terminal's real-price parity fixtures (eight stocks) the same way and fails on an output classed window that reads
-  further back; for each flow output (EXEC-PRICE-DISTORTION D-5) `reads`, `reads_from` and `reads_probe` by the basis
+  further back; per output and setting (UD52, the user 2026-11-25 "3. Ok boleh": "one class per output and setting")
+  `history_by_option`, the class and window at each offered enum option and each switch value with the other
+  parameters at the start configuration, kept where it differs from the start's, and `history_class_combined` where a
+  combination of two or more options reads more than the worst of them (none on 2026-11-25; `historyByOption`); for a
+  recursive output its `effective_window` (UD55: "an effective window per output ... 0.1 % of its size"): the output
+  recomputed from a cut every 37 bars on nine seeded shapes (the four of the reach probe, a volatile small cap with
+  25 % days, a calm trend, a price pinned for 250 sessions, a volume thinned to a thousandth, a stock at its Rp 50
+  floor in whole-rupiah ticks with idle sessions; `PROBE.effective`), counted in moving bars (a bar whose input fields
+  all change, `effective.ts`: RSI holds an old bar's effect on a pinned price), at a tolerance a hundred times tighter
+  than the user's 0.1 % of the output's magnitude (`scaleOf`; at 0.1 % the real prices left larger gaps than the
+  shapes: EMA 20 67 sessions on DEWI against 44), its window the most moving bars a cut still differs on plus one; no window, the whole
+  history, for whole-number outputs, a difference that is not bounded, one that ends far above the tolerance (a
+  reset: Parabolic SAR, Supertrend's band) or grows (Stochastic RSI), and the outputs the reach probe moved
+  (`effectiveProbe`, `effectiveDecay`); its `scaling` rule `W(p) = ceil(W x R^exponent x 1.05)` for
+  `1 < R <= max_ratio` (R the largest ratio of a whole-number parameter to its start value), fitted with every
+  whole-number parameter x2 (each alone and all together) and x4 and checked at x1.5 and x3, a lower length only when
+  x0.5 does not remember longer, each number parameter inside the range tried at x0.5 and x2 (`effectiveScaling`;
+  `registry.ts` `historyOf` reads it; any other setting reads the whole history); `tests/core/reach.test.mjs` cuts the
+  eight fixtures at 0.1 % at the start configuration, x1.5, x2, x3 and every option with a window (208 windows on
+  2026-11-25) and fails on a value that still differs beyond its window, and on every window cut to a third; for each flow output (EXEC-PRICE-DISTORTION D-5) `reads`, `reads_from` and `reads_probe` by the basis
   probe (`basisReads`): the output, computed by `flowscreener.ts` `computeEntry` as the Screener computes it, on
   `flowprobe.ts`'s context with a third of the brokers turned at a middle candle t0, at the registry defaults, every
   option of a select, switch or list, the anchor of an output the defaults do not give (a sided indicator's sell line)
@@ -729,7 +756,7 @@ available; it never runs with a leg removed.
   sha256 of the generated document without that field (read it from the file: it moved with each generator change on
   2026-10-29, while the cost probe was made reproducible), so any input or derived change moves it.
 - **Narrow-only.** The overlay and the derived narrowing may only narrow the base registry
-  (`registry.ts:167` `registryProblems` fails on a wider range), so every transferable screener condition is also valid
+  (`registry.ts:200` `registryProblems` fails on a wider range), so every transferable screener condition is also valid
   for the Backtest.
 - **Checks.** `npm run registry:check` re-derives every field and fails on a difference
   (`tests/core/registry-check.test.mjs`); the cost probe's rule is tested in `tests/core/registry-cost.test.mjs`; the

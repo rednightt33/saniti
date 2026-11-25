@@ -304,9 +304,14 @@ export const ROW_REMARK_CODES: readonly RowRemarkCode[] = ['STALE', 'PRICE_BREAK
     tertangkap, maka akan tetap di show seluruhnya, tapi dengan badge, berikut juga untuk cell flownya?", yes). A marked
     cell keeps its value and its pass or fail; the remark only says the value is distorted (condition.ts):
     - PRICE_BREAK_IN_LOOKBACK: the lookback of a series the cell reads crosses the date of one of the row's PRICE_BREAK
-      remarks (start < d <= at, d the first bar on or after the date; evaluate.ts crossedDates). A price series: a
-      window-class output while its window holds the date, recursive, cumulative and calendar outputs always after it
-      (report 6.12), a bar field its one bar, a window test its sessions. A flow series (D-5): only when its output reads
+      remarks (start < d <= at, d the first bar on or after the date; evaluate.ts crossedDates). A price series
+      (evaluate.ts seriesLookbackStart): a window-class output while its window holds the date; a recursive output
+      while its effective window holds it (EXEC-PRICE-DISTORTION UD55, the user 2026-11-25 "3. Ok boleh": the moving
+      bars after which a bar before them moves its value by less than 0.1 % of its magnitude, measured by the generator,
+      registry.ts historyOf), always after the date when it has none (whole numbers, a reset, a state, a setting the
+      generator did not measure); cumulative and calendar outputs always after it (report 6.12); the class and window of
+      the setting in use (UD52: Bollinger at an EMA basis is recursive, at SMA window); a bar field its one bar, a window
+      test its sessions. A flow series (D-5): only when its output reads
       the close or the volume (the registry's outputs[].reads, the generator's basis probe), over the sessions it reads
       (its flowDepth plus the test's within or length, ending at the evaluated candle, from the loaded window's start
       when reads_from is window_start), and every price operand of it over that operand's own lookback;
@@ -476,7 +481,9 @@ export interface LimitEntry { name: LimitName | string; value: number; unit: str
     screener-metrics.json `requires` against the files indexed in state.json. */
 export type Availability = 'AVAILABLE' | 'REQUIRES_DATA' | 'REQUIRES_DECISION' | 'NOT_APPLICABLE';
 /** history_class (report 6.8 cut probe, then the reach probe on four price shapes, UD36): window (equal to full history once its window is full), recursive (the
-    whole history: decays toward its value, or a state a later start rebuilds, e.g. the last swing), cumulative (never converges: level depends on the start bar), calendar (anchored). */
+    whole history: decays toward its value, or a state a later start rebuilds, e.g. the last swing), cumulative (never converges: level depends on the start bar), calendar (anchored).
+    Measured at the start configuration and at every enum or switch option (UD52, the registry's history_by_option); a
+    recursive output's effective window bounds its lookback where the generator measured one (UD55, effective_window). */
 export type HistoryClass = 'window' | 'recursive' | 'cumulative' | 'calendar';
 /** cost_class (report 6.8): O(N) or O(N·n), from the work of F at two lengths of the parameter (its default L1 and
     L2 = max(1000, 50 x L1), at most a quarter of the fixture's bars), counted, never timed: V8 precise block coverage
@@ -544,7 +551,7 @@ export interface CatalogOutput {
   display_unit: string | null;       // additive: the workbook's unit (indRegistry.json), for display
   comparable_with: 'close' | 'volume' | null;   // additive: what level_comparable compares with (6.8 scaling probe)
   disabled_tests: DisabledTestForm[];           // additive: forms shown disabled with a reason (6.9.1 cum rows)
-  history_class: HistoryClass;                  // additive: per output (6.8 cut probe "for all 76 outputs")
+  history_class: HistoryClass;                  // additive: per output (6.8 cut probe "for all 76 outputs"), at the start configuration (another setting: registry.ts historyOf, UD52)
   first_valid_bar: number | null;               // additive: at the start configuration, the registry defaults except I43 at Week (6.8 "first_valid_bar per output")
   categories?: OutputCategory[];                // additive: an output coded in categories (state_category, event_category_change)
   drawing_only?: true;                          // additive: colours another output in the Terminal only, no test (not a series to screen)

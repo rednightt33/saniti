@@ -18,7 +18,7 @@ import { PRICE_FIELDS, WINDOW_MODES } from './contract.ts';
 import { ScreenerError } from './errors.ts';
 import { METRICS_CATALOG } from './catalog.ts';
 import type { MetricsCatalog } from './catalog.ts';
-import { inputsOf, isDefaultParams, resolveScreenerParams, screenerIndicator, screenerOutput } from './registry.ts';
+import { historyOf, inputsOf, isDefaultParams, resolveScreenerParams, screenerIndicator, screenerOutput } from './registry.ts';
 import type { BarField, FlowRead, ParamOptions, ScreenerIndicator, ScreenerOutput, Unit } from './registry.ts';
 import { resolveTransform } from './transforms.ts';
 import { resolveFlow } from './flowmetrics.ts';
@@ -57,8 +57,15 @@ export interface ResolvedSeries {
   readonly label: string;
   readonly unit: Unit | string | null;
   /** The history class of the series (report 6.8): decides the PRICE_BREAK_IN_LOOKBACK rule (report 6.12). null for a
-      bar field (it reads one bar). */
+      bar field (it reads one bar). An indicator's is the class at its resolved parameters (UD52, registry.ts historyOf:
+      Bollinger at an EMA basis is recursive, at SMA window). */
   readonly historyClass: HistoryClass | null;
+  /** UD55: set only on a recursive indicator output with an effective window at its resolved parameters (registry.ts
+      historyOf): the moving bars (effective.ts, on its inputs) after which a bar before them moves the value by less than
+      0.1 % of its magnitude; the lookback rule stops there (evaluate.ts seriesLookbackStart) instead of reading the whole
+      history. A transform of such a series reads its operand's whole history (its own class is recursive, without a
+      window): the operand's window bounds the operand's value, not a measure of it in another unit. */
+  readonly effectiveWindow?: number;
   /** The bar fields the series needs (registry.ts inputsOf for an indicator; the field itself for a bar field; the
       union of its operands' for a transform): a ticker that lacks one (missingInput) is NA NULL_AT_EVALUATION, not
       INSUFFICIENT_HISTORY (report 6.8, 6.9; TEST PLAN 10b.3 IHSG volume). [] only for an output the chosen options
@@ -117,9 +124,11 @@ export function resolveIndicator(ref: IndicatorRef, field: string, opts: ParamOp
   const output = screenerOutput(indicator, ref.output, `${field}.output`);
   const params = resolveScreenerParams(indicator, ref.params, `${field}.params`, opts);
   const norm: IndicatorRef = { kind: 'indicator', indicator: indicator.id, params: params as ParamMap, output: output.key };
+  const history = historyOf(indicator, output, params);
   return {
     kind: 'indicator', key: canonicalJson(norm), ref: norm, label: `${indicator.id}.${output.key}`,
-    unit: output.unit, historyClass: output.history_class, inputs: inputsOf(output, params),
+    unit: output.unit, historyClass: history.historyClass, ...(history.effectiveWindow !== null ? { effectiveWindow: history.effectiveWindow } : {}),
+    inputs: inputsOf(output, params),
     comparableWith: output.comparable_with, compareLag: output.price_compare_lag,
     indicator, output, params, isDefault: isDefaultParams(indicator, params),
     full: t => t.calc.out(indicator.key, params)[output.key],

@@ -11,7 +11,10 @@
       overrides with their evidence, and the provisional cost model of the caps (P5);
    3. fields derived here by running the Terminal's own formulas F (apps/edge-bff/terminal/src/calc/indicators.ts) on
       a deterministic synthetic series, for all 76 outputs: first_valid_bar, history_class (cut probe, and for the
-      outputs it finds window the reach probe on four price shapes, UD36: reachProbe), unit and
+      outputs it finds window the reach probe on four price shapes, UD36: reachProbe), for a recursive output its
+      effective_window and that window's scaling rule (EXEC-PRICE-DISTORTION UD55: effectiveProbe, effectiveScaling),
+      history_by_option and history_class_combined (UD52: the class and window at each enum or switch option,
+      historyByOption), unit and
       level_comparable (scaling and shift probes), price_compare_lag (lag probe), inputs per enum option (poison
       probe), the narrowing (degeneracy probe at each numeric minimum, floor probe, the not_accepted rule),
       cost_class (work ratio at two lengths, counted by V8 block coverage, never timed; a class lowered from the
@@ -49,6 +52,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { computeFlow } from '../../terminal/src/calc/flow.ts';
 import { probeContext, probeLength, scaledBars, scaledLots, turnedContext } from '../src/core/flowprobe.ts';
 import { computeEntry } from '../src/core/flowscreener.ts';
+import { movingBars } from '../src/core/effective.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(here, '../../../..');
@@ -74,6 +78,8 @@ export const PATHS = {
   flowScreener: 'apps/edge-bff/screener/src/core/flowscreener.ts',
   candleRegistry: 'apps/edge-bff/backtest/src/core/candle-registry.json',
   candles: 'apps/edge-bff/backtest/src/core/candles.ts',
+  // UD55: the effective-window probe counts moving bars as the lookback rule does (effective.ts movingBars)
+  effective: 'apps/edge-bff/screener/src/core/effective.ts',
 };
 
 const sha256 = buf => crypto.createHash('sha256').update(buf).digest('hex');
@@ -138,6 +144,24 @@ const REACH_SHAPES = [
   { name: 'sideways', stretches: [{ bars: 1500, revert: 0.05, vol: 0.01 }] },
   { name: 'recovery', stretches: [{ bars: 600, drift: -0.0018, vol: 0.014 }, { bars: 900, drift: 0.0022, vol: 0.014 }] },
 ];
+/** The effective-window probe's price shapes (UD55; effectiveProbe): the reach shapes, and five regimes of IDX prices
+    the reach shapes do not hold, each of which made a recursion remember longer on the real-price fixtures of
+    apps/edge-bff/terminal/tests/calc/fixtures (measured 2026-11-25): a volatile small cap (`jump`: on a share `p` of the
+    bars a move of `size` up or down on top of the noise, the daily limits of 25 % and more, with a volume that swings as
+    much, `volume_vol`; DEWI, KOCI, CLAY), a calm trend, a stock pinned at one price for 250 sessions (`flat`: open,
+    high, low and close equal to the last close; GOTO held 87 such sessions in 2026), a stock whose trading thins out to
+    a thousandth for 300 sessions (`volume_level`: an average of volumes holds the busy sessions' level while the thin
+    ones barely move it; KOCI traded 400 shares on 2025-04-09 and 38.9 million on 2025-05-09) and a stock trading at its
+    floor in whole-rupiah ticks (`tick`, `floor`: every price rounded to the tick and never below the floor, so most
+    sessions repeat a price, with sessions without trades, `idle`; GOTO, KOCI and ISEA at Rp 50). */
+const EFFECT_SHAPES = [
+  ...REACH_SHAPES,
+  { name: 'jumpy', stretches: [{ bars: 1500, drift: 0, vol: 0.04, jump: { p: 0.03, size: 0.25 }, volume_vol: 1.5 }] },
+  { name: 'calm', stretches: [{ bars: 1500, drift: 0.002, vol: 0.004 }] },
+  { name: 'pinned', stretches: [{ bars: 300, drift: -0.004, vol: 0.02 }, { bars: 250, flat: true }, { bars: 950, drift: 0.002, vol: 0.02 }] },
+  { name: 'thin', stretches: [{ bars: 400, drift: 0.0005, vol: 0.015 }, { bars: 300, drift: 0, vol: 0.01, volume_level: 0.001 }, { bars: 800, drift: 0.0005, vol: 0.015 }] },
+  { name: 'floor', stretches: [{ bars: 250, drift: -0.012, vol: 0.02 }, { bars: 1000, drift: 0, vol: 0.02, tick: 1, floor: 50, idle: 0.3 }, { bars: 250, drift: 0.004, vol: 0.03, tick: 1, floor: 50 }] },
+];
 /** Probe settings; recorded in the generated file so a reader knows what the derived fields were measured on. */
 export const PROBE = Object.freeze({
   seed: 20261028, bars: 4000, start: '2016-01-04', cut_at: 1000,
@@ -151,6 +175,20 @@ export const PROBE = Object.freeze({
   // volumes of the candles up to t0 are multiplied by, the sessions every whole-number parameter is raised by in the
   // raised contexts, and the relative tolerance of a difference
   basis: Object.freeze({ lots_factors: Object.freeze([2, 0.5]), close_factor: 0.5, volume_factor: 2, raise_sessions: 4, tolerance: 1e-9 }),
+  // the effective-window probe (effectiveProbe, UD55): `tolerance` is the user's (0.1 % of the output's magnitude), the
+  // window is measured at `probe_tolerance` (a hundred times tighter, see the effective-window notes); every shape cut at
+  // cut_from, cut_from + cut_every, ... while `room` bars follow the cut, a difference still there in the last `margin`
+  // bars of a shape is not bounded; a difference that ends more than end_ratio times the tolerance was reset, one whose
+  // later half reaches decay_ratio of the earlier half's (logs above the tolerance, halves of at least min_span moving
+  // bars) does not decay (effectiveDecay); the scaling rule is fitted with every whole-number parameter raised by each
+  // factor of `raise` (the first each alone and all together, the next all together) and checked, rung by rung, at the
+  // factor of `checks` beside it and at `lower`, the rule's windows scaling_margin above the fitted curve; every number
+  // parameter is tried at each of number_factors (effectiveScaling)
+  effective: Object.freeze({
+    seed: 20261125, shapes: EFFECT_SHAPES, tolerance: 1e-3, probe_tolerance: 1e-5, cut_from: 30, cut_every: 37, room: 1000, margin: 300,
+    min_span: 10, end_ratio: 10, decay_ratio: 1.25, raise: Object.freeze([2, 4]), checks: Object.freeze([1.5, 3]), lower: 0.5,
+    number_factors: Object.freeze([0.5, 2]), scaling_margin: 0.05,
+  }),
 });
 
 function mulberry32(seed) {
@@ -175,18 +213,34 @@ export function fixture(opts = {}) {
   }
   return { O, H, L, C, V, T };
 }
-/** The OHLCV bars of one reach shape (PROBE.reach.shapes), built as fixture() builds its bars (the same open, high,
-    low and volume noise, weekday dates from PROBE.start), the close following the shape's stretches. Pure function of
-    the shape and `seed` (PROBE.reach.seed plus the shape's index). */
+/** The OHLCV bars of one shape (PROBE.reach.shapes, PROBE.effective.shapes), built as fixture() builds its bars (the
+    same open, high, low and volume noise, weekday dates from PROBE.start), the close following the shape's stretches.
+    The effective probe's stretches may add `jump` ({p, size}: on a share p of the bars a move of size up or down),
+    `volume_vol` (the sd of the log volume, 0.6 otherwise), `volume_level` (the volume's level, 1 otherwise; at least
+    one share), `flat` (open, high, low and close equal to the last close), `idle` (on that share of the bars a session
+    without trades: the prices of `flat` and no volume) or `tick` and `floor` (every price rounded to the tick, never
+    below the floor); a stretch without them draws the same numbers in the same order as before they existed, so the
+    reach probe's shapes are unchanged. Pure function of the shape and `seed`. */
 export function shapeFixture(shape, seed) {
   const rnd = mulberry32(seed), g = () => { const u = 1 - rnd(), v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) };
   const O = [], H = [], L = [], C = [], V = [], T = [], c0 = 1000;
   let c = c0, t = Date.parse(`${PROBE.start}T00:00:00Z`);
   for (const s of shape.stretches) for (let k = 0; k < s.bars; k++) {
-    const o = c * (1 + 0.004 * g()), mu = s.revert !== undefined ? s.revert * Math.log(c0 / c) : s.drift;
-    c = c * Math.exp(mu + s.vol * g());
-    O.push(o); C.push(c); H.push(Math.max(o, c) * (1 + 0.008 * Math.abs(g()))); L.push(Math.min(o, c) * (1 - 0.008 * Math.abs(g())));
-    V.push(Math.round(1e6 * Math.exp(0.6 * g())));
+    const idle = s.idle !== undefined && rnd() < s.idle;
+    if (s.flat || idle) { O.push(c); H.push(c); L.push(c); C.push(c) }
+    else {
+      const o = c * (1 + 0.004 * g()), mu = s.revert !== undefined ? s.revert * Math.log(c0 / c) : s.drift;
+      let r = mu + s.vol * g();
+      if (s.jump && rnd() < s.jump.p) r += (rnd() < 0.5 ? -1 : 1) * Math.log(1 + s.jump.size);
+      c = c * Math.exp(r);
+      let h = Math.max(o, c) * (1 + 0.008 * Math.abs(g())), l = Math.min(o, c) * (1 - 0.008 * Math.abs(g())), oo = o;
+      if (s.tick) {
+        const q = x => Math.max(s.floor ?? s.tick, Math.round(x / s.tick) * s.tick);
+        oo = q(o); c = q(c); h = Math.max(oo, c, q(h)); l = Math.min(oo, c, q(l));
+      }
+      O.push(oo); C.push(c); H.push(h); L.push(l);
+    }
+    V.push(idle ? 0 : Math.max(1, Math.round(1e6 * (s.volume_level ?? 1) * Math.exp((s.volume_vol ?? 0.6) * g()))));
     while ([0, 6].includes(new Date(t).getUTCDay())) t += 864e5;
     T.push(new Date(t).toISOString().slice(0, 10)); t += 864e5;
   }
@@ -201,7 +255,7 @@ const isN = v => typeof v === 'number' && Number.isFinite(v);
 const finite = s => s.filter(isN);
 const firstValid = s => { const i = s.findIndex(isN); return i < 0 ? null : i };
 /** A series' magnitude for tolerances: its 99th percentile absolute value (1 when it has none). */
-function scaleOf(s) { const v = finite(s).map(Math.abs).sort((a, b) => a - b); return v.length ? Math.max(v[Math.floor((v.length - 1) * 0.99)], 1e-12) : 1 }
+export function scaleOf(s) { const v = finite(s).map(Math.abs).sort((a, b) => a - b); return v.length ? Math.max(v[Math.floor((v.length - 1) * 0.99)], 1e-12) : 1 }
 /** other[i] equals f(base[i]) on every bar from unit_from on where both are finite, the two have the same finite bars
     (on every bar), and there are at least min_common_bars such bars; equality within unit_tolerance x the larger
     magnitude. A unit is a property of the series once its start has decayed (ERRORS M555): a recursion that starts
@@ -283,6 +337,252 @@ export function reachProbe(run, outputs) {
     depends on the start forever, which the page notes as such). Its reach is not bounded by a parameter (the last swing
     of Alpha Divergence can be a year old), and the contract has no window longer than the first valid bar. */
 export const reachClass = (cutClass, beyond) => cutClass === 'window' && beyond > 0 ? 'recursive' : cutClass;
+
+/* ---- the effective window (UD55; the user 2026-11-25, "3. Ok boleh": option (a) at 0.1 %; src/core/effective.ts) ----
+   A recursive output reads its whole history, but a bar far enough back moves its value by less than the tolerance.
+   The effective window is that distance, in moving bars (effective.ts: a bar moves on the output's fields when each of
+   them changes), measured here per output and configuration on the shapes of PROBE.effective, as the cut probe
+   measures: the output recomputed from a cut against the full history. The user's tolerance is 0.1 % of the output's
+   magnitude (PROBE.effective.tolerance; scaleOf, so a value near zero is not judged on its own size); the window is
+   measured at probe_tolerance, a hundred times tighter, because a cut of a synthetic shape leaves a smaller gap than
+   real prices do: on the eight real-price fixtures the windows at 0.1 % were up to 1.5 times those of the shapes at
+   0.1 % (EMA 20: 67 sessions on DEWI against 44), and the decay of a recursion is geometric, so a hundred times the
+   tolerance covers a gap a hundred times larger. A price break is a larger gap than a cut: an unadjusted split of 1:5,
+   1:2 or 2:1 planted on the fixtures every 97 bars moves every output by more than 0.1 % of its magnitude for at most
+   0.78 of its window (measured 2026-11-25). The eight fixtures test both at 0.1 % (tests/core/reach.test.mjs). An
+   output gets no window, and keeps the whole history, when its values are
+   whole numbers (a flag, a direction, a category: a difference far below the tolerance in the recursion beneath can
+   flip it at any later bar), when a difference lasts to the end of a shape (not bounded), or when it does not decay
+   (effectiveDecay: a level held until a later bar resets it, the Parabolic SAR or a ratcheting band, or one a
+   stochastic of a flat series amplifies). An output the reach probe moved out of window (a state a later swing rebuilds,
+   UD36) keeps the whole history too: its reach is not bounded by a parameter (reachClass). */
+
+/** One cut of the effective probe for one output (`full` and `cut` its series, `moving` the moving bars of the full
+    bars on its fields, `tol` the tolerance in its units): the moving bars from the cut's own bar to the last bar where
+    the output recomputed from the cut still differs from the full history (a value against none, or more than tol),
+    whether that difference is still there in a shape's last PROBE.effective.margin bars (open: not bounded), and the
+    cut's decay ratio (effectiveDecay). */
+export function effectiveCut(full, cut, cutAt, moving, tol) {
+  let last = -1;
+  for (let i = 0; i < cut.length && cutAt + i < full.length; i++) {
+    const a = cut[i], b = full[cutAt + i];
+    if (isN(a) !== isN(b) || (isN(a) && Math.abs(a - b) > tol)) last = i;
+  }
+  let count = 0;
+  for (let i = 0; i <= last; i++) count += moving[cutAt + i];
+  return { moving: count, open: last >= 0 && cutAt + last >= full.length - PROBE.effective.margin, ...effectiveDecay(full, cut, cutAt, moving, tol, last) };
+}
+/** How one cut's difference ends (`last`: the last bar where it exceeds the tolerance `tol`), two ratios:
+    - `decay`: the bars from the first where both have a value to `last`, split into two halves of moving bars; the log
+      of the largest difference over the tolerance on the moving bars of the later half, divided by that of the earlier
+      half (a value against none counts as infinite). A geometric decay (an EMA's (1 - alpha)^k) gives about a half, a
+      difference a stochastic of a quiet series amplifies more than 1. 0 when the stretch holds fewer than
+      PROBE.effective.min_span moving bars (too short to tell). Only moving bars count: on a bar that does not move a
+      recursion holds its difference (RSI on a pinned price) and forgets it again once prices move;
+    - `end`: the difference on `last` over the tolerance (infinite for a value against none). A recursion forgets a
+      little on every bar, so its difference falls under the tolerance from just above it (an EMA of length n by a factor
+      1 - 2 / (n + 1) a bar: at most 3 at n = 2); a difference that ends far above it was reset at once (a Parabolic SAR
+      at a reversal, a ratcheting band at a flip, a swing level at a new swing), and such a reset can come at any later
+      bar. */
+export function effectiveDecay(full, cut, cutAt, moving, tol, last) {
+  const diff = i => { const a = cut[i], b = full[cutAt + i]; return isN(a) && isN(b) ? Math.abs(a - b) : isN(a) !== isN(b) ? Infinity : 0 };
+  let f0 = -1;
+  for (let i = 0; i <= last; i++) if (isN(cut[i]) && isN(full[cutAt + i])) { f0 = i; break }
+  // only the cut's warm-up differs (it has no value where the full history has one): nothing left to decay
+  if (f0 < 0) return { decay: 0, end: 0 };
+  // the end is read only where the difference ends inside moving bars (the min_span bars up to `last` and the one after
+  // it): after bars that did not move, a recursion's averages have shrunk while its value held (RSI on a pinned price),
+  // so the first moving bar ends the difference at once without a reset
+  let steady = cutAt + last + 1 < full.length && !!moving[cutAt + last + 1];
+  for (let i = Math.max(0, last - PROBE.effective.min_span + 1); i <= last && steady; i++) steady = !!moving[cutAt + i];
+  const end = steady ? diff(last) / tol : 0;
+  let span = 0;
+  for (let i = f0; i <= last; i++) span += moving[cutAt + i];
+  if (span < PROBE.effective.min_span) return { decay: 0, end };
+  let k = 0, m1 = 0, m2 = 0;
+  for (let i = f0; i <= last; i++) {
+    if (!moving[cutAt + i]) continue;
+    const d = diff(i);
+    if (k < span / 2) m1 = Math.max(m1, d); else m2 = Math.max(m2, d);
+    k++;
+  }
+  const l1 = Math.log(Math.max(m1, tol) / tol), l2 = Math.log(Math.max(m2, tol) / tol);
+  return { decay: l2 === Infinity ? Infinity : l1 > 0 ? l2 / l1 : l2 > 0 ? Infinity : 0, end };
+}
+/** The reasons an output with the class recursive has no effective window (it reads the whole history): its values are
+    whole numbers, a difference lasts to the end of a shape (not bounded), a difference ends far above the tolerance
+    (reset), a difference grows (no decay), or the reach probe moved it out of window (reachClass). */
+export const EFFECTIVE_REASONS = ['discrete', 'not_bounded', 'reset', 'no_decay', 'reach'];
+/** A ratio of effectiveDecay as the registry writes it: three significant digits, null for infinite. */
+const ratio3 = x => Number.isFinite(x) ? Number(x.toPrecision(3)) : null;
+/** Effective-window probe (UD55) of `outputs` at one configuration (`run` computes the indicator there): on every shape
+    of PROBE.effective at every cut, effectiveCut at probe_tolerance times the output's magnitude on that shape, the
+    moving bars counted on the output's fields there (`fieldsOf`). Per output: `bars`, the effective window (the most
+    moving bars any cut still differs on, plus one: at bar t the value equals the full history's within the tolerance,
+    whatever the bars before the first of the `bars` moving bars ending at t held), and `at`, the shape and the cut that
+    gave it; or bars null with the reason (EFFECTIVE_REASONS) and the shape and cut that showed it; `decay` and `end`,
+    the largest of each ratio over every cut (effectiveDecay; null: infinite). */
+export function effectiveProbe(run, outputs, fieldsOf) {
+  const E = PROBE.effective;
+  const res = Object.fromEntries(outputs.map(o => [o, { moving: 0, at: null, open: null, decay: 0, decayAt: null, end: 0, endAt: null, whole: true, values: 0 }]));
+  E.shapes.forEach((shape, k) => {
+    const B = shapeFixture(shape, E.seed + k), full = run(B);
+    const mv = Object.fromEntries(outputs.map(o => [o, movingBars(B, fieldsOf(o))]));
+    const tol = Object.fromEntries(outputs.map(o => [o, E.probe_tolerance * scaleOf(full[o])]));
+    for (const o of outputs) for (const v of full[o]) if (isN(v)) { res[o].values++; if (!Number.isInteger(v)) res[o].whole = false }
+    for (let c = E.cut_from; B.C.length - c >= E.room; c += E.cut_every) {
+      const part = run(sliceBars(B, c));
+      for (const o of outputs) {
+        const x = effectiveCut(full[o], part[o], c, mv[o], tol[o]), r = res[o];
+        if (x.open && !r.open) r.open = `${shape.name}@${c}`;
+        if (x.moving > r.moving) { r.moving = x.moving; r.at = `${shape.name}@${c}` }
+        if (x.decay > r.decay) { r.decay = x.decay; r.decayAt = `${shape.name}@${c}` }
+        if (x.end > r.end) { r.end = x.end; r.endAt = `${shape.name}@${c}` }
+      }
+    }
+  });
+  return Object.fromEntries(outputs.map(o => {
+    const r = res[o], ratios = { decay: ratio3(r.decay), end: ratio3(r.end) };
+    if (r.whole && r.values) return [o, { bars: null, reason: 'discrete', at: null }];
+    if (r.open) return [o, { bars: null, reason: 'not_bounded', at: r.open, ...ratios }];
+    if (r.end > E.end_ratio) return [o, { bars: null, reason: 'reset', at: r.endAt, ...ratios }];
+    if (r.decay >= E.decay_ratio) return [o, { bars: null, reason: 'no_decay', at: r.decayAt, ...ratios }];
+    return [o, { bars: r.moving + 1, reason: null, at: r.at, ...ratios }];
+  }));
+}
+/** The value of whole-number or number parameter p at `factor` times its start value `v`, within its range (a whole
+    number rounded, at least 1, above an exclusive minimum), or null when that is the start value itself. */
+function scaledParam(p, v, factor) {
+  let x = v * factor;
+  if (p.integer) x = factor >= 1 ? Math.round(x) : Math.floor(x);
+  if (p.max !== undefined) x = Math.min(p.max, x);
+  const lo = p.min !== undefined ? p.min : p.integer ? 1 : -Infinity;
+  if (p.exclusive_min ? x <= lo : x < lo) { if (!p.integer) return null; x = p.exclusive_min ? lo + 1 : lo }
+  if (p.integer) x = Math.max(1, x);
+  return x === v ? null : x;
+}
+/** The scaling rule of the effective windows `W0` (output -> bars at the start configuration `base`) of one indicator
+    (UD55: "RSI 100 remembers longer than RSI 14"). `probeAt(over)` is effectiveProbe of those outputs with `over`
+    applied to the start configuration; `params` the indicator's parameters as the registry writes them (integer, min,
+    max, exclusive_min). The rule, per output:
+      W(p) = W0 at R = 1, else ceil(W0 x R^exponent x (1 + margin))  for R <= max_ratio,
+      R = max(1, the largest p_k / start_k over the whole-number parameters);
+    a recursion's memory grows about in proportion to its lengths, and the exponent (at least 1, rounded up to three
+    decimals) takes up what grows faster (a longer EMA lags further, so a cut leaves it a larger gap: 98, 150, 199 and
+    440 bars at lengths 20, 30, 40 and 80). It is fitted and checked rung by rung, on the factors of PROBE.effective.raise:
+    on the first, every whole-number parameter raised by it alone and all of them together, on each later one all
+    together; the exponent is the smallest that holds on every probe of the rung and the ones before, and the rung
+    stands when the rule also holds at the factor of `checks` beside it (all together, a setting it was not fitted on).
+    The window of a probe is a maximum over cuts, so at a setting between two fitted ones another cut can lead and the
+    window lie a bar or two above the fitted curve (EMA 30: 150 bars, the curve through 98 and 199 gives 148.3): the
+    rule's windows stand PROBE.effective.scaling_margin (5 %) above it, and the check holds them to that. max_ratio is the
+    largest factor whose rung stands (1: none): above it, where the rule was not shown to hold, the output reads the
+    whole history. A probe without a window (a difference not bounded, reset or growing) or above the rule ends the
+    rungs there. `lower` (all together at PROBE.effective.lower) must not remember longer than W0, so a setting with a
+    parameter below its start value reads W0 at R = 1 only when that holds. Every number parameter (not a whole number)
+    is tried alone at each of number_factors x its start value: number_ranges[key] is the range of the tried values, the
+    start value with them, whose window stays at most W0; outside it the output reads the whole history. `probes`
+    records every measurement (role fit, check, lower or number) and `stopped` why the rungs ended, if they did. */
+export function effectiveScaling(probeAt, params, base, W0) {
+  const E = PROBE.effective, outs = Object.keys(W0);
+  const ints = params.filter(p => p.integer && isN(base[p.key]) && base[p.key] > 0);
+  const nums = params.filter(p => p.type === 'number' && !p.integer && isN(base[p.key]) && base[p.key] !== 0);
+  const ratio = over => Math.max(1, ...ints.map(p => (over[p.key] ?? base[p.key]) / base[p.key]));
+  const all = f => Object.fromEntries(ints.map(p => [p.key, scaledParam(p, base[p.key], f)]).filter(([, v]) => v !== null));
+  const out = Object.fromEntries(outs.map(o => [o, { whole_number: ints.map(p => p.key), exponent: 1, margin: E.scaling_margin, max_ratio: 1, lower: true, number_ranges: {}, probes: [], stopped: null }]));
+  const measure = (over, role) => {
+    const got = probeAt(over);
+    for (const o of outs) out[o].probes.push({ role, params: over, ratio: ratio(over), bars: got[o].bars });
+    return got;
+  };
+  const low = all(E.lower);
+  if (Object.keys(low).length) {
+    const got = measure(low, 'lower');
+    for (const o of outs) if (got[o].bars === null || got[o].bars > W0[o]) out[o].lower = false;
+  }
+  let alive = [...outs];
+  E.raise.forEach((f, rung) => {
+    const top = all(f), fits = rung ? [top] : [...Object.entries(top).map(([k, v]) => ({ [k]: v })), ...(Object.keys(top).length > 1 ? [top] : [])];
+    if (!alive.length || !Object.keys(top).length) return;
+    const cand = Object.fromEntries(alive.map(o => [o, out[o].exponent])), failed = {};
+    const fit = (got, over) => { const R = ratio(over); for (const o of alive) { const b = got[o].bars;
+      if (b === null) failed[o] ??= `${JSON.stringify(over)}: ${got[o].reason}`;
+      else if (R > 1 && b > W0[o]) cand[o] = Math.max(cand[o], Math.log(b / W0[o]) / Math.log(R)) } };
+    for (const over of fits) fit(measure(over, 'fit'), over);
+    for (const o of alive) cand[o] = Math.ceil(cand[o] * 1000 - 1e-9) / 1000;
+    const chk = all(E.checks[rung]);
+    if (Object.keys(chk).length) {
+      const got = measure(chk, 'check'), R = ratio(chk);
+      for (const o of alive) { const b = got[o].bars, bound = Math.ceil(W0[o] * R ** cand[o] * (1 + E.scaling_margin));
+        if (b === null) failed[o] ??= `${JSON.stringify(chk)}: ${got[o].reason}`;
+        else if (b > bound) failed[o] ??= `${JSON.stringify(chk)}: ${b} bars, above the rule's ${bound}`; }
+    }
+    for (const o of alive) {
+      if (failed[o]) { out[o].stopped = `x${f}: at ${failed[o]}`; continue }
+      out[o].exponent = cand[o]; out[o].max_ratio = ratio(top);
+    }
+    alive = alive.filter(o => !failed[o]);
+  });
+  for (const p of nums) {
+    const tried = E.number_factors.map(f => scaledParam(p, base[p.key], f)).filter(v => v !== null);
+    const ok = Object.fromEntries(outs.map(o => [o, [base[p.key]]]));
+    for (const v of tried) {
+      const got = measure({ [p.key]: v }, 'number');
+      for (const o of outs) if (got[o].bars !== null && got[o].bars <= W0[o]) ok[o].push(v);
+    }
+    for (const o of outs) out[o].number_ranges[p.key] = [Math.min(...ok[o]), Math.max(...ok[o])];
+  }
+  return out;
+}
+
+/** The history classes in order of how much history they read; where several apply, the worst one holds. */
+export const HISTORY_ORDER = ['window', 'calendar', 'recursive', 'cumulative'];
+export const worstClass = classes => classes.reduce((w, c) => HISTORY_ORDER.indexOf(c) > HISTORY_ORDER.indexOf(w) ? c : w, 'window');
+/** UD52 (the user 2026-11-25, "3. Ok boleh": option (a), "one class per output and setting (the generator probes each
+    basis; the remark rule reads the class of the setting in use)"): Bollinger Bands, %B and Band Width read a window at
+    the SMA basis and the whole history at EMA or RMA, ATR a window at SMA or WMA smoothing, so one class per output was
+    wrong at some settings. Per output: `byOption` (history_by_option) param -> option -> the history at that option with
+    every other parameter at the start configuration (historyAt: the class, and for a recursive output its effective
+    window there, without a scaling rule), for every offered option of every enum parameter and both values of every
+    switch (as inputs_by_source probes each option), kept only where it differs from the start configuration's;
+    `combined` (history_class_combined) the worst class over every combination of two or more options away from the
+    start, kept only for an output where some combination reads more history than the worst of its options alone (the
+    rule the lookback reads otherwise, registry.ts historyOf), so no setting is classed below what it reads; `scaling`,
+    `scale` of the start configuration's effective windows (effectiveScaling). An anchored indicator is calendar at
+    every option (historyClass). `params` the registry's parameters, `defaults` the start configuration, `start`
+    historyAt({}). */
+export function historyByOption(params, defaults, hasAnchor, start, historyAt, scale) {
+  const outs = Object.keys(start), choosers = params.filter(p => p.type === 'enum' || p.type === 'boolean');
+  const optionsOf = p => p.type === 'boolean' ? [false, true] : p.options;
+  // the same lookback: the class, and the window's bars (two outputs without a window read the whole history alike)
+  const same = (a, b) => a.history_class === b.history_class && (a.effective_window?.bars ?? null) === (b.effective_window?.bars ?? null);
+  const byOption = {};
+  for (const p of choosers) for (const v of optionsOf(p)) {
+    if (v === defaults[p.key]) continue;
+    const h = historyAt({ [p.key]: v });
+    for (const o of outs) if (h[o] && !same(h[o], start[o])) ((byOption[o] ??= {})[p.key] ??= {})[String(v)] = h[o];
+  }
+  const combined = {};
+  if (!hasAnchor && choosers.length > 1) {
+    const worstSeen = {}, under = new Set();
+    let combos = [[]];
+    for (const p of choosers) combos = combos.flatMap(c => optionsOf(p).map(v => [...c, [p.key, v]]));
+    for (const combo of combos) {
+      const differing = combo.filter(([k, v]) => v !== defaults[k]);
+      if (differing.length < 2) continue;
+      const h = historyAt(Object.fromEntries(differing), false);
+      for (const o of outs) {
+        if (!h[o]) continue;
+        const predicted = worstClass(differing.map(([k, v]) => byOption[o]?.[k]?.[String(v)]?.history_class ?? start[o].history_class));
+        worstSeen[o] = worstClass([worstSeen[o] ?? 'window', h[o].history_class]);
+        if (HISTORY_ORDER.indexOf(h[o].history_class) > HISTORY_ORDER.indexOf(predicted)) under.add(o);
+      }
+    }
+    for (const o of under) combined[o] = worstSeen[o];
+  }
+  const W0 = Object.fromEntries(outs.filter(o => start[o].effective_window?.bars).map(o => [o, start[o].effective_window.bars]));
+  return { byOption, combined, scaling: Object.keys(W0).length ? scale(W0) : {} };
+}
 
 /** Scaling and shift probes: OHLC x k, volume x m, OHLC + s, volume + sv. A price level scales with k and moves with s
     (comparable with close); a price change scales with k and ignores s; a volume level scales with m and moves with sv
@@ -1015,10 +1315,25 @@ export async function build({ against = null } = {}) {
     // the scaling and lag probes may run at the overlay's probe configuration (with evidence; today I43, whose registry
     // default anchor makes its bands degenerate); every other field is measured at the start configuration
     const probeParams = ov.probe ? resolveParams(BY_ID[r.id], { ...ov.probe.params }, `overlay ${r.id}.probe.params`) : {};
-    const full = run(B), cutOut = run(cut), units = unitProbe(b => run(b, probeParams), B), atProbe = run(B, probeParams);
-    // the history class: the cut probe, then the reach probe on the price shapes for the outputs it finds window (UD36)
-    const cutClass = Object.fromEntries(r.outputs.map(o => [o, historyClass(full[o], cutOut[o], PROBE.cut_at, hasAnchor)]));
-    const windowOuts = r.outputs.filter(o => cutClass[o] === 'window'), reach = windowOuts.length ? reachProbe(b => run(b), windowOuts) : {};
+    const full = run(B), units = unitProbe(b => run(b, probeParams), B), atProbe = run(B, probeParams);
+    /* the history class per output at a configuration (`over` applied to the start configuration): the cut probe, then the
+       reach probe on the price shapes for the outputs it finds window (UD36), then (withWindows) the effective probe for
+       the outputs it finds recursive, on their fields there (the poison probe's; UD55). An output without any value at
+       `over` has no entry (no condition reads it there: inputsOf gives [], validate.ts refuses it). */
+    const historyAt = (over, withWindows = true) => {
+      const f = run(B, over), c = run(cut, over), valued = r.outputs.filter(o => f[o].some(isN));
+      const cls = Object.fromEntries(valued.map(o => [o, historyClass(f[o], c[o], PROBE.cut_at, hasAnchor)]));
+      const win = valued.filter(o => cls[o] === 'window'), reach = win.length ? reachProbe(b => run(b, over), win) : {};
+      const rec = withWindows ? valued.filter(o => cls[o] === 'recursive') : [];
+      const fields = rec.length ? inputsProbe(b => run(b, over), B, r.outputs) : {};
+      const eff = rec.length ? effectiveProbe(b => run(b, over), rec, o => fields[o]) : {};
+      return Object.fromEntries(valued.map(o => {
+        const h = reachClass(cls[o], reach[o]?.beyond ?? 0);
+        if (h !== 'recursive' || !withWindows) return [o, { history_class: h }];
+        return [o, { history_class: h, effective_window: cls[o] === 'recursive' ? eff[o] : { bars: null, reason: 'reach', at: `${reach[o].shape}@${reach[o].cut}` } }];
+      }));
+    };
+    const startHistory = historyAt({});
     const inputs = inputsProbe(b => run(b), B, r.outputs);
     const inputsBy = {};
     for (const p of r.params.filter(q => q.type === 'enum')) {
@@ -1057,6 +1372,8 @@ export async function build({ against = null } = {}) {
       }
       return q;
     });
+    const { byOption, combined, scaling } = historyByOption(params, defaults, hasAnchor, startHistory, historyAt,
+      W0 => effectiveScaling(over => effectiveProbe(b => run(b, over), Object.keys(W0), o => inputs[o]), params, defaults, W0));
     const outputs = r.outputs.map(o => {
       const to = ti.outs.find(x => x.k === o), u = units[o], spec = ov.outputs[o];
       const field = u.comparable_with === 'close' ? B.C : u.comparable_with === 'volume' ? B.V : null;
@@ -1081,15 +1398,20 @@ export async function build({ against = null } = {}) {
         ...(!(spec.tests || []).length && ti.outs.some(x => x.paletteFrom === o) ? { drawing_only: true } : {}),
         unit: u.unit, level_comparable: u.comparable_with !== null, comparable_with: u.comparable_with,
         price_compare_lag: field ? compareLag(field, atProbe[o]) : { gt: 0, lt: 0 },
-        history_class: reachClass(cutClass[o], reach[o]?.beyond ?? 0),
+        history_class: startHistory[o].history_class,
+        // UD55: a recursive output's effective window at the start configuration, with its scaling rule; UD52: the class
+        // (and window) of each enum or switch option that differs from the start configuration's, and the class of two
+        // or more options together where the worst of theirs does not hold (historyByOption)
+        ...(startHistory[o].effective_window ? { effective_window: { ...startHistory[o].effective_window, ...(scaling[o] ? { scaling: scaling[o] } : {}) } } : {}),
+        ...(byOption[o] ? { history_by_option: byOption[o] } : {}),
+        ...(combined[o] ? { history_class_combined: combined[o] } : {}),
         first_valid_bar: firstValid(full[o]),
         inputs: inputs[o],
         inputs_by_source: Object.fromEntries(Object.entries(inputsBy).map(([k, opts]) => [k, Object.fromEntries(Object.entries(opts).map(([opt, per]) => [opt, per[o]]))])),
         tests: spec.tests || [], disabled_tests: spec.disabled_tests || [],
       };
     });
-    const ORDER = ['window', 'calendar', 'recursive', 'cumulative'];
-    const history = outputs.reduce((h, o) => ORDER.indexOf(o.history_class) > ORDER.indexOf(h) ? o.history_class : h, 'window');
+    const history = worstClass(outputs.map(o => o.history_class));
     const orc = oracle[r.id] || { oracle: [], oracle_note: null };
     const oracleRows = orc.oracle.map(e => {
       if (!r.outputs.includes(e.output)) throw new Error(`oracle ${r.id}: ${e.output} is not an output`);
@@ -1127,7 +1449,7 @@ export async function build({ against = null } = {}) {
     generated_by: PATHS.generator,
     sources: Object.entries({ base: PATHS.base, terminal: PATHS.terminal, calc: PATHS.calc, overlay: PATHS.overlay, oracle: PATHS.spec, generator: PATHS.generator,
       flow_registry: PATHS.flowRegistry, flow_kinds: PATHS.flowKinds, flow_calc: PATHS.flowCalc, flow_probe: PATHS.flowProbe, flow_screener: PATHS.flowScreener,
-      candle_registry: PATHS.candleRegistry, candles: PATHS.candles })
+      candle_registry: PATHS.candleRegistry, candles: PATHS.candles, effective: PATHS.effective })
       .map(([role, file]) => ({ role, file, sha256: sha256(fs.readFileSync(at(file))) })),
     probe: PROBE,
     cost_model: overlay.cost_model,

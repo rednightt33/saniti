@@ -15,6 +15,7 @@ import { F } from '../../../terminal/src/calc/indicators.ts';
 import type { Bars } from '../../../terminal/src/calc/indicators.ts';
 import type { Cell, Definition, UniverseRow } from '../../src/core/contract.ts';
 import { bindCondition } from '../../src/core/condition.ts';
+import { SBY_ID } from '../../src/core/registry.ts';
 import { runScreen } from '../../src/core/screen.ts';
 import type { TickerBars } from '../../src/core/metrics.ts';
 import { validateDefinition } from '../../src/core/validate.ts';
@@ -140,6 +141,36 @@ function eventCell(t: TickerBars, at: number, row: UniverseRow, signal: (i: numb
     market_sessions_ago: j === null ? null : sessionsBetween(t.dates[j], t.dates[at]), last_event_date: k === null ? null : t.dates[k], ...remarkOf(row, t, at, los) };
 }
 const crossLos = (sides: Side[], at: number, within: number) => sides.filter(x => typeof x.s !== 'number').map(x => x.lo ? x.lo(at - within) : null);
+/** UD55, the oracle's own reading of an effective window (the registry's numbers are the data, as F is the formula
+    authority; the rule is EXEC-PRICE-DISTORTION's, the user 2026-11-25 "3. Ok boleh"): the value of a recursive output
+    at bar i reads back to the first of W moving bars ending at i, and at least its first full window (i - its first
+    value), W the start configuration's window at the start lengths, ceil(W x R^exponent x (1 + margin)) for
+    1 < R <= max_ratio (R the largest ratio of a length to its start value), a shorter length only with `lower`; any
+    other setting reads the whole history (null). A bar moves when the close, these outputs' input, is finite and differs
+    from the bar before's; bar 0 moves; too few moving bars: -1. */
+function effLo(t: TickerBars, id: string, output: string, params: Record<string, number>, s: S): ((i: number) => number) | null {
+  const ind = SBY_ID[id], e = ind.outputs.find(x => x.key === output)!.effective_window, sc = e?.scaling;
+  if (!e || e.bars === null || !sc) return null;
+  let R = 1, lower = false;
+  for (const [k, v] of Object.entries(params)) {
+    const v0 = ind.start_params[k] as number;
+    if (v === v0) continue;
+    if (!sc.whole_number.includes(k)) return null;
+    if (v < v0) lower = true;
+    R = Math.max(R, v / v0);
+  }
+  if ((lower && !sc.lower) || R > sc.max_ratio) return null;
+  const W = R > 1 ? Math.ceil(e.bars * R ** sc.exponent * (1 + sc.margin)) : e.bars, C = bar(t, 'C');
+  let first = -1;
+  for (let i = 0; i < s.length && first < 0; i++) if (fin(s[i])) first = i;
+  if (first < 0) return null;
+  return i => {
+    let moving = 0;
+    for (let k = i; k >= 0; k--) if ((k === 0 || (fin(C[k]) && C[k] !== C[k - 1])) && ++moving >= W) return Math.min(k, i - first);
+    return Math.min(-1, i - first);
+  };
+}
+const recSide = (t: TickerBars, id: string, key: string, output: string, params: Record<string, number>): Side => { const s = f(t, key, params, output); return { s, lo: effLo(t, id, output, params, s) } };
 
 /* ---- templates (random parameters; the oracle's sides) ------------------------------------------------------------- */
 
@@ -153,10 +184,10 @@ const int = (r: () => number, a: number, b: number) => a + Math.floor(r() * (b -
 function template(r: () => number): Template {
   const kind = int(r, 0, 22), W = pick(r, [1, 2, 5, int(r, 1, WITHIN_MAX), WITHIN_MAX] as const);
   switch (kind) {
-    case 0: {                                                                  // VALUE RSI (recursive)
+    case 0: {                                                                  // VALUE RSI (recursive, its effective window)
       const n = int(r, 2, 30), op = pick(r, ['gt', 'lt', 'between'] as const), v = int(r, 20, 70), v2 = v + int(r, 0, 25);
       return { test: { kind: 'value', metric: ref('I13', 'rsi', { length: n }), op, value: v, ...(op === 'between' ? { value2: v2 } : {}) },
-        cell: (t, at, row) => valueCell(t, at, row, { s: f(t, 'rsi', { length: n }, 'rsi'), lo: null }, x => op === 'gt' ? x > v : op === 'lt' ? x < v : x >= v && x <= v2) };
+        cell: (t, at, row) => valueCell(t, at, row, recSide(t, 'I13', 'rsi', 'rsi', { length: n }), x => op === 'gt' ? x > v : op === 'lt' ? x < v : x >= v && x <= v2) };
     }
     case 1: {                                                                  // STATE close vs SMA (window)
       const n = int(r, 2, 120), op = pick(r, ['gt', 'lt'] as const);
@@ -170,7 +201,7 @@ function template(r: () => number): Template {
     case 3: {                                                                  // STATE MACD above its signal (outputs of one instance)
       const p = { fast_length: int(r, 3, 15), slow_length: int(r, 16, 40), signal_length: int(r, 2, 12) };
       return { test: { kind: 'state', lhs: ref('I06', 'macd', p), op: 'gt', rhs: ref('I06', 'signal', p) },
-        cell: (t, at, row) => stateCell(t, at, row, { s: f(t, 'macd', p, 'macd'), lo: null }, 'gt', { s: f(t, 'macd', p, 'signal'), lo: null }) };
+        cell: (t, at, row) => stateCell(t, at, row, recSide(t, 'I06', 'macd', 'macd', p), 'gt', recSide(t, 'I06', 'macd', 'signal', p)) };
     }
     case 4: {                                                                  // STATE SMA(fast) above SMA(slow) (two instances)
       const a = int(r, 2, 40), b = a + int(r, 1, 80);
@@ -184,12 +215,12 @@ function template(r: () => number): Template {
     case 6: {                                                                  // EVENT MACD crosses its signal
       const p = { fast_length: int(r, 3, 15), slow_length: int(r, 16, 40), signal_length: int(r, 2, 12) }, up = r() < 0.5;
       return { test: { kind: 'event', within: W, signal: { lhs: ref('I06', 'macd', p), op: up ? 'crosses_above' : 'crosses_below', rhs: ref('I06', 'signal', p) } },
-        cell: (t, at, row) => { const s: Side[] = [{ s: f(t, 'macd', p, 'macd'), lo: null }, { s: f(t, 'macd', p, 'signal'), lo: null }]; return eventCell(t, at, row, i => cross(s[0].s, s[1].s, i, up), W, s, crossLos(s, at, W)) } };
+        cell: (t, at, row) => { const s: Side[] = [recSide(t, 'I06', 'macd', 'macd', p), recSide(t, 'I06', 'macd', 'signal', p)]; return eventCell(t, at, row, i => cross(s[0].s, s[1].s, i, up), W, s, crossLos(s, at, W)) } };
     }
     case 7: {                                                                  // EVENT RSI crosses a level
       const n = int(r, 2, 30), v = int(r, 25, 75), up = r() < 0.5;
       return { test: { kind: 'event', within: W, signal: { lhs: ref('I13', 'rsi', { length: n }), op: up ? 'crosses_above' : 'crosses_below', rhs: { value: v } } },
-        cell: (t, at, row) => { const s: Side[] = [{ s: f(t, 'rsi', { length: n }, 'rsi'), lo: null }, { s: v, lo: null }]; return eventCell(t, at, row, i => cross(s[0].s, v, i, up), W, s, crossLos(s, at, W)) } };
+        cell: (t, at, row) => { const s: Side[] = [recSide(t, 'I13', 'rsi', 'rsi', { length: n }), { s: v, lo: null }]; return eventCell(t, at, row, i => cross(s[0].s, v, i, up), W, s, crossLos(s, at, W)) } };
     }
     case 8: {                                                                  // EVENT close crosses the prior Donchian band
       const n = int(r, 2, 60), up = r() < 0.5;

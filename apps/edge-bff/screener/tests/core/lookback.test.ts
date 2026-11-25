@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 import type { Definition, ParamMap, UniverseRow } from '../../src/core/contract.ts';
 import { UNIVERSE_DEFAULTS } from '../../src/core/contract.ts';
 import { tickerCalc } from '../../src/core/metrics.ts';
+import { SBY_ID } from '../../src/core/registry.ts';
 import { previewCells } from '../../src/core/screen.ts';
 import { IMPLEMENTED_PATTERNS, patternSignal, resolveSignal } from '../../src/core/transforms.ts';
 import { validateDefinition } from '../../src/core/validate.ts';
@@ -78,12 +79,14 @@ const U = { ...UNIVERSE_DEFAULTS, price_min: null, adv20_min_idr: null, exclude_
 const CTX = vctx(['PBSA', ...POP.map(t => t.ticker)]);
 const close = { kind: 'price', field: 'close' } as const, high = { kind: 'price', field: 'high' } as const;
 const ind = (indicator: string, output: string, params?: Record<string, unknown>) => ({ kind: 'indicator' as const, indicator, output, ...(params ? { params } : {}) });
-/** The remark of the one cell of `test` on PBSA with its ex-date on bar d. */
-function remarkAt(test: unknown, d: number): string | null {
+/** The preview of `test` on PBSA with its ex-date on bar d (its one cell, and the row's badges, D-1). */
+function previewAt(test: unknown, d: number) {
   const rows: UniverseRow[] = [rowOf(T0, E, {}, [{ code: 'PRICE_BREAK', action: 'STOCK_SPLIT', ex_date: T0.dates[d], ratio_old: 1, ratio_new: 2, close_ratio: 0.5 }]), ...POP.map(t => rowOf(t, E))];
   const def = validateDefinition({ universe: U, logic: 'all', conditions: [{ id: 'a', enabled: true, test }] }, CTX);
-  return previewCells(def, memoryEnv([T0, ...POP], IX, rows, E), 'PBSA').cells[0].remark;
+  return previewCells(def, memoryEnv([T0, ...POP], IX, rows, E), 'PBSA');
 }
+/** The remark of the one cell of `test` on PBSA with its ex-date on bar d. */
+const remarkAt = (test: unknown, d: number): string | null => previewAt(test, d).cells[0].remark;
 /** [condition, the first bar the value at AT reads]: the ex-date on that bar leaves the cell unmarked, one later marks it. */
 const W = 7, N = 20;
 const FORMS: [string, unknown, number][] = [
@@ -113,11 +116,36 @@ describe('PRICE_BREAK_IN_LOOKBACK at the edge of each lookback', () => {
       if (lo > 0) expect([name, remarkAt(test, lo - 1)]).toEqual([name, null]);
     });
   }
-  it('a recursive output (RSI) and a universe attribute: always marked after the ex-date / never marked', () => {
+  /* UD55 (EXEC-PRICE-DISTORTION, the user 2026-11-25 "3. Ok boleh"): a recursive output with an effective window (RSI:
+     the registry's effective_window, in moving bars of its close) is marked only while the ex-date lies inside its
+     window; one without (Stochastic RSI's K: a reset, no window) and RSI beyond its scaling rule (length 100: 7x its start,
+     past max_ratio) read the whole history and are marked for every earlier ex-date; a universe attribute never. */
+  it('a recursive output: RSI marked only inside its effective window, Stochastic RSI and RSI 100 always; a universe attribute never', () => {
+    const W = SBY_ID.I13.outputs.find(o => o.key === 'rsi')!.effective_window!.bars!;
+    expect(W).toBeGreaterThan(100);
+    expect(W).toBeLessThan(AT - 50);
+    // the first bar RSI's value at AT reads: the W-th moving bar (a close that differs from the one before) back from AT
+    const C = T0.bars.C as number[];
+    let moving = 0, first = -1;
+    for (let k = AT; k >= 0 && first < 0; k--) if ((k === 0 || C[k] !== C[k - 1]) && ++moving >= W) first = k;
+    expect(first).toBeGreaterThan(0);
+    const rsi = { kind: 'value', op: 'gt', value: -1, metric: ind('I13', 'rsi') };
+    expect(remarkAt(rsi, first)).toBe(null);                               // every bar it reads is after the break
+    expect(remarkAt(rsi, first + 1)).toBe('PRICE_BREAK_IN_LOOKBACK');      // the first one is before it
+    expect(remarkAt(rsi, AT - 20)).toBe('PRICE_BREAK_IN_LOOKBACK');        // a recent break: still marked
+    expect(remarkAt(rsi, 10)).toBe(null);                                  // a break far older than the window: no longer
+    // the row badge follows the cells (D-1): kept for the recent break, gone for the old one
+    const badges = (d: number) => previewAt(rsi, d).remarks.map(x => x.code);
+    expect([badges(AT - 20), badges(10)]).toEqual([['PRICE_BREAK'], []]);
+    // UD52: Bollinger's basis at EMA reads past its 20-bar SMA window (marked 40 bars after the break), at SMA it does not
+    const boll = (basis_ma_type: string) => ({ kind: 'state', lhs: close, op: 'gt', rhs: ind('I27', 'basis', { length: N, basis_ma_type }) });
+    expect([remarkAt(boll('SMA'), AT - 40), remarkAt(boll('EMA'), AT - 40), remarkAt(boll('EMA'), 10)]).toEqual([null, 'PRICE_BREAK_IN_LOOKBACK', null]);
+    expect(remarkAt({ kind: 'value', op: 'gt', value: -1, metric: ind('I13', 'rsi', { length: 100 }) }, 10)).toBe('PRICE_BREAK_IN_LOOKBACK');
+    expect(SBY_ID.I14.outputs.find(o => o.key === 'k')!.effective_window).toMatchObject({ bars: null, reason: 'reset' });
     const r = rng(5);
     for (let k = 0; k < 5; k++) {
       const d = 1 + Math.floor(r() * AT);
-      expect(remarkAt({ kind: 'value', op: 'gt', value: -1, metric: ind('I13', 'rsi') }, d)).toBe('PRICE_BREAK_IN_LOOKBACK');
+      expect(remarkAt({ kind: 'value', op: 'gt', value: -1, metric: ind('I14', 'k') }, d)).toBe('PRICE_BREAK_IN_LOOKBACK');
       expect(remarkAt({ kind: 'value', op: 'gt', value: -1e9, metric: { kind: 'universe', attr: 'chg_1d_pct' } }, d)).toBe(null);
     }
   });

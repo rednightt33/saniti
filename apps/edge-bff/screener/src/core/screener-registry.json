@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "6553a65ad0316fa5",
+  "screener_registry_version": "9c96395c452e9a62",
   "registry_version": "2a69cd7d3f01ceaf",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "ea802abec222b746881e93c754bba993191b31b700fcdfedbeafa76c72b5ec9c"
+      "sha256": "9cb8b5d94c324a6aae3defe25525a8f397c8102e43efd41c7a691efc18a0d340"
     },
     {
       "role": "flow_registry",
@@ -68,6 +68,11 @@
       "role": "candles",
       "file": "apps/edge-bff/backtest/src/core/candles.ts",
       "sha256": "db5708bb79772db30db58166214fdf4818574fa37eee0da1171427d393df6511"
+    },
+    {
+      "role": "effective",
+      "file": "apps/edge-bff/screener/src/core/effective.ts",
+      "sha256": "45b846a7177bf8ebef145cb433531442d0b77835f525fcb63f24c8d305f5ab93"
     }
   ],
   "probe": {
@@ -163,6 +168,179 @@
       "volume_factor": 2,
       "raise_sessions": 4,
       "tolerance": 1e-9
+    },
+    "effective": {
+      "seed": 20261125,
+      "shapes": [
+        {
+          "name": "uptrend",
+          "stretches": [
+            {
+              "bars": 1500,
+              "drift": 0.0015,
+              "vol": 0.012
+            }
+          ]
+        },
+        {
+          "name": "crash",
+          "stretches": [
+            {
+              "bars": 400,
+              "drift": 0.0004,
+              "vol": 0.012
+            },
+            {
+              "bars": 60,
+              "drift": -0.012,
+              "vol": 0.03
+            },
+            {
+              "bars": 1040,
+              "drift": 0.0002,
+              "vol": 0.012
+            }
+          ]
+        },
+        {
+          "name": "sideways",
+          "stretches": [
+            {
+              "bars": 1500,
+              "revert": 0.05,
+              "vol": 0.01
+            }
+          ]
+        },
+        {
+          "name": "recovery",
+          "stretches": [
+            {
+              "bars": 600,
+              "drift": -0.0018,
+              "vol": 0.014
+            },
+            {
+              "bars": 900,
+              "drift": 0.0022,
+              "vol": 0.014
+            }
+          ]
+        },
+        {
+          "name": "jumpy",
+          "stretches": [
+            {
+              "bars": 1500,
+              "drift": 0,
+              "vol": 0.04,
+              "jump": {
+                "p": 0.03,
+                "size": 0.25
+              },
+              "volume_vol": 1.5
+            }
+          ]
+        },
+        {
+          "name": "calm",
+          "stretches": [
+            {
+              "bars": 1500,
+              "drift": 0.002,
+              "vol": 0.004
+            }
+          ]
+        },
+        {
+          "name": "pinned",
+          "stretches": [
+            {
+              "bars": 300,
+              "drift": -0.004,
+              "vol": 0.02
+            },
+            {
+              "bars": 250,
+              "flat": true
+            },
+            {
+              "bars": 950,
+              "drift": 0.002,
+              "vol": 0.02
+            }
+          ]
+        },
+        {
+          "name": "thin",
+          "stretches": [
+            {
+              "bars": 400,
+              "drift": 0.0005,
+              "vol": 0.015
+            },
+            {
+              "bars": 300,
+              "drift": 0,
+              "vol": 0.01,
+              "volume_level": 0.001
+            },
+            {
+              "bars": 800,
+              "drift": 0.0005,
+              "vol": 0.015
+            }
+          ]
+        },
+        {
+          "name": "floor",
+          "stretches": [
+            {
+              "bars": 250,
+              "drift": -0.012,
+              "vol": 0.02
+            },
+            {
+              "bars": 1000,
+              "drift": 0,
+              "vol": 0.02,
+              "tick": 1,
+              "floor": 50,
+              "idle": 0.3
+            },
+            {
+              "bars": 250,
+              "drift": 0.004,
+              "vol": 0.03,
+              "tick": 1,
+              "floor": 50
+            }
+          ]
+        }
+      ],
+      "tolerance": 0.001,
+      "probe_tolerance": 0.00001,
+      "cut_from": 30,
+      "cut_every": 37,
+      "room": 1000,
+      "margin": 300,
+      "min_span": 10,
+      "end_ratio": 10,
+      "decay_ratio": 1.25,
+      "raise": [
+        2,
+        4
+      ],
+      "checks": [
+        1.5,
+        3
+      ],
+      "lower": 0.5,
+      "number_factors": [
+        0.5,
+        2
+      ],
+      "scaling_margin": 0.05
     }
   },
   "cost_model": {
@@ -450,6 +628,66 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 98,
+            "reason": null,
+            "at": "jumpy@141",
+            "decay": 0.68,
+            "end": 1.11,
+            "scaling": {
+              "whole_number": [
+                "length"
+              ],
+              "exponent": 1.084,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "length": 10
+                  },
+                  "ratio": 1,
+                  "bars": 47
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 40
+                  },
+                  "ratio": 2,
+                  "bars": 199
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 30
+                  },
+                  "ratio": 1.5,
+                  "bars": 150
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 80
+                  },
+                  "ratio": 4,
+                  "bars": 440
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 60
+                  },
+                  "ratio": 3,
+                  "bars": 325
+                }
+              ],
+              "stopped": null
+            }
+          },
           "first_valid_bar": 19,
           "inputs": [
             "C"
@@ -1016,6 +1254,166 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 140,
+            "reason": null,
+            "at": "sideways@363",
+            "decay": 0.894,
+            "end": 1.78,
+            "scaling": {
+              "whole_number": [
+                "length",
+                "fast_length",
+                "slow_length"
+              ],
+              "exponent": 2.343,
+              "margin": 0.05,
+              "max_ratio": 2,
+              "lower": false,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "length": 5,
+                    "fast_length": 1,
+                    "slow_length": 15
+                  },
+                  "ratio": 1,
+                  "bars": null
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 20
+                  },
+                  "ratio": 2,
+                  "bars": 239
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 4
+                  },
+                  "ratio": 2,
+                  "bars": 294
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 60
+                  },
+                  "ratio": 2,
+                  "bars": 176
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 20,
+                    "fast_length": 4,
+                    "slow_length": 60
+                  },
+                  "ratio": 2,
+                  "bars": 710
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 15,
+                    "fast_length": 3,
+                    "slow_length": 45
+                  },
+                  "ratio": 1.5,
+                  "bars": 374
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 40,
+                    "fast_length": 8,
+                    "slow_length": 120
+                  },
+                  "ratio": 4,
+                  "bars": null
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 30,
+                    "fast_length": 6,
+                    "slow_length": 90
+                  },
+                  "ratio": 3,
+                  "bars": null
+                }
+              ],
+              "stopped": "x4: at {\"length\":40,\"fast_length\":8,\"slow_length\":120}: not_bounded"
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "open": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 178,
+                  "reason": null,
+                  "at": "sideways@363",
+                  "decay": 0.895,
+                  "end": 1.74
+                }
+              },
+              "high": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 141,
+                  "reason": null,
+                  "at": "sideways@178",
+                  "decay": 0.881,
+                  "end": 1.45
+                }
+              },
+              "low": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 142,
+                  "reason": null,
+                  "at": "sideways@363",
+                  "decay": 0.914,
+                  "end": 1.6
+                }
+              },
+              "hl2": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 124,
+                  "reason": null,
+                  "at": "sideways@30",
+                  "decay": 0.877,
+                  "end": 1.58
+                }
+              },
+              "hlc3": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 104,
+                  "reason": null,
+                  "at": "sideways@30",
+                  "decay": 0.858,
+                  "end": 1.69
+                }
+              },
+              "ohlc4": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 105,
+                  "reason": null,
+                  "at": "sideways@30",
+                  "decay": 0.871,
+                  "end": 1.63
+                }
+              }
+            }
+          },
           "first_valid_bar": 10,
           "inputs": [
             "C"
@@ -1208,6 +1606,126 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 172,
+            "reason": null,
+            "at": "sideways@326",
+            "decay": 0.885,
+            "end": 1.08,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 6,
+                    "slow_length": 13,
+                    "signal_length": 4
+                  },
+                  "ratio": 1,
+                  "bars": 84
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24
+                  },
+                  "ratio": 2,
+                  "bars": 197
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 52
+                  },
+                  "ratio": 2,
+                  "bars": 321
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 172
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24,
+                    "slow_length": 52,
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 334
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 18,
+                    "slow_length": 39,
+                    "signal_length": 14
+                  },
+                  "ratio": 1.5555555555555556,
+                  "bars": 251
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 48,
+                    "slow_length": 104,
+                    "signal_length": 36
+                  },
+                  "ratio": 4,
+                  "bars": 686
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 36,
+                    "slow_length": 78,
+                    "signal_length": 27
+                  },
+                  "ratio": 3,
+                  "bars": 518
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "high": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 171,
+                  "reason": null,
+                  "at": "sideways@326",
+                  "decay": 0.88,
+                  "end": 1.08
+                }
+              },
+              "hl2": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 171,
+                  "reason": null,
+                  "at": "sideways@326",
+                  "decay": 0.88,
+                  "end": 1.08
+                }
+              }
+            }
+          },
           "first_valid_bar": 25,
           "inputs": [
             "C"
@@ -1296,6 +1814,136 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 179,
+            "reason": null,
+            "at": "sideways@326",
+            "decay": 0.922,
+            "end": 1.08,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length",
+                "signal_length"
+              ],
+              "exponent": 1.006,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 6,
+                    "slow_length": 13,
+                    "signal_length": 4
+                  },
+                  "ratio": 1,
+                  "bars": 86
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24
+                  },
+                  "ratio": 2,
+                  "bars": 203
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 52
+                  },
+                  "ratio": 2,
+                  "bars": 327
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 191
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24,
+                    "slow_length": 52,
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 346
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 18,
+                    "slow_length": 39,
+                    "signal_length": 14
+                  },
+                  "ratio": 1.5555555555555556,
+                  "bars": 262
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 48,
+                    "slow_length": 104,
+                    "signal_length": 36
+                  },
+                  "ratio": 4,
+                  "bars": 721
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 36,
+                    "slow_length": 78,
+                    "signal_length": 27
+                  },
+                  "ratio": 3,
+                  "bars": 539
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "high": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 178,
+                  "reason": null,
+                  "at": "sideways@326",
+                  "decay": 0.916,
+                  "end": 1.08
+                }
+              },
+              "low": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 178,
+                  "reason": null,
+                  "at": "sideways@326",
+                  "decay": 0.915,
+                  "end": 1.08
+                }
+              },
+              "hl2": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 178,
+                  "reason": null,
+                  "at": "sideways@326",
+                  "decay": 0.916,
+                  "end": 1.08
+                }
+              }
+            }
+          },
           "first_valid_bar": 33,
           "inputs": [
             "C"
@@ -1346,6 +1994,116 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 173,
+            "reason": null,
+            "at": "sideways@326",
+            "decay": 0.923,
+            "end": 1.08,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 6,
+                    "slow_length": 13,
+                    "signal_length": 4
+                  },
+                  "ratio": 1,
+                  "bars": 88
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24
+                  },
+                  "ratio": 2,
+                  "bars": 200
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 52
+                  },
+                  "ratio": 2,
+                  "bars": 327
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 187
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24,
+                    "slow_length": 52,
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 346
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 18,
+                    "slow_length": 39,
+                    "signal_length": 14
+                  },
+                  "ratio": 1.5555555555555556,
+                  "bars": 252
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 48,
+                    "slow_length": 104,
+                    "signal_length": 36
+                  },
+                  "ratio": 4,
+                  "bars": 686
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 36,
+                    "slow_length": 78,
+                    "signal_length": 27
+                  },
+                  "ratio": 3,
+                  "bars": 520
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "low": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 172,
+                  "reason": null,
+                  "at": "sideways@326",
+                  "decay": 0.909,
+                  "end": 1.08
+                }
+              }
+            }
+          },
           "first_valid_bar": 33,
           "inputs": [
             "C"
@@ -1501,6 +2259,88 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 198,
+            "reason": null,
+            "at": "pinned@67",
+            "decay": 0.808,
+            "end": 1.31,
+            "scaling": {
+              "whole_number": [
+                "di_length",
+                "adx_smoothing"
+              ],
+              "exponent": 1.011,
+              "margin": 0.05,
+              "max_ratio": 2,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "di_length": 7,
+                    "adx_smoothing": 7
+                  },
+                  "ratio": 1,
+                  "bars": 96
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "di_length": 28
+                  },
+                  "ratio": 2,
+                  "bars": 357
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "adx_smoothing": 28
+                  },
+                  "ratio": 2,
+                  "bars": 348
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "di_length": 28,
+                    "adx_smoothing": 28
+                  },
+                  "ratio": 2,
+                  "bars": 399
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "di_length": 21,
+                    "adx_smoothing": 21
+                  },
+                  "ratio": 1.5,
+                  "bars": 294
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "di_length": 56,
+                    "adx_smoothing": 56
+                  },
+                  "ratio": 4,
+                  "bars": null
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "di_length": 42,
+                    "adx_smoothing": 42
+                  },
+                  "ratio": 3,
+                  "bars": 586
+                }
+              ],
+              "stopped": "x4: at {\"di_length\":56,\"adx_smoothing\":56}: not_bounded"
+            }
+          },
           "first_valid_bar": 27,
           "inputs": [
             "H",
@@ -1539,6 +2379,88 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 158,
+            "reason": null,
+            "at": "crash@400",
+            "decay": 0.867,
+            "end": 1.87,
+            "scaling": {
+              "whole_number": [
+                "di_length",
+                "adx_smoothing"
+              ],
+              "exponent": 1.041,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "di_length": 7,
+                    "adx_smoothing": 7
+                  },
+                  "ratio": 1,
+                  "bars": 77
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "di_length": 28
+                  },
+                  "ratio": 2,
+                  "bars": 325
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "adx_smoothing": 28
+                  },
+                  "ratio": 2,
+                  "bars": 158
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "di_length": 28,
+                    "adx_smoothing": 28
+                  },
+                  "ratio": 2,
+                  "bars": 325
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "di_length": 21,
+                    "adx_smoothing": 21
+                  },
+                  "ratio": 1.5,
+                  "bars": 240
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "di_length": 56,
+                    "adx_smoothing": 56
+                  },
+                  "ratio": 4,
+                  "bars": 646
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "di_length": 42,
+                    "adx_smoothing": 42
+                  },
+                  "ratio": 3,
+                  "bars": 471
+                }
+              ],
+              "stopped": null
+            }
+          },
           "first_valid_bar": 14,
           "inputs": [
             "H",
@@ -1582,6 +2504,88 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 169,
+            "reason": null,
+            "at": "crash@400",
+            "decay": 0.984,
+            "end": 2.36,
+            "scaling": {
+              "whole_number": [
+                "di_length",
+                "adx_smoothing"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "di_length": 7,
+                    "adx_smoothing": 7
+                  },
+                  "ratio": 1,
+                  "bars": 81
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "di_length": 28
+                  },
+                  "ratio": 2,
+                  "bars": 336
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "adx_smoothing": 28
+                  },
+                  "ratio": 2,
+                  "bars": 169
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "di_length": 28,
+                    "adx_smoothing": 28
+                  },
+                  "ratio": 2,
+                  "bars": 336
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "di_length": 21,
+                    "adx_smoothing": 21
+                  },
+                  "ratio": 1.5,
+                  "bars": 251
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "di_length": 56,
+                    "adx_smoothing": 56
+                  },
+                  "ratio": 4,
+                  "bars": 670
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "di_length": 42,
+                    "adx_smoothing": 42
+                  },
+                  "ratio": 3,
+                  "bars": 505
+                }
+              ],
+              "stopped": null
+            }
+          },
           "first_valid_bar": 14,
           "inputs": [
             "H",
@@ -1811,6 +2815,13 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reset",
+            "at": "sideways@215",
+            "decay": 1.71,
+            "end": 5450
+          },
           "first_valid_bar": 10,
           "inputs": [
             "H",
@@ -1842,6 +2853,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "discrete",
+            "at": null
+          },
           "first_valid_bar": 10,
           "inputs": [
             "H",
@@ -2183,6 +3199,167 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 98,
+            "reason": null,
+            "at": "jumpy@141",
+            "decay": 0.746,
+            "end": 1.11,
+            "scaling": {
+              "whole_number": [
+                "length",
+                "atr_length"
+              ],
+              "exponent": 1.082,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {
+                "multiplier": [
+                  1,
+                  2
+                ]
+              },
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "length": 10,
+                    "atr_length": 5
+                  },
+                  "ratio": 1,
+                  "bars": 47
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 40
+                  },
+                  "ratio": 2,
+                  "bars": 197
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "atr_length": 20
+                  },
+                  "ratio": 2,
+                  "bars": 159
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 40,
+                    "atr_length": 20
+                  },
+                  "ratio": 2,
+                  "bars": 200
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 30,
+                    "atr_length": 15
+                  },
+                  "ratio": 1.5,
+                  "bars": 151
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 80,
+                    "atr_length": 40
+                  },
+                  "ratio": 4,
+                  "bars": 439
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 60,
+                    "atr_length": 30
+                  },
+                  "ratio": 3,
+                  "bars": 324
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "multiplier": 1
+                  },
+                  "ratio": 1,
+                  "bars": 98
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "multiplier": 4
+                  },
+                  "ratio": 1,
+                  "bars": 99
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "open": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 97,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.795,
+                  "end": 1.12
+                }
+              },
+              "low": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 97,
+                  "reason": null,
+                  "at": "jumpy@141",
+                  "decay": 0.747,
+                  "end": 1.11
+                }
+              }
+            },
+            "use_exponential_ma": {
+              "false": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 81,
+                  "reason": null,
+                  "at": "jumpy@141",
+                  "decay": 0.577,
+                  "end": 1.11
+                }
+              }
+            },
+            "bands_style": {
+              "TR": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 97,
+                  "reason": null,
+                  "at": "jumpy@141",
+                  "decay": 0.747,
+                  "end": 1.1
+                }
+              },
+              "HL_RANGE": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 157,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.812,
+                  "end": 1.28
+                }
+              }
+            }
+          },
           "first_valid_bar": 19,
           "inputs": [
             "H",
@@ -2281,6 +3458,116 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 98,
+            "reason": null,
+            "at": "jumpy@141",
+            "decay": 0.749,
+            "end": 1.11,
+            "scaling": {
+              "whole_number": [
+                "length",
+                "atr_length"
+              ],
+              "exponent": 1.084,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {
+                "multiplier": [
+                  1,
+                  4
+                ]
+              },
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "length": 10,
+                    "atr_length": 5
+                  },
+                  "ratio": 1,
+                  "bars": 47
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 40
+                  },
+                  "ratio": 2,
+                  "bars": 199
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "atr_length": 20
+                  },
+                  "ratio": 2,
+                  "bars": 98
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 40,
+                    "atr_length": 20
+                  },
+                  "ratio": 2,
+                  "bars": 199
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 30,
+                    "atr_length": 15
+                  },
+                  "ratio": 1.5,
+                  "bars": 150
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 80,
+                    "atr_length": 40
+                  },
+                  "ratio": 4,
+                  "bars": 440
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 60,
+                    "atr_length": 30
+                  },
+                  "ratio": 3,
+                  "bars": 325
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "multiplier": 1
+                  },
+                  "ratio": 1,
+                  "bars": 98
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "multiplier": 4
+                  },
+                  "ratio": 1,
+                  "bars": 98
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "use_exponential_ma": {
+              "false": {
+                "history_class": "window"
+              }
+            }
+          },
           "first_valid_bar": 19,
           "inputs": [
             "H",
@@ -2378,6 +3665,135 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 99,
+            "reason": null,
+            "at": "jumpy@252",
+            "decay": 0.751,
+            "end": 1.11,
+            "scaling": {
+              "whole_number": [
+                "length",
+                "atr_length"
+              ],
+              "exponent": 1.08,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {
+                "multiplier": [
+                  1,
+                  2
+                ]
+              },
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "length": 10,
+                    "atr_length": 5
+                  },
+                  "ratio": 1,
+                  "bars": 47
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 40
+                  },
+                  "ratio": 2,
+                  "bars": 201
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "atr_length": 20
+                  },
+                  "ratio": 2,
+                  "bars": 162
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 40,
+                    "atr_length": 20
+                  },
+                  "ratio": 2,
+                  "bars": 198
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 30,
+                    "atr_length": 15
+                  },
+                  "ratio": 1.5,
+                  "bars": 149
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 80,
+                    "atr_length": 40
+                  },
+                  "ratio": 4,
+                  "bars": 442
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 60,
+                    "atr_length": 30
+                  },
+                  "ratio": 3,
+                  "bars": 327
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "multiplier": 1
+                  },
+                  "ratio": 1,
+                  "bars": 98
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "multiplier": 4
+                  },
+                  "ratio": 1,
+                  "bars": 100
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "use_exponential_ma": {
+              "false": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 83,
+                  "reason": null,
+                  "at": "jumpy@141",
+                  "decay": 0.59,
+                  "end": 1.11
+                }
+              }
+            },
+            "bands_style": {
+              "HL_RANGE": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 160,
+                  "reason": null,
+                  "at": "jumpy@141",
+                  "decay": 0.978,
+                  "end": 1.17
+                }
+              }
+            }
+          },
           "first_valid_bar": 19,
           "inputs": [
             "H",
@@ -2547,6 +3963,13 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reset",
+            "at": "jumpy@178",
+            "decay": 1.23,
+            "end": 2400
+          },
           "first_valid_bar": 1,
           "inputs": [
             "H",
@@ -2577,6 +4000,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "discrete",
+            "at": null
+          },
           "first_valid_bar": 1,
           "inputs": [
             "H",
@@ -2693,6 +4121,130 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 175,
+            "reason": null,
+            "at": "crash@400",
+            "decay": 0.873,
+            "end": 2.12,
+            "scaling": {
+              "whole_number": [
+                "length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "length": 7
+                  },
+                  "ratio": 1,
+                  "bars": 85
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 28
+                  },
+                  "ratio": 2,
+                  "bars": 345
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 21
+                  },
+                  "ratio": 1.5,
+                  "bars": 256
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 56
+                  },
+                  "ratio": 4,
+                  "bars": 683
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 42
+                  },
+                  "ratio": 3,
+                  "bars": 509
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "open": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 177,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.872,
+                  "end": 1.68
+                }
+              },
+              "high": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 177,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.879,
+                  "end": 2.12
+                }
+              },
+              "low": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 173,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.868,
+                  "end": 2.1
+                }
+              },
+              "hl2": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 177,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.874,
+                  "end": 2.2
+                }
+              },
+              "hlc3": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 177,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.888,
+                  "end": 2.41
+                }
+              },
+              "ohlc4": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 180,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.901,
+                  "end": 2.18
+                }
+              }
+            }
+          },
           "first_valid_bar": 14,
           "inputs": [
             "C"
@@ -2884,6 +4436,13 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reset",
+            "at": "pinned@326",
+            "decay": 1.29,
+            "end": 12100
+          },
           "first_valid_bar": 29,
           "inputs": [
             "C"
@@ -2972,6 +4531,13 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reset",
+            "at": "pinned@326",
+            "decay": 1.45,
+            "end": 4050
+          },
           "first_valid_bar": 31,
           "inputs": [
             "C"
@@ -3962,6 +5528,166 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 186,
+            "reason": null,
+            "at": "crash@400",
+            "decay": 0.94,
+            "end": 1.27,
+            "scaling": {
+              "whole_number": [
+                "long_length",
+                "short_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 2,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "long_length": 12,
+                    "short_length": 6,
+                    "signal_length": 3
+                  },
+                  "ratio": 1,
+                  "bars": 91
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "long_length": 50
+                  },
+                  "ratio": 2,
+                  "bars": 356
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "short_length": 26
+                  },
+                  "ratio": 2,
+                  "bars": 216
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 14
+                  },
+                  "ratio": 2,
+                  "bars": 186
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "long_length": 50,
+                    "short_length": 26,
+                    "signal_length": 14
+                  },
+                  "ratio": 2,
+                  "bars": 370
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "long_length": 38,
+                    "short_length": 20,
+                    "signal_length": 11
+                  },
+                  "ratio": 1.5714285714285714,
+                  "bars": 281
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "long_length": 100,
+                    "short_length": 52,
+                    "signal_length": 28
+                  },
+                  "ratio": 4,
+                  "bars": null
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "long_length": 75,
+                    "short_length": 39,
+                    "signal_length": 21
+                  },
+                  "ratio": 3,
+                  "bars": 554
+                }
+              ],
+              "stopped": "x4: at {\"long_length\":100,\"short_length\":52,\"signal_length\":28}: not_bounded"
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "open": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 188,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.957,
+                  "end": 1.48
+                }
+              },
+              "high": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 187,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.957,
+                  "end": 1.33
+                }
+              },
+              "low": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 182,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.986,
+                  "end": 1.42
+                }
+              },
+              "hl2": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 187,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.958,
+                  "end": 1.23
+                }
+              },
+              "hlc3": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 187,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.971,
+                  "end": 1.32
+                }
+              },
+              "ohlc4": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 189,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.964,
+                  "end": 1.35
+                }
+              }
+            }
+          },
           "first_valid_bar": 37,
           "inputs": [
             "C"
@@ -4050,6 +5776,166 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 189,
+            "reason": null,
+            "at": "crash@400",
+            "decay": 0.937,
+            "end": 1.36,
+            "scaling": {
+              "whole_number": [
+                "long_length",
+                "short_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 2,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "long_length": 12,
+                    "short_length": 6,
+                    "signal_length": 3
+                  },
+                  "ratio": 1,
+                  "bars": 92
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "long_length": 50
+                  },
+                  "ratio": 2,
+                  "bars": 360
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "short_length": 26
+                  },
+                  "ratio": 2,
+                  "bars": 219
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 14
+                  },
+                  "ratio": 2,
+                  "bars": 196
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "long_length": 50,
+                    "short_length": 26,
+                    "signal_length": 14
+                  },
+                  "ratio": 2,
+                  "bars": 378
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "long_length": 38,
+                    "short_length": 20,
+                    "signal_length": 11
+                  },
+                  "ratio": 1.5714285714285714,
+                  "bars": 288
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "long_length": 100,
+                    "short_length": 52,
+                    "signal_length": 28
+                  },
+                  "ratio": 4,
+                  "bars": null
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "long_length": 75,
+                    "short_length": 39,
+                    "signal_length": 21
+                  },
+                  "ratio": 3,
+                  "bars": 568
+                }
+              ],
+              "stopped": "x4: at {\"long_length\":100,\"short_length\":52,\"signal_length\":28}: not_bounded"
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "open": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 192,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.895,
+                  "end": 1.3
+                }
+              },
+              "high": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 191,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.863,
+                  "end": 1.29
+                }
+              },
+              "low": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 186,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.849,
+                  "end": 1.26
+                }
+              },
+              "hl2": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 190,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.928,
+                  "end": 1.28
+                }
+              },
+              "hlc3": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 191,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.919,
+                  "end": 1.28
+                }
+              },
+              "ohlc4": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 193,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.966,
+                  "end": 1.28
+                }
+              }
+            }
+          },
           "first_valid_bar": 43,
           "inputs": [
             "C"
@@ -4167,6 +6053,90 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 138,
+            "reason": null,
+            "at": "jumpy@252",
+            "decay": 0.791,
+            "end": 1.4,
+            "scaling": {
+              "whole_number": [
+                "length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "length": 7
+                  },
+                  "ratio": 1,
+                  "bars": 62
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 30
+                  },
+                  "ratio": 2,
+                  "bars": 274
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 23
+                  },
+                  "ratio": 1.5333333333333334,
+                  "bars": 209
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 60
+                  },
+                  "ratio": 4,
+                  "bars": 539
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 45
+                  },
+                  "ratio": 3,
+                  "bars": 406
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "open": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 139,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.771,
+                  "end": 1.25
+                }
+              },
+              "low": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 139,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.775,
+                  "end": 1.28
+                }
+              }
+            }
+          },
           "first_valid_bar": 43,
           "inputs": [
             "C"
@@ -4582,6 +6552,126 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 177,
+            "reason": null,
+            "at": "jumpy@252",
+            "decay": 0.913,
+            "end": 1.09,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 6,
+                    "slow_length": 13,
+                    "signal_length": 4
+                  },
+                  "ratio": 1,
+                  "bars": 86
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24
+                  },
+                  "ratio": 2,
+                  "bars": 196
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 52
+                  },
+                  "ratio": 2,
+                  "bars": 329
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 177
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24,
+                    "slow_length": 52,
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 339
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 18,
+                    "slow_length": 39,
+                    "signal_length": 14
+                  },
+                  "ratio": 1.5555555555555556,
+                  "bars": 264
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 48,
+                    "slow_length": 104,
+                    "signal_length": 36
+                  },
+                  "ratio": 4,
+                  "bars": 687
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 36,
+                    "slow_length": 78,
+                    "signal_length": 27
+                  },
+                  "ratio": 3,
+                  "bars": 520
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "high": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 176,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.909,
+                  "end": 1.09
+                }
+              },
+              "low": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 178,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.91,
+                  "end": 1.08
+                }
+              }
+            }
+          },
           "first_valid_bar": 25,
           "inputs": [
             "C"
@@ -4670,6 +6760,156 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 182,
+            "reason": null,
+            "at": "jumpy@252",
+            "decay": 0.94,
+            "end": 1.08,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 6,
+                    "slow_length": 13,
+                    "signal_length": 4
+                  },
+                  "ratio": 1,
+                  "bars": 89
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24
+                  },
+                  "ratio": 2,
+                  "bars": 202
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 52
+                  },
+                  "ratio": 2,
+                  "bars": 334
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 193
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24,
+                    "slow_length": 52,
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 351
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 18,
+                    "slow_length": 39,
+                    "signal_length": 14
+                  },
+                  "ratio": 1.5555555555555556,
+                  "bars": 273
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 48,
+                    "slow_length": 104,
+                    "signal_length": 36
+                  },
+                  "ratio": 4,
+                  "bars": 722
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 36,
+                    "slow_length": 78,
+                    "signal_length": 27
+                  },
+                  "ratio": 3,
+                  "bars": 539
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "open": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 183,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.933,
+                  "end": 1.09
+                }
+              },
+              "low": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 183,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.934,
+                  "end": 1.08
+                }
+              },
+              "hl2": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 183,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.935,
+                  "end": 1.08
+                }
+              },
+              "hlc3": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 183,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.937,
+                  "end": 1.08
+                }
+              },
+              "ohlc4": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 183,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.936,
+                  "end": 1.09
+                }
+              }
+            }
+          },
           "first_valid_bar": 33,
           "inputs": [
             "C"
@@ -4720,6 +6960,126 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 183,
+            "reason": null,
+            "at": "jumpy@252",
+            "decay": 0.943,
+            "end": 1.08,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 6,
+                    "slow_length": 13,
+                    "signal_length": 4
+                  },
+                  "ratio": 1,
+                  "bars": 91
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24
+                  },
+                  "ratio": 2,
+                  "bars": 203
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 52
+                  },
+                  "ratio": 2,
+                  "bars": 337
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 195
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24,
+                    "slow_length": 52,
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 352
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 18,
+                    "slow_length": 39,
+                    "signal_length": 14
+                  },
+                  "ratio": 1.5555555555555556,
+                  "bars": 269
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 48,
+                    "slow_length": 104,
+                    "signal_length": 36
+                  },
+                  "ratio": 4,
+                  "bars": 706
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 36,
+                    "slow_length": 78,
+                    "signal_length": 27
+                  },
+                  "ratio": 3,
+                  "bars": 535
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "source": {
+              "open": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 184,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.928,
+                  "end": 1.09
+                }
+              },
+              "low": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 184,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.928,
+                  "end": 1.09
+                }
+              }
+            }
+          },
           "first_valid_bar": 33,
           "inputs": [
             "C"
@@ -4969,6 +7329,30 @@
             "lt": 0
           },
           "history_class": "window",
+          "history_by_option": {
+            "basis_ma_type": {
+              "EMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 96,
+                  "reason": null,
+                  "at": "jumpy@141",
+                  "decay": 0.668,
+                  "end": 1.11
+                }
+              },
+              "RMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 194,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.892,
+                  "end": 1.05
+                }
+              }
+            }
+          },
           "first_valid_bar": 19,
           "inputs": [
             "C"
@@ -5056,6 +7440,30 @@
             "lt": 0
           },
           "history_class": "window",
+          "history_by_option": {
+            "basis_ma_type": {
+              "EMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 98,
+                  "reason": null,
+                  "at": "jumpy@141",
+                  "decay": 0.68,
+                  "end": 1.11
+                }
+              },
+              "RMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 197,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.894,
+                  "end": 1.05
+                }
+              }
+            }
+          },
           "first_valid_bar": 19,
           "inputs": [
             "C"
@@ -5142,6 +7550,30 @@
             "lt": 0
           },
           "history_class": "window",
+          "history_by_option": {
+            "basis_ma_type": {
+              "EMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 100,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.693,
+                  "end": 1.1
+                }
+              },
+              "RMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 201,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.895,
+                  "end": 1.05
+                }
+              }
+            }
+          },
           "first_valid_bar": 19,
           "inputs": [
             "C"
@@ -5366,6 +7798,30 @@
             "lt": 0
           },
           "history_class": "window",
+          "history_by_option": {
+            "basis_ma_type": {
+              "EMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 160,
+                  "reason": null,
+                  "at": "pinned@141",
+                  "decay": 0.87,
+                  "end": 1.34
+                }
+              },
+              "RMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 271,
+                  "reason": null,
+                  "at": "pinned@30",
+                  "decay": 0.965,
+                  "end": 1.26
+                }
+              }
+            }
+          },
           "first_valid_bar": 19,
           "inputs": [
             "C"
@@ -5567,6 +8023,30 @@
             "lt": 0
           },
           "history_class": "window",
+          "history_by_option": {
+            "basis_ma_type": {
+              "EMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 111,
+                  "reason": null,
+                  "at": "jumpy@252",
+                  "decay": 0.807,
+                  "end": 1.53
+                }
+              },
+              "RMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 213,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.908,
+                  "end": 1.31
+                }
+              }
+            }
+          },
           "first_valid_bar": 19,
           "inputs": [
             "C"
@@ -5731,6 +8211,86 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 153,
+            "reason": null,
+            "at": "crash@400",
+            "decay": 0.831,
+            "end": 1.08,
+            "scaling": {
+              "whole_number": [
+                "length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "length": 7
+                  },
+                  "ratio": 1,
+                  "bars": 74
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 28
+                  },
+                  "ratio": 2,
+                  "bars": 294
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 21
+                  },
+                  "ratio": 1.5,
+                  "bars": 224
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 56
+                  },
+                  "ratio": 4,
+                  "bars": 568
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 42
+                  },
+                  "ratio": 3,
+                  "bars": 426
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "smoothing_type": {
+              "SMA": {
+                "history_class": "window"
+              },
+              "EMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 87,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.691,
+                  "end": 1.15
+                }
+              },
+              "WMA": {
+                "history_class": "window"
+              }
+            }
+          },
           "first_valid_bar": 14,
           "inputs": [
             "H",
@@ -5867,6 +8427,86 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 160,
+            "reason": null,
+            "at": "floor@30",
+            "decay": 0.877,
+            "end": 1.39,
+            "scaling": {
+              "whole_number": [
+                "length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "length": 7
+                  },
+                  "ratio": 1,
+                  "bars": 76
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 28
+                  },
+                  "ratio": 2,
+                  "bars": 307
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 21
+                  },
+                  "ratio": 1.5,
+                  "bars": 246
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 56
+                  },
+                  "ratio": 4,
+                  "bars": 571
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 42
+                  },
+                  "ratio": 3,
+                  "bars": 454
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "smoothing_type": {
+              "SMA": {
+                "history_class": "window"
+              },
+              "EMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 88,
+                  "reason": null,
+                  "at": "crash@400",
+                  "decay": 0.74,
+                  "end": 1.22
+                }
+              },
+              "WMA": {
+                "history_class": "window"
+              }
+            }
+          },
           "first_valid_bar": 14,
           "inputs": [
             "H",
@@ -6545,6 +9185,66 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 117,
+            "reason": null,
+            "at": "jumpy@178",
+            "decay": 0.548,
+            "end": 1.11,
+            "scaling": {
+              "whole_number": [
+                "length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "length": 10
+                  },
+                  "ratio": 1,
+                  "bars": 62
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 40
+                  },
+                  "ratio": 2,
+                  "bars": 225
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 30
+                  },
+                  "ratio": 1.5,
+                  "bars": 175
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 80
+                  },
+                  "ratio": 4,
+                  "bars": 450
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 60
+                  },
+                  "ratio": 3,
+                  "bars": 340
+                }
+              ],
+              "stopped": null
+            }
+          },
           "first_valid_bar": 19,
           "inputs": [
             "V"
@@ -6782,6 +9482,102 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 241,
+            "reason": null,
+            "at": "thin@400",
+            "decay": 0.759,
+            "end": 1.24,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 1,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 6,
+                    "slow_length": 13,
+                    "signal_length": 4
+                  },
+                  "ratio": 1,
+                  "bars": 120
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24
+                  },
+                  "ratio": 2,
+                  "bars": 253
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 52
+                  },
+                  "ratio": 2,
+                  "bars": 432
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 241
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24,
+                    "slow_length": 52,
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 436
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 18,
+                    "slow_length": 39,
+                    "signal_length": 14
+                  },
+                  "ratio": 1.5555555555555556,
+                  "bars": null
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 48,
+                    "slow_length": 104,
+                    "signal_length": 36
+                  },
+                  "ratio": 4,
+                  "bars": 693
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 36,
+                    "slow_length": 78,
+                    "signal_length": 27
+                  },
+                  "ratio": 3,
+                  "bars": 617
+                }
+              ],
+              "stopped": "x2: at {\"fast_length\":18,\"slow_length\":39,\"signal_length\":14}: reset"
+            }
+          },
           "first_valid_bar": 25,
           "inputs": [
             "V"
@@ -6840,6 +9636,102 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 246,
+            "reason": null,
+            "at": "thin@400",
+            "decay": 0.847,
+            "end": 1.09,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 2,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 6,
+                    "slow_length": 13,
+                    "signal_length": 4
+                  },
+                  "ratio": 1,
+                  "bars": 122
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24
+                  },
+                  "ratio": 2,
+                  "bars": 257
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 52
+                  },
+                  "ratio": 2,
+                  "bars": 435
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 255
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24,
+                    "slow_length": 52,
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 445
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 18,
+                    "slow_length": 39,
+                    "signal_length": 14
+                  },
+                  "ratio": 1.5555555555555556,
+                  "bars": 352
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 48,
+                    "slow_length": 104,
+                    "signal_length": 36
+                  },
+                  "ratio": 4,
+                  "bars": null
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 36,
+                    "slow_length": 78,
+                    "signal_length": 27
+                  },
+                  "ratio": 3,
+                  "bars": 615
+                }
+              ],
+              "stopped": "x4: at {\"fast_length\":48,\"slow_length\":104,\"signal_length\":36}: not_bounded"
+            }
+          },
           "first_valid_bar": 33,
           "inputs": [
             "V"
@@ -6860,6 +9752,102 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 253,
+            "reason": null,
+            "at": "thin@400",
+            "decay": 0.743,
+            "end": 1.26,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 6,
+                    "slow_length": 13,
+                    "signal_length": 4
+                  },
+                  "ratio": 1,
+                  "bars": 124
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24
+                  },
+                  "ratio": 2,
+                  "bars": 273
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 52
+                  },
+                  "ratio": 2,
+                  "bars": 423
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 265
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 24,
+                    "slow_length": 52,
+                    "signal_length": 18
+                  },
+                  "ratio": 2,
+                  "bars": 457
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 18,
+                    "slow_length": 39,
+                    "signal_length": 14
+                  },
+                  "ratio": 1.5555555555555556,
+                  "bars": 362
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 48,
+                    "slow_length": 104,
+                    "signal_length": 36
+                  },
+                  "ratio": 4,
+                  "bars": 690
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 36,
+                    "slow_length": 78,
+                    "signal_length": 27
+                  },
+                  "ratio": 3,
+                  "bars": 674
+                }
+              ],
+              "stopped": null
+            }
+          },
           "first_valid_bar": 33,
           "inputs": [
             "V"
@@ -8080,6 +11068,88 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 61,
+            "reason": null,
+            "at": "crash@141",
+            "decay": 0.652,
+            "end": 1.22,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 1,
+                    "slow_length": 5
+                  },
+                  "ratio": 1,
+                  "bars": 30
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 6
+                  },
+                  "ratio": 2,
+                  "bars": 65
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 20
+                  },
+                  "ratio": 2,
+                  "bars": 118
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 6,
+                    "slow_length": 20
+                  },
+                  "ratio": 2,
+                  "bars": 121
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 5,
+                    "slow_length": 15
+                  },
+                  "ratio": 1.6666666666666667,
+                  "bars": 92
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 12,
+                    "slow_length": 40
+                  },
+                  "ratio": 4,
+                  "bars": 240
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 9,
+                    "slow_length": 30
+                  },
+                  "ratio": 3,
+                  "bars": 180
+                }
+              ],
+              "stopped": null
+            }
+          },
           "first_valid_bar": 9,
           "inputs": [
             "H",
@@ -8257,6 +11327,66 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 87,
+            "reason": null,
+            "at": "crash@400",
+            "decay": 0.676,
+            "end": 1.17,
+            "scaling": {
+              "whole_number": [
+                "length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "length": 6
+                  },
+                  "ratio": 1,
+                  "bars": 41
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 26
+                  },
+                  "ratio": 2,
+                  "bars": 166
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 20
+                  },
+                  "ratio": 1.5384615384615385,
+                  "bars": 133
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "length": 52
+                  },
+                  "ratio": 4,
+                  "bars": 337
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "length": 39
+                  },
+                  "ratio": 3,
+                  "bars": 255
+                }
+              ],
+              "stopped": null
+            }
+          },
           "first_valid_bar": 13,
           "inputs": [
             "C",
@@ -8710,6 +11840,82 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 377,
+            "reason": null,
+            "at": "thin@215",
+            "decay": 1.02,
+            "end": 1.04,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 1,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 17,
+                    "slow_length": 27,
+                    "signal_length": 6
+                  },
+                  "ratio": 1,
+                  "bars": 189
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 68
+                  },
+                  "ratio": 2,
+                  "bars": 489
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 110
+                  },
+                  "ratio": 2,
+                  "bars": null
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 26
+                  },
+                  "ratio": 2,
+                  "bars": 377
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 68,
+                    "slow_length": 110,
+                    "signal_length": 26
+                  },
+                  "ratio": 2,
+                  "bars": null
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 51,
+                    "slow_length": 83,
+                    "signal_length": 20
+                  },
+                  "ratio": 1.5384615384615385,
+                  "bars": 571
+                }
+              ],
+              "stopped": "x2: at {\"slow_length\":110}: not_bounded"
+            }
+          },
           "first_valid_bar": 55,
           "inputs": [
             "H",
@@ -8771,6 +11977,82 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 392,
+            "reason": null,
+            "at": "sideways@437",
+            "decay": 1.04,
+            "end": 1.04,
+            "scaling": {
+              "whole_number": [
+                "fast_length",
+                "slow_length",
+                "signal_length"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 1,
+              "lower": true,
+              "number_ranges": {},
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "fast_length": 17,
+                    "slow_length": 27,
+                    "signal_length": 6
+                  },
+                  "ratio": 1,
+                  "bars": 196
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 68
+                  },
+                  "ratio": 2,
+                  "bars": 504
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "slow_length": 110
+                  },
+                  "ratio": 2,
+                  "bars": null
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "signal_length": 26
+                  },
+                  "ratio": 2,
+                  "bars": 411
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "fast_length": 68,
+                    "slow_length": 110,
+                    "signal_length": 26
+                  },
+                  "ratio": 2,
+                  "bars": null
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "fast_length": 51,
+                    "slow_length": 83,
+                    "signal_length": 20
+                  },
+                  "ratio": 1.5384615384615385,
+                  "bars": 591
+                }
+              ],
+              "stopped": "x2: at {\"slow_length\":110}: not_bounded"
+            }
+          },
           "first_valid_bar": 67,
           "inputs": [
             "H",
@@ -9005,6 +12287,130 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 160,
+            "reason": null,
+            "at": "sideways@326",
+            "decay": 0.873,
+            "end": 1.08,
+            "scaling": {
+              "whole_number": [
+                "ma_length",
+                "lookback_length",
+                "decile"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {
+                "z_multiplier": [
+                  1,
+                  4
+                ]
+              },
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "ma_length": 13,
+                    "lookback_length": 50,
+                    "decile": 4
+                  },
+                  "ratio": 1,
+                  "bars": 79
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "ma_length": 52
+                  },
+                  "ratio": 2,
+                  "bars": 313
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "lookback_length": 200
+                  },
+                  "ratio": 2,
+                  "bars": 160
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "decile": 10
+                  },
+                  "ratio": 1.1111111111111112,
+                  "bars": 160
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "ma_length": 52,
+                    "lookback_length": 200,
+                    "decile": 10
+                  },
+                  "ratio": 2,
+                  "bars": 313
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "ma_length": 39,
+                    "lookback_length": 150,
+                    "decile": 10
+                  },
+                  "ratio": 1.5,
+                  "bars": 231
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "ma_length": 104,
+                    "lookback_length": 400,
+                    "decile": 10
+                  },
+                  "ratio": 4,
+                  "bars": 632
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "ma_length": 78,
+                    "lookback_length": 300,
+                    "decile": 10
+                  },
+                  "ratio": 3,
+                  "bars": 479
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "z_multiplier": 1
+                  },
+                  "ratio": 1,
+                  "bars": 160
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "z_multiplier": 4
+                  },
+                  "ratio": 1,
+                  "bars": 160
+                }
+              ],
+              "stopped": null
+            }
+          },
+          "history_by_option": {
+            "ma_type": {
+              "SMA": {
+                "history_class": "window"
+              }
+            }
+          },
           "first_valid_bar": 25,
           "inputs": [
             "C"
@@ -9073,6 +12479,20 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reset",
+            "at": "sideways@437",
+            "decay": null,
+            "end": 639
+          },
+          "history_by_option": {
+            "ma_type": {
+              "SMA": {
+                "history_class": "window"
+              }
+            }
+          },
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9111,6 +12531,20 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "no_decay",
+            "at": "calm@104",
+            "decay": null,
+            "end": 2.07
+          },
+          "history_by_option": {
+            "ma_type": {
+              "SMA": {
+                "history_class": "window"
+              }
+            }
+          },
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9149,6 +12583,130 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 237,
+            "reason": null,
+            "at": "sideways@326",
+            "decay": 0.963,
+            "end": 1.42,
+            "scaling": {
+              "whole_number": [
+                "ma_length",
+                "lookback_length",
+                "decile"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 1,
+              "lower": true,
+              "number_ranges": {
+                "z_multiplier": [
+                  2,
+                  4
+                ]
+              },
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "ma_length": 13,
+                    "lookback_length": 50,
+                    "decile": 4
+                  },
+                  "ratio": 1,
+                  "bars": 117
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "ma_length": 52
+                  },
+                  "ratio": 2,
+                  "bars": null
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "lookback_length": 200
+                  },
+                  "ratio": 2,
+                  "bars": 333
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "decile": 10
+                  },
+                  "ratio": 1.1111111111111112,
+                  "bars": 237
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "ma_length": 52,
+                    "lookback_length": 200,
+                    "decile": 10
+                  },
+                  "ratio": 2,
+                  "bars": 472
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "ma_length": 39,
+                    "lookback_length": 150,
+                    "decile": 10
+                  },
+                  "ratio": 1.5,
+                  "bars": 357
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "ma_length": 104,
+                    "lookback_length": 400,
+                    "decile": 10
+                  },
+                  "ratio": 4,
+                  "bars": null
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "ma_length": 78,
+                    "lookback_length": 300,
+                    "decile": 10
+                  },
+                  "ratio": 3,
+                  "bars": 721
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "z_multiplier": 1
+                  },
+                  "ratio": 1,
+                  "bars": 240
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "z_multiplier": 4
+                  },
+                  "ratio": 1,
+                  "bars": 234
+                }
+              ],
+              "stopped": "x2: at {\"ma_length\":52}: no_decay"
+            }
+          },
+          "history_by_option": {
+            "ma_type": {
+              "SMA": {
+                "history_class": "window"
+              }
+            }
+          },
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9187,6 +12745,18 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "recovery@807"
+          },
+          "history_by_option": {
+            "ma_type": {
+              "SMA": {
+                "history_class": "window"
+              }
+            }
+          },
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9231,6 +12801,18 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "uptrend@67"
+          },
+          "history_by_option": {
+            "ma_type": {
+              "SMA": {
+                "history_class": "window"
+              }
+            }
+          },
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9285,6 +12867,18 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "recovery@807"
+          },
+          "history_by_option": {
+            "ma_type": {
+              "SMA": {
+                "history_class": "window"
+              }
+            }
+          },
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9339,6 +12933,18 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "recovery@807"
+          },
+          "history_by_option": {
+            "ma_type": {
+              "SMA": {
+                "history_class": "window"
+              }
+            }
+          },
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9393,6 +12999,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "uptrend@67"
+          },
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9435,6 +13046,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "recovery@1066"
+          },
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9477,6 +13093,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "uptrend@67"
+          },
           "first_valid_bar": 124,
           "inputs": [
             "C"
@@ -9562,6 +13183,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "uptrend@67"
+          },
           "first_valid_bar": 0,
           "inputs": [
             "H",
@@ -9609,6 +13235,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "recovery@511"
+          },
           "first_valid_bar": 0,
           "inputs": [
             "H",
@@ -9656,6 +13287,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "discrete",
+            "at": null
+          },
           "first_valid_bar": 0,
           "inputs": [
             "H",
@@ -10737,6 +14373,27 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "no_decay",
+            "at": "floor@104",
+            "decay": null,
+            "end": 1.35
+          },
+          "history_by_option": {
+            "linear_regression": {
+              "true": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 513,
+                  "reason": null,
+                  "at": "crash@326",
+                  "decay": 1.15,
+                  "end": 1.47
+                }
+              }
+            }
+          },
           "first_valid_bar": 88,
           "inputs": [
             "H",
@@ -10804,6 +14461,157 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 98,
+            "reason": null,
+            "at": "jumpy@141",
+            "decay": 0.749,
+            "end": 1.11,
+            "scaling": {
+              "whole_number": [
+                "kama_length",
+                "smoothing_length",
+                "gradient_lookback",
+                "ema_length"
+              ],
+              "exponent": 1.084,
+              "margin": 0.05,
+              "max_ratio": 4,
+              "lower": true,
+              "number_ranges": {
+                "kama_factor_1": [
+                  0.33,
+                  1
+                ],
+                "kama_factor_2": [
+                  0.03225,
+                  0.129
+                ]
+              },
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "kama_length": 44,
+                    "smoothing_length": 2,
+                    "gradient_lookback": 7,
+                    "ema_length": 10
+                  },
+                  "ratio": 1,
+                  "bars": 47
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "kama_length": 178
+                  },
+                  "ratio": 2,
+                  "bars": 98
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "smoothing_length": 6
+                  },
+                  "ratio": 2,
+                  "bars": 98
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "gradient_lookback": 28
+                  },
+                  "ratio": 2,
+                  "bars": 98
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "ema_length": 40
+                  },
+                  "ratio": 2,
+                  "bars": 199
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "kama_length": 178,
+                    "smoothing_length": 6,
+                    "gradient_lookback": 28,
+                    "ema_length": 40
+                  },
+                  "ratio": 2,
+                  "bars": 199
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "kama_length": 134,
+                    "smoothing_length": 5,
+                    "gradient_lookback": 21,
+                    "ema_length": 30
+                  },
+                  "ratio": 1.6666666666666667,
+                  "bars": 150
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "kama_length": 356,
+                    "smoothing_length": 12,
+                    "gradient_lookback": 56,
+                    "ema_length": 80
+                  },
+                  "ratio": 4,
+                  "bars": 440
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "kama_length": 267,
+                    "smoothing_length": 9,
+                    "gradient_lookback": 42,
+                    "ema_length": 60
+                  },
+                  "ratio": 3,
+                  "bars": 325
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "kama_factor_1": 0.33
+                  },
+                  "ratio": 1,
+                  "bars": 98
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "kama_factor_1": 1
+                  },
+                  "ratio": 1,
+                  "bars": 98
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "kama_factor_2": 0.03225
+                  },
+                  "ratio": 1,
+                  "bars": 98
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "kama_factor_2": 0.129
+                  },
+                  "ratio": 1,
+                  "bars": 98
+                }
+              ],
+              "stopped": null
+            }
+          },
           "first_valid_bar": 19,
           "inputs": [
             "H",
@@ -10870,6 +14678,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "discrete",
+            "at": null
+          },
           "first_valid_bar": 101,
           "inputs": [
             "H",
@@ -10937,6 +14750,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "discrete",
+            "at": null
+          },
           "first_valid_bar": 101,
           "inputs": [
             "H",
@@ -11002,6 +14820,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "discrete",
+            "at": null
+          },
           "first_valid_bar": 101,
           "inputs": [
             "H",
@@ -11067,6 +14890,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "sideways@289"
+          },
           "first_valid_bar": 101,
           "inputs": [
             "H",
@@ -11318,6 +15146,247 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 164,
+            "reason": null,
+            "at": "floor@30",
+            "decay": 0.909,
+            "end": 1.6,
+            "scaling": {
+              "whole_number": [
+                "ma_length",
+                "median_length",
+                "atr_length",
+                "smooth_length",
+                "dynamic_window",
+                "dynamic_smooth"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 1,
+              "lower": true,
+              "number_ranges": {
+                "dynamic_expansion": [
+                  0.1,
+                  0.4
+                ],
+                "signal_multiplier": [
+                  1.5,
+                  3
+                ]
+              },
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "ma_length": 11,
+                    "median_length": 3,
+                    "atr_length": 7,
+                    "smooth_length": 2,
+                    "dynamic_window": 60,
+                    "dynamic_smooth": 5
+                  },
+                  "ratio": 1,
+                  "bars": 73
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "ma_length": 46
+                  },
+                  "ratio": 2,
+                  "bars": null
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "median_length": 8
+                  },
+                  "ratio": 2,
+                  "bars": 164
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "atr_length": 28
+                  },
+                  "ratio": 2,
+                  "bars": 311
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "smooth_length": 10
+                  },
+                  "ratio": 2,
+                  "bars": 168
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "dynamic_window": 240
+                  },
+                  "ratio": 2,
+                  "bars": 164
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "dynamic_smooth": 20
+                  },
+                  "ratio": 2,
+                  "bars": 164
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "ma_length": 46,
+                    "median_length": 8,
+                    "atr_length": 28,
+                    "smooth_length": 10,
+                    "dynamic_window": 240,
+                    "dynamic_smooth": 20
+                  },
+                  "ratio": 2,
+                  "bars": 320
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "ma_length": 35,
+                    "median_length": 6,
+                    "atr_length": 21,
+                    "smooth_length": 8,
+                    "dynamic_window": 180,
+                    "dynamic_smooth": 15
+                  },
+                  "ratio": 1.6,
+                  "bars": 229
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "dynamic_expansion": 0.1
+                  },
+                  "ratio": 1,
+                  "bars": 164
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "dynamic_expansion": 0.4
+                  },
+                  "ratio": 1,
+                  "bars": 164
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "signal_multiplier": 3
+                  },
+                  "ratio": 1,
+                  "bars": 164
+                }
+              ],
+              "stopped": "x2: at {\"ma_length\":46}: no_decay"
+            }
+          },
+          "history_by_option": {
+            "ma_type": {
+              "RMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": null,
+                  "reason": "no_decay",
+                  "at": "pinned@215",
+                  "decay": 2,
+                  "end": 1.41
+                }
+              },
+              "SMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 163,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.851,
+                  "end": 2.06
+                }
+              },
+              "WMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 161,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.877,
+                  "end": 2.29
+                }
+              },
+              "HMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 153,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.731,
+                  "end": 2.17
+                }
+              },
+              "TEMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 213,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.824,
+                  "end": 1.48
+                }
+              }
+            },
+            "source": {
+              "Open": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 163,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.943,
+                  "end": 2.46
+                }
+              },
+              "HL2": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 163,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.907,
+                  "end": 2.15
+                }
+              },
+              "HLC3": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 163,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.908,
+                  "end": 2.46
+                }
+              },
+              "OHLC4": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 163,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.907,
+                  "end": 2.45
+                }
+              }
+            }
+          },
           "first_valid_bar": 29,
           "inputs": [
             "O",
@@ -11412,6 +15481,217 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": 169,
+            "reason": null,
+            "at": "floor@30",
+            "decay": 0.768,
+            "end": 1.38,
+            "scaling": {
+              "whole_number": [
+                "ma_length",
+                "median_length",
+                "atr_length",
+                "smooth_length",
+                "dynamic_window",
+                "dynamic_smooth"
+              ],
+              "exponent": 1,
+              "margin": 0.05,
+              "max_ratio": 1,
+              "lower": true,
+              "number_ranges": {
+                "dynamic_expansion": [
+                  0.1,
+                  0.4
+                ],
+                "signal_multiplier": [
+                  1.5,
+                  1.5
+                ]
+              },
+              "probes": [
+                {
+                  "role": "lower",
+                  "params": {
+                    "ma_length": 11,
+                    "median_length": 3,
+                    "atr_length": 7,
+                    "smooth_length": 2,
+                    "dynamic_window": 60,
+                    "dynamic_smooth": 5
+                  },
+                  "ratio": 1,
+                  "bars": 75
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "ma_length": 46
+                  },
+                  "ratio": 2,
+                  "bars": null
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "median_length": 8
+                  },
+                  "ratio": 2,
+                  "bars": 169
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "atr_length": 28
+                  },
+                  "ratio": 2,
+                  "bars": 316
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "smooth_length": 10
+                  },
+                  "ratio": 2,
+                  "bars": 178
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "dynamic_window": 240
+                  },
+                  "ratio": 2,
+                  "bars": 169
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "dynamic_smooth": 20
+                  },
+                  "ratio": 2,
+                  "bars": 169
+                },
+                {
+                  "role": "fit",
+                  "params": {
+                    "ma_length": 46,
+                    "median_length": 8,
+                    "atr_length": 28,
+                    "smooth_length": 10,
+                    "dynamic_window": 240,
+                    "dynamic_smooth": 20
+                  },
+                  "ratio": 2,
+                  "bars": 329
+                },
+                {
+                  "role": "check",
+                  "params": {
+                    "ma_length": 35,
+                    "median_length": 6,
+                    "atr_length": 21,
+                    "smooth_length": 8,
+                    "dynamic_window": 180,
+                    "dynamic_smooth": 15
+                  },
+                  "ratio": 1.6,
+                  "bars": 235
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "dynamic_expansion": 0.1
+                  },
+                  "ratio": 1,
+                  "bars": 169
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "dynamic_expansion": 0.4
+                  },
+                  "ratio": 1,
+                  "bars": 169
+                },
+                {
+                  "role": "number",
+                  "params": {
+                    "signal_multiplier": 3
+                  },
+                  "ratio": 1,
+                  "bars": 175
+                }
+              ],
+              "stopped": "x2: at {\"ma_length\":46}: no_decay"
+            }
+          },
+          "history_by_option": {
+            "ma_type": {
+              "RMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": null,
+                  "reason": "no_decay",
+                  "at": "pinned@215",
+                  "decay": 2,
+                  "end": 1.28
+                }
+              },
+              "SMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 168,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.881,
+                  "end": 1.68
+                }
+              },
+              "WMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 166,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.852,
+                  "end": 2.08
+                }
+              },
+              "HMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 158,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.798,
+                  "end": 1.74
+                }
+              },
+              "TEMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 220,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.937,
+                  "end": 1.28
+                }
+              }
+            },
+            "source": {
+              "Open": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 168,
+                  "reason": null,
+                  "at": "floor@30",
+                  "decay": 0.711,
+                  "end": 1.78
+                }
+              }
+            }
+          },
           "first_valid_bar": 36,
           "inputs": [
             "O",
@@ -11506,6 +15786,27 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reset",
+            "at": "uptrend@67",
+            "decay": null,
+            "end": 43900
+          },
+          "history_by_option": {
+            "ma_type": {
+              "TEMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 313,
+                  "reason": null,
+                  "at": "crash@252",
+                  "decay": 1.1,
+                  "end": 1.23
+                }
+              }
+            }
+          },
           "first_valid_bar": 0,
           "inputs": [
             "O",
@@ -11600,6 +15901,27 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reset",
+            "at": "uptrend@67",
+            "decay": null,
+            "end": 43900
+          },
+          "history_by_option": {
+            "ma_type": {
+              "TEMA": {
+                "history_class": "recursive",
+                "effective_window": {
+                  "bars": 313,
+                  "reason": null,
+                  "at": "crash@252",
+                  "decay": 1.1,
+                  "end": 1.23
+                }
+              }
+            }
+          },
           "first_valid_bar": 0,
           "inputs": [
             "O",
@@ -11694,6 +16016,13 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "no_decay",
+            "at": "sideways@30",
+            "decay": null,
+            "end": 1.47
+          },
           "first_valid_bar": 0,
           "inputs": [
             "O",
@@ -11788,6 +16117,13 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "no_decay",
+            "at": "sideways@30",
+            "decay": null,
+            "end": 1.47
+          },
           "first_valid_bar": 0,
           "inputs": [
             "O",
@@ -11882,6 +16218,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "discrete",
+            "at": null
+          },
           "first_valid_bar": 30,
           "inputs": [
             "O",
@@ -12001,6 +16342,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "discrete",
+            "at": null
+          },
           "first_valid_bar": 30,
           "inputs": [
             "O",
@@ -12121,6 +16467,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "sideways@178"
+          },
           "first_valid_bar": 29,
           "inputs": [
             "O",
@@ -12269,6 +16620,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "crash@807"
+          },
           "first_valid_bar": 13,
           "inputs": [
             "H",
@@ -12329,6 +16685,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "uptrend@104"
+          },
           "first_valid_bar": 13,
           "inputs": [
             "H",
@@ -12389,6 +16750,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "sideways@733"
+          },
           "first_valid_bar": 13,
           "inputs": [
             "H",
@@ -12449,6 +16815,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "crash@67"
+          },
           "first_valid_bar": 73,
           "inputs": [
             "H",
@@ -12511,6 +16882,11 @@
             "lt": 0
           },
           "history_class": "recursive",
+          "effective_window": {
+            "bars": null,
+            "reason": "reach",
+            "at": "sideways@400"
+          },
           "first_valid_bar": 46,
           "inputs": [
             "H",

@@ -109,7 +109,15 @@ Facts that matter downstream:
     `engine.ts priceDistortions`): an action whose ex-date jump is still in the history (`unadjusted`, any date), one
     from 2026-09-12 (`ADJUSTED_HISTORY_BOUNDARY`) on that cannot be measured (`uncertain`), a one-day move beyond 35 %
     with no action (`anomaly`). A trade that reads one carries `flags.distortions` and the run warns
-    `PRICE_DISTORTIONS`; the prices are used as published.
+    `PRICE_DISTORTIONS`; the prices are used as published. What a trade's signal read is `Calc.reach`
+    (`apps/backtest-worker/src/grammar.ts` `noteReach`), the Screener's lookback rule
+    (`apps/edge-bff/screener/src/core/evaluate.ts` `seriesLookbackStarts`, the rule of the Screener's cell mark): a
+    window-class output its window; a recursive output (RSI, EMA, MACD) its effective window, the moving bars after
+    which a bar before them moves its value by less than 0.1 % of its magnitude (UD55, the user 2026-11-25 "3. Ok
+    boleh"; measured by the Screener's registry generator, its window grown with the lengths by the registry's scaling
+    rule, `screener/src/core/registry.ts` `historyOf`), so a break older than that no longer flags the trade; the whole
+    history for an output without one (whole-number flags, a Parabolic SAR, a swing level, a setting the generator did
+    not measure) and for cumulative ones; the class of the setting in use (UD52: Bollinger at an EMA or RMA basis).
   - No adjusted close is computed anywhere in the backtest. A fix belongs in the data layer (idx-price-cron or the
     price table, decision K4). INFERENCE: corrected closes change the price stamp, so the publisher would republish
     the affected years and packs on its own (section 4).

@@ -17,7 +17,9 @@
      series needs (IHSG volume; naReason); the flow, applicability and integrity reasons come from their own modules.
      NA never fails the whole screen;
    - remarks: a cell on a PRICE_BREAK row whose lookback contains an ex-date keeps its value and its pass or fail and
-     carries PRICE_BREAK_IN_LOOKBACK (P4.1 A; user 2026-10-28; where the TEST PLAN still says NA, P4.1 A wins);
+     carries PRICE_BREAK_IN_LOOKBACK (P4.1 A; user 2026-10-28; where the TEST PLAN still says NA, P4.1 A wins); a
+     recursive output's lookback ends at its effective window (EXEC-PRICE-DISTORTION UD55, seriesLookbackStart), so an
+     ex-date older than it no longer marks the cell;
      EXEC-PRICE-DISTORTION D-5: a flow cell whose output reads the broker lots carries FLOW_BASIS_IN_LOOKBACK across an
      action whose lots are not on one basis (condition.ts decides which sessions a cell reads; crossedDates and
      cellRemarkOf here), and every marked cell names the dates crossed (remark_dates).
@@ -30,9 +32,10 @@
    Pure module (no DOM, no Node API). */
 import { compare } from '../../../backtest/src/core/conditions.ts';
 import type { Op } from '../../../backtest/src/core/conditions.ts';
-import type { Num } from '../../../terminal/src/calc/indicators.ts';
+import type { Bars, Num } from '../../../terminal/src/calc/indicators.ts';
 import type { Cell, CellRemark, HistoryClass, NaReason, ValueTest } from './contract.ts';
-import type { Tail } from './metrics.ts';
+import { effectiveStartAt, effectiveStarts, movingBars } from './effective.ts';
+import type { ResolvedSeries, Tail } from './metrics.ts';
 import { valuePasses } from './universe.ts';
 
 /* ---- views of a series by bar index ------------------------------------------------------------------------------ */
@@ -184,7 +187,8 @@ export function evaluateEvent(signalAt: (i: number) => boolean, within: number, 
 /** The first bar a series' value at `at` depends on (report 6.12 lookback): window class -> at - window + 1, where window
     = the series' firstValid + 1 on this ticker (its first full window), plus `extra` bars before (an EVENT searches
     `within` bars back, so its sides' lookback extends by within); recursive, cumulative and calendar -> null (they read
-    the whole history, report 6.12); a bar field (historyClass null) -> at - extra. On a ticker whose early bars lack an
+    the whole history, report 6.12; a recursive output with an effective window reads seriesLookbackStart instead); a
+    bar field (historyClass null) -> at - extra. On a ticker whose early bars lack an
     input, firstValid comes later than the window needs and the lookback is overstated: the remark may then be set where
     the window is already clear of the ex-date, never left out where it is not (a remark never changes a result). */
 export function lookbackStart(historyClass: HistoryClass | null, firstValid: number, at: number, extra = 0): number | null {
@@ -195,6 +199,30 @@ export function lookbackStart(historyClass: HistoryClass | null, firstValid: num
 /** lookbackStart with the window a reference states exactly (a pattern's, metrics.ts ResolvedSeries.window): the
     value at `at` reads bars [at - window + 1, at]; an infinite window (a recursive pattern) reads the whole history. */
 export const lookbackStartOfWindow = (window: number, at: number, extra = 0): number | null => Number.isFinite(window) ? at - window + 1 - extra : null;
+
+/** What the lookback rule reads of a series (metrics.ts ResolvedSeries). */
+export type LookbackSeries = Pick<ResolvedSeries, 'historyClass' | 'window' | 'effectiveWindow' | 'inputs'>;
+/** THE lookback rule of a series at bar `at` (the Screener's cell mark, condition.ts startOf; the row badge D-1 from the
+    cells; the Backtest's trade flag, backtest-worker grammar.ts noteReach through seriesLookbackStarts), `firstValid` its
+    first value on this ticker, `extra` the test's within or window length: a stated window (a pattern's) reads it
+    (lookbackStartOfWindow); a recursive output with an effective window (UD55, registry.ts historyOf) reads back to the
+    first of its window's moving bars ending at at - extra (effective.ts effectiveStartAt on its inputs), and at least
+    its first full window on this ticker (at - extra - firstValid, the window class's start): a bar before that start
+    moves its value by less than 0.1 % of its magnitude, so a price break there no longer marks it; -1 when the bars
+    hold fewer moving bars than the window (the whole history); every other series lookbackStart. */
+export function seriesLookbackStart(r: LookbackSeries, bars: Bars, firstValid: number, at: number, extra = 0): number | null {
+  if (r.window !== undefined) return lookbackStartOfWindow(r.window, at, extra);
+  if (r.historyClass === 'recursive' && r.effectiveWindow !== undefined && firstValid >= 0)
+    return Math.min(effectiveStartAt(bars, r.inputs, r.effectiveWindow, at - extra), at - extra - firstValid);
+  return lookbackStart(r.historyClass, firstValid, at, extra);
+}
+/** seriesLookbackStart at every bar 0 .. n - 1, in one pass over the bars (the Backtest flags every trade). */
+export function seriesLookbackStarts(r: LookbackSeries, bars: Bars, firstValid: number, n: number, extra = 0): (number | null)[] {
+  if (r.window !== undefined || !(r.historyClass === 'recursive' && r.effectiveWindow !== undefined && firstValid >= 0))
+    return Array.from({ length: n }, (_, i) => seriesLookbackStart(r, bars, firstValid, i, extra));
+  const starts = effectiveStarts(movingBars(bars, r.inputs), r.effectiveWindow);
+  return Array.from({ length: n }, (_, i) => { const t = i - extra; return Math.min(t >= 0 && t < starts.length ? starts[t] : -1, t - firstValid) });
+}
 
 /** PRICE_BREAK_IN_LOOKBACK (P4.1 A; report 6.9 Remarks, 6.12): for a ticker with PRICE_BREAK remarks, the cell remark
     when any side's lookback contains an ex-date: with d = the index of the ticker's first bar on or after the ex-date,

@@ -418,7 +418,9 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
   a Flow value on the signal bar across an unsettled broker basis; `unadjusted` an action whose ex-date jump is in the
   published history, `uncertain` one from 2026-09-12 on that cannot be measured, `anomaly` a one-day move beyond 35 %
   with no action; the Screener's rule, `screener/src/core/pricecheck.ts`, through `engine.ts priceDistortions`, with
-  the window the signal read from the grammar's lookback rule, `Calc.reach`; values are never changed by it); `DATA_GAP` (calendar days without a bar for a held
+  the window the signal read from the grammar's lookback rule, `Calc.reach`: the Screener's cell-mark rule,
+  `screener/src/core/evaluate.ts seriesLookbackStarts`, a recursive output's effective window included, UD55, and the
+  class of the setting in use, UD52; values are never changed by it); `DATA_GAP` (calendar days without a bar for a held
   or signalled ticker; `count` = distinct (ticker, day) pairs, `tickers`); `ARB_NOT_MODELLED` (stops always fill at
   min(open, level); no lower-limit lock) **[D-K5a]**; `TICK_NOT_MODELLED`.
 - Events: per condition and ticker, a `SignalTrack` on the result calendar; entries and exits per ticker; every trade

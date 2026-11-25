@@ -46,7 +46,7 @@ import type { FlowContext, FlowOut } from '../../edge-bff/terminal/src/calc/flow
 import { SOURCES as SCREENER_SOURCES, registryProblems } from '../../edge-bff/screener/src/core/registry.ts';
 import { IMPLEMENTED_PATTERNS, IMPLEMENTED_TRANSFORMS } from '../../edge-bff/screener/src/core/transforms.ts';
 import { availabilityMap, validateTest } from '../../edge-bff/screener/src/core/validate.ts';
-import { lookbackStart, lookbackStartOfWindow } from '../../edge-bff/screener/src/core/evaluate.ts';
+import { seriesLookbackStarts } from '../../edge-bff/screener/src/core/evaluate.ts';
 import type { ValidateContext } from '../../edge-bff/screener/src/core/validate.ts';
 
 /** The grammar's limits (the Screener's own dev values: SCREENER_CAP_BUDGET_MS 4500, SCREENER_WITHIN_MAX 130). */
@@ -351,10 +351,11 @@ function perBar(b: BoundCondition, full: (r: ResolvedSeries) => ArrayLike<number
 }
 
 /** EXEC-PRICE-DISTORTION D-4 (Calc.reach): per bar, the first bar the series read up to that bar read, by the
-    Screener's lookback rule (condition.ts startOf: a stated window, else evaluate.ts lookbackStart from the series'
-    history class and its first value on this ticker; a Flow series its sessions, flowDepth; the whole history, 0),
-    `extra` the test's within or window length; the earliest over every series computed on this Calc. A remark never
-    changes a result: the reach only decides which price distortions a trade is flagged with. */
+    Screener's lookback rule (evaluate.ts seriesLookbackStarts, the rule of condition.ts startOf: a stated window; a
+    recursive output's effective window, UD55, in moving bars on this ticker's bars; else lookbackStart from the series'
+    history class at its parameters, UD52, and its first value on this ticker; a Flow series its sessions, flowDepth;
+    the whole history, 0), `extra` the test's within or window length; the earliest over every series computed on this
+    Calc. A remark never changes a result: the reach only decides which price distortions a trade is flagged with. */
 function noteReach(c: Calc, series: readonly ResolvedSeries[], full: (r: ResolvedSeries) => ArrayLike<number | null | undefined>, extra: number): void {
   const n = c.n, reach = c.reach ??= Int32Array.from({ length: n }, (_, i) => i);
   for (const r of series) {
@@ -362,9 +363,9 @@ function noteReach(c: Calc, series: readonly ResolvedSeries[], full: (r: Resolve
     let first = -1;
     for (let i = 0; i < s.length; i++) { const v = s[i]; if (typeof v === 'number' && Number.isFinite(v)) { first = i; break } }
     const depth = readsFlow(r) ? (r as { flowDepth?: number | null }).flowDepth : undefined;
+    const starts = depth === undefined ? seriesLookbackStarts(r, c.bars, first, n, extra) : null;
     for (let i = 0; i < n; i++) {
-      const at = depth !== undefined ? (depth === null ? null : i - depth + 1 - extra)
-        : r.window !== undefined ? lookbackStartOfWindow(r.window, i, extra) : lookbackStart(r.historyClass, first, i, extra);
+      const at = starts ? starts[i] : depth === null ? null : i - (depth as number) + 1 - extra;
       const st = at === null ? 0 : Math.max(0, at);
       if (st < reach[i]) reach[i] = st;
     }

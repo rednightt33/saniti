@@ -38,11 +38,44 @@ export interface ScreenerParam {
     volume level or quantity, a product of price and volume, dimensionless (percent, ratio, index), other (EOM, MFI-BW). */
 export type Unit = 'price' | 'price_change' | 'volume' | 'price_x_volume' | 'dimensionless' | 'other';
 export const UNITS: readonly Unit[] = ['price', 'price_change', 'volume', 'price_x_volume', 'dimensionless', 'other'];
+/** Why a recursive output has no effective window (build-screener-registry.mjs EFFECTIVE_REASONS): its values are whole
+    numbers (a flag, a direction, a category), a difference from a later start lasts to the end of a probe shape (not
+    bounded), ends far above the tolerance (reset: a Parabolic SAR, a ratcheting band), grows (no decay: a stochastic of
+    a quiet series), or the reach probe moved it out of window (a state a later swing rebuilds, UD36). */
+export type EffectiveReason = 'discrete' | 'not_bounded' | 'reset' | 'no_decay' | 'reach';
+/** UD55 (generated, effectiveScaling): how a recursive output's effective window grows with its whole-number parameters,
+    W(p) = bars at R = 1, else ceil(bars x R^exponent x (1 + margin)) for R <= max_ratio, R = max(1, the largest
+    p_k / start_k over `whole_number`); a parameter below its start value only when `lower`; a number parameter only
+    inside its number_ranges entry; any other setting reads the whole history (historyOf). probes: the measurements the
+    rule was fitted and checked on. */
+export interface EffectiveScaling {
+  whole_number: string[]; exponent: number; margin: number; max_ratio: number; lower: boolean;
+  number_ranges: Record<string, [number, number]>;
+  probes: { role: 'fit' | 'check' | 'lower' | 'number'; params: ParamMap; ratio: number; bars: number | null }[];
+  stopped: string | null;
+}
+/** UD55 (generated, effectiveProbe): a recursive output's effective window, in moving bars (effective.ts), at the start
+    configuration (with its scaling rule) or at one option (history_by_option, without one); bars null: the whole history,
+    for `reason`. at: the probe shape and cut that gave it; decay and end: the probe's largest ratios (null: infinite). */
+export interface EffectiveWindow {
+  bars: number | null; reason: EffectiveReason | null; at: string | null; decay?: number | null; end?: number | null;
+  scaling?: EffectiveScaling;
+}
+/** UD52 (generated, historyByOption): an output's history at one option of an enum or switch parameter, the others at
+    the start configuration. */
+export interface OptionHistory { history_class: HistoryClass; effective_window?: EffectiveWindow }
 export interface ScreenerOutput {
   key: string; label: string | null; display_unit: string | null;
   unit: Unit; level_comparable: boolean; comparable_with: 'close' | 'volume' | null;
   price_compare_lag: { gt: 0 | 1; lt: 0 | 1 };
+  /** at the start configuration (start_params); another setting reads historyOf */
   history_class: HistoryClass;
+  /** UD55: a recursive output's effective window at the start configuration (absent on the other classes) */
+  effective_window?: EffectiveWindow;
+  /** UD52: param -> option -> the history there, only where it differs from the start configuration's */
+  history_by_option?: Record<string, Record<string, OptionHistory>>;
+  /** UD52: the class of two or more options away from the start, only where the worst of theirs would be lower */
+  history_class_combined?: HistoryClass;
   first_valid_bar: number | null;    // at the start configuration (start_params), on the probe fixture
   inputs: string[];                  // O H L C V needed at the start configuration (poison probe)
   /** enum parameter -> option -> the fields needed with that option and the other parameters at the start
@@ -228,6 +261,51 @@ export function inputsOf(output: ScreenerOutput, params: Params): BarField[] {
   if (!per.length) return BAR_FIELDS.filter(f => output.inputs.includes(f));
   if (per.some(f => !f || !f.length)) return [];
   return BAR_FIELDS.filter(f => per.some(x => x.includes(f)));
+}
+
+const HISTORY_ORDER: readonly HistoryClass[] = ['window', 'calendar', 'recursive', 'cumulative'];
+const worstOf = (cs: readonly HistoryClass[]): HistoryClass => cs.reduce((w, c) => HISTORY_ORDER.indexOf(c) > HISTORY_ORDER.indexOf(w) ? c : w, 'window');
+/** The history an output reads at resolved parameters (EXEC-PRICE-DISTORTION; the user 2026-11-25, "3. Ok boleh": UD52
+    (a) "one class per output and setting", UD55 (a) "an effective window per output ... 0.1 % of its size"), which the
+    lookback rule reads (evaluate.ts seriesLookbackStart: the cell mark, the row badge D-1, the Backtest's trade flag):
+    - the class: at the start configuration's enum and switch options the output's history_class; with one of them at
+      another option that option's (history_by_option, or the start's where it is not listed); with two or more, the
+      generator's history_class_combined, else the worst of their classes (the generator checked every combination);
+    - the effective window (recursive only, in moving bars), else null (the whole history): at the start configuration's
+      options the start's window grown by its scaling rule (EffectiveScaling, 5 % above the fitted curve: every
+      whole-number parameter within max_ratio of its start value, below it only when `lower`, every number parameter
+      inside its range); at one other
+      option that option's window with every other parameter at its start value; at two or more options, none.
+    Any setting the generator did not measure reads the whole history: a remark may be set where the value has forgotten
+    the date, never left out where it has not. */
+export function historyOf(ind: ScreenerIndicator, output: ScreenerOutput, params: Params): { historyClass: HistoryClass; effectiveWindow: number | null } {
+  const start = ind.start_params as Params;
+  const away = ind.params.filter(p => (p.type === 'enum' || p.type === 'boolean') && params[p.key] !== start[p.key]);
+  const startHistory: OptionHistory = { history_class: output.history_class, ...(output.effective_window ? { effective_window: output.effective_window } : {}) };
+  const at = (p: ScreenerParam): OptionHistory => output.history_by_option?.[p.key]?.[String(params[p.key])] ?? startHistory;
+  if (away.length > 1) return { historyClass: output.history_class_combined ?? worstOf(away.map(p => at(p).history_class)), effectiveWindow: null };
+  const h = away.length ? at(away[0]) : startHistory;
+  const w = h.effective_window;
+  if (h.history_class !== 'recursive' || !w || w.bars === null) return { historyClass: h.history_class, effectiveWindow: null };
+  const changed = ind.params.filter(p => p.type !== 'enum' && p.type !== 'boolean' && params[p.key] !== start[p.key]);
+  if (!changed.length) return { historyClass: 'recursive', effectiveWindow: w.bars };
+  const s = away.length ? undefined : w.scaling;
+  if (!s) return { historyClass: 'recursive', effectiveWindow: null };
+  let R = 1, lowered = false;
+  for (const p of changed) {
+    const v = params[p.key], v0 = start[p.key];
+    if (typeof v !== 'number' || typeof v0 !== 'number') return { historyClass: 'recursive', effectiveWindow: null };
+    if (!p.integer) {
+      const range = s.number_ranges[p.key];
+      if (!range || !(v >= range[0] && v <= range[1])) return { historyClass: 'recursive', effectiveWindow: null };
+      continue;
+    }
+    if (!s.whole_number.includes(p.key) || !(v0 > 0)) return { historyClass: 'recursive', effectiveWindow: null };
+    if (v < v0) lowered = true;
+    R = Math.max(R, v / v0);
+  }
+  if ((lowered && !s.lower) || R > s.max_ratio) return { historyClass: 'recursive', effectiveWindow: null };
+  return { historyClass: 'recursive', effectiveWindow: R > 1 ? Math.ceil(w.bars * R ** s.exponent * (1 + s.margin)) : w.bars };
 }
 
 /* ---- caps (report 6.8 "Caps") ------------------------------------------------------------------------------------ */
