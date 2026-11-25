@@ -15,8 +15,13 @@
      valid bar's) for window-class series, the whole history for recursive, cumulative and calendar ones, one bar for a
      bar field; an EVENT cross extends each side's lookback by `within` (the cross at the window's first bar reads the
      bar before it), an EVENT pattern by `within - 1` (its stated window already holds that bar); a cross-section value
-     reads (at - window, at];
-     universe attributes (and Phase 2 flow) never carry it (report 6.12);
+     reads (at - window, at]; universe attributes never carry it (report 6.12). EXEC-PRICE-DISTORTION D-5 (user
+     2026-11-24, flow cells marked too): a flow side is marked over the sessions it reads (flowStart: its flowDepth plus
+     the test's within, ending at the evaluated candle, or from the loaded window's start when its output reads so, never
+     before the stock's first candle with broker data), with PRICE_BREAK_IN_LOOKBACK only when its output reads the
+     close or the volume (the registry's outputs[].reads), with FLOW_BASIS_IN_LOOKBACK when it reads the broker lots and
+     those sessions cross an action of TickerInput.flowBasis; its price operands keep their own lookbacks; a window test
+     adds its own sessions for both (cellOf, bindWindow). The cell carries remark_dates, the dates crossed;
    - a universe attribute is the snapshot row's value (S2, O(1)); a null attribute is NA INSUFFICIENT_HISTORY (it is
      null only for too few bars); a metric whose applies_to excludes the ticker is NA NOT_APPLICABLE;
    - a cross-section value (return_rank) is a population-level value read from the caller (S1, xsection.ts); null is NA
@@ -25,8 +30,8 @@
      (flowmetrics.ts) is evaluated at the stock's last candle with broker data on or before its evaluation bar (P10 a;
      flowBarOf over the broker-data series; none in the window: NA FLOW_UNAVAILABLE), a session of it without broker data
      is NA FLOW_UNAVAILABLE, its sessions (the indicator's own plus the operators' N, the window's length, the event's
-     within) may not exceed the loaded window (K1, LIMIT_EXCEEDED broker_depth, when ctx.flow names the window), it
-     never carries the price-break remark, and the output types of OPERATORS.md section 4 (typeAllows: no fixed value,
+     within) may not exceed the loaded window (K1, LIMIT_EXCEEDED broker_depth, when ctx.flow names the window), its
+     remark follows D-5 above, and the output types of OPERATORS.md section 4 (typeAllows: no fixed value,
      range or rank on lots per transaction and price levels, no range, cross or measure on a 0/1 signal; K7 "=" and "!="
      only on D, F and B) and the same-unit rule of operators 7 and 8 (sameUnit) apply to it.
    Worker-side module (imports the backtest core through metrics.ts). */
@@ -39,8 +44,8 @@ import { ScreenerError } from './errors.ts';
 import { METRICS_CATALOG, appliesTo, metricSpec, resolveCatalogParams } from './catalog.ts';
 import type { MetricDefinition, MetricsCatalog } from './catalog.ts';
 import {
-  compareAt, crossSignal, evaluateEvent, evaluateWindow, valuePasses, evaluateState, evaluateStatePattern, evaluateValue, lookbackStart, lookbackStartOfWindow,
-  naReason, priceBreakRemark, signalAt, toCell, viewOfSeries, viewOfTail,
+  cellRemarkOf, compareAt, crossSignal, crossedDates, evaluateEvent, evaluateWindow, valuePasses, evaluateState, evaluateStatePattern, evaluateValue, lookbackStart,
+  lookbackStartOfWindow, naReason, signalAt, toCell, viewOfSeries, viewOfTail,
 } from './evaluate.ts';
 import type { BarView, Evaluation, Operand, SessionOutcome } from './evaluate.ts';
 import { laggedSeries, missingInput, notSeriesRefusal, resolveSeries } from './metrics.ts';
@@ -49,7 +54,7 @@ import { canonicalJson } from '../../../backtest/src/core/hash.ts';
 import { operatorTakes, outputType, resolveSignal } from './transforms.ts';
 import { FLOW_BY_ID, FLOW_PRESENCE, FLOW_DESIGN_SESSIONS, depthRefusal, readsFlow, resolveFlowParams } from './flowmetrics.ts';
 import type { FlowBindContext } from './flowmetrics.ts';
-import { INDICATORS, SBY_ID, isDefaultParams } from './registry.ts';
+import { FLOW_READS, INDICATORS, SBY_ID, isDefaultParams } from './registry.ts';
 import type { ParamOptions } from './registry.ts';
 import { priceBreakDates } from './universe.ts';
 
@@ -90,6 +95,11 @@ export interface TickerInput {
   xsection(key: string): number | null;
   /** the snapshot's answer of metrics.ts missingInput for this ticker, when the caller has one (TickerBars.missing) */
   missing?: TickerBars['missing'];
+  /** EXEC-PRICE-DISTORTION D-5: the ex dates of the ticker's price-affecting actions inside the loaded broker window
+      whose broker lots are not on one basis with the lots after them (the actions file's `basis` terms, pending,
+      unresolved, or none: R2; the worker's snapshot, ScreenEnv.flowBasisDates); a flow cell whose output reads the lots
+      and whose sessions cross one carries FLOW_BASIS_IN_LOOKBACK. Absent: none */
+  flowBasis?: readonly string[];
 }
 
 /** A population-level metric a condition reads (report 6.10 stage S1; xsection.ts). rankOf: operator 11 (contract.ts
@@ -280,8 +290,8 @@ function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalo
         const v = input.xsection(x.key);
         const e: Evaluation = typeof v === 'number' && Number.isFinite(v) ? { status: valuePasses(v, rule) ? 'pass' : 'fail', reason: null, value: v } : { status: 'na', reason: 'INSUFFICIENT_HISTORY', value: null };
         const ex = priceBreakDates(input.row);
-        const remark = ex.length ? priceBreakRemark([input.at - x.window], input.dates, input.at, ex) : null;
-        return { cell: toCell(id, e, { dates: input.dates, at: input.at, ihsgCalendar: input.ihsgCalendar, unit: null, remark }), source: 'precomputed' };
+        const { remark, dates } = cellRemarkOf(ex.length ? crossedDates([input.at - x.window], input.dates, input.at, ex) : [], []);
+        return { cell: toCell(id, e, { dates: input.dates, at: input.at, ihsgCalendar: input.ihsgCalendar, unit: null, remark, remarkDates: dates }), source: 'precomputed' };
       },
     };
   }
@@ -298,7 +308,7 @@ function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalo
     evaluate: input => {
       const { view, tail, source } = read(input, r, 0);
       const e = evaluateValue(view, rule, input.at);
-      return { cell: cellOf(id, e, input, r.unit, readsFlow(r) ? [] : [startOf(r, tail, input.at, 0)]), source };
+      return { cell: cellOf(id, e, input, r.unit, [{ r, tail, extra: 0 }]), source };
     },
   };
 }
@@ -376,10 +386,10 @@ function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string,
       const e = kind === 'state'
         ? evaluateState(lv, op as 'gt' | 'lt', rv, input.at)
         : evaluateEvent(crossSignal(lv, op as 'crosses_above' | 'crosses_below', rv), within, ctx.withinMax, input.at, { lhs: lv, rhs: rv });
-      const starts = sides.flatMap((s, k) => s.kind === 'value' || readsFlow(s.r) ? [] : [startOf(s.r, reads[k]!.tail, input.at, kind === 'event' ? within : 0)]);
+      const read2 = sides.flatMap((s, k) => s.kind === 'value' ? [] : [{ r: s.r, tail: reads[k]!.tail, extra: kind === 'event' ? within : 0 }]);
       // a bar field is the snapshot itself (never computed for a request), so only the other sides decide the source
       const source: SeriesSource = reads.every((x, k) => !x || x.source === 'precomputed' || (sides[k] as { r: ResolvedSeries }).r.kind === 'price') ? 'precomputed' : 'dynamic';
-      return { cell: cellOf(id, e, input, unit, starts), source };
+      return { cell: cellOf(id, e, input, unit, read2), source };
     },
   };
 }
@@ -399,7 +409,7 @@ function bindPattern(id: string, kind: 'state' | 'event', p: PatternRef, within:
       const e = kind === 'state' ? evaluateStatePattern(view, input.at) : evaluateEvent(i => signalAt(view, i), within, ctx.withinMax, input.at);
       // an EVENT reads the signal on bars [at - within + 1, at], each over its own window (which already holds the bar
       // before that a cross reads), so the lookback extends by within - 1 bars, not by within as a cross's sides do
-      return { cell: cellOf(id, e, input, null, [startOf(r, tail, input.at, kind === 'event' ? within - 1 : 0)]), source };
+      return { cell: cellOf(id, e, input, null, [{ r, tail, extra: kind === 'event' ? within - 1 : 0 }]), source };
     },
   };
 }
@@ -433,7 +443,7 @@ function bindRank(id: string, m: RankRef, t: ValueTest, f: string, ctx: BindCont
       const v = input.xsection(x.key), { view, tail, source } = read(input, of, 0);
       const e: Evaluation = typeof v === 'number' && Number.isFinite(v) ? { status: valuePasses(v, rule) ? 'pass' : 'fail', reason: null, value: v }
         : { status: 'na', reason: naReason(view, input.at) ?? 'NULL_AT_EVALUATION', value: null };
-      return { cell: cellOf(id, e, input, 'percentile', readsFlow(of) ? [] : [startOf(of, tail, input.at, 0)]), source };
+      return { cell: cellOf(id, e, input, 'percentile', [{ r: of, tail, extra: 0 }]), source };
     },
   };
 }
@@ -486,6 +496,7 @@ function bindWindow(id: string, t: WindowTest, f: string, ctx: BindContext): Raw
   if (inner.xsection || inner.universeAttr !== null)
     throw notSeriesRefusal((t.test as ValueTest).metric, `${f}.test.metric`, { as: 'value' }, 'window', ctx.catalog ?? METRICS_CATALOG);
   const test: WindowTest = { kind: 'window', mode: t.mode, length: L, ...(t.mode === 'at_least' ? { count } : {}), test: inner.test as WindowTest['test'] };
+  const innerReads = seriesReads(inner.series);
   const word = t.mode === 'ever' ? `ever in ${L}` : t.mode === 'at_least' ? `${count} of ${L}` : `${L} in a row`;
   return {
     id, kind: 'window', test, series: inner.series, xsection: null, universeAttr: null, window: { inner, mode: t.mode, length: L, count },
@@ -494,28 +505,75 @@ function bindWindow(id: string, t: WindowTest, f: string, ctx: BindContext): Raw
       // the tails are read once per ticker, not once per session (the series path keys every read)
       const memo = new Map<ResolvedSeries, ReturnType<TickerInput['series']>>();
       const at = input.at, moved: TickerInput = { ...input, series: r => { let x = memo.get(r); if (!x) { x = input.series(r); memo.set(r, x) } return x } };
-      let dynamic = false, remark: CellRemark | null = null;
+      let dynamic = false, inner1: CellRemark | null = null, lotsHit = false;
+      const crossed = new Set<string>();
       const outcome = (i: number): SessionOutcome => {
         const r = inner.evaluateAt({ ...moved, at: i });
         if (r.source === 'dynamic') dynamic = true;
-        remark ??= r.cell.remark;
+        if (r.cell.remark) { inner1 ??= r.cell.remark; if (r.cell.remark === 'FLOW_BASIS_IN_LOOKBACK') lotsHit = true; for (const d of r.cell.remark_dates ?? []) crossed.add(d) }
         return r.cell.status === 'na' ? { status: 'na', reason: r.cell.reason ?? 'NULL_AT_EVALUATION' } : { status: r.cell.status === 'pass' ? 'pass' : 'fail' };
       };
       const e = evaluateWindow(outcome, t.mode, L, count, at);
-      // the window itself spans sessions at-L+1 .. at: an ex-date after its first session mixes the two sides of a break
-      // in the count, even where each session alone reads one bar (a bar field: QA2 2026-11-07 D1)
-      if (!remark) { const ex = priceBreakDates(input.row); if (ex.length) remark = priceBreakRemark([at - L + 1], input.dates, at, ex) }
-      return { cell: toCell(id, e, { dates: input.dates, at, ihsgCalendar: input.ihsgCalendar, unit: 'sessions', remark }), source: dynamic ? 'dynamic' : 'precomputed' };
+      // the window itself spans sessions at-L+1 .. at: a date after its first session mixes the two sides of a break in
+      // the count, even where each session alone reads one bar (a bar field: QA2 2026-11-07 D1) or one candle's lots (lots
+      // per transaction, EXEC-PRICE-DISTORTION D-5): for a price break when the inner test reads prices, for an action
+      // whose lots are not on one basis when it reads the lots of a flow output
+      const ex = priceBreakDates(input.row), lots = input.flowBasis ?? [];
+      if (ex.length && innerReads.price) for (const d of crossedDates([at - L + 1], input.dates, at, ex)) crossed.add(d);
+      if (lots.length && innerReads.lots) {
+        const hit = crossedDates([Math.max(at - L + 1, flowFirst(moved))], input.dates, at, lots);
+        if (hit.length) { lotsHit = true; for (const d of hit) crossed.add(d) }
+      }
+      const remark: CellRemark | null = lotsHit ? 'FLOW_BASIS_IN_LOOKBACK' : crossed.size || inner1 ? 'PRICE_BREAK_IN_LOOKBACK' : null;
+      return { cell: toCell(id, e, { dates: input.dates, at, ihsgCalendar: input.ihsgCalendar, unit: 'sessions', remark, remarkDates: [...crossed].sort() }), source: dynamic ? 'dynamic' : 'precomputed' };
     },
   };
 }
 
 /* ---- helpers ------------------------------------------------------------------------------------------------------- */
 
-function cellOf(id: string, e: Evaluation, input: TickerInput, unit: string | null, starts: (number | null)[]): Cell {
-  const ex = priceBreakDates(input.row);
-  const remark: CellRemark | null = ex.length ? priceBreakRemark(starts, input.dates, input.at, ex) : null;
-  return toCell(id, e, { dates: input.dates, at: input.at, ihsgCalendar: input.ihsgCalendar, unit: unit as string | null, remark });
+/** One series a cell read at input.at, with the sessions its test reads beyond the series' own (an EVENT's within). */
+interface ReadSide { r: ResolvedSeries; tail: Tail; extra: number }
+/** The ticker's first candle with broker data in the loaded window (the bar of FLOW_PRESENCE's first value; at when it
+    has none, so nothing before it is read). */
+const flowFirst = (input: TickerInput): number => { const f = input.series(FLOW_PRESENCE).tail.firstValid; return f < 0 ? input.at : f };
+/** EXEC-PRICE-DISTORTION D-5: the first candle a flow series' values at input.at read: from the loaded window's start
+    when its output reads so (flowFromStart) or its depth is not known, else its flowDepth plus the test's sessions
+    ending at input.at, never before the first candle with broker data (no lot before it is read). */
+function flowStart(input: TickerInput, r: ResolvedSeries, extra: number): number {
+  const first = flowFirst(input);
+  return r.flowFromStart !== false || typeof r.flowDepth !== 'number' ? first : Math.max(first, input.at - (r.flowDepth + extra) + 1);
+}
+/** What the series of a test read that a price break or an action's lot basis distorts: prices (a series that is not
+    flow; a flow output reading the close or the volume, or one with price operands) and broker lots (a flow output
+    reading them). */
+function seriesReads(series: readonly ResolvedSeries[]): { price: boolean; lots: boolean } {
+  const reads = (r: ResolvedSeries) => r.flowReads ?? FLOW_READS;
+  return {
+    price: series.some(r => !readsFlow(r) || reads(r).some(x => x !== 'lots') || (r.flowPriceSides?.length ?? 0) > 0),
+    lots: series.some(r => readsFlow(r) && reads(r).includes('lots')),
+  };
+}
+/** The cell of an evaluation with its remark (EXEC-PRICE-DISTORTION; contract.ts CELL_REMARKS, evaluate.ts
+    cellRemarkOf): a series that is not flow crosses a PRICE_BREAK date of the row over its lookback (startOf); a flow
+    series over the sessions it reads (flowStart) crosses an action of input.flowBasis when its output reads the lots,
+    a PRICE_BREAK date when it reads the close or the volume, and its price operands cross a PRICE_BREAK date over their
+    own lookbacks (a bar field: its one bar and the test's sessions). Nothing is read when the row has no date to cross. */
+function cellOf(id: string, e: Evaluation, input: TickerInput, unit: string | null, sides: readonly ReadSide[]): Cell {
+  const ex = priceBreakDates(input.row), lots = input.flowBasis ?? [], at = input.at;
+  let mark: { remark: CellRemark | null; dates: string[] } = { remark: null, dates: [] };
+  if (ex.length || lots.length) {
+    const price: (number | null)[] = [], lot: number[] = [];
+    for (const { r, tail, extra } of sides) {
+      if (!readsFlow(r)) { if (ex.length) price.push(startOf(r, tail, at, extra)); continue }
+      const reads = r.flowReads ?? FLOW_READS, s = flowStart(input, r, extra);
+      if (reads.includes('lots')) lot.push(s);
+      if (ex.length && reads.some(x => x !== 'lots')) price.push(s);
+      if (ex.length) for (const p of r.flowPriceSides ?? []) price.push(p.kind === 'price' ? at - extra : startOf(p, input.series(p).tail, at, extra));
+    }
+    mark = cellRemarkOf(crossedDates(price, input.dates, at, ex), crossedDates(lot, input.dates, at, lots));
+  }
+  return toCell(id, e, { dates: input.dates, at, ihsgCalendar: input.ihsgCalendar, unit: unit as string | null, remark: mark.remark, remarkDates: mark.dates });
 }
 const defaultsOf = (m: MetricDefinition): ParamMap => Object.fromEntries(m.params.map(p => [p.key, p.default]));
 /** Whether a normalized reference is at its defaults all the way down (report 8.5 is_default: "whether the parameters

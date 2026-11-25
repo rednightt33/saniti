@@ -42,11 +42,11 @@ import { isIsoDate } from '../../../backtest/src/core/signals.ts';
 import type { FlowParamValue, FlowRef, MetricRef } from './contract.ts';
 import { ScreenerError } from './errors.ts';
 import { FLOW_REASONS } from './catalog.ts';
-import { anchoredAt, anchoredLazy, anchoredSeries, foreignNet, inventory } from './flowscreener.ts';
-import type { FlowCall, InventorySetup } from './flowscreener.ts';
-import { SCREENER_REGISTRY } from './registry.ts';
+import { anchoredAt, anchoredLazy, computeEntry, terminalParams } from './flowscreener.ts';
+import type { FlowCall } from './flowscreener.ts';
+import { FLOW_READS, SCREENER_REGISTRY } from './registry.ts';
 import { probeContext, probeLength } from './flowprobe.ts';
-import type { FlowKindSpec, FlowRegistryEntry, FlowRegistryParam } from './registry.ts';
+import type { FlowKindSpec, FlowRead, FlowRegistryEntry, FlowRegistryParam } from './registry.ts';
 import kindsDoc from './flow-kinds.json' with { type: 'json' };
 import type { ResolvedSeries, TickerBars, TickerCalc } from './metrics.ts';
 
@@ -218,27 +218,9 @@ export function seriesKeyOf(e: FlowRegistryEntry, output: string, params: Record
 
 /* ---- depth (K1) ------------------------------------------------------------------------------------------------------ */
 
-/* ---- computing an entry (P5b: the Screener's versions on top of computeFlow) ----------------------------------------- */
+/* ---- computing an entry (P5b): flowscreener.ts computeEntry, the one function the registry's probes run too --------- */
 
-/** The Terminal's parameters of a screener version (its screener parameters left out): what computeFlow is given. */
-const terminalParams = (e: FlowRegistryEntry, params: Record<string, FlowParamValue>): Record<string, FlowParamValue> =>
-  Object.fromEntries(Object.entries(params).filter(([k]) => !e.params.find(p => p.key === k)?.screener));
-/** Every output of a flow entry on a context, by the entry's `compute` (registry.ts FlowCompute): the Terminal's
-    computeFlow (`call`: the caller's memo of it on the same context); the anchor N sessions back (flowscreener.ts
-    anchoredSeries); the Screener's Broker Inventory (inventory, its FL23 calls through `call`); the foreign net (fnet,
-    foreignNet). An entry whose data is not published (compute none) is never computed. */
-export function computeEntry(e: FlowRegistryEntry, ctx: FlowContext, params: Record<string, FlowParamValue>, call: FlowCall = computeFlow): FlowOut {
-  switch (e.compute) {
-    case 'terminal': return call(e.id, ctx, params);
-    case 'anchored': {
-      const q = terminalParams(e, params), n = params.anchor_sessions as number;
-      return Object.fromEntries(e.outputs.map(o => [o.key, anchoredSeries(e.id, ctx, q, n, o.key)]));
-    }
-    case 'inventory': return inventory(ctx, params as unknown as InventorySetup, call);
-    case 'foreign_net': return { value: foreignNet(ctx.rows, params.boards as string[], params.window as number) };
-  }
-  throw new RangeError(`flow: ${e.id} is not computed (${e.requires ?? 'no'} data)`);
-}
+export { computeEntry };
 const depthMemo = new Map<string, number | null>();
 /** The sessions the indicator reads back at these parameters (K1): on the probe context with broker data on every
     candle, the first candle of the output with a value, plus one (each(R, W, ...) gives W; a percentile over a
@@ -459,11 +441,16 @@ export function resolveFlow(ref: FlowRef, field: string, ctx: { flow?: FlowBindC
   // P5b cost: an anchored entry a condition reads at its last `reach` sessions only is computed there only (lazy), as its
   // own series (its key names the reach, so a cached part never serves a reader that needs more)
   const reach = e.compute === 'anchored' && typeof ctx.flowReach === 'number' ? ctx.flowReach : undefined;
+  // EXEC-PRICE-DISTORTION D-5: what the output reads that an action or a price break distorts (the generator's basis
+  // probe); an output the probe did not measure reads everything from the window's start (a cell may be marked where it
+  // need not be, never left unmarked)
+  const probed = e.outputs.find(o => o.key === output);
+  const flowReads: readonly FlowRead[] = probed?.reads ?? FLOW_READS, flowFromStart = probed?.reads ? probed.reads_from === 'window_start' : true;
   return {
     kind: 'flow', key: reach === undefined ? canonicalJson(norm) : canonicalJson([norm, { reach }]), ref: norm as MetricRef, label: `${e.id}.${output}`,
     unit: level ? 'price' : unit, historyClass: 'window', inputs: [], comparableWith: level ? 'close' : null, compareLag: NO_LAG,
     integer: kind === 'D' || kind === 'F' || kind === 'B',
-    flowEntry: e, outputKind: kind, flowDepth: indicatorDepth(e, output, params),
+    flowEntry: e, outputKind: kind, flowDepth: indicatorDepth(e, output, params), flowReads, flowFromStart, flowPriceSides: [],
     full: (t: TickerCalc) => {
       if (reach !== undefined) { const { lo, s } = lazyOutOf(t, e, params, key, reach); return aligned(t.dates.length, lo, s) }
       const { lo, out } = flowOutOf(t, e, params);
@@ -476,7 +463,7 @@ export function resolveFlow(ref: FlowRef, field: string, ctx: { flow?: FlowBindC
     FLOW_UNAVAILABLE. Read through the one series() path, so it is computed once per ticker. */
 export const FLOW_PRESENCE: ResolvedSeries = Object.freeze({
   kind: 'flow', key: canonicalJson({ kind: 'flow', metric: 'broker_data' }), ref: { kind: 'flow', metric: 'broker_data' } as MetricRef, label: 'broker data',
-  unit: null, historyClass: 'window', inputs: [], comparableWith: null, compareLag: NO_LAG, flowDepth: 1,
+  unit: null, historyClass: 'window', inputs: [], comparableWith: null, compareLag: NO_LAG, flowDepth: 1, flowReads: [], flowFromStart: false, flowPriceSides: [],
   full: (t: TickerCalc) => { const { lo, out } = presenceOf(t); return aligned(t.dates.length, lo, out.has) },
 }) as ResolvedSeries;
 /** Whether a series reads a flow indicator (directly or through an operator). */

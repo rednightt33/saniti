@@ -99,7 +99,10 @@ describe('stage S0 and the P4 chips', () => {
     const r = runScreen(norm({ universe: { ...UNIVERSE_DEFAULTS, price_min: null, adv20_min_idr: null }, logic: 'all', conditions: [] }), cold());
     expect(r.universe).toEqual({ listed: 63, eligible: 63, stale_hidden: 0, price_break_hidden: 0, filtered_out: 0 });
     expect(r.rows.find(x => x.ticker === 'STAL')?.remarks.map(m => m.code)).toEqual(['STALE']);
-    expect(r.rows.find(x => x.ticker === 'PBSA')?.remarks.some(m => m.code === 'PRICE_BREAK')).toBe(true);
+    // listed with its value; D-1: no cell crossed its break (there are none) and the break is not on its last bar, so the
+    // run's row shows no PRICE_BREAK badge, while the universe rows (GET /universe, the chips) keep it
+    expect(r.rows.find(x => x.ticker === 'PBSA')?.remarks.some(m => m.code === 'PRICE_BREAK')).toBe(false);
+    expect(rows.find(x => x.ticker === 'PBSA')!.remarks.some(m => m.code === 'PRICE_BREAK')).toBe(true);
   });
   it('no condition lists the universe (universe_only): stale and price-break tickers hidden and counted', () => {
     const r = runScreen(plain, cold());

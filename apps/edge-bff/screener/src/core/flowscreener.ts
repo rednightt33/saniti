@@ -6,14 +6,40 @@
    (tests/core/flow-screener.test.ts). The candles, the window rule and the null rule are the Terminal's
    (verification/terminal_api/flow_indicators/FORMULAS.md section 2): a value needs its candle to have broker data and
    its sessions to start at or after the first candle with broker data.
+   computeEntry (every output of an entry by its `compute`) lives here, beside the versions it dispatches to, so the
+   registry generator's probes (scripts/build-screener-registry.mjs basisReads) run the same function the Screener
+   computes with without loading the generated registry (flowmetrics.ts re-exports it).
    Pure module (no DOM, no Node API); flowmetrics.ts calls it on the window's context and on its depth probe. */
 import { atLeast, atMost, boardIndex, computeFlow, investorIndex } from '../../../terminal/src/calc/flow.ts';
 import type { FlowContext, FlowOut, FlowRows, Num } from '../../../terminal/src/calc/flow.ts';
+import type { FlowRegistryEntry } from './registry.ts';
 
 type Series = Num[];
 /** computeFlow, or the caller's memoized computeFlow on the same context (flowmetrics.ts: one call per ticker, id and
     parameters). */
 export type FlowCall = (id: string, ctx: FlowContext, params: Record<string, unknown>) => FlowOut;
+
+/* ---- computing an entry (P5b: the Screener's versions on top of computeFlow) ----------------------------------------- */
+
+/** The Terminal's parameters of a screener version (its screener parameters left out): what computeFlow is given. */
+export const terminalParams = (e: Pick<FlowRegistryEntry, 'params'>, params: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(params).filter(([k]) => !e.params.find(p => p.key === k)?.screener));
+/** Every output of a flow entry on a context, by the entry's `compute` (registry.ts FlowCompute): the Terminal's
+    computeFlow (`call`: the caller's memo of it on the same context); the anchor N sessions back (anchoredSeries);
+    the Screener's Broker Inventory (inventory, its FL23 calls through `call`); the foreign net (fnet, foreignNet). An
+    entry whose data is not published (compute none) is never computed. */
+export function computeEntry(e: Pick<FlowRegistryEntry, 'id' | 'compute' | 'outputs' | 'params' | 'requires'>, ctx: FlowContext, params: Record<string, unknown>, call: FlowCall = computeFlow): FlowOut {
+  switch (e.compute) {
+    case 'terminal': return call(e.id, ctx, params);
+    case 'anchored': {
+      const q = terminalParams(e, params), n = params.anchor_sessions as number;
+      return Object.fromEntries(e.outputs.map(o => [o.key, anchoredSeries(e.id, ctx, q, n, o.key)]));
+    }
+    case 'inventory': return inventory(ctx, params as unknown as InventorySetup, call);
+    case 'foreign_net': return { value: foreignNet(ctx.rows, params.boards as string[], params.window as number) };
+  }
+  throw new RangeError(`flow: ${e.id} is not computed (${e.requires ?? 'no'} data)`);
+}
 
 const firsts = new WeakMap<FlowRows, number>();
 /** The first candle with broker data (flow.ts firstData), R.N when none. */

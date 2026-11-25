@@ -828,7 +828,9 @@ def test_xsection_files_are_deterministic_and_never_rewritten():
 def test_the_actions_file_holds_share_count_changes_and_cash_dividends_on_their_ex_dates():
     p, _, bucket = run('backfill')
     entry, doc = xsection(bucket, 'actions')
-    assert doc['columns'] == pub.ACTION_COLUMNS and entry['rows'] == 3
+    assert doc['columns'] == pub.ACTION_COLUMNS + ['basis'] and entry['rows'] == 3
+    # EXEC-PRICE-DISTORTION D-5: the split is after the broker date (2026-01-02 here), so no basis is measured for it
+    assert doc['basis'] == [None, None, None] and 'basis' in doc['means']
     assert doc['t'] == ['BBCA'] * 3 and doc['d'] == ['2026-03-10', '2026-10-14', '2026-11-03']   # future ex date kept
     assert doc['type'] == ['DIVIDEND', 'STOCK_SPLIT', 'DIVIDEND']
     assert (doc['ratio_old'], doc['ratio_new']) == ([None, 1.0, None], [None, 5.0, None])
@@ -3045,6 +3047,57 @@ def test_the_events_file_carries_the_broker_basis_and_its_stamp_follows_the_deci
     p3 = pub.Publisher(conn, bucket, today=TODAY); p3.run('broker-range', '2026-01-01', '2026-02-28', {'BBCA'})
     b = doc_of(bucket, 'BBCA', 'events', 'all')['basis']
     assert b['status'][b['ex'].index('2026-02-02')] == 'same'
+
+
+def test_action_basis_column_copies_the_status_of_a_price_action_inside_the_broker_window():
+    """EXEC-PRICE-DISTORTION D-5 (R1): the status broker_basis gives an action, only for a price action whose ex date is
+    from the window's oldest broker date through the broker date; the worst of an action's rows; None elsewhere."""
+    rows = [('AAAA', '2026-03-02', 'STOCK_SPLIT', 1.0, 2.0, None, None),     # inside: terms
+            ('AAAA', '2026-03-02', 'DIVIDEND', None, None, 10.0, 'IDR'),     # a cash dividend: never
+            ('AAAA', '2026-01-05', 'BONUS_SHARE', 10.0, 1.0, None, None),    # before the window
+            ('AAAA', '2026-03-20', 'STOCK_SPLIT', 1.0, 2.0, None, None),     # after the broker date
+            ('BBBB', '2026-02-10', 'RIGHT_ISSUE', 4.0, 1.0, 500.0, 'IDR'),   # listed twice: same and pending -> pending
+            ('CCCC', '2026-02-11', 'REVERSE_SPLIT', 10.0, 1.0, None, None),  # no basis row: None
+            ('DDDD', '2026-02-01', 'STOCK_DIVIDEND', 10.0, 1.0, None, None)]  # on the window's first date: inside
+    basis = {'AAAA': [['2026-01-05', 'BONUS_SHARE', 1.1, 'terms'], ['2026-03-02', 'STOCK_SPLIT', 2.0, 'terms']],
+             'BBBB': [['2026-02-10', 'RIGHT_ISSUE', 1.0, 'same'], ['2026-02-10', 'RIGHT_ISSUE', 1.0, 'pending']],
+             'CCCC': [], 'DDDD': [['2026-02-01', 'STOCK_DIVIDEND', 1.0, 'same']]}
+    asked = []
+    of = lambda t: asked.append(t) or basis[t]
+    assert pub.action_basis_column(rows, '2026-02-01', '2026-03-10', of) == ['terms', None, None, None, 'pending', None, 'same']
+    assert sorted(set(asked)) == ['AAAA', 'BBBB', 'CCCC', 'DDDD']                 # only tickers with a price action inside
+    assert pub.action_basis_column(rows, None, '2026-03-10', of) == [None] * 7      # no broker window: nothing measured
+    doc = pub.xsection_actions_doc(rows, pub.action_basis_column(rows, '2026-02-01', '2026-03-10', lambda t: basis[t]))
+    assert doc['columns'][-1] == 'basis' and pub.action_basis_problems(doc) == []
+    assert pub.action_basis_problems({**doc, 'basis': ['terms'] * 7}) == [f"basis of row 2 is 'terms' for a DIVIDEND"]
+    assert pub.action_basis_problems({**doc, 'basis': ['bogus'] + [None] * 6}) == ["basis of row 1 is 'bogus' for a STOCK_SPLIT"]
+    assert pub.action_basis_problems({k: v for k, v in doc.items() if k != 'basis'} | {'columns': pub.ACTION_COLUMNS}) == []   # an older file
+
+
+def test_the_actions_file_carries_the_events_files_basis_status_and_follows_it():
+    """The actions file's basis equals the events file's status of the same action (the Screener and the Backtest never
+    disagree), and a decision that changes republishes the actions file with it; the file stays deterministic."""
+    conn = basis_conn()
+    _, _, bucket = run('backfill', conn)
+    _, doc = xsection(bucket, 'actions')
+    b = doc_of(bucket, 'BBCA', 'events', 'all')['basis']
+    at = doc['d'].index('2026-02-02')
+    assert doc['type'][at] == 'RIGHT_ISSUE' and doc['basis'][at] == b['status'][b['ex'].index('2026-02-02')] == 'terms'
+    assert [x for k, x in enumerate(doc['basis']) if k != at] == [None] * (len(doc['basis']) - 1)   # dividends, the later split
+    assert pub.verify(conn, bucket) == 0
+    _, _, other = run('backfill', conn=basis_conn())
+    assert xsection(other, 'actions')[0] == xsection(bucket, 'actions')[0]          # the same bytes on the same data
+    # a mode that measures no basis (packs) rebuilds the file from the published events file's basis (Stage C2: an action
+    # is decided once): no basis statement, the same file
+    c = len(conn.calls)
+    pub.Publisher(conn, bucket, today=TODAY).run('packs')
+    assert not any(s in (pub.BASIS_ACTIONS_SQL, pub.BASIS_DAYS_SQL) for s, _ in conn.calls[c:])
+    assert xsection(bucket, 'actions')[0] == xsection(other, 'actions')[0]
+    conn.brokers = [r[:5] + (r[5] / 1.5 if r[1] < '2026-02-02' else r[5], r[6] / 1.5 if r[1] < '2026-02-02' else r[6]) + r[7:] for r in conn.brokers]
+    pub.Publisher(conn, bucket, today=TODAY).run('broker-range', '2026-01-01', '2026-02-28', {'BBCA'})
+    pub.Publisher(conn, bucket, today=TODAY).run('events')                        # a mode that rebuilds the actions file
+    _, doc = xsection(bucket, 'actions')
+    assert doc['basis'][doc['d'].index('2026-02-02')] == 'same'
 
 
 def test_a_reloaded_price_history_republishes_the_basis_on_the_next_daily_run():

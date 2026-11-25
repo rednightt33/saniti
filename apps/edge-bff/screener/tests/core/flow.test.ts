@@ -59,8 +59,10 @@ describe('catalog (P5_FLOW.md section 2)', () => {
     expect(FLOW_BY_ID.FL18.params.find(p => p.key === 'anchor_sessions')).toMatchObject({ kind: 'int', min: 1, max: 59, default: 20, condition: true, screener: true });
     expect([FLOW_BY_ID.FL23.params.find(p => p.key === 'lookback')!.max, FLOW_BY_ID.fnet.params.find(p => p.key === 'window')!.max]).toEqual([60, 60]);
     // the generator's own build; the imported registry is the page build's view, where a preview entry carries the mark
-    // release 'preview' (shared/release-filter.mjs), which the generator does not write (check of steps 2-3, Part C dry run)
-    expect(G.flowEntries(REG, KINDS)).toEqual(FLOWS.map(({ release, ...e }: any) => e));
+    // release 'preview' (shared/release-filter.mjs), which the generator does not write (check of steps 2-3, Part C dry run);
+    // the basis probe's fields (EXEC-PRICE-DISTORTION D-5) are added after flowEntries (withBasisReads, flow-basis.test.ts)
+    const unprobed = ({ release, ...e }: any) => ({ ...e, outputs: e.outputs.map(({ reads, reads_from, reads_probe, ...o }: any) => o) });
+    expect(G.flowEntries(REG, KINDS)).toEqual(FLOWS.map(unprobed));
     const a = availabilityMap({}, METRICS_CATALOG, undefined, FLOW_CTX);
     expect(FLOWS.filter(f => a.get(f.id)!.availability !== 'AVAILABLE').map(f => f.id)).toEqual(['FL31', 'ksei_net']);
   });

@@ -21,7 +21,7 @@ import type { HistoryClass, IndicatorRef, MetricRef, ParamMap, PatternRef, Price
 import { ScreenerError } from './errors.ts';
 import { METRICS_CATALOG, metricSpec, resolveCatalogParams, transformSpec } from './catalog.ts';
 import type { OperatorMeasure } from './catalog.ts';
-import { BAR_FIELDS, screenerIndicator, screenerOutput } from './registry.ts';
+import { BAR_FIELDS, FLOW_READS, screenerIndicator, screenerOutput } from './registry.ts';
 import type { BarField, ParamOptions } from './registry.ts';
 import { resolveIndicator, resolveSeries } from './metrics.ts';
 import type { ResolvedSeries, TickerBars, TickerCalc } from './metrics.ts';
@@ -387,8 +387,17 @@ function withFlow(r: ResolvedSeries, fn: string, args: Record<string, unknown>, 
   const depth = known ? Math.max(...flows.map(o => o.flowDepth as number)) + operatorSessions(fn, args) : null;
   const owns = flows.map(o => o.flowOwn === undefined ? o.flowDepth : o.flowOwn);
   const own = owns.every(x => typeof x === 'number') ? Math.max(...owns as number[]) : null;
-  return { ...r, ...kind, flowDepth: depth, flowOwn: own };
+  // EXEC-PRICE-DISTORTION D-5 (metrics.ts ResolvedSeries.flowReads): the flow operands' reads; from the window's start
+  // when one of them reads so or the operator reads its operand's whole history (operandReach null: a moving average, a
+  // rising run); beside them, every operand that is not flow and the close the operator reads itself, each with its own
+  // lookback
+  const reads = new Set(flows.flatMap(o => o.flowReads ?? FLOW_READS));
+  const fromStart = flows.some(o => o.flowFromStart !== false) || operandReach(fn, args, 0, operands[0]?.kind) === null;
+  const priceSides = [...flows.flatMap(o => o.flowPriceSides ?? []), ...operands.filter(o => o.flowDepth === undefined), ...(READS_CLOSE.includes(fn) ? [closeSeries()] : [])];
+  return { ...r, ...kind, flowDepth: depth, flowOwn: own, flowReads: FLOW_READS.filter(x => reads.has(x)), flowFromStart: fromStart, flowPriceSides: priceSides };
 }
+/** The transforms that read the close themselves, besides their operands (pct_distance, band_position, vs_index). */
+const READS_CLOSE = ['pct_distance', 'band_position', 'vs_index'];
 function resolveTransformCore(ref: TransformRef, field: string, ctx0: ParamOptions & { index?: TickerBars; flow?: FlowBindContext; flowReach?: number | null }, operands: ResolvedSeries[]): ResolvedSeries {
   if (field.split('.of').length - 1 + field.split('.args.').length - 1 >= MAX_DEPTH)
     throw new ScreenerError('INVALID_CONDITION', `${field}: transforms nest at most ${MAX_DEPTH} deep; simplify the reference.`, field);

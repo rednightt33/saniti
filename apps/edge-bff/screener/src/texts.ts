@@ -107,12 +107,15 @@ export function remarkTitle(r: RowRemark): string {
 /** The CSV's remark cell (report 9.6): the code and its date. */
 export const remarkCsv = (rs: RowRemark[]) => rs.map(r => r.code === 'STALE' ? `STALE ${r.last_bar_date}` : `PRICE_BREAK ${r.action} ${r.ex_date}`).join('; ');
 
-/** A cell remark (P4.1 A): the mark's tooltip, naming the ex-date(s) of the row. */
-export function cellRemarkText(c: CellRemark, rowRemarks: RowRemark[]): string {
-  const ex = rowRemarks.filter(r => r.code === 'PRICE_BREAK').map(r => (r as Extract<RowRemark, { code: 'PRICE_BREAK' }>).ex_date);
-  return c === 'PRICE_BREAK_IN_LOOKBACK'
-    ? `Distorted: this value's look-back contains the price break${ex.length ? ' of ' + ex.join(', ') : ''}. Shown as computed.`
-    : (c as string).toLowerCase().replace(/_/g, ' ');
+/** A cell remark (P4.1 A; EXEC-PRICE-DISTORTION D-5, contract.ts CELL_REMARKS): the mark's tooltip, naming the dates
+    the value's look-back crossed (the cell's remark_dates), or, on a cell of an older worker without them, the
+    ex-date(s) of the row's price breaks. */
+export function cellRemarkText(c: CellRemark, rowRemarks: readonly RowRemark[], dates?: readonly string[] | null): string {
+  const ex = dates?.length ? [...dates] : rowRemarks.filter(r => r.code === 'PRICE_BREAK').map(r => (r as Extract<RowRemark, { code: 'PRICE_BREAK' }>).ex_date);
+  const of = ex.length ? ' of ' + ex.join(', ') : '';
+  if (c === 'PRICE_BREAK_IN_LOOKBACK') return `Distorted: this value's look-back contains the price break${of}. Shown as computed.`;
+  if (c === 'FLOW_BASIS_IN_LOOKBACK') return `Distorted: this value's broker window crosses the corporate action${of}; broker lots before it are on the old share count. Shown as computed.`;
+  return (c as string).toLowerCase().replace(/_/g, ' ');
 }
 
 /** The universe chips (P4): label while on, and what the drawer's checkbox says. */
@@ -383,7 +386,7 @@ export const methodText = (evalDate: string) =>
 /** The tooltip lines of a cell (contract Cell): the date it was evaluated on (and that it is the stock's last trade
     when that is before the screen's evaluation date; for a flow condition, `flow`, the date of its broker data and that
     it is older than the stock's prices, `evalDate` being then the stock's price date), the event date and bars ago,
-    the last event, the NA reason, not evaluated, and the price-break remark naming the row's ex-date. */
+    the last event, the NA reason, not evaluated, and the distortion remark naming the dates it crossed (cellRemarkText). */
 export function cellTitle(c: Cell, rowRemarks: readonly RowRemark[], evalDate: string | null, flow = false): string {
   return [
     // a flow condition is read at the stock's last session with broker data (P10 a): its date is the broker data's
@@ -393,7 +396,7 @@ export function cellTitle(c: Cell, rowRemarks: readonly RowRemark[], evalDate: s
     c.last_event_date && c.last_event_date !== c.event_date ? `Last event ${c.last_event_date}` : '',
     c.status === 'na' ? naText(c.reason) : '',
     c.status === 'not_evaluated' ? 'Not evaluated: the row could no longer match' : '',
-    c.remark ? cellRemarkText(c.remark, rowRemarks as RowRemark[]) : '',
+    c.remark ? cellRemarkText(c.remark, rowRemarks, c.remark_dates) : '',
   ].filter(Boolean).join('\n');
 }
 

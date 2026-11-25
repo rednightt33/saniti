@@ -11,6 +11,9 @@
    LIMIT_EXCEEDED {limit: 'compute_budget', allowed, needed, costliest}. Rows are the matches and near rows, ordered as
    the page's default sort (match first, then met, then ADV20 descending, then ticker); counts, summaries and warnings
    as report 8.5. Nothing user-specific enters: the answer depends on the definition and the snapshot only (P29, 6d.2).
+   EXEC-PRICE-DISTORTION D-1 (shownRemarks): a row of the run and the preview shows a PRICE_BREAK remark only when one of
+   its cells crossed the remark's date or the date falls on its last bar; STALE always; env.rows (GET /universe) keep
+   every remark, so S0 and the chips read them all. The warning PRICE_BREAKS_IN_RESULT counts the rows and cells marked.
    Worker-side module. */
 import type { Bars } from '../../../terminal/src/calc/indicators.ts';
 import type {
@@ -41,6 +44,9 @@ export interface ScreenEnv extends BindContext {
   ihsgCalendar: readonly string[];
   /** the one series path for one ticker (metrics.ts series over the worker's cache and a per-ticker Calc) */
   series(r: ResolvedSeries, t: TickerBars): { tail: Tail; source: SeriesSource };
+  /** EXEC-PRICE-DISTORTION D-5: the ex dates of a listed stock's price-affecting actions inside the loaded broker window
+      whose broker lots are not on one basis (condition.ts TickerInput.flowBasis); absent: none */
+  flowBasisDates?(ticker: string): readonly string[];
   /** whether a series is pinned in the snapshot (pre-warmed): its condition is stage S2, else S3 */
   isPrewarmed(r: ResolvedSeries): boolean;
   /** predicted ms of computing one series on one ticker (plan.ts CostTracker.predict); 0 when absent */
@@ -77,7 +83,21 @@ function inputOf(env: ScreenEnv, row: UniverseRow, t: TickerBars, xs: Map<string
   };
   // the snapshot's answer of missingInput (no bar column read for a lookup), when the worker gives one
   if (t.missing) input.missing = (inputs, at) => t.missing!(inputs, at);
+  const basis = env.flowBasisDates?.(row.ticker);
+  if (basis?.length) input.flowBasis = basis;
   return input;
+}
+/** EXEC-PRICE-DISTORTION D-1 (the agent's detail, EXEC.md: "badge baris hanya bila ada sel baris itu yang jendelanya
+    melewati patahan, atau tanggal patahan sama dengan bar terakhir"): the row remarks a run row or a preview shows:
+    STALE always; a PRICE_BREAK remark when a cell's remark_dates name its date, or when the first of the ticker's
+    `dates` on or after the date is the last (the 1D change and every value of the last bar read across it); every
+    PRICE_BREAK remark when a marked cell names no date (an evaluation that cannot say which: kept rather than lost). A
+    whole-history output (recursive, cumulative) crosses every older break, so it keeps them all. */
+export function shownRemarks(remarks: readonly RowRemark[], cells: readonly Cell[], dates: readonly string[]): RowRemark[] {
+  if (cells.some(c => c.remark && !c.remark_dates?.length)) return [...remarks];
+  const crossed = new Set(cells.flatMap(c => c.remark ? c.remark_dates ?? [] : []));
+  const n = dates.length, last = dates[n - 1] ?? '', before = n > 1 ? dates[n - 2] : '';
+  return remarks.filter(r => r.code !== 'PRICE_BREAK' || crossed.has(r.ex_date) || (r.ex_date > before && r.ex_date <= last));
 }
 /** Every cross-section the bound conditions read: return_rank over all listed stocks (population fixed at E,
     xsection.ts); operator 11 (a rank of a series, condition.ts bindRank) over `population`, the S0 survivors (the
@@ -167,12 +187,12 @@ export function runScreen(def: Definition, env: ScreenEnv, options: ScreenOption
         'definition.conditions', { limit: 'compute_budget', allowed: env.maxCpuMs, needed: Math.ceil(est.needed_ms), ...(est.costliest ? { costliest: est.costliest } : {}) });
   }
   const plan = runPlan({ tickers: survivors.map(s => s.row.ticker), conditions: planConds, logic: def.logic, atLeast: def.at_least, exhaustive: !!options.exhaustive, cancelled: env.cancelled, cacheHits: env.cacheHits });
-  const byRow = new Map(survivors.map(s => [s.row.ticker, s.row]));
+  const byRow = new Map(survivors.map(s => [s.row.ticker, s]));
   const rows: ResultRow[] = plan.rows.map(p => {
-    const r = byRow.get(p.ticker)!;
+    const { row: r, t } = byRow.get(p.ticker)!;
     return {
       ticker: r.ticker, name: r.name, sector: r.sector, industry: r.industry, board: null, market_cap: null,
-      last: r.last, chg_1d_pct: r.chg_1d_pct, adv20_idr: r.adv20_idr, last_bar_date: r.last_bar, stale: r.stale, remarks: r.remarks,
+      last: r.last, chg_1d_pct: r.chg_1d_pct, adv20_idr: r.adv20_idr, last_bar_date: r.last_bar, stale: r.stale, remarks: shownRemarks(r.remarks, p.cells, t.dates),
       status: p.status, met: p.met, need: p.need, na_count: p.na_count, cells: p.cells,
     };
   });
@@ -188,10 +208,11 @@ export function runScreen(def: Definition, env: ScreenEnv, options: ScreenOption
   const warnings: Warning[] = [];
   if (def.logic === 'any' && active.length >= 2 && !options.exhaustive)
     warnings.push({ code: 'NO_PRUNING_FOR_ANY', message: 'With "any" logic no ticker can be ruled out early: every condition is evaluated on every ticker in the universe.' });
-  const brokenRows = rows.filter(r => r.remarks.some(x => x.code === 'PRICE_BREAK'));
-  if (brokenRows.length) {
-    const cells = brokenRows.reduce((n, r) => n + r.cells.filter(c => c.remark === 'PRICE_BREAK_IN_LOOKBACK').length, 0);
-    warnings.push({ code: 'PRICE_BREAKS_IN_RESULT', message: 'Some rows have an unadjusted price break; their values are shown and the affected cells are marked.', count: brokenRows.length, details: { rows: brokenRows.length, cells } });
+  // EXEC-PRICE-DISTORTION: the rows and cells actually marked (a PRICE_BREAK remark D-1 kept, a cell remark of either kind)
+  const markedRows = rows.filter(r => r.remarks.some(x => x.code === 'PRICE_BREAK') || r.cells.some(c => c.remark));
+  if (markedRows.length) {
+    const cells = markedRows.reduce((n, r) => n + r.cells.filter(c => c.remark).length, 0);
+    warnings.push({ code: 'PRICE_BREAKS_IN_RESULT', message: 'Some values are distorted: a price break, or broker lots from before a corporate action, falls inside what they read. They are shown as computed and marked.', count: markedRows.length, details: { rows: markedRows.length, cells } });
   }
   const st = (n: string) => plan.explain.stages.find(x => x.name === n)?.ms ?? 0;
   const result: ScreenResult = {
@@ -222,5 +243,5 @@ export function previewCells(def: Definition, env: ScreenEnv, ticker: string): {
   const input = inputOf(env, row, t, crossSections(env, bound, population, [ticker]));
   const cells = bound.map(b => b.evaluate(input).cell);
   const { met } = countCells(cells), need = needOf(def.logic, def.at_least, active.length);
-  return { status: previewStatus(inUniverse, met, need), remarks: row.remarks, met, need, cells, bound };
+  return { status: previewStatus(inUniverse, met, need), remarks: shownRemarks(row.remarks, cells, t.dates), met, need, cells, bound };
 }

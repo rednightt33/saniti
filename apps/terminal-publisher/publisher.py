@@ -486,6 +486,14 @@ XSECTION_ACTIONS_SQL = ('SELECT ticker, annotation_date::text, event_type, ratio
                         "WHERE event_family = 'CORPORATE_ACTION' AND annotation_date_role = 'EX_DATE' "
                         'AND event_type = ANY(%s) AND annotation_date >= %s')
 ACTION_COLUMNS = ['t', 'd', 'type', 'ratio_old', 'ratio_new', 'amount_per_share', 'currency']
+# EXEC-PRICE-DISTORTION D-5 (user 2026-11-24, Flow cells marked too; review R1: the Screener reads no events file, so the
+# broker lot basis travels in the actions file): the additive column `basis`, after ACTION_COLUMNS (readers name the
+# columns they read; R2: the screener-worker marks every such action of a file without it). action_basis_column fills it;
+# verify checks it against its rule, the other columns against SQL as before.
+ACTION_BASIS_COLUMN = 'basis'
+XSECTION_ACTION_COLUMNS = ACTION_COLUMNS + [ACTION_BASIS_COLUMN]
+# broker_basis's statuses, worst first: an action listed twice (two event keys) takes the worst of its rows' statuses
+ACTION_BASIS_STATUSES = ('unresolved', 'pending', 'terms', 'same')
 PRICE_XSECTION_COLUMNS = ['t', 'd', 'o', 'h', 'l', 'c', 'v']
 # which modes rebuild which file (report 6.5); every other index entry is carried forward as it is (the broker day files
 # have their own rule: BROKER_DAYS_MAINTAINED_BY)
@@ -926,10 +934,46 @@ def xsection_slices(doc):
         at += n
 
 
-def xsection_actions_doc(rows):
+def action_basis_column(rows, first, through, basis_of):
+    """EXEC-PRICE-DISTORTION D-5: the `basis` value of each `actions` row (read_actions order): for a price action
+    (PRICE_ACTION_TYPES) whose ex date is in the Screener's broker window, from `first` (the oldest of the
+    BROKER_DAY_SESSIONS newest broker dates) through `through` (the broker date, basis_through), the status broker_basis
+    gives it in `basis_of(ticker)` (the events file's basis rows: terms, same, pending, unresolved), the worst of them
+    when it has several rows of the same ex date and type (ACTION_BASIS_STATUSES); None for every other row (cash
+    dividends, actions before the window or after the broker date, an action broker_basis has no row for). broker_basis's
+    decision rule is not changed: this only copies its status, so the Screener and the events file never disagree."""
+    out = []
+    for t, d, typ, *_ in rows:
+        if typ not in PRICE_ACTION_TYPES or not first or not through or not (first <= d <= through):
+            out.append(None)
+            continue
+        found = {r[3] for r in basis_of(t) if r[0] == d and r[1] == typ}
+        out.append(next((x for x in ACTION_BASIS_STATUSES if x in found), None))
+    return out
+
+
+def action_basis_problems(doc):
+    """verify's check of the `basis` column of an `actions` file (an older file without it has none to check): one value
+    per row, each None or a status of ACTION_BASIS_STATUSES, None on every row that is not a price action."""
+    if ACTION_BASIS_COLUMN not in doc.get('columns', []):
+        return []
+    b, types = doc.get(ACTION_BASIS_COLUMN), doc.get('type', [])
+    if not isinstance(b, list) or len(b) != len(types):
+        return ['the basis column does not hold one value per row']
+    bad = [k for k, (x, typ) in enumerate(zip(b, types))
+           if x is not None and (x not in ACTION_BASIS_STATUSES or typ not in PRICE_ACTION_TYPES)]
+    return [f'basis of row {k + 1} is {b[k]!r} for a {types[k]}' for k in bad[:5]]
+
+
+def xsection_actions_doc(rows, basis=None):
     """The `actions` xsection file: the corporate actions the screener reads on their ex dates (P4 price breaks; cash
     dividends for Phase 2), from the first published price year on, future ex dates included. Readers apply their own
-    rules and windows (the price-break rule's ADJUSTED_HISTORY_BOUNDARY lives in the backtest core, engine.ts)."""
+    rules and windows (the price-break rule's ADJUSTED_HISTORY_BOUNDARY lives in the backtest core, engine.ts).
+    EXEC-PRICE-DISTORTION D-5: `basis` (action_basis_column) is the additive last column; None everywhere when not
+    given."""
+    basis = [None] * len(rows) if basis is None else list(basis)
+    if len(basis) != len(rows):
+        raise ValueError('xsection_actions_doc: one basis value per row')
     return {'schema_version': SCHEMA_VERSION, 'dataset': 'xsection', 'name': 'actions',
             'units': {'ratio_old': 'shares', 'ratio_new': 'shares', 'amount_per_share': 'currency per share'},
             'means': {'d': 'ex date (idx_event_annotation annotation_date, role EX_DATE)',
@@ -940,8 +984,14 @@ def xsection_actions_doc(rows):
                       'ratio_new': 'shares after a split or reverse split, or bonus or rights shares received, for '
                                    'ratio_old',
                       'amount_per_share': 'cash dividend per share in currency; for RIGHT_ISSUE the exercise price',
+                      'basis': 'the broker lot basis of a price action whose ex date is in the Screener\'s broker window '
+                               f'(the oldest of the {BROKER_DAY_SESSIONS} newest broker dates through the broker date), '
+                               'the events file\'s basis status: terms (the prices carry the action, the broker lots '
+                               'before it do not), same (one basis), pending (its window after ex is not complete yet), '
+                               'unresolved (neither); null on every other row (cash dividends, actions outside that '
+                               'window); a reader marks a Flow value that reads the lots across a status other than same',
                       'null': "not in the source; the source's 0 (Stockbit's unknown) is published as null"},
-            'columns': ACTION_COLUMNS, **columnar(rows, ACTION_COLUMNS)}
+            'columns': XSECTION_ACTION_COLUMNS, **columnar(rows, ACTION_COLUMNS), ACTION_BASIS_COLUMN: basis}
 
 
 def read_actions(conn, kind, first_year):
@@ -1581,10 +1631,37 @@ class Publisher:
         return (xsection_price_doc(columns, tickers), len(columns['t']), as_of,
                 {'tickers': len(tickers), 'packs_republished': len(repaired), 'republished': repaired[:20]})
 
-    def xsection_actions(self, kind, events_through):
-        """The `actions` file; as_of is the newest ingestion_time of idx_event_annotation (the events data_through)."""
+    def xsection_actions(self, kind, events_through, previous=None):
+        """The `actions` file; as_of is the newest ingestion_time of idx_event_annotation (the events data_through).
+        EXEC-PRICE-DISTORTION D-5: its `basis` column (action_basis_column) over the broker window from its oldest date,
+        read from the previous index's broker day entries (the Screener's window as published; a run that adds a newer
+        date only narrows it, and an older date it adds reads as unknown there, which the Screener marks) or, without
+        any, from broker_days_window; each ticker's statuses from published_basis. The log names the window and how many
+        tickers this file had to measure itself (basis_of)."""
         rows, outside = read_actions(self.conn, kind, self.price_first_year)
-        return xsection_actions_doc(rows), len(rows), events_through, {'outside_universe': outside}
+        days = sorted(m.group(1) for n in (previous or {}) if (m := BROKER_DAY_NAME.fullmatch(n)))
+        first = days[0] if days else ((self.broker_days_window() or [None])[0] if self.basis_through else None)
+        before, read = set(self.basis_cache), []
+        basis = action_basis_column(rows, first, self.basis_through, lambda t: self.published_basis(t, read))
+        return xsection_actions_doc(rows, basis), len(rows), events_through, {
+            'outside_universe': outside, 'basis_window': [first, self.basis_through], 'basis_rows': sum(b is not None for b in basis),
+            'basis_from_events_file': len(read), 'basis_measured_here': len(set(self.basis_cache) - before)}
+
+    def published_basis(self, ticker, read=None):
+        """The broker basis rows the ticker's events file holds after this run, as [ex, type, factor, status]: this run's
+        measurement when it made one (basis_cache: the events files it published, changed_events), else the basis block
+        of the events file the manifest names (Stage C2, user 2026-11-16 "A": an action is decided once and an old one is
+        not measured again on its own), else measured now (basis_of: a ticker whose events file has no basis block yet).
+        `read` collects the tickers taken from their events file."""
+        if ticker in self.basis_cache:
+            return self.basis_cache[ticker]
+        key = self.manifest(ticker)['datasets'].get('events', {}).get('files', {}).get('all', {}).get('key')
+        b = ((key and self.bucket.get_json(key[len(PREFIX) + 1:])) or {}).get('basis')
+        if isinstance(b, dict) and all(isinstance(b.get(c), list) for c in ('ex', 'type', 'factor', 'status')):
+            if read is not None:
+                read.append(ticker)
+            return [list(r) for r in zip(b['ex'], b['type'], b['factor'], b['status'])]
+        return self.basis_of(ticker)
 
     def publish_xsection(self, name, kind, through, touched, previous, present):
         """Build one xsection file and store it under its content key (`store`, as every data file and pack: an object
@@ -1593,7 +1670,7 @@ class Publisher:
         if name == 'price':
             doc, rows, as_of, info = self.xsection_price(kind, touched)
         else:
-            doc, rows, as_of, info = self.xsection_actions(kind, through['events'])
+            doc, rows, as_of, info = self.xsection_actions(kind, through['events'], previous)
         body, sha = encode(doc)
         del doc
         key, uploaded = self.store(previous.get(name, {}), 'xsection', None, name, body, sha, present, now=True)
@@ -2717,6 +2794,7 @@ def verify_xsection(conn, bucket, kind, pack_sha):
             rows, _ = read_actions(conn, kind, state['price_first_year'])
             if columnar(rows, ACTION_COLUMNS) != {c: doc[c] for c in ACTION_COLUMNS}:
                 problems.append('the rows differ from SQL')
+            problems += action_basis_problems(doc)                 # EXEC-PRICE-DISTORTION D-5
         elif BROKER_DAY_NAME.fullmatch(name):
             problems += broker_day_problems(conn, name, doc, stocks)
         if problems:

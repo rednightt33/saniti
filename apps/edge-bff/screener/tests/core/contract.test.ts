@@ -101,7 +101,7 @@ describe('contract', () => {
   it('lists the NA reasons and remarks of report 6.9 and P4', () => {
     expect(NA_REASONS).toEqual(['INSUFFICIENT_HISTORY', 'NULL_AT_EVALUATION', 'FLOW_UNAVAILABLE', 'FLOW_LAGGED', 'NOT_APPLICABLE', 'DATA_INTEGRITY', 'MIXED_ADJUSTMENT_BASIS']);
     expect(ROW_REMARK_CODES).toEqual(['STALE', 'PRICE_BREAK']);
-    expect(CELL_REMARKS).toEqual(['PRICE_BREAK_IN_LOOKBACK']);
+    expect(CELL_REMARKS).toEqual(['PRICE_BREAK_IN_LOOKBACK', 'FLOW_BASIS_IN_LOOKBACK']);
   });
 
   it('keeps the chips off by default (EXEC-PRICE-DISTORTION, user 2026-11-24; P4 had them on) and the prototype liquidity defaults', () => {

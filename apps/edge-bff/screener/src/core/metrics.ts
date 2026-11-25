@@ -19,7 +19,7 @@ import { ScreenerError } from './errors.ts';
 import { METRICS_CATALOG } from './catalog.ts';
 import type { MetricsCatalog } from './catalog.ts';
 import { inputsOf, isDefaultParams, resolveScreenerParams, screenerIndicator, screenerOutput } from './registry.ts';
-import type { BarField, ParamOptions, ScreenerIndicator, ScreenerOutput, Unit } from './registry.ts';
+import type { BarField, FlowRead, ParamOptions, ScreenerIndicator, ScreenerOutput, Unit } from './registry.ts';
 import { resolveTransform } from './transforms.ts';
 import { resolveFlow } from './flowmetrics.ts';
 import type { FlowBindContext, TickerFlow } from './flowmetrics.ts';
@@ -92,6 +92,15 @@ export interface ResolvedSeries {
       transform that keeps its operand's level (lag, ma, rolling_max, rolling_min); absent otherwise (transforms.ts
       outputType then reads the transform). */
   readonly outputKind?: string;
+  /** EXEC-PRICE-DISTORTION D-5, set with flowDepth: what the flow values read that a corporate action or a price break
+      distorts (the registry's outputs[].reads, the generator's basis probe; a transform: the union of its flow
+      operands'), whether a value at a candle reads every candle from the loaded window's start rather than its
+      flowDepth sessions (reads_from window_start; a transform that reads its operand's whole history, transforms.ts
+      operandReach null), and the series that are not flow it reads beside them, each with its own lookback (a price
+      operand of a transform, the close a pct_distance reads itself). condition.ts marks a flow cell from them. */
+  readonly flowReads?: readonly FlowRead[];
+  readonly flowFromStart?: boolean;
+  readonly flowPriceSides?: readonly ResolvedSeries[];
   full(t: TickerCalc): ArrayLike<Num | undefined>;
 }
 export interface ResolvedIndicator extends ResolvedSeries {

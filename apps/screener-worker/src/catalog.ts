@@ -54,7 +54,8 @@ function catalogMetric(x: MetricDefinition, a: { availability: Availability; rea
   // the sessions it reads at its defaults against the loaded window (a built-in baseline shown capped to the window)
   if (x.flow) {
     const f = x.flow, defaults = resolveFlowParams(f, undefined, 'catalog', sessions);
-    extra.flow = { family: f.family, place: f.place, tip: f.tip, unit: f.unit, outputs: f.outputs, default_output: f.default_output,
+    // each output's key and kind (the basis probe's reads stay in the worker: condition.ts marks the cells from them)
+    extra.flow = { family: f.family, place: f.place, tip: f.tip, unit: f.unit, outputs: f.outputs.map(({ key, kind }) => ({ key, kind })), default_output: f.default_output,
       params: f.params.map(p => p.key in defaults ? { ...p, default: defaults[p.key] } : p), adv_floor: f.adv_floor, needs_classification: f.needs_classification,
       version: f.version, depth: f.requires ? null : depthAt(f, defaults), sessions };
   }

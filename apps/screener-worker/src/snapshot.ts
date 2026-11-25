@@ -10,6 +10,10 @@
    - the `actions` xsection file: columns t, d, type, ratio_old, ratio_new (+ amount_per_share, currency for Phase 2);
      a superset (every action since the first price year, publisher decision 1), so the price-break rule's bounds are
      applied by universe.ts distortionRemarks (EXEC-PRICE-DISTORTION, pricecheck.ts) with engine.ts ADJUSTED_HISTORY_BOUNDARY;
+     the optional column `basis` (EXEC-PRICE-DISTORTION D-5, R1: the broker lot basis of a price action inside the
+     broker window, publisher.py action_basis_column) gives desc.flowBasis, per ticker the ex dates inside the loaded
+     broker window whose lots are not on one basis (universe.ts flowBasisDates); a file without it (R2) marks every such
+     action, as a status the publisher did not measure;
    - the reference file ref/tickers.json.gz (name, type, sector, industry; TerminalClient.reference): every ticker of
      the price file must be in it (fixed key, ERRORS M250 class), else the refresh fails.
    Versions: price_data = datafile.dataVersion over (ticker, 'price', pack_sha256) of every ticker of the price file
@@ -61,7 +65,7 @@ import { INDICATORS, startParams } from '../../edge-bff/screener/src/core/regist
 import { resolveSignal } from '../../edge-bff/screener/src/core/transforms.ts';
 import { evaluationBar, round12 } from '../../edge-bff/screener/src/core/evaluate.ts';
 import { returnRankAll } from '../../edge-bff/screener/src/core/xsection.ts';
-import { distortionRemarks } from '../../edge-bff/screener/src/core/universe.ts';
+import { distortionRemarks, flowBasisDates } from '../../edge-bff/screener/src/core/universe.ts';
 import type { ActionRow } from '../../edge-bff/screener/src/core/universe.ts';
 import type { TickerReference } from '../../backtest-worker/src/terminal.ts';
 import { brokerFlowData, brokerRowsOf, brokerWindowOf, buildBrokerStore } from './broker.ts';
@@ -114,6 +118,7 @@ export interface SnapshotDesc {
   brokerClasses: Record<string, string>;   // P5a: broker code -> classification (reference file `brokers`; {} when not published)
   brokerList: BrokerRef[];                 // EXEC-SCREENER-BROKER-PICK: code, name, domicile of the same file (catalog data.brokers)
   stockLists: StockListsBlock;             // EXEC-SCREENER-STOCK-LISTS: catalog stock_lists (REQUIRES_DATA without a readable file)
+  flowBasis: Record<string, string[]>;     // EXEC-PRICE-DISTORTION D-5: ticker -> ex dates whose lots are not on one basis (universe.ts flowBasisDates)
 }
 /** The reference the refresh hands the build: the tickers file, and (P5a) the brokers' classification of the reference
     file `brokers` (code -> IDX_Broker_Profile class, as the Terminal reads it), absent when it could not be read; and
@@ -171,11 +176,14 @@ export function tickerEntries(doc: Columnar): TickerEntry[] {
   return out;
 }
 
-/** The actions file's rows by ticker (universe.ts ActionRow), checked. */
+/** The actions file's rows by ticker (universe.ts ActionRow), checked. The optional `basis` column (EXEC-PRICE-DISTORTION
+    D-5) is a status text or null per row; without the column the rows carry no basis (R2). */
 export function actionsByTicker(doc: Columnar): Map<string, ActionRow[]> {
   for (const c of ['t', 'd', 'type', 'ratio_old', 'ratio_new']) if (!doc.columns.includes(c)) throw integrity(`The actions file has no column ${c}.`, 'actions');
   const [t, d, type, ro, rn] = ['t', 'd', 'type', 'ratio_old', 'ratio_new'].map(c => doc[c] as unknown[]);
   const ap = doc.columns.includes('amount_per_share') ? doc.amount_per_share as unknown[] : null;
+  const bs = doc.columns.includes('basis') ? doc.basis as unknown[] : null;
+  if (bs && (!Array.isArray(bs) || bs.length !== t.length)) throw integrity(`The actions file's basis column holds ${Array.isArray(bs) ? bs.length : 'no'} values for ${t.length} rows.`, 'actions');
   const out = new Map<string, ActionRow[]>();
   const num = (v: unknown, k: number, c: string) => {
     if (v === null) return null;
@@ -185,8 +193,10 @@ export function actionsByTicker(doc: Columnar): Map<string, ActionRow[]> {
   for (let k = 0; k < t.length; k++) {
     if (typeof t[k] !== 'string' || !t[k] || !isDate(d[k]) || typeof type[k] !== 'string')
       throw integrity(`The actions file's row ${k + 1} is not a ticker, an ex date and a type.`, 'actions');
+    if (bs && bs[k] !== null && typeof bs[k] !== 'string') throw integrity(`The actions file's row ${k + 1} has basis ${JSON.stringify(bs[k])}, not a status or null.`, 'actions');
     const row: ActionRow = { ticker: t[k] as string, type: type[k] as string, ex_date: d[k] as string, ratio_old: num(ro[k], k, 'ratio_old'), ratio_new: num(rn[k], k, 'ratio_new'),
-      ...(ap ? { amount_per_share: num(ap[k], k, 'amount_per_share') } : {}) };   // a rights issue's exercise price (EXEC-PRICE-DISTORTION)
+      ...(ap ? { amount_per_share: num(ap[k], k, 'amount_per_share') } : {}),   // a rights issue's exercise price (EXEC-PRICE-DISTORTION)
+      ...(bs ? { basis: bs[k] as string | null } : {}) };                       // the broker lot basis (D-5)
     let list = out.get(row.ticker);
     if (!list) out.set(row.ticker, list = []);
     list.push(row);
@@ -307,6 +317,9 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
   const versions = { screener_engine: input.engine.screener_engine, registry: input.engine.registry, screener_registry: input.engine.screener_registry, price_data, flow_data };
   const data = { evaluation_date: E, price_through: input.state.price_through ?? E, flow_through: broker.store.dates[broker.store.dates.length - 1] ?? null,
     broker_behind_sessions: input.state.broker_behind_sessions, published_at: input.state.finished_at, broker_window: brokerWindowOf(broker.store) };
+  // EXEC-PRICE-DISTORTION D-5: per listed stock, the actions inside the loaded broker window whose lots are not on one basis
+  const flowBasis: Record<string, string[]> = {};
+  for (const r of rows) { const ds = flowBasisDates(actions.get(r.ticker) ?? [], data.broker_window?.first ?? null, data.broker_window?.last ?? null); if (ds.length) flowBasis[r.ticker] = ds }
   const actionsSha = crypto.createHash('sha256').update(JSON.stringify([...actions.entries()])).digest('hex').slice(0, 16);
   const sid = `${price_data.slice(0, 32)}:${actionsSha}:${referenceHash(input.ref)}:${flow_data ? flow_data.slice(0, 16) : '-'}`;
 
@@ -340,6 +353,7 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
     brokerClasses: { ...(input.ref.brokerClasses ?? {}) },
     brokerList: [...(input.ref.brokerList ?? [])],
     stockLists,
+    flowBasis,
   };
   const stats: BuildStats = { tickers: T, stocks: rows.length, bars: w, dropped, no_price: input.ref.tickers.filter(r => r.type === 'stock' && !entries.some(e => e.t === r.ticker)).length, actions: nActions, series: S, skipped, broker: broker.stats };
   return { desc, entries, stats };

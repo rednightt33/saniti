@@ -54,8 +54,11 @@ export function xsectionPriceDoc(prices) {
 }
 /** The `actions` xsection document (publisher.py xsection_actions_doc): rows = [[t, d, type, ratio_old, ratio_new, amount, currency], ...]. */
 export function xsectionActionsDoc(rows) {
+  // EXEC-PRICE-DISTORTION D-5 (publisher.py action_basis_column): rows of eight values carry the additive column basis;
+  // rows of seven are an older file without it (R2)
+  const columns = rows.some(r => r.length > ACTION_COLUMNS.length) ? [...ACTION_COLUMNS, 'basis'] : ACTION_COLUMNS;
   return { schema_version: 1, dataset: 'xsection', name: 'actions', units: { ratio_old: 'shares', ratio_new: 'shares', amount_per_share: 'currency per share' },
-    columns: ACTION_COLUMNS, ...Object.fromEntries(ACTION_COLUMNS.map((c, i) => [c, rows.map(r => r[i])])) };
+    columns, ...Object.fromEntries(columns.map((c, i) => [c, rows.map(r => r[i] ?? null)])) };
 }
 
 /* ---- P4: broker day files ----------------------------------------------------------------------------------- */

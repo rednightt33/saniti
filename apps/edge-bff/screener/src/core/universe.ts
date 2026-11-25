@@ -105,7 +105,26 @@ export const hasPriceBreak = (row: Pick<UniverseRow, 'remarks'>): boolean => row
 /** One corporate action of the `actions` xsection file for one ticker (report 6.5 Phase 1 files; the caller passes the
     rows of that ticker). The file holds every action since the first price year and cash dividends too; the boundary
     and type rules below pick the price breaks. */
-export interface ActionRow { ticker: string; type: string; ex_date: string; ratio_old: number | null; ratio_new: number | null; amount_per_share?: number | null }
+export interface ActionRow {
+  ticker: string; type: string; ex_date: string; ratio_old: number | null; ratio_new: number | null; amount_per_share?: number | null;
+  /** EXEC-PRICE-DISTORTION D-5 (R1): the broker lot basis of a price action inside the Screener's broker window, as the
+      publisher measured it (the actions file's additive column `basis`: terms, same, pending, unresolved; null for every
+      other row); absent when the file has no such column (an older file, R2) */
+  basis?: string | null;
+}
+/** EXEC-PRICE-DISTORTION D-5 (the agent's detail D-5, EXEC.md: "bila jendelanya melewati aksi yang lot-nya belum satu
+    basis (status `terms`, `pending`, `unresolved`)"): the ex dates of a ticker's price-affecting actions inside the
+    loaded broker window (first < ex <= last: an action on the window's first date or before it leaves every lot of the
+    window on one side) whose broker lots before them are not on one basis with the lots after them: every status but
+    `same`, no status included (null, or a file without the column, R2: an action the publisher did not measure is
+    marked rather than passed over). Ascending, each once; none without a window. condition.ts marks a flow cell whose
+    output reads the lots and whose sessions cross one (FLOW_BASIS_IN_LOOKBACK). */
+export function flowBasisDates(actions: readonly ActionRow[], first: string | null, last: string | null): string[] {
+  if (!first || !last) return [];
+  const out = new Set<string>();
+  for (const a of actions) if ((PRICE_ACTIONS as readonly string[]).includes(a.type) && a.ex_date > first && a.ex_date <= last && a.basis !== 'same') out.add(a.ex_date);
+  return [...out].sort();
+}
 /** EXEC-PRICE-DISTORTION (user 2026-11-24, ERRORS M559-M562): the PRICE_BREAK remarks of one ticker from the one rule
     (pricecheck.ts; it replaces priceBreakRemarks' date rule, which flagged every action from the boundary on, the six
     stocks pulled again on 2026-10-31 included): an action whose ex-date jump is its own (raw) on any date; one from

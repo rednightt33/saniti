@@ -17,7 +17,10 @@
      series needs (IHSG volume; naReason); the flow, applicability and integrity reasons come from their own modules.
      NA never fails the whole screen;
    - remarks: a cell on a PRICE_BREAK row whose lookback contains an ex-date keeps its value and its pass or fail and
-     carries PRICE_BREAK_IN_LOOKBACK (P4.1 A; user 2026-10-28; where the TEST PLAN still says NA, P4.1 A wins).
+     carries PRICE_BREAK_IN_LOOKBACK (P4.1 A; user 2026-10-28; where the TEST PLAN still says NA, P4.1 A wins);
+     EXEC-PRICE-DISTORTION D-5: a flow cell whose output reads the broker lots carries FLOW_BASIS_IN_LOOKBACK across an
+     action whose lots are not on one basis (condition.ts decides which sessions a cell reads; crossedDates and
+     cellRemarkOf here), and every marked cell names the dates crossed (remark_dates).
    Evaluating on a tail (metrics.ts Tail, within_max + 1 bars) equals evaluating on the full series at every tail bar:
    compare reads only bars i and i-1 (report 6.7 verification). A side read at the output's price_compare_lag 1
    (Donchian's prior band, report 6.8) is therefore its own series, transform lag(output, 1) resolved through
@@ -196,16 +199,33 @@ export const lookbackStartOfWindow = (window: number, at: number, extra = 0): nu
 /** PRICE_BREAK_IN_LOOKBACK (P4.1 A; report 6.9 Remarks, 6.12): for a ticker with PRICE_BREAK remarks, the cell remark
     when any side's lookback contains an ex-date: with d = the index of the ticker's first bar on or after the ex-date,
     the lookback [start, at] contains it iff start < d <= at (start null: d <= at), i.e. the values mix bars from both
-    sides of the break. Never for flow cells, ADV20 or universe attributes (their callers pass no start). The value,
+    sides of the break. Never for ADV20 or universe attributes (their callers pass no start); a flow cell passes the
+    start of the sessions it reads only when its output reads the close or the volume (condition.ts cellOf). The value,
     pass and fail are unchanged; this only marks them. */
 export function priceBreakRemark(starts: readonly (number | null)[], dates: readonly string[], at: number, exDates: readonly string[]): CellRemark | null {
-  if (!starts.length || !exDates.length) return null;
+  return crossedDates(starts, dates, at, exDates).length ? 'PRICE_BREAK_IN_LOOKBACK' : null;
+}
+/** The dates of `exDates` a lookback crosses (priceBreakRemark's rule: d, the index of the ticker's first bar on or after
+    the date, with start < d <= at for one of `starts`; start null: d <= at), in their order, each once. EXEC-PRICE-
+    DISTORTION: the cell's remark_dates. */
+export function crossedDates(starts: readonly (number | null)[], dates: readonly string[], at: number, exDates: readonly string[]): string[] {
+  if (!starts.length || !exDates.length) return [];
+  const out: string[] = [];
   for (const ex of exDates) {
     const d = firstOnOrAfter(dates, ex);
-    if (d < 0 || d > at) continue;                                          // the ex-date is not in the ticker's bars up to `at`
-    for (const s of starts) if (s === null ? d <= at : s < d) return 'PRICE_BREAK_IN_LOOKBACK';
+    if (d < 0 || d > at || out.includes(ex)) continue;                      // the ex-date is not in the ticker's bars up to `at`
+    if (starts.some(s => s === null ? d <= at : s < d)) out.push(ex);
   }
-  return null;
+  return out;
+}
+/** A cell's remark from the dates its lookbacks crossed (EXEC-PRICE-DISTORTION; contract.ts CELL_REMARKS):
+    FLOW_BASIS_IN_LOOKBACK when a flow value's broker window crossed a corporate action whose broker lots are not on one
+    basis with the lots after it (`lots`), else PRICE_BREAK_IN_LOOKBACK when a lookback crossed a price break (`price`);
+    dates: every crossed date of both, ascending, each once (the page names them; screen.ts keeps a row's price-break
+    badge by them, D-1). The value, pass and fail never change. */
+export function cellRemarkOf(price: readonly string[], lots: readonly string[]): { remark: CellRemark | null; dates: string[] } {
+  const dates = [...new Set([...price, ...lots])].sort();
+  return { remark: lots.length ? 'FLOW_BASIS_IN_LOOKBACK' : price.length ? 'PRICE_BREAK_IN_LOOKBACK' : null, dates };
 }
 /** Index of the first date on or after `date` (dates ascending), -1 when none. */
 function firstOnOrAfter(dates: readonly string[], date: string): number {
@@ -222,11 +242,13 @@ export function sessionsBetween(calendar: readonly string[], from: string, to: s
 /** The wire cell of one evaluation (report 8.5): dates from the ticker's bars (eval_date = dates[at], event_date =
     dates[eventBar], last_event_date = dates[lastEventBar]), market_sessions_ago = the number of IHSG calendar dates d
     with event_date < d <= eval_date, numbers through round12, unit from the resolved metric, reason exactly when
-    status is 'na', remark as priceBreakRemark gave it. A condition the planner did not evaluate for a ticker is
-    status 'not_evaluated' with reason null (never shown on a displayed row: S4 completes them, report 6.10). */
-export function toCell(id: string, e: Evaluation, ctx: { dates: readonly string[]; at: number; ihsgCalendar: readonly string[]; unit: string | null; remark: CellRemark | null }): Cell {
+    status is 'na', remark as cellRemarkOf gave it, with remark_dates (the dates its lookback crossed) beside a remark
+    that has them. A condition the planner did not evaluate for a ticker is status 'not_evaluated' with reason null
+    (never shown on a displayed row: S4 completes them, report 6.10). */
+export function toCell(id: string, e: Evaluation, ctx: { dates: readonly string[]; at: number; ihsgCalendar: readonly string[]; unit: string | null; remark: CellRemark | null; remarkDates?: readonly string[] }): Cell {
   const evalDate = ctx.dates[ctx.at] ?? null;
   const cell: Cell = { id, status: e.status, eval_date: evalDate, unit: ctx.unit, reason: e.status === 'na' ? e.reason ?? 'NULL_AT_EVALUATION' : null, remark: ctx.remark };
+  if (ctx.remark && ctx.remarkDates?.length) cell.remark_dates = [...ctx.remarkDates];
   if (e.value !== undefined) cell.value = e.status === 'na' ? null : round12(e.value);
   if (e.lhs !== undefined) cell.lhs = round12(e.lhs);
   if (e.rhs !== undefined) cell.rhs = round12(e.rhs);

@@ -24,6 +24,10 @@
    versions of FL18-FL20, FL23, FL44, FL45, FL34's point-in-time guard and the Screener's own entries (fnet, ksei_net),
    from the same file. P6 (verification/screener/P6_CANDLES.md): `candles`, the 20 candlestick patterns generated from
    the Backtest core's candle-registry.json through its candles.ts (candleEntries); both files are sources.
+   EXEC-PRICE-DISTORTION D-5 (the user's go 2026-11-24): each flow output's `reads` (the broker lots, the close, the
+   volume), `reads_from` and `reads_probe`, from the basis probe (basisReads: the output computed by flowscreener.ts
+   computeEntry, a source, on flowprobe.ts's context with those inputs before a middle candle changed); the Screener
+   marks a Flow cell from them (condition.ts).
    Every derived field is a pure function of the inputs and the code: nothing reads a clock, so the file and its version
    are the same bytes on any machine at any load (ERRORS: the timed cost_class flipped under CPU contention).
    The overlay and the derived narrowing may only narrow the base (report 6.8 narrow-only rule), so every transferable
@@ -43,7 +47,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { computeFlow } from '../../terminal/src/calc/flow.ts';
-import { probeContext, probeLength } from '../src/core/flowprobe.ts';
+import { probeContext, probeLength, scaledBars, scaledLots, turnedContext } from '../src/core/flowprobe.ts';
+import { computeEntry } from '../src/core/flowscreener.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(here, '../../../..');
@@ -65,6 +70,8 @@ export const PATHS = {
   flowKinds: 'apps/edge-bff/screener/src/core/flow-kinds.json',
   flowCalc: 'apps/edge-bff/terminal/src/calc/flow.ts',
   flowProbe: 'apps/edge-bff/screener/src/core/flowprobe.ts',
+  // EXEC-PRICE-DISTORTION D-5: the basis probe computes every entry through its computeEntry (basisReads)
+  flowScreener: 'apps/edge-bff/screener/src/core/flowscreener.ts',
   candleRegistry: 'apps/edge-bff/backtest/src/core/candle-registry.json',
   candles: 'apps/edge-bff/backtest/src/core/candles.ts',
 };
@@ -140,6 +147,10 @@ export const PROBE = Object.freeze({
   cost_growth: 2, cost_margin: 2,
   // the reach probe (reachProbe): every shape cut at cut_from, cut_from + cut_every, ... while cut_margin bars remain
   reach: Object.freeze({ seed: 20261124, shapes: REACH_SHAPES, cut_from: 30, cut_every: 37, cut_margin: 300, tolerance: 1e-6 }),
+  // the basis probe of the flow outputs (basisReads, EXEC-PRICE-DISTORTION D-5): the factors the lots, the closes and the
+  // volumes of the candles up to t0 are multiplied by, the sessions every whole-number parameter is raised by in the
+  // raised contexts, and the relative tolerance of a difference
+  basis: Object.freeze({ lots_factors: Object.freeze([2, 0.5]), close_factor: 0.5, volume_factor: 2, raise_sessions: 4, tolerance: 1e-9 }),
 });
 
 function mulberry32(seed) {
@@ -839,6 +850,94 @@ export function flowEntries(reg, kinds) {
   return flows;
 }
 
+/* ---- the basis probe (EXEC-PRICE-DISTORTION D-5; the user 2026-11-24: "untuk mereka yang tertangkap, maka akan tetap
+   di show seluruhnya, tapi dengan badge, berikut juga untuk cell flownya?", yes) ------------------------------------------
+   A Flow cell is marked when the window it reads crosses a corporate action whose broker lots are not on one basis with
+   the lots after it, or a price break, and only when its output reads what that distorts. Which outputs do is derived
+   here, never listed: per output, `reads` (a subset of BASIS_READS), `reads_from` (depth: its value at a candle reads its
+   depth's sessions, flowmetrics.ts indicatorDepth; window_start: it still reads the candles before them, from the start
+   of the loaded window) and `reads_probe` (measured, or cannot_tell when no context gave it two different values and no
+   perturbation moved it: a flag that never fires on the probe; it is then taken to read everything from the window's
+   start, so a cell may be marked where it need not be, never left unmarked where it should be). */
+export const BASIS_READS = ['lots', 'close', 'volume'];
+/** A difference of two values beyond the probe's relative tolerance, or a value against none. */
+const basisDiffers = (a, b) => {
+  const fa = typeof a === 'number' && Number.isFinite(a), fb = typeof b === 'number' && Number.isFinite(b);
+  if (fa !== fb) return true;
+  return fa && Math.abs(a - b) > PROBE.basis.tolerance * Math.max(1, Math.abs(a), Math.abs(b));
+};
+/** The parameter contexts the basis probe runs an entry at: the registry defaults (an anchor date at the window's first
+    candle, as indicatorDepth probes it) and, as displayOnlyParams builds them, each select or switch at each of its other
+    options and each list at each single option and at all of them; around every anchor, an anchor being the defaults and
+    each option of a select or switch that gives an output the defaults do not (a sided indicator's sell line); and each
+    of these again with every whole-number parameter raised by PROBE.basis.raise_sessions (within its maximum), so a
+    window of one session, where a share or a concentration of one candle does not mix candles, is probed over several
+    too. */
+export function basisContexts(e, compute = computeEntry) {
+  const cond = e.params.filter(p => p.condition && p.default !== undefined);
+  const defaults = Object.fromEntries(cond.map(p => [p.key, structuredClone(p.default)]));
+  for (const p of e.params) if (p.kind === 'date' && typeof defaults[p.key] === 'string') defaults[p.key] = 'view';
+  const choosers = cond.filter(p => (p.kind === 'select' || p.kind === 'bool') && choicesOf(p).length > 1).map(q => [q.key, choicesOf(q)]);
+  const lists = cond.filter(p => p.kind === 'multi' && choicesOf(p).length > 1).map(q => [q.key, [...choicesOf(q).map(o => [o]), choicesOf(q)]]);
+  const ints = cond.filter(p => p.kind === 'int');
+  const raise = c => ({ ...c, ...Object.fromEntries(ints.map(q => [q.key, Math.min(q.max ?? Infinity, c[q.key] + PROBE.basis.raise_sessions)])) });
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const around = a => [a, ...[...choosers, ...lists].flatMap(([k, values]) => values.filter(v => !same(v, a[k])).map(v => ({ ...a, [k]: v })))];
+  const outputsAt = c => Object.keys(compute(e, probeContext(probeLength(e.params, c)), c));
+  const produced = new Set(outputsAt(defaults)), anchors = [defaults];
+  for (const [k, values] of choosers) for (const v of values) {
+    const c = { ...defaults, [k]: v }, got = outputsAt(c);
+    if (got.some(o => !produced.has(o))) { anchors.push(c); got.forEach(o => produced.add(o)) }
+  }
+  const seen = new Set(), out = [];
+  for (const a of anchors) for (const c of around(a)) for (const x of ints.length ? [c, raise(c)] : [c]) {
+    const key = JSON.stringify(x);
+    if (!seen.has(key)) { seen.add(key); out.push(x) }
+  }
+  return out;
+}
+/** The basis probe of one entry (above): on each context of basisContexts, a context of L = 2P + 2 candles (P the
+    probe's length at those parameters, flowprobe.ts probeLength, so every output has its value well before t0 = P and
+    a window of its depth ending at the last candle lies after t0) with a third of the brokers turned at t0
+    (turnedContext); the outputs from t0 on compared with the same entry's on the context with the lots up to t0 times
+    each of PROBE.basis.lots_factors (scaledLots), the closes up to t0 times close_factor and the volumes times
+    volume_factor (scaledBars). An output reads what changed it on any context (conservative: it may mark more cells,
+    never fewer); a difference still at the last candle means it reads further back than its depth (window_start).
+    `compute` is the function the Screener computes the entry with (flowscreener.ts computeEntry; a test plants
+    another). An entry never computed (compute none) gets none: null. */
+export function basisReads(e, compute = computeEntry) {
+  if (e.compute === 'none') return null;
+  const B = PROBE.basis, res = Object.fromEntries(e.outputs.map(o => [o.key, { reads: new Set(), told: false, whole: false }]));
+  for (const values of basisContexts(e, compute)) {
+    const P = probeLength(e.params, values), L = 2 * P + 2, t0 = P;
+    const base = turnedContext(probeContext(L), t0), out0 = compute(e, base, values);
+    const perturbed = [...B.lots_factors.map(f => ['lots', scaledLots(base, t0, f)]), ['close', scaledBars(base, t0, 'close', B.close_factor)], ['volume', scaledBars(base, t0, 'volume', B.volume_factor)]];
+    const outs = perturbed.map(([read, c]) => [read, compute(e, c, values)]);
+    for (const o of e.outputs) {
+      const a = out0[o.key], r = res[o.key];
+      if (!a) continue;
+      const seen = new Set();
+      for (let t = t0; t < L && seen.size < 2; t++) if (typeof a[t] === 'number' && Number.isFinite(a[t])) seen.add(a[t]);
+      if (seen.size > 1) r.told = true;
+      for (const [read, out] of outs) {
+        const b = out[o.key];
+        for (let t = t0; t < L; t++) if (basisDiffers(a[t], b?.[t])) { r.reads.add(read); r.told = true; break }
+        if (basisDiffers(a[L - 1], b?.[L - 1])) r.whole = true;
+      }
+    }
+  }
+  return Object.fromEntries(e.outputs.map(o => {
+    const r = res[o.key];
+    return [o.key, r.told ? { reads: BASIS_READS.filter(x => r.reads.has(x)), reads_from: r.whole ? 'window_start' : 'depth', reads_probe: 'measured' }
+      : { reads: [...BASIS_READS], reads_from: 'window_start', reads_probe: 'cannot_tell' }];
+  }));
+}
+/** The flow entries with each output's basis probe (basisReads) beside its kind. */
+export const withBasisReads = (flows, compute = computeEntry) => flows.map(e => {
+  const reads = basisReads(e, compute);
+  return reads ? { ...e, outputs: e.outputs.map(o => ({ ...o, ...reads[o.key] })) } : e;
+});
+
 /* ---- the candlestick patterns (EXEC-SCREENER-FLOW-CANDLES P6; verification/screener/P6_CANDLES.md section 2) ------- */
 /** The Screener's candle entries, generated from the Backtest core's candle registry (candles.ts CANDLES, read through
     the core's own module, never a copy): per pattern its id, name, side, pair and mirror, the candles it reads, its
@@ -1027,13 +1126,13 @@ export async function build({ against = null } = {}) {
     registry_version: base.registry_version,
     generated_by: PATHS.generator,
     sources: Object.entries({ base: PATHS.base, terminal: PATHS.terminal, calc: PATHS.calc, overlay: PATHS.overlay, oracle: PATHS.spec, generator: PATHS.generator,
-      flow_registry: PATHS.flowRegistry, flow_kinds: PATHS.flowKinds, flow_calc: PATHS.flowCalc, flow_probe: PATHS.flowProbe,
+      flow_registry: PATHS.flowRegistry, flow_kinds: PATHS.flowKinds, flow_calc: PATHS.flowCalc, flow_probe: PATHS.flowProbe, flow_screener: PATHS.flowScreener,
       candle_registry: PATHS.candleRegistry, candles: PATHS.candles })
       .map(([role, file]) => ({ role, file, sha256: sha256(fs.readFileSync(at(file))) })),
     probe: PROBE,
     cost_model: overlay.cost_model,
     indicators,
-    flows: flowEntries(readJson(PATHS.flowRegistry), readJson(PATHS.flowKinds)),
+    flows: withBasisReads(flowEntries(readJson(PATHS.flowRegistry), readJson(PATHS.flowKinds))),
     candles: candleEntries(await import(at(PATHS.candles))),
   };
   const { screener_registry_version: _v, ...hashed } = doc;

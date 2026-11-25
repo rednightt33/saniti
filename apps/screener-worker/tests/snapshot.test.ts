@@ -94,6 +94,11 @@ test('integrity: a price ticker outside the reference file, a tickers list that 
   await assert.rejects(withDoc({ ...doc, t: doc.t.map((t: string, i: number) => i === 5 ? 'T004' : t) }), integrity());
   const noIndex = Object.fromEntries(Object.entries(u.prices).filter(([t]) => t !== 'IHSG'));
   await assert.rejects(buildSnapshot(await input(noIndex, u.ref)), (e: unknown) => e instanceof DataError && e.code === 'DATA_MISSING');
+  // EXEC-PRICE-DISTORTION D-5: the actions file's optional basis column holds a status text or null per row
+  const ex = u.prices.T001[200][0] as string;
+  await assert.rejects(buildSnapshot(await input(u.prices, u.ref, [['T001', ex, 'STOCK_SPLIT', 1, 2, null, null, 7]])), integrity('actions'));
+  const ok = await buildSnapshot(await input(u.prices, u.ref, [['T001', ex, 'STOCK_SPLIT', 1, 2, null, null, 'terms']]));
+  assert.deepEqual(ok.desc.flowBasis, {}, 'no broker window loaded: no flow cell to mark');
 });
 
 test('no look-ahead (6.5 as-of policy): a price file with a bar after its publication\'s price_through is refused (DATA_INTEGRITY), never evaluated past E or off its tails', async () => {

@@ -618,6 +618,8 @@ export function screenEnv(snap: ThreadSnapshot, env: ThreadEnv, cancelled: () =>
       record(units, ms - (snap.contexts.ms - c0), units.map(u => unitBars(u, t.dates.length, f)), 1);
       return out;
     },
+    // EXEC-PRICE-DISTORTION D-5: the ticker's actions in the broker window whose lots are not on one basis (snapshot.ts)
+    flowBasisDates: ticker => snap.desc.flowBasis?.[ticker] ?? [],
     isPrewarmed: r => snap.pinned.has(keyOf(r)),
     predictMs: (r, bars) => predictMs(threadTracker, r, bars, sessions, avgRows),
     xsectionValues: need => snap.crossSection(need),

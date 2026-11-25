@@ -109,9 +109,20 @@ export type FlowKindSpec = string | { kind: string; unit: string } | ({ by: stri
 export type FlowCompute = 'terminal' | 'anchored' | 'inventory' | 'foreign_net' | 'none';
 /** One flow entry of the generated registry (build-screener-registry.mjs flowEntries): the 48 Terminal indicators, some
     as the Screener's version (P5b), then the Screener's own entries (fnet, ksei_net). */
+/** EXEC-PRICE-DISTORTION D-5: what a corporate action or a price break distorts that a flow output reads (the
+    generator's basis probe, build-screener-registry.mjs basisReads): the broker lots, the close, the volume. */
+export type FlowRead = 'lots' | 'close' | 'volume';
+export const FLOW_READS: readonly FlowRead[] = ['lots', 'close', 'volume'];
+/** One output of a flow entry: its kind and (D-5, generated; absent on an entry never computed, compute none) what it
+    reads, whether its value at a candle reads only its depth's sessions or every candle from the loaded window's start,
+    and whether the probe measured that or could not tell (then every read, from the window's start). */
+export interface FlowRegistryOutput {
+  key: string; kind: FlowKindSpec;
+  reads?: FlowRead[]; reads_from?: 'depth' | 'window_start'; reads_probe?: 'measured' | 'cannot_tell';
+}
 export interface FlowRegistryEntry {
   id: string; name: string; family: string; unit: string; place: string; tip: string | null; needs_frequency: boolean;
-  outputs: { key: string; kind: FlowKindSpec }[]; default_output: string;
+  outputs: FlowRegistryOutput[]; default_output: string;
   params: FlowRegistryParam[];
   adv_floor: boolean; requires: 'insider' | 'ksei' | null; needs_classification: boolean;
   /** 'screener' when the Screener changes the Terminal's parameters or outputs, or the entry is the Screener's own */

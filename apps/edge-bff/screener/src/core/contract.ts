@@ -296,12 +296,23 @@ export interface PriceBreakRemark { code: 'PRICE_BREAK'; action: string; ex_date
 export type RowRemark = StaleRemark | PriceBreakRemark;
 export type RowRemarkCode = RowRemark['code'];
 export const ROW_REMARK_CODES: readonly RowRemarkCode[] = ['STALE', 'PRICE_BREAK'];
-/** Cell remark (P4.1 A; report 8.5 cells[].remark): on a PRICE_BREAK row, a price-derived cell whose lookback contains
-    an ex-date keeps its value and its pass or fail and is marked as distorted. The lookback: a window-class output only
-    while its window contains the ex-date; recursive, cumulative and calendar outputs always after the ex-date (report
-    6.12). Flow, ADV20 and universe attributes never carry it. */
-export type CellRemark = 'PRICE_BREAK_IN_LOOKBACK';
-export const CELL_REMARKS: readonly CellRemark[] = ['PRICE_BREAK_IN_LOOKBACK'];
+/** Cell remarks (P4.1 A; report 8.5 cells[].remark; EXEC-PRICE-DISTORTION, user 2026-11-24: "untuk mereka yang
+    tertangkap, maka akan tetap di show seluruhnya, tapi dengan badge, berikut juga untuk cell flownya?", yes). A marked
+    cell keeps its value and its pass or fail; the remark only says the value is distorted (condition.ts):
+    - PRICE_BREAK_IN_LOOKBACK: the lookback of a series the cell reads crosses the date of one of the row's PRICE_BREAK
+      remarks (start < d <= at, d the first bar on or after the date; evaluate.ts crossedDates). A price series: a
+      window-class output while its window holds the date, recursive, cumulative and calendar outputs always after it
+      (report 6.12), a bar field its one bar, a window test its sessions. A flow series (D-5): only when its output reads
+      the close or the volume (the registry's outputs[].reads, the generator's basis probe), over the sessions it reads
+      (its flowDepth plus the test's within or length, ending at the evaluated candle, from the loaded window's start
+      when reads_from is window_start), and every price operand of it over that operand's own lookback;
+    - FLOW_BASIS_IN_LOOKBACK (D-5): a flow series whose output reads the broker lots, over the same sessions, crosses the
+      ex date of a price-affecting action whose broker lots before it are not on one basis with the lots after it (the
+      actions file's `basis` status terms, pending or unresolved, or no status: an older file, R2), so lots of the old
+      share count mix with the new. It wins over PRICE_BREAK_IN_LOOKBACK when both apply; remark_dates then names both.
+    ADV20, universe attributes and a flow output in rupiah or transactions only never carry one. */
+export type CellRemark = 'PRICE_BREAK_IN_LOOKBACK' | 'FLOW_BASIS_IN_LOOKBACK';
+export const CELL_REMARKS: readonly CellRemark[] = ['PRICE_BREAK_IN_LOOKBACK', 'FLOW_BASIS_IN_LOOKBACK'];
 
 /* ------------------------------------------------------------------------------------------------------------ */
 /* POST run (report 8.5)                                                                                         */
@@ -332,7 +343,9 @@ export type CellStatus = 'pass' | 'fail' | 'na' | 'not_evaluated';
 /** One condition on one ticker (report 8.5). value for VALUE; lhs and rhs for STATE and EVENT (the current values);
     event_date, bars_ago (the ticker's own bars), market_sessions_ago (the IHSG calendar, informational) and
     last_event_date (the last event within within_max bars) for EVENT. reason is set exactly when status is 'na' (I5);
-    remark is null or PRICE_BREAK_IN_LOOKBACK (the value is shown and marked, P4.1 A).
+    remark is null or one of CELL_REMARKS (the value is shown and marked, P4.1 A); remark_dates (additive,
+    EXEC-PRICE-DISTORTION D-1 and D-5): beside a remark, the dates its lookback crossed (a PRICE_BREAK remark's ex_date,
+    an action's ex date), ascending, so the page can name them; absent without a remark and on an older worker's cell.
     Nulls (I5, "no null value without a reason"): value (VALUE) and lhs / rhs (STATE) are null only on an NA cell; on
     EVENT, event_date, bars_ago and market_sessions_ago are null exactly when no event was found within `within` (FAIL
     or NA), last_event_date when none was found within within_max, and lhs / rhs are the current values, shown for
@@ -345,10 +358,16 @@ export interface Cell {
   last_event_date?: string | null;
   reason: NaReason | null;
   remark: CellRemark | null;
+  remark_dates?: string[];
 }
 export type RowStatus = 'match' | 'near';
 /** A result row: matches and near rows only (report 8.5). board and market_cap are always null ("no data", FACT: no
-    source exists). near = !match && need >= 2 && met == need - 1, the one rule for table, preview and CSV (6.9). */
+    source exists). near = !match && need >= 2 && met == need - 1, the one rule for table, preview and CSV (6.9).
+    remarks (EXEC-PRICE-DISTORTION D-1: "badge baris hanya bila ada sel baris itu yang jendelanya melewati patahan, atau
+    tanggal patahan sama dengan bar terakhir"): STALE always; a PRICE_BREAK remark only when one of the row's cells
+    crossed its date (its remark_dates name it) or the date falls on the row's last bar (the first bar on or after it is
+    the last; the 1D change crosses it); the preview's remarks follow the same rule; GET /universe rows keep every remark
+    (the chips count them). */
 export interface ResultRow {
   ticker: string; name: string | null; sector: string | null; industry: string | null; board: null; market_cap: null;
   last: number | null; chg_1d_pct: number | null; adv20_idr: number | null; last_bar_date: string; stale: boolean;
@@ -359,7 +378,8 @@ export interface ResultRow {
     stale_hidden and price_break_hidden = hidden by the P4 chips (0 when the chip is off); filtered_out = the rest. */
 export interface UniverseCounts { listed: number; eligible: number; stale_hidden: number; price_break_hidden: number; filtered_out: number }
 /** Warnings (report 8.5, "for example"): FLOW_LAGGED (Phase 2); PRICE_BREAKS_IN_RESULT with details {rows, cells}, the
-    rows and cells that carry a price-break remark; NO_PRUNING_FOR_ANY (logic any: the planner cannot prune, 6.10). */
+    rows that carry a distortion mark (a PRICE_BREAK remark kept by D-1, or a cell remark) and the cells that carry a
+    cell remark of either kind (EXEC-PRICE-DISTORTION); NO_PRUNING_FOR_ANY (logic any: the planner cannot prune, 6.10). */
 export type WarningCode = 'FLOW_LAGGED' | 'PRICE_BREAKS_IN_RESULT' | 'NO_PRUNING_FOR_ANY';
 export interface Warning { code: WarningCode | string; message: string; count?: number; details?: Record<string, unknown> }
 export interface Timings { queue: number; s0: number; s1: number; s2: number; s3: number; s4: number; total: number }

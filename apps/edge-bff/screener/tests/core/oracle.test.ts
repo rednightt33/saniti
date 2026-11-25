@@ -94,18 +94,20 @@ const cross = (a: S | number, b: S | number, i: number, up: boolean) => {
     whether the ticker lacks a bar field it needs. */
 interface Side { s: S | number; lo: ((i: number) => number) | null; needs?: 'V' }
 interface OracleCell { status: 'pass' | 'fail' | 'na'; reason: string | null; value?: number | null; lhs?: number | null; rhs?: number | null;
-  event_date?: string | null; bars_ago?: number | null; market_sessions_ago?: number | null; last_event_date?: string | null; remark: string | null }
+  event_date?: string | null; bars_ago?: number | null; market_sessions_ago?: number | null; last_event_date?: string | null; remark: string | null; remark_dates?: string[] }
 interface Template { test: unknown; cell(t: TickerBars, at: number, row: UniverseRow): OracleCell }
 
 const sessionsBetween = (from: string, to: string) => IX.dates.filter(d => d > from && d <= to).length;
-function remarkOf(row: UniverseRow, t: TickerBars, at: number, los: (number | null)[]): string | null {
+/** The cell's remark and (EXEC-PRICE-DISTORTION) the dates its lookback crossed, ascending: remark_dates. */
+function remarkOf(row: UniverseRow, t: TickerBars, at: number, los: (number | null)[]): { remark: string | null; remark_dates?: string[] } {
+  const crossed: string[] = [];
   for (const r of row.remarks) {
     if (r.code !== 'PRICE_BREAK') continue;
     const d = t.dates.findIndex(x => x >= r.ex_date);
     if (d < 0 || d > at) continue;
-    if (los.some(lo => lo === null ? d <= at : lo < d)) return 'PRICE_BREAK_IN_LOOKBACK';
+    if (los.some(lo => lo === null ? d <= at : lo < d) && !crossed.includes(r.ex_date)) crossed.push(r.ex_date);
   }
-  return null;
+  return crossed.length ? { remark: 'PRICE_BREAK_IN_LOOKBACK', remark_dates: crossed.sort() } : { remark: null };
 }
 const missing = (t: TickerBars, sides: Side[], at: number) => sides.some(x => typeof x.s !== 'number' && x.needs === 'V' && !hasField(bar(t, 'V'), at));
 function naOf(t: TickerBars, x: Side, at: number): string | null {
@@ -115,13 +117,13 @@ function naOf(t: TickerBars, x: Side, at: number): string | null {
 }
 function valueCell(t: TickerBars, at: number, row: UniverseRow, x: Side, pass: (v: number) => boolean): OracleCell {
   const v = (x.s as S)[at], reason = naOf(t, x, at);
-  return { status: reason ? 'na' : pass(v as number) ? 'pass' : 'fail', reason, value: reason ? null : r12(v), remark: remarkOf(row, t, at, [x.lo ? x.lo(at) : null]) };
+  return { status: reason ? 'na' : pass(v as number) ? 'pass' : 'fail', reason, value: reason ? null : r12(v), ...remarkOf(row, t, at, [x.lo ? x.lo(at) : null]) };
 }
 function stateCell(t: TickerBars, at: number, row: UniverseRow, a: Side, op: 'gt' | 'lt', b: Side): OracleCell {
   const cur = (x: Side) => typeof x.s === 'number' ? x.s : r12(x.s[at]);
   const reason = naOf(t, a, at) ?? naOf(t, b, at);
   const los = [a, b].filter(x => typeof x.s !== 'number').map(x => x.lo ? x.lo(at) : null);
-  return { status: reason ? 'na' : gt(a.s, b.s, at, op) ? 'pass' : 'fail', reason, lhs: cur(a), rhs: cur(b), remark: remarkOf(row, t, at, los) };
+  return { status: reason ? 'na' : gt(a.s, b.s, at, op) ? 'pass' : 'fail', reason, lhs: cur(a), rhs: cur(b), ...remarkOf(row, t, at, los) };
 }
 function eventCell(t: TickerBars, at: number, row: UniverseRow, signal: (i: number) => boolean, within: number, sides: Side[] | null, los: (number | null)[]): OracleCell {
   let j: number | null = null, k: number | null = null;
@@ -135,7 +137,7 @@ function eventCell(t: TickerBars, at: number, row: UniverseRow, signal: (i: numb
     if (!anyUpTo(x.s, at)) { status = 'na'; reason = 'INSUFFICIENT_HISTORY'; break }
   }
   return { status, reason, ...cur, event_date: j === null ? null : t.dates[j], bars_ago: j === null ? null : at - j,
-    market_sessions_ago: j === null ? null : sessionsBetween(t.dates[j], t.dates[at]), last_event_date: k === null ? null : t.dates[k], remark: remarkOf(row, t, at, los) };
+    market_sessions_ago: j === null ? null : sessionsBetween(t.dates[j], t.dates[at]), last_event_date: k === null ? null : t.dates[k], ...remarkOf(row, t, at, los) };
 }
 const crossLos = (sides: Side[], at: number, within: number) => sides.filter(x => typeof x.s !== 'number').map(x => x.lo ? x.lo(at - within) : null);
 
@@ -203,7 +205,7 @@ function template(r: () => number): Template {
     case 10: {                                                                 // VALUE return_rank on the fixed population
       const w = int(r, 1, 200), op = pick(r, ['gt', 'lt'] as const), v = int(r, 10, 90);
       return { test: { kind: 'value', op, value: v, metric: { kind: 'xsection', metric: 'return_rank', params: { window: w } } },
-        cell: (t, at, row) => { const x = rankOf(w).get(t.ticker) ?? null; return { status: x === null ? 'na' : (op === 'gt' ? x > v : x < v) ? 'pass' : 'fail', reason: x === null ? 'INSUFFICIENT_HISTORY' : null, value: r12(x), remark: remarkOf(row, t, at, [at - w]) } } };
+        cell: (t, at, row) => { const x = rankOf(w).get(t.ticker) ?? null; return { status: x === null ? 'na' : (op === 'gt' ? x > v : x < v) ? 'pass' : 'fail', reason: x === null ? 'INSUFFICIENT_HISTORY' : null, value: r12(x), ...remarkOf(row, t, at, [at - w]) } } };
     }
     case 11: {                                                                 // VALUE universe attribute (no remark)
       const v = (r() - 0.5) * 4, op = pick(r, ['gt', 'lt'] as const);
@@ -216,7 +218,7 @@ function template(r: () => number): Template {
       const sig = (t: TickerBars) => (i: number) => { if (i < n) return false; const H = bar(t, 'H'), C = bar(t, 'C'); let m = -Infinity; for (let j = i - n; j < i; j++) m = Math.max(m, fin(H[j]) ? H[j] as number : NaN); return fin(C[i]) && (C[i] as number) > m };
       const p = { kind: 'pattern', type: 'breakout', params: { length: n } };
       return ev ? { test: { kind: 'event', within: W, signal: { pattern: p } }, cell: (t, at, row) => eventCell(t, at, row, sig(t), W, null, [at - W + 1 - n]) }
-        : { test: { kind: 'state', pattern: p }, cell: (t, at, row) => ({ status: at >= 1 && sig(t)(at) ? 'pass' : 'fail', reason: null, remark: remarkOf(row, t, at, [at - n]) }) };
+        : { test: { kind: 'state', pattern: p }, cell: (t, at, row) => ({ status: at >= 1 && sig(t)(at) ? 'pass' : 'fail', reason: null, ...remarkOf(row, t, at, [at - n]) }) };
     }
     case 13: {                                                                 // volspike pattern EVENT
       const n = int(r, 2, 40), th = 1 + r() * 1.5;
@@ -248,14 +250,14 @@ function template(r: () => number): Template {
       };
       const p = down ? { kind: 'pattern', type: 'breakdown', params: { length: n } } : { kind: 'pattern', type: 'new_high', params: { of: 'close', length: n } };
       return ev ? { test: { kind: 'event', within: W, signal: { pattern: p } }, cell: (t, at, row) => eventCell(t, at, row, sig(t), W, null, [at - W + 1 - n]) }
-        : { test: { kind: 'state', pattern: p }, cell: (t, at, row) => ({ status: at >= 1 && sig(t)(at) ? 'pass' : 'fail', reason: null, remark: remarkOf(row, t, at, [at - n]) }) };
+        : { test: { kind: 'state', pattern: p }, cell: (t, at, row) => ({ status: at >= 1 && sig(t)(at) ? 'pass' : 'fail', reason: null, ...remarkOf(row, t, at, [at - n]) }) };
     }
     case 20: {                                                                 // macross: SMA(fast) crosses above SMA(slow)
       const a = int(r, 2, 30), b = a + int(r, 1, 50), ev = r() < 0.6;
       const sig = (t: TickerBars) => { const x = f(t, 'sma', { length: a }, 'sma'), y = f(t, 'sma', { length: b }, 'sma'); return (i: number) => cross(x, y, i, true) };
       const p = { kind: 'pattern', type: 'macross', params: { fast_length: a, slow_length: b } };
       return ev ? { test: { kind: 'event', within: W, signal: { pattern: p } }, cell: (t, at, row) => eventCell(t, at, row, sig(t), W, null, [at - W + 1 - b]) }
-        : { test: { kind: 'state', pattern: p }, cell: (t, at, row) => ({ status: sig(t)(at) ? 'pass' : 'fail', reason: null, remark: remarkOf(row, t, at, [at - b]) }) };
+        : { test: { kind: 'state', pattern: p }, cell: (t, at, row) => ({ status: sig(t)(at) ? 'pass' : 'fail', reason: null, ...remarkOf(row, t, at, [at - b]) }) };
     }
     case 21: {                                                                 // VALUE position in the Bollinger band (zero width on FLAT)
       const n = int(r, 2, 40), a = int(r, -20, 60), b = a + int(r, 0, 80);
@@ -350,7 +352,7 @@ function oracle(c: ReturnType<typeof randomCase>) {
 
 const pickCell = (x: Cell): OracleCell => {
   const o: Record<string, unknown> = { status: x.status, reason: x.reason, remark: x.remark };
-  for (const k of ['value', 'lhs', 'rhs', 'event_date', 'bars_ago', 'market_sessions_ago', 'last_event_date'] as const) if (k in x) o[k] = x[k];
+  for (const k of ['value', 'lhs', 'rhs', 'event_date', 'bars_ago', 'market_sessions_ago', 'last_event_date', 'remark_dates'] as const) if (k in x) o[k] = x[k];
   return o as unknown as OracleCell;
 };
 const strip = (o: OracleCell): OracleCell => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as OracleCell;

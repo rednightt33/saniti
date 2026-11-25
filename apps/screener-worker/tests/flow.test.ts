@@ -139,3 +139,26 @@ test('while the window is still loading, a flow condition is refused with FLOW_U
   assert.equal(r.body.error.code, 'METRIC_UNAVAILABLE');
   assert.equal((await run(port, { kind: 'value', op: 'lt', value: 101, metric: { kind: 'indicator', indicator: 'I13', params: {}, output: 'rsi' } })).status, 200);
 });
+
+test('EXEC-PRICE-DISTORTION D-5: a lots output is marked FLOW_BASIS_IN_LOOKBACK across an action whose lots are not on one basis (the actions file\'s basis), not across a `same` one, and across every one of an older file without the column (R2); a rupiah output never; the values unchanged', async () => {
+  const EX = DAYS[50], share = { kind: 'value', metric: { kind: 'flow', metric: 'FL03', params: { window: 20 } }, op: 'gt', value: -1e9 };
+  const rupiah = { kind: 'value', metric: { kind: 'flow', metric: 'FL25' }, op: 'gt', value: -1e9 };
+  const cells = async (port: number, test: unknown) => {
+    const r = await run(port, test);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    return Object.fromEntries((r.body.rows as any[]).map(x => [x.ticker, x.cells[0]]));
+  };
+  // T001 terms, T002 same (the publisher's statuses); T003 a cash dividend on the same date (not a share-count change)
+  const withColumn = [['T001', EX, 'STOCK_SPLIT', 1, 2, null, null, 'terms'], ['T002', EX, 'STOCK_SPLIT', 1, 2, null, null, 'same'], ['T003', EX, 'DIVIDEND', null, null, 10, 'IDR', null]];
+  const a = await start(pubOf('2026-10-27T17:00:00Z', { actions: withColumn }));
+  assert.deepEqual(a.app.state().current!.desc.flowBasis, { T001: [EX] });
+  const s = await cells(a.port, share), r = await cells(a.port, rupiah);
+  assert.deepEqual([s.T001.remark, s.T001.remark_dates, s.T002.remark, s.T003.remark], ['FLOW_BASIS_IN_LOOKBACK', [EX], null, null]);
+  assert.ok(Object.values(r).every((c: any) => c.remark === null), 'a rupiah output is never marked');
+  // an older actions file without the column: the action the publisher did not measure is marked rather than passed over
+  const old = await start(pubOf('2026-10-27T18:00:00Z', { actions: withColumn.map(x => x.slice(0, 7)) }));
+  assert.deepEqual(old.app.state().current!.desc.flowBasis, { T001: [EX], T002: [EX] });
+  const so = await cells(old.port, share);
+  assert.deepEqual([so.T001.remark, so.T002.remark, so.T003.remark], ['FLOW_BASIS_IN_LOOKBACK', 'FLOW_BASIS_IN_LOOKBACK', null]);
+  for (const t of ['T001', 'T002', 'T003']) assert.deepEqual([t, so[t].status, so[t].value], [t, s[t].status, s[t].value], 'the value, pass and fail never change');
+});

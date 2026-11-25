@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "882b23a855104047",
+  "screener_registry_version": "6553a65ad0316fa5",
   "registry_version": "2a69cd7d3f01ceaf",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "6748b613045bbc427be08a5b9d03936c011d503277560294ce80ee603676332d"
+      "sha256": "ea802abec222b746881e93c754bba993191b31b700fcdfedbeafa76c72b5ec9c"
     },
     {
       "role": "flow_registry",
@@ -52,7 +52,12 @@
     {
       "role": "flow_probe",
       "file": "apps/edge-bff/screener/src/core/flowprobe.ts",
-      "sha256": "f96ce104c69c859f6f70bfc88b80468153448b01fe0d922745b74a1833c10264"
+      "sha256": "1a6f51b6c17bd774b2234b3282d38c54074d90c85ad3e240d0defbf054b1fd50"
+    },
+    {
+      "role": "flow_screener",
+      "file": "apps/edge-bff/screener/src/core/flowscreener.ts",
+      "sha256": "09f835eb33441ba26339971fe6309feed3a0f8597efad009653c740ced9066ad"
     },
     {
       "role": "candle_registry",
@@ -148,6 +153,16 @@
       "cut_every": 37,
       "cut_margin": 300,
       "tolerance": 0.000001
+    },
+    "basis": {
+      "lots_factors": [
+        2,
+        0.5
+      ],
+      "close_factor": 0.5,
+      "volume_factor": 2,
+      "raise_sessions": 4,
+      "tolerance": 1e-9
     }
   },
   "cost_model": {
@@ -12585,11 +12600,21 @@
       "outputs": [
         {
           "key": "buy",
-          "kind": "L"
+          "kind": "L",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "sell",
-          "kind": "L"
+          "kind": "L",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "buy",
@@ -12740,11 +12765,17 @@
       "outputs": [
         {
           "key": "buy",
-          "kind": "Rp"
+          "kind": "Rp",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "sell",
-          "kind": "Rp"
+          "kind": "Rp",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "buy",
@@ -12895,11 +12926,21 @@
       "outputs": [
         {
           "key": "buy",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "sell",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "buy",
@@ -13050,11 +13091,17 @@
       "outputs": [
         {
           "key": "buy",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "sell",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "buy",
@@ -13205,11 +13252,21 @@
       "outputs": [
         {
           "key": "buy",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "sell",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "buy",
@@ -13368,7 +13425,12 @@
       "outputs": [
         {
           "key": "ratio",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "ratio",
@@ -13509,7 +13571,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -13660,7 +13727,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "P"
+          "kind": "P",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -13834,7 +13906,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "F"
+          "kind": "F",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -14031,7 +14108,10 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -14191,11 +14271,17 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "change",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -14377,7 +14463,10 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -14514,11 +14603,21 @@
       "outputs": [
         {
           "key": "buy",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "sell",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "buy",
@@ -14691,7 +14790,12 @@
       "outputs": [
         {
           "key": "asym",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "asym",
@@ -14869,7 +14973,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -14971,7 +15080,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -15073,7 +15187,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "H"
+          "kind": "H",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -15206,7 +15325,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "H"
+          "kind": "H",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -15340,7 +15464,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "H"
+          "kind": "H",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -15492,7 +15621,13 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots",
+            "close"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -15652,7 +15787,10 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "P"
+          "kind": "P",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -15836,7 +15974,10 @@
               "kind": "B",
               "unit": "brokers"
             }
-          }
+          },
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -15948,14 +16089,24 @@
               "kind": "K",
               "unit": "%"
             }
-          }
+          },
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "count",
           "kind": {
             "kind": "B",
             "unit": "brokers"
-          }
+          },
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -16137,7 +16288,10 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -16221,7 +16375,10 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "Rp"
+          "kind": "Rp",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -16316,7 +16473,10 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "D"
+          "kind": "D",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -16479,15 +16639,36 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "F"
+          "kind": "F",
+          "reads": [
+            "lots",
+            "close",
+            "volume"
+          ],
+          "reads_from": "window_start",
+          "reads_probe": "cannot_tell"
         },
         {
           "key": "net",
-          "kind": "F"
+          "kind": "F",
+          "reads": [
+            "lots",
+            "close",
+            "volume"
+          ],
+          "reads_from": "window_start",
+          "reads_probe": "cannot_tell"
         },
         {
           "key": "gross",
-          "kind": "F"
+          "kind": "F",
+          "reads": [
+            "lots",
+            "close",
+            "volume"
+          ],
+          "reads_from": "window_start",
+          "reads_probe": "cannot_tell"
         }
       ],
       "default_output": "value",
@@ -16593,7 +16774,13 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "Rp"
+          "kind": "Rp",
+          "reads": [
+            "close",
+            "volume"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -16629,11 +16816,17 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "balance",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -16719,7 +16912,10 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -16770,7 +16966,14 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "Rp"
+          "kind": "Rp",
+          "reads": [
+            "lots",
+            "close",
+            "volume"
+          ],
+          "reads_from": "window_start",
+          "reads_probe": "cannot_tell"
         }
       ],
       "default_output": "value",
@@ -16825,11 +17028,21 @@
       "outputs": [
         {
           "key": "buy",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "sell",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "buy",
@@ -16947,11 +17160,17 @@
       "outputs": [
         {
           "key": "buy",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "sell",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "buy",
@@ -17124,11 +17343,17 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         },
         {
           "key": "change",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -17258,7 +17483,10 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -17324,7 +17552,10 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -17467,7 +17698,10 @@
               "kind": "P",
               "unit": "sd"
             }
-          }
+          },
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -17639,7 +17873,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -17790,7 +18029,13 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots",
+            "close"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -17931,7 +18176,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -18026,7 +18276,10 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -18188,7 +18441,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "H"
+          "kind": "H",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -18264,7 +18522,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "H"
+          "kind": "H",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -18397,7 +18660,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "H"
+          "kind": "H",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -18531,7 +18799,13 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots",
+            "close"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -18673,7 +18947,12 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [
+            "lots"
+          ],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -18999,7 +19278,10 @@
               "kind": "P",
               "unit": "0-100"
             }
-          }
+          },
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -19093,7 +19375,10 @@
       "outputs": [
         {
           "key": "value",
-          "kind": "K"
+          "kind": "K",
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
@@ -19198,7 +19483,10 @@
           "kind": {
             "kind": "Rp",
             "unit": "IDR"
-          }
+          },
+          "reads": [],
+          "reads_from": "depth",
+          "reads_probe": "measured"
         }
       ],
       "default_output": "value",
