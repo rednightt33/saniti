@@ -10735,12 +10735,13 @@
     "M558"
    ],
    "fix_commits": [
-    "c91e2809"
+    "c91e2809",
+    "2f8b012c"
    ],
-   "fix_note": "c91e2809 (the close of the rule 8 round 2)",
-   "runs_on": "beta",
+   "fix_note": "c91e2809 (the close of the rule 8 round 2); round-3 fix: 2f8b012c (agent commit 1901dcaf: cuts on each series' change bars in both gates and the real-data check, screener/tests/core/cuts.ts; a self-test of 44 planted reads)",
+   "runs_on": "branch",
    "author_test": "A planted read of 20 bars ahead (inCategories) fails both gates, the worker tests/lookahead.test.ts and the Screener tests/core/asof.test.ts (1 failed each), then restored; the Screener (1363) and Backtest (104) suites and the worker look-ahead, grammar and lab tests (22) passed (c91e2809)",
-   "status": "partly",
+   "status": "waiting",
    "open_row": "",
    "recheck": [
     {
@@ -11089,12 +11090,13 @@
     "M558"
    ],
    "fix_commits": [
-    "185c0dd5"
+    "185c0dd5",
+    "ff6228c1"
    ],
-   "fix_note": "185c0dd5 (robustness.ts codedSide, the setting axis, grid_accepts; agent commit 2d954707)",
+   "fix_note": "185c0dd5 (robustness.ts codedSide, the setting axis, grid_accepts; agent commit 2d954707); round-1 fix: ff6228c1 (agent commit c0f0bf4c: the axis is the first setting whose columns change the condition on the run's data, engine.ts columnMoves, grid_moves; the Deflated Sharpe counts distinct results)",
    "runs_on": "branch",
    "author_test": "backtest-worker 288/289 (4 new; M463 heap test of this machine); look-ahead gate 31/31; registry:check current; Backtest page vitest 106/106, smoke 57/57 (two loading-ring timing steps failed in 3 of 5 early runs, then passed); Screener vitest 1363; screener-worker 147/149",
-   "status": "partly",
+   "status": "waiting",
    "open_row": "",
    "recheck": [
     {

@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 219 item
+## Menunggu uji ulang: 221 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -35,16 +35,18 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Perbaikan sesudah ledger langkah 8 (2026-11-22/23) | EXEC-MU-ACCOUNTS | 7 | 3 | 4 | 0 | 0 | 0 |
 | Panduan lab, lab dibuka, jendela registrasi (test-out 2026-11-23) | EXEC-MU-ACCOUNTS | 17 | 0 | 13 | 0 | 4 | 0 |
 | Tahap preview dan Flow lab (cek langkah 2-3) | EXEC-MU-ACCOUNTS | 20 | 0 | 20 | 0 | 0 | 0 |
-| Indikator Pine lab: penutupan ronde 2 (ERRORS M558) | EXEC-PINE-INDICATORS | 2 | 0 | 0 | 2 | 0 | 0 |
+| Indikator Pine lab: penutupan ronde 2 (ERRORS M558) | EXEC-PINE-INDICATORS | 3 | 0 | 0 | 3 | 0 | 0 |
 | Terminal: ganti timeframe (ERRORS M563) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 0 | 1 | 0 | 0 |
 | Screener dan Backtest: harga terdistorsi (ERRORS M559-M562) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
+| Backtest: grid sensitivitas kondisi ya/tidak (ERRORS M558 B-2, UD35) | EXEC-SENSITIVITY-FLAGS | 1 | 0 | 0 | 1 | 0 | 0 |
 | Screener: tanda sel Flow dan badge baris saat harga terdistorsi (ERRORS M561, D-1, D-5) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
 | Terminal: gaya EMA yang tersimpan (ERRORS M564) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 0 | 1 | 0 | 0 |
 | Terminal: Statistics, Relative performance tanpa data IHSG (ERRORS M565) | EXEC-TERMINAL-SESSION-TOGGLE | 1 | 0 | 0 | 1 | 0 | 0 |
 
-2 item sudah dua ronde diuji ulang. Aturan 8 membolehkan paling banyak dua ronde, lalu sisanya masuk
+3 item sudah dua ronde diuji ulang. Aturan 8 membolehkan paling banyak dua ronde, lalu sisanya masuk
 register keputusan; uji berikutnya hanya dengan keputusan user:
 
+- `wf_c2fe2424-bf4/screener:recheck2/NEW-1`
 - `wf_c2fe2424-bf4/terminal:S-6`
 - `wf_c2fe2424-bf4/terminal:NEW-1`
 
@@ -315,10 +317,11 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 | `wf_6a8c44c8-978/F9` | Guide step 1 and Part A step 9 are ambiguous or wrong for Flow: family naming, generator vocabulary, expected version changes | `61fb22c4` | beta | M552 | 0 |
 | `wf_6a8c44c8-978/F10` | A lab item named in shipped code is refused by the guard's self-test, whose message does not name the fix | `61fb22c4` | beta | M552 | 0 |
 
-### Indikator Pine lab: penutupan ronde 2 (ERRORS M558) (2)
+### Indikator Pine lab: penutupan ronde 2 (ERRORS M558) (3)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
+| `wf_c2fe2424-bf4/screener:recheck2/NEW-1` | Both look-ahead gates test in_categories with every category chosen, so a read of a later bar passes | `c91e2809`, `2f8b012c` | branch | M558 | 3 |
 | `wf_c2fe2424-bf4/terminal:S-6` | The two colour boxes do not share the colours in use on the chart (indicators' and compare lines') | `c91e2809`, `8530a75e` | branch | M558 | 3 |
 | `wf_c2fe2424-bf4/terminal:NEW-1` | Label boxes snap y with the canvas's horizontal pixel ratio, so their top and bottom fall off the grid | `c91e2809`, `8530a75e` | branch | M558 | 3 |
 
@@ -333,6 +336,12 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
 | `errors/M559-M562` | Price distortion detected by a date rule, read wrong for three stocks, and hidden instead of marked | `4799ee94`, `e9fc3ab6`, `db7bf27e`, `af806747`, `6b86cf6e`, `fa1f1f60`, `6a2473fd`, `6d254189` | branch | M559, M560, M561, M562 | 1 |
+
+### Backtest: grid sensitivitas kondisi ya/tidak (ERRORS M558 B-2, UD35) (1)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `errors/M558-B-2` | The sensitivity grid moved a fixed 0.5 threshold on a yes/no condition | `185c0dd5`, `ff6228c1` | branch | M558 | 1 |
 
 ### Screener: tanda sel Flow dan badge baris saat harga terdistorsi (ERRORS M561, D-1, D-5) (1)
 
@@ -356,9 +365,9 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 219 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 221 |
 | `fixed` | diuji ulang agen lain: beres | 115 |
-| `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 2 |
+| `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 0 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
 | `cannot_tell` | diuji ulang agen lain: tidak bisa dipastikan | 0 |
 | `open` | belum diperbaiki | 90 |
