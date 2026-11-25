@@ -17803,6 +17803,12 @@ harus saya tentukan dan berpengaruh terhadap keputusan arsitektur, feel free to 
 rilis sesuai rencana yang sudah diputuskan: beta (push `main`, unggah backtest-worker), run publisher berat sekali (UD56 A)
 dan restart Postgres, migrasi screen tersimpan (UD46 B), `live` ke commit beta yang sama di hari yang sama (UD47 b),
 masing-masing dengan cek dan catatan. Berhenti dan bertanya bila muncul keputusan arsitektur yang mendesak.
+Urutan diubah user 2026-11-25 ("kita rubah urutannya saja. Jadi pengecekan 5 agent dengan menggunakan Opus Medium
+dilakukan setelah run publisher berjalan"; "A, ya" 2026-11-26 00:56 WIB): (1) gabung dua agen yang berjalan, tes, cek
+look-ahead data nyata, tripwire, catatan; (2) push `main` (beta, screener-worker, kode publisher); (3) unggah
+backtest-worker; (4) Run Now publisher malam itu (ukur ulang 706 aksi, tulis ulang berkas events dan `actions`), cek,
+restart Postgres; (5) cek beta; (6) re-check ronde 2, 5 agen Opus medium, atas kode dan hasil di beta/storage; (7)
+perbaikan dan deploy ulang beta; (8) APPLY migrasi screen tersimpan; (9) `live` ke commit beta yang sama; (10) catatan.
 
 **Rollback:** worker dan halaman: revert commit di `main`, `live` kembali ke commit sebelumnya (EXEC.md opsi A); F4:
 kembalikan universe dari tabel cadangan; publisher: run manual dengan versi sebelumnya.
