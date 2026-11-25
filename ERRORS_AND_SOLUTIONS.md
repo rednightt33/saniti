@@ -8886,7 +8886,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M565 — Statistics: "<polyline> attribute points: Expected number, "0.0,NaN …"" when IHSG has no close on the chart (2026-11-25; fixed in `ab64b8cf`, on the branch)
+### M565 — Statistics: "<polyline> attribute points: Expected number, "0.0,NaN …"" when IHSG has no close on the chart (2026-11-25; fixed in `8530a75e`, on the branch)
 
 - **Symptom (found in passing by the re-check agents_20261125-terminal, 2026-11-25):** with the Statistics panel open
   the console said `Error: <line> attribute y1: Expected length, "NaN".`, the same for `y2`, and
@@ -8905,7 +8905,7 @@ in its staleness check.
   finite values (volatility, volume ratio: `Number.isFinite`), the return, drawdown and seasonality read the chart's
   own closes; a compare line or an added asset without rows is no series (`loadCompare`, `alignTo` return none):
   checked, not the same defect.
-- **Solution (`ab64b8cf`):** `ihsgOnCandles` (`live.ts`, exported) returns no series when IHSG has no close on the
+- **Solution (`8530a75e`):** `ihsgOnCandles` (`live.ts`, exported) returns no series when IHSG has no close on the
   chart; the panel says "No IHSG data for this chart" for no series and for an answer without a finite value (`stats.ts`,
   `ihsgNone`), as it says "IHSG could not be loaded" for a failed answer.
 - **Checked:** `tests/data/ihsg_candles.test.ts` (3: the fill before the first close, no series without one, the panel's
@@ -8915,9 +8915,9 @@ in its staleness check.
   error left is the harness's own 404 of `/api/terminal/v1/reference/fixed_income`.
 - **Lesson:** a loader answers "none" for a series it does not have; a number standing for "no value" (`NaN`, 0) is
   not data and reaches the drawing as one.
-- **Status:** fixed in `ab64b8cf`, on the branch, not deployed; tested by its author only (RECHECK.md `errors/M565`).
+- **Status:** fixed in `8530a75e`, on the branch, not deployed; tested by its author only (RECHECK.md `errors/M565`).
 
-### M564 — The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch (2026-11-25; fixed in `ab64b8cf`, on the branch)
+### M564 — The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch (2026-11-25; fixed in `8530a75e`, on the branch)
 
 - **Symptom (found in passing by the re-check agents_20261125-terminal, 2026-11-25, probe `ema.mjs`):** an EMA saved
   as `{"ema":{"on":true,"width":2,"color":"#171717"}}` (its `style.out`) came back as `{"ema":{"on":true}}` after a
@@ -8935,7 +8935,7 @@ in its staleness check.
 - **Class:** a migration that decides the form of a saved entry by its id, when a newer definition reuses the id. The
   other steps of the restore decide by shape (`dropStale`: an output renamed, a choice no longer offered); no other
   migration of a saved list keyed on an id was found (`grep` of the apps for the old ids).
-- **Solution (`ab64b8cf`):** `src/data/migrateSaved.ts`: an entry is the old form only when its style has no `out` and
+- **Solution (`8530a75e`):** `src/data/migrateSaved.ts`: an entry is the old form only when its style has no `out` and
   it carries what only the old form had (a `type` or an `offset` among its params, a colour or a width at the top of
   its style, or the id `ma`, which no definition has today); the ids say which indicator the old form was. The old form
   still moves to the registry entry of its type, and a colour or width it lacks now takes the default instead of
@@ -8946,7 +8946,7 @@ in its staleness check.
   old `{def:'ma', params:{type:'WMA', ...}, style:{color, width}}`): after the load, a switch to W in place and a reload,
   the saved list, the export and the legend keep `#d6409f/3/Dashed/2` and the WMA `#0070f3/1`, offset 1.
 - **Lesson:** a saved form is told by its shape (what only that form has), never by an id a later definition may take.
-- **Status:** fixed in `ab64b8cf`, on the branch, not deployed; tested by its author only (RECHECK.md `errors/M564`).
+- **Status:** fixed in `8530a75e`, on the branch, not deployed; tested by its author only (RECHECK.md `errors/M564`).
 
 ### M563 — A timeframe switch reloaded the whole Terminal page (2026-11-24; fixed in `cb688250`, on the beta since 2026-11-24)
 

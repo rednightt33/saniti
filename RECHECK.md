@@ -354,13 +354,13 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M564` | The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch | `ab64b8cf` | branch | M564 | 0 |
+| `errors/M564` | The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch | `8530a75e` | branch | M564 | 0 |
 
 ### Terminal: Statistics, Relative performance tanpa data IHSG (ERRORS M565) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M565` | Statistics wrote NaN into its SVG lines when IHSG has no close on the chart | `ab64b8cf` | branch | M565 | 0 |
+| `errors/M565` | Statistics wrote NaN into its SVG lines when IHSG has no close on the chart | `8530a75e` | branch | M565 | 0 |
 
 ### Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) (1)
 

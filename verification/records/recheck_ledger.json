@@ -11158,9 +11158,9 @@
     "M564"
    ],
    "fix_commits": [
-    "ab64b8cf"
+    "8530a75e"
    ],
-   "fix_note": "ab64b8cf (src/data/migrateSaved.ts: the old form told by its shape; indicators.ts migrate)",
+   "fix_note": "8530a75e (agent commit ab64b8cf; src/data/migrateSaved.ts: the old form told by its shape; indicators.ts migrate)",
    "runs_on": "branch",
    "author_test": "tests/data/migrate_saved.test.ts (3); the Terminal suite (1,181); the re-check's ema.mjs (the saved style kept after a switch and a reload); ema2.mjs (an EMA saved #d6409f, width 3, dashed, offset 2 and an old {def:ma, type:WMA} entry: after the load, a switch to W in place and a reload the saved list, the export and the legend keep both); look_check11.mjs PASS (ERRORS M564 \"Checked\")",
    "status": "waiting",
@@ -11168,7 +11168,7 @@
    "recheck": [],
    "recheck_action": "Save an EMA with its own colour, width, line style and offset (the settings or ml.ind.v1), then load, switch the timeframe in place and reload: the saved list and the legend keep them. Save the pre-registry forms ({def:ma, params:{type, length, source, offset}, style:{color, width}} and {def:ema, ...} with a flat style): they still move to the registry entry of their type. Collateral: a layout and a preset with an EMA (Indicators.import), the other moving averages.",
    "tested_out_by": "none",
-   "evidence": "ERRORS M564 Status: 'fixed in `ab64b8cf`, on the branch, not deployed; tested by its author only'",
+   "evidence": "ERRORS M564 Status: 'fixed in `8530a75e`, on the branch, not deployed; tested by its author only'",
    "from": "fix"
   },
   {
@@ -11183,9 +11183,9 @@
     "M565"
    ],
    "fix_commits": [
-    "ab64b8cf"
+    "8530a75e"
    ],
-   "fix_note": "ab64b8cf (src/data/live.ts ihsgOnCandles: no series without an IHSG close; stats.ts ihsgNone)",
+   "fix_note": "8530a75e (agent commit ab64b8cf; src/data/live.ts ihsgOnCandles: no series without an IHSG close; stats.ts ihsgNone)",
    "runs_on": "branch",
    "author_test": "tests/data/ihsg_candles.test.ts (3); the Terminal suite (1,181); nan.mjs on the harness without IHSG, the panel open, daily and 15m: 0 NaN attributes and no SVG error at load and after zooming in (before 9 and 96), the panel reads \"No IHSG data for this chart\"; with an IHSG file both lines drawn, no error (ERRORS M565 \"Checked\")",
    "status": "waiting",
@@ -11193,7 +11193,7 @@
    "recheck": [],
    "recheck_action": "Open the Statistics panel on a ticker whose IHSG series has no close on the chart (the harness without px_IHSG.json, or an intraday timeframe without IHSG bars), at load, after a switch and while zooming: no console error with NaN and no NaN attribute in #statsPanel, the panel says so; with IHSG data the two lines and the rows are drawn. Collateral: the other Statistics sections, compare lines and added assets on the same data.",
    "tested_out_by": "none",
-   "evidence": "ERRORS M565 Status: 'fixed in `ab64b8cf`, on the branch, not deployed; tested by its author only'",
+   "evidence": "ERRORS M565 Status: 'fixed in `8530a75e`, on the branch, not deployed; tested by its author only'",
    "from": "fix"
   },
   {
