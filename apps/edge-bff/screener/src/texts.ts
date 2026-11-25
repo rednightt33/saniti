@@ -105,7 +105,7 @@ export function remarkTitle(r: RowRemark): string {
   return `${remarkText(r)}.${why} Values whose look-back crosses it are shown as computed and marked.${cr}`;
 }
 /** The CSV's remark cell (report 9.6): the code and its date. */
-export const remarkCsv = (rs: RowRemark[]) => rs.map(r => r.code === 'STALE' ? `STALE ${r.last_bar_date}` : `PRICE_BREAK ${r.action} ${r.ex_date}`).join('; ');
+export const remarkCsv = (rs: RowRemark[]) => rs.map(r => r.code === 'STALE' ? `STALE ${r.last_bar_date}` : `PRICE_BREAK ${r.kind ?? 'unadjusted'} ${r.action} ${r.ex_date}`).join('; ');
 
 /** A cell remark (P4.1 A; EXEC-PRICE-DISTORTION D-5, contract.ts CELL_REMARKS): the mark's tooltip, naming the dates
     the value's look-back crossed (the cell's remark_dates), or, on a cell of an older worker without them, the
@@ -472,11 +472,16 @@ export function extraColumnTitle(label: string, f: ValueFormat, paramText: strin
   ].filter(Boolean).join('\n');
 }
 
-/** The 1-day change of a row whose last session is the ex-date of an unadjusted corporate action (the move is
-    distorted; the contract gives universe values no cell remark): the remark to show beside it, else null. */
+/** The 1-day change of a row whose last session reads across a price break (the move is distorted; the contract gives
+    universe values no cell remark): the remark to show beside it, worded by its kind, else null. The break is the
+    row's: one marked last_session (its first session on or after its date is the last bar), or, from an older worker,
+    one dated on the last bar. */
 export function chg1dBreakText(rowRemarks: readonly RowRemark[], lastBarDate: string | null | undefined): string | null {
-  const r = rowRemarks.find(x => x.code === 'PRICE_BREAK' && x.ex_date === lastBarDate) as Extract<RowRemark, { code: 'PRICE_BREAK' }> | undefined;
-  return r ? `Distorted: the last session ${r.ex_date} is the ex-date of a ${actionText(r.action)} not adjusted in the price history.` : null;
+  const r = rowRemarks.find(x => x.code === 'PRICE_BREAK' && (x.last_session === true || x.ex_date === lastBarDate)) as Extract<RowRemark, { code: 'PRICE_BREAK' }> | undefined;
+  if (!r) return null;
+  if (r.kind === 'anomaly') return `Distorted: the last session ${r.ex_date} moved ${r.close_ratio != null ? `${r.close_ratio >= 1 ? '+' : '−'}${nf(Math.abs(r.close_ratio - 1) * 100, 1)}% ` : ''}with no corporate action recorded (a price anomaly).`;
+  if (r.kind === 'uncertain') return `Possibly distorted: the last session reads across the ${actionText(r.action)} of ${r.ex_date}, too small to confirm from the prices whether the history is adjusted.`;
+  return `Distorted: the last session reads across the ${actionText(r.action)} of ${r.ex_date}, not adjusted in the price history.`;
 }
 
 /** A stale row's Last or 1D (QA M4): the stock did not trade on the screen's date, so its close and its change are of

@@ -17776,7 +17776,11 @@ kembalikan universe dari tabel cadangan; publisher: run manual dengan versi sebe
 
 **Hasil yang diharapkan (data 2026-11-24):** tanpa badge FORU, PBSA, AHAP, BUVA, ENRG, VKTR, BAJA; badge "belum bisa
 dipastikan" BRNA (0,4 %), MGLV (2,6 %), PSSI (3,3 %); badge anomali WGSH 2026-03-31 dan 2026-04-01; badge patahan lama CMNP,
-BPFI, BSWD (dua), FMII, FITT pada sel yang jendelanya melewatinya; sekitar 43 kode basi tampil dengan badge (sebagian ETF,
+BPFI, BSWD (dua), FMII, FITT pada sel yang jendelanya melewatinya [dibetulkan sesudah re-check 2026-11-25 dengan aturan yang
+dibangun: BSWD (dua), FMII, FITT dan PPGL (bonus 2026-11-03, suspensi 2026-09-04 s.d. 2026-11-24) "Price break"; CMNP
+2020-11-10 tanpa badge karena faktor rights-nya 1,0947, di bawah batas 10 %, dan aksi kecil sebelum 2026-09-12 tidak
+diberi badge (F2, UD43); BPFI mendapat badge anomali 2022-02-02 (+39,6 %, bar tanggal ex 2022-01-31 di 623,33 di antara
+916,67 dan 870); BMAS (ex 2026-11-24) "Possible break"]; sekitar 43 kode basi tampil dengan badge (sebagian ETF,
 di luar Screener).
 
 **Ditemukan saat review 2026-11-24 (perlu keputusan):**

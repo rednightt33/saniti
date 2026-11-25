@@ -282,11 +282,11 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
     const remarks: RowRemark[] = a.stale ? [{ code: 'STALE', last_bar_date: a.last_bar }] : [];
     const own = actions.get(e.t) ?? [];
     nActions += own.length;
-    if (own.length) {
-      // EXEC-PRICE-DISTORTION: the one rule (pricecheck.ts), the Backtest's too
-      const breaks: PriceBreakRemark[] = distortionRemarks(own, s.dates, b.C, { boundary: ADJUSTED_HISTORY_BOUNDARY });
-      remarks.push(...breaks);
-    }
+    // EXEC-PRICE-DISTORTION: the one rule (pricecheck.ts), the Backtest's too, on every stock: one without an action row
+    // is still checked for a session beyond the 35 % cap (re-check 2026-11-25: the Backtest ran it for every ticker, the
+    // worker only for a ticker with actions)
+    const breaks: PriceBreakRemark[] = distortionRemarks(own, s.dates, b.C, { boundary: ADJUSTED_HISTORY_BOUNDARY });
+    remarks.push(...breaks);
     // the wire's numbers (round12, report 8.5): the page applies universe.ts to these very rows, the worker's S0 too
     rows.push({
       ticker: e.t, name: r.name, sector: r.groups.sector ?? null, industry: r.groups.industry ?? null,

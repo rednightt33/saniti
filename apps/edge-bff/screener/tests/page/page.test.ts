@@ -38,7 +38,7 @@ describe('CSV export (csv.ts, report 9.6)', () => {
     expect(lines.slice(0, 8)).toEqual(['# Screen,My screen', '# evaluation_date,2026-10-27', '# published_at,2026-10-27T13:03:23Z', `# price_data_version,${'p'.repeat(64)}`,
       `# registry_version,${'r'.repeat(16)}`, `# screener_registry_version,${'s'.repeat(16)}`, '# definition_hash,', '# market cap,not available']);
     expect(lines[8].split(',').slice(0, 10)).toEqual(['Symbol', 'Name', 'Sector', 'Industry', 'Last', '1D %', 'Avg value 20D (Rp B)', 'Status', 'Met (m/n)', 'Remark']);
-    expect(lines[9]).toBe("XMPL,'=evil,Financials,Banks,1000,1.5,2,match,1/2,PRICE_BREAK STOCK_SPLIT 2026-10-01,27.4,pass,,,PRICE_BREAK_IN_LOOKBACK,,na,,,INSUFFICIENT_HISTORY");
+    expect(lines[9]).toBe("XMPL,'=evil,Financials,Banks,1000,1.5,2,match,1/2,PRICE_BREAK unadjusted STOCK_SPLIT 2026-10-01,27.4,pass,,,PRICE_BREAK_IN_LOOKBACK,,na,,,INSUFFICIENT_HISTORY");
   });
 });
 

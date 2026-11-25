@@ -155,7 +155,9 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
    off: absent means off (`universe.ts:80`, `traded_on_eval_date === true`, `exclude_price_breaks === true`). The rows
    carry a remark with the reason (`STALE` with the last bar date; `PRICE_BREAK` with its kind, action, ex-date, ratios,
    close ratio and effect, from the one rule of `pricecheck.ts`, `universe.ts:134` `distortionRemarks`: an action whose
-   ex-date jump is its own, one that cannot be measured from 2026-09-12 on, a session beyond the 35 % cap), and their
+   ex-date jump is its own, one that cannot be measured from 2026-09-12 on, a session beyond the 35 % cap; every stock,
+   with an action row or not; a break between the stock's last two sessions carries `last_session`, and the 1D change
+   says it by kind, texts.ts `chg1dBreakText`, re-check 2026-11-25), and their
    price-derived values stay visible: a cell whose lookback contains the break carries `PRICE_BREAK_IN_LOOKBACK`
    (`apps/edge-bff/screener/src/core/evaluate.ts:205` `priceBreakRemark`, its dates from `evaluate.ts:211` `crossedDates`), and the answer warns
    `PRICE_BREAKS_IN_RESULT` with the rows and cells. A remark never changes PASS, FAIL or NA. Tests:
@@ -561,7 +563,7 @@ window and refused after it ...".
 Header `x-screener-worker-key` (at least 32 characters, compared in constant time, `server.ts:157-161`) on every route
 except `/health` and `/ready`; `x-screener-owner` (16 hex: the first 16 of HMAC-SHA256(`SCREENER_WORKER_KEY`,
 `owner_key`) computed by edge-bff) selects the owner's lane and budget (`server.ts:430-435`). Routes (`server.ts` header
-`:5-16`, `contract.ts:711` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
+`:5-16`, `contract.ts:715` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
 state), `GET /ready` (200 only with a loaded snapshot, else 503 `SCREENER_NOT_READY` with `Retry-After`: the Railway
 healthcheck), `GET /v1/catalog` and `/v1/universe` (`ETag`, `304`), `POST /v1/run`, `/v1/preview`, `/v1/counts` (gzip
 with `ETag`), `POST /v1/validate` (`{valid, definition_hash, normalized, versions}`; `versions` is additive,

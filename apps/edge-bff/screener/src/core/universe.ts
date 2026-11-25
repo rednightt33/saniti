@@ -134,6 +134,9 @@ export function flowBasisDates(actions: readonly ActionRow[], first: string | nu
 export function distortionRemarks(actions: readonly ActionRow[], dates: readonly string[], closes: ArrayLike<number | null | undefined>, opts: { boundary: string }): PriceBreakRemark[] {
   if (!dates.length) return [];
   const last = dates[dates.length - 1], seen = new Set<string>(), out: PriceBreakRemark[] = [];
+  // the break's first session on or after its date is the last bar: the 1-day change reads across it
+  const before = dates.length > 1 ? dates[dates.length - 2] : '';
+  const onLast = (d: string): { last_session?: true } => d > before && d <= last ? { last_session: true } : {};
   const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
   const num = (v: unknown): number | null => ok(v) ? v : null;
   const priced = actions.filter(a => (PRICE_ACTIONS as readonly string[]).includes(a.type) && a.ex_date <= last);
@@ -144,10 +147,10 @@ export function distortionRemarks(actions: readonly ActionRow[], dates: readonly
     if (!kind || seen.has(id)) return;                              // the same action listed twice is one remark
     seen.add(id);
     out.push({ code: 'PRICE_BREAK', kind, action: a.type, ex_date: a.ex_date, ratio_old: num(a.ratio_old), ratio_new: num(a.ratio_new),
-      close_ratio: c.jump === null ? null : 1 / c.jump, effect: c.factor === null ? null : c.factor - 1 });
+      close_ratio: c.jump === null ? null : 1 / c.jump, effect: c.factor === null ? null : c.factor - 1, ...onLast(a.ex_date) });
   });
   for (const x of capAnomalies(dates, closes, priced.map(a => a.ex_date)))
-    out.push({ code: 'PRICE_BREAK', kind: 'anomaly', action: 'PRICE_ANOMALY', ex_date: x.date, ratio_old: null, ratio_new: null, close_ratio: x.close / x.prev, effect: null });
+    out.push({ code: 'PRICE_BREAK', kind: 'anomaly', action: 'PRICE_ANOMALY', ex_date: x.date, ratio_old: null, ratio_new: null, close_ratio: x.close / x.prev, effect: null, ...onLast(x.date) });
   return out.sort((x, y) => x.ex_date < y.ex_date ? -1 : x.ex_date > y.ex_date ? 1 : x.action < y.action ? -1 : x.action > y.action ? 1 : 0);
 }
 /** The ex-dates of a row's PRICE_BREAK remarks (the cell remark rule reads them, evaluate.ts priceBreakRemark). */

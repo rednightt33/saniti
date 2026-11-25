@@ -292,7 +292,11 @@ export const NA_REASONS: readonly NaReason[] = ['INSUFFICIENT_HISTORY', 'NULL_AT
       The ticker is never hidden by it unless the user turns the chip on (exclude_price_breaks, off by default). */
 export interface StaleRemark { code: 'STALE'; last_bar_date: string }
 export type PriceBreakKind = 'unadjusted' | 'uncertain' | 'anomaly';
-export interface PriceBreakRemark { code: 'PRICE_BREAK'; action: string; ex_date: string; ratio_old: number | null; ratio_new: number | null; close_ratio: number | null; kind?: PriceBreakKind; effect?: number | null }
+export interface PriceBreakRemark { code: 'PRICE_BREAK'; action: string; ex_date: string; ratio_old: number | null; ratio_new: number | null; close_ratio: number | null; kind?: PriceBreakKind; effect?: number | null;
+  /** true when the break falls between the ticker's last two sessions (its first session on or after ex_date is the last
+      bar), so the 1-day change is distorted (texts.ts chg1dBreakText; re-check 2026-11-25); absent otherwise and from an
+      older worker */
+  last_session?: true }
 export type RowRemark = StaleRemark | PriceBreakRemark;
 export type RowRemarkCode = RowRemark['code'];
 export const ROW_REMARK_CODES: readonly RowRemarkCode[] = ['STALE', 'PRICE_BREAK'];

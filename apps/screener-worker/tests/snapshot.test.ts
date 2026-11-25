@@ -140,6 +140,13 @@ test('price breaks (EXEC-PRICE-DISTORTION): the one rule of pricecheck.ts on the
   assert.deepEqual(remarks('T002'), [['unadjusted', exOld, 'STOCK_SPLIT']]);
   assert.deepEqual(remarks('T003'), [['uncertain', ex, 'BONUS_SHARE']]);
   assert.deepEqual(remarks('T004'), [['anomaly', u.prices.T004[bad][0], 'PRICE_ANOMALY'], ['anomaly', u.prices.T004[bad + 1][0], 'PRICE_ANOMALY']]);
+  // a stock with no action row at all is checked for the 35 % cap too (re-check 2026-11-25: the worker ran the rule only
+  // for a ticker with actions, the Backtest for every ticker)
+  const short = u.prices.SHORT.length;
+  u.prices.SHORT = u.prices.SHORT.map((b: unknown[], i: number) => i === short - 20 ? [b[0], b[1], b[2], (b[4] as number) / 2, (b[4] as number) / 2, b[5]] : b);
+  const again = await buildSnapshot(await input(u.prices, u.ref, actions));
+  assert.deepEqual(again.desc.rows.find(r => r.ticker === 'SHORT')!.remarks.map(r => [(r as any).kind, (r as any).ex_date]),
+    [['anomaly', u.prices.SHORT[short - 20][0]], ['anomaly', u.prices.SHORT[short - 19][0]]]);
   const split = desc.rows.find(r => r.ticker === 'T001')!.remarks[0] as any;
   assert.ok(Math.abs(split.close_ratio - 0.2) < 0.03 && Math.abs(split.effect - 4) < 1e-9, JSON.stringify(split));
 });

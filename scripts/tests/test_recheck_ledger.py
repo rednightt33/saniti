@@ -18,7 +18,9 @@ import recheck_doc as rd  # noqa: E402
 LEDGER = rd.load()
 ROWS = LEDGER['rows']
 SHALLOW = rd.shallow()
-RUN = re.compile(r'^wf_[0-9a-f]{8}-[0-9a-f]{3}$')
+# a workflow run (wf_...), or a re-check run by agents outside a workflow, named by its date and area
+# (agents_YYYYMMDD-<area>; the re-check of 2026-11-25, four agents, one per area)
+RUN = re.compile(r'^(wf_[0-9a-f]{8}-[0-9a-f]{3}|agents_\d{8}-[a-z0-9-]+)$')
 DATE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 # The rows moved from the step-8 ledger name no fix commit where the fix was a check to re-run, not a change
 # (wf_c72ae04c-a73/deploy-compat: the mixed tree of the live edge-bff and the HEAD workers). A row entered from now on
@@ -53,7 +55,7 @@ def test_rows_are_complete_with_known_values_and_unique_keys():
             if not (RUN.match(str(x.get('run', ''))) and isinstance(x.get('round'), int) and x['round'] >= 1
                     and x.get('verdict') in rd.VERDICTS and DATE.match(str(x.get('date', '')))
                     and str(x.get('evidence', '')).strip()):
-                problems.append(f'{k}: a re-check round needs run (wf_...), round (1, 2), verdict {rd.VERDICTS}, date '
+                problems.append(f'{k}: a re-check round needs run (wf_... or agents_YYYYMMDD-<area>), round (1, 2, ...), verdict {rd.VERDICTS}, date '
                                 f'and evidence: {x}')
         if rounds != sorted(rounds) or len(set(rounds)) != len(rounds):
             problems.append(f'{k}: its re-check rounds are not 1, 2, ... in order: {rounds}')
