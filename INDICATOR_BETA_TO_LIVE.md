@@ -97,7 +97,12 @@ All edits are on the session branch; one commit per indicator (or one per batch)
    `guideStyle` {color, width, style}, `fills` [{a, b, color, color2?, opacity}] (areas between two outputs, two colours
    with `color2`) and `layers` [{k, label, on}] with a drawing in `calc/indicators.ts` `DRAWINGS` (registered by the lab
    module: labels on earlier candles, segments, a level ray, background ranges; never an output of F, so the Screener,
-   the Backtest and the look-ahead gate never read a mark placed in hindsight). An output coded in categories carries
+   the Backtest and the look-ahead gate never read a mark placed in hindsight). A recursive indicator whose first bars
+   depend on where the data starts may carry a settle rule in `calc/settle.ts` `SETTLE` (registered by the lab module:
+   the output measured, the outputs hidden, the tolerance, the bars cut per timeframe): the Terminal then draws those
+   outputs only from the bar where two computations with different starts agree for good, and its legend says why they
+   are empty before it; the formula, the Screener and the Backtest are unchanged (Alpha KAMA, EXEC-PINE-INDICATORS UD33
+   option B, user 2026-11-24). An output coded in categories carries
    `categories` [{value, key, label}]; the Screener's forms `state_category` and `event_category_change` then offer "is
    one of" and "changed from -> to within N" (SCREENER_ONBOARDING 2.11.1, the category forms).
    The Style tab's colour box (`app/colorPicker.ts`, UD32) offers opacity, thickness and line style per output only on
@@ -177,6 +182,8 @@ Only when the user names the indicator ("I54 boleh ke live"); never on a schedul
 2. **One commit that releases it:**
    - move `DEFAULTS.<key>` into the `DEFAULTS` object and `F.<key>` into the `F` map of `terminal/src/calc/indicators.ts`
      (the `DEFAULTS` object and the `F` map), and remove both from `terminal/src/lab/index.ts` (leave its comment and `export {};`);
+     a `DRAWINGS.<key>` or `SETTLE.<key>` line (Part A step 3) moves with them, into `calc/indicators.ts` `DRAWINGS` or
+     the `SETTLE` object of `calc/settle.ts`, or the public build draws the indicator without it;
    - `releases.json`: its stage `released`;
    - `npm run registry` in `apps/backtest-worker` and `apps/edge-bff/screener`, then `registry:check` in both;
    - the release pins (the page tests count the public registry, which now holds it): `terminal/tests/calc/edge.test.ts`

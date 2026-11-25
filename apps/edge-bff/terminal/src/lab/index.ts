@@ -27,6 +27,7 @@
    calc/flow.ts FLOW (terminal/tests/calc/public_formulas.test.ts and calc/flow.test.ts "registry" compute every entry
    of the public build). */
 import { DEFAULTS, DRAWINGS, F, def, ema, rma, sma, stdev, truthy, wma, type Drawing, type Seg } from '../calc/indicators';
+import { SETTLE } from '../calc/settle';
 
 /* ---- Alpha Volatile (EXEC-PINE-INDICATORS; the user's Pine "Nic - Tail Move Indicator V2 (RAW Distance)", 2026-11-23,
    defaults from the user's screenshot: EMA 26, lookback 100, decile 9, Z 2). Causal: every value at bar t reads bars up
@@ -246,6 +247,13 @@ F.alpha_kama = def('alpha_kama', KAMA_OUTS, () => 'HLC', (B: Seg, p) => {
   const ema_x = (F.ema(B as never, { length: p.ema_length as number, source: 'close' }) as Record<string, Nn[]>).ema;
   return { kama, ema_x, color_index, color_state, long: signal(false), short: signal(true) };
 });
+/* EXEC-PINE-INDICATORS UD33 option B (user 2026-11-24: "UD33: Alpha KAMA --> ok pakai opsi B", then "Untuk 2-5 bisa go"):
+   the Terminal draws KAMA, its colours and its ENTER LONG / ENTER SHORT marks only from the bar where the start of the
+   data no longer matters (calc/settle.ts: KAMA on every bar against KAMA without the first 50 bars, 12 on the monthly
+   chart, as the UD33 measurement; from the bar after which both agree within 0.5 % of the close for good). The values
+   above, the Screener and the Backtest are unchanged. EMA X is the released EMA of the close, not read from KAMA: drawn
+   as it is. The 0.5 % is a design value the agent proposed (EXEC, the open detail of UD33). */
+SETTLE.alpha_kama = { measure: 'kama', hides: ['kama', 'color_index', 'color_state', 'long', 'short'], tolerance: 0.005, cut: { default: 50, M: 12 } };
 
 /* ---- Alpha Extract (EXEC-PINE-INDICATORS; the user's Pine v6 "Baseline Deviation Oscillator [Alpha Extract]", named
    Alpha Extract by the user, 2026-11-23; defaults the Pine's, "4 nilai bawaan"). Causal: every value at bar t reads bars

@@ -13,7 +13,8 @@ import * as spec from '../data/specFormat';
 import { $, nfCompact, rupiah, store, visibleBars } from './context';
 import { keyedMarkers } from '../data/chartTime';
 import { ColorBoxHost, lineOptions, LINE_STYLE_KEYS, type LineStyleKey } from './colorPicker';
-import { onCandles } from '../data/timeframe';
+import { onCandles, UNIT } from '../data/timeframe';
+import { SETTLE, cutOf, settled, unsettledAt } from '../calc/settle';
 import { sumOverDays } from './flow';
 import { withPicked } from '../data/brokerAgg';
 import { fits, inputsOf, needsOf, restoreList, withParked, type Input } from '../data/inputs';
@@ -65,8 +66,26 @@ export function initIndicators(ctx: Ctx) {
   };
   const ORDER_KEYS = [['fast_length', 'middle_length', 'slow_length'], ['short_length', 'long_length']];
   const LABEL = k => k.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+  /* EXEC-PINE-INDICATORS UD33 option B (user 2026-11-24: "UD33: Alpha KAMA --> ok pakai opsi B"): an indicator with a
+     settle rule (calc/settle.ts SETTLE, registered with its formula) is drawn only from the bar where the start of its
+     data no longer matters, measured on this chart's bars and the indicator's parameters at every recompute: the outputs
+     the rule names are empty before it (no line, no mark, no legend value) and the legend says why, in the words of the
+     Flow indicators' notes ("Needs N days of history"). The formula's values, the Screener and the Backtest are not
+     touched. The second computation leaves out the rule's bars for this timeframe (its `cut`). */
+  const TF = String(ctx.M.tf || 'D');
+  const settleNote = (runs, i: number, one: string) => {
+    const run = unsettledAt(runs, i); if(!run) return '';
+    const seen = i - run.from + 1;
+    return run.at >= run.to ? `Needs more ${one}s of history to settle (${seen} so far)` : `Needs ${run.at - run.from + 1} ${one}s of history to settle (${seen} so far)`;
+  };
   function regDef(r) {
     const u = unitFormat(r.unit);
+    const settle = SETTLE[r.key], onDays = !!DAY && dailyOnly(r), unitOne = onDays ? 'day' : UNIT[TF].one;
+    const calc = (bars, p) => {
+      if(!settle) return onDays ? onTheCandles(F[r.key](bars, p)) : F[r.key](bars, p);
+      const { out, runs } = settled(F[r.key], bars, p, settle, r.req || 'OHLC', cutOf(settle, onDays ? 'D' : TF));
+      return Object.assign(onDays ? onTheCandles(out) : out, { _settle:runs });     // after onTheCandles: the runs are bars of `bars`
+    };
     const inputs = r.params.map(q => {
       const base = { key:q.k, label:q.label, hint:q.hint, evidence:q.ev };
       if(q.type === 'fixed') return { ...base, kind:'fixed', text:q.def === 'none' ? 'No adjustable inputs' : `Uses ${q.def} (fixed)` };
@@ -87,7 +106,10 @@ export function initIndicators(ctx: Ctx) {
       drawing:DRAWINGS[r.key] ? (p => DRAWINGS[r.key](BARS, p)) : null, layers:Array.isArray(r.layers) && r.layers.length ? r.layers : null,
       pane:r.zone === 'panel' ? 'sub' : r.zone,              // 'overlay' (candle pane, price axis) | 'volume' (volume axis) | 'sub' (own pane)
       format:u.fmt, minMove:u.minMove,
-      compute:p => DAY && dailyOnly(r) ? onTheCandles(F[r.key](DAILY_BARS, p)) : F[r.key](BARS, p),
+      compute:p => calc(onDays ? DAILY_BARS : BARS, p),
+      /* UD33 option B: why the outputs the rule names are empty on bar i (the display bar, its Offset taken back); shown
+         beside the other outputs' values too (EMA X), only while one of those outputs is switched on (noteOuts) */
+      ...(settle ? { note:(i: number, raw, _p, off = 0) => settleNote(raw?._settle, onDays ? DAY.dayOf[i - off] : i - off, unitOne), noteOuts:settle.hides } : {}),
       validate:p => {                                          // "fast < (middle <) slow", "short < long" — derived from the parameter names
         for(const keys of ORDER_KEYS){
           const have = keys.filter(k => k in p);
@@ -1124,7 +1146,12 @@ export function initIndicators(ctx: Ctx) {
           : overlay && pt.kind !== 'marker' && pt.o.scale !== 'right' ? (ret ? spec.change((v / closes[0] - 1) * 100) : ctx.priceText ? ctx.priceText(v) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
         return `<span style="color:${cc === '#171717' ? 'var(--text)' : cc}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
-      if(!h && inst.def.note && inst.on && inst.parts.some(pt => !pt.o.hidden)) { const n = inst.def.note(i, inst.raw, inst.params); if(n) h = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
+      /* Flow: why it is empty. UD33 option B: a note about some outputs (noteOuts: those a settle rule empties) shows while
+         one of them is switched on, beside the other outputs' values too; the note reads the bar without the Offset */
+      const about = inst.def.noteOuts as string[] | undefined;
+      if((!h || about) && inst.def.note && inst.on && inst.parts.some(pt => !pt.o.hidden)
+        && (!about || inst.parts.some(pt => about.includes(pt.o.k) && inst.style.out[pt.o.k]?.on && !pt.o.hidden))) {
+        const n = inst.def.note(i, inst.raw, inst.params, inst.style.offset | 0); if(n) h = `${h ? `${h} &nbsp;` : ''}<span class="flow-nodata-tip">${n}</span>` }
       if(inst.def.key && inst.on) { const qp = inst.parts.find(pt => pt.o.quad);
         h = `<span class="ind-keys">${inst.def.key(qp ? (v: number) => quadColor(inst.style.out[qp.o.k], qp.o, v) : null)}</span>` + h }   // EXEC-DQ-SIZE: the colour key (FL49) before the reading
       if(html(h)) b.title = b.textContent || '';          // QA R2-M4: the full value or note when the row is narrow
