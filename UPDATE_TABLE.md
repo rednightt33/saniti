@@ -354,7 +354,15 @@ dengan faktor yang diukur publisher per aksi (blok `basis` berkas events, ERRORS
   daftar yang sama sekali sehari, daftar yang berubah dikirim lagi): aksi dalam 60 hari terakhir yang riwayat harganya
   belum ditarik ulang, atau belum cocok. Aksi baru selalu `pending` selama 21 hari sesudah tanggal ex (keputusan diambil
   sekali sesudah jendelanya lengkap, user 2026-11-16 "A"); itu wajar dan tidak dilaporkan. Selama itu Backtest
-  mengosongkan nilai Flow yang rentangnya melewati tanggal ex.
+  memakai nilai Flow yang rentangnya melewati tanggal ex apa adanya dan menandai trade-nya "Flow distorted"
+  (EXEC-PRICE-DISTORTION, user 2026-11-24: "value harus tetap ditampilkan as is dengan badge"; dulu nilainya
+  dikosongkan).
+- Badge di Screener dan Backtest (EXEC-PRICE-DISTORTION, satu aturan `apps/edge-bff/screener/src/core/pricecheck.ts`):
+  saham yang lompatan harga di tanggal ex-nya masih ada di riwayat tersimpan mendapat badge "Price break" di baris
+  Screener dan di trade Backtest yang membacanya, di tanggal berapa pun; sesudah tarik ulang (C2) badge itu hilang
+  sendiri. Badge "Price anomaly" (gerak sehari lebih dari 35 % tanpa aksi tercatat, misalnya WGSH 2026-03-31) tidak
+  hilang dengan tarik ulang bila TradingView menyimpan bar yang sama (UD45: badge tetap, data apa adanya). Tidak ada
+  saham yang disembunyikan: kedua chip penyembunyi mati kecuali user menyalakannya.
 - Log terminal-publisher, event `broker_basis` (jumlah per status) pada setiap run harian.
 - Daftar aksi saja tidak cukup: TradingView tidak menyesuaikan setiap aksi (BAJA dan BRNA 2026 tidak disesuaikan,
   `verification/price_gap_0917/README.md`). Bandingkan dulu harga tersimpan dengan TradingView:
@@ -377,7 +385,8 @@ dengan faktor yang diukur publisher per aksi (blok `basis` berkas events, ERRORS
 
 Tidak perlu diapa-apakan. Bila tetap diunduh ulang, unduh **seluruh** riwayat broker saham itu (Bagian A), jangan
 sebagian: PBSA (split 2026-10-14) hanya diunduh ulang mulai 2026-09-01, sehingga data brokernya sendiri bercampur dua skala
-(ERRORS M450); Backtest lalu hanya bisa mengosongkan hari-hari itu (penjaga per hari), bukan memperbaikinya. Sesudah unduh
+(ERRORS M450); Backtest lalu hanya bisa menandai hari-hari itu (penjaga per hari; nilainya dipakai apa adanya dan
+trade-nya ditandai, EXEC-PRICE-DISTORTION), bukan memperbaikinya. Sesudah unduh
 ulang, jalankan publisher mode `broker-range` untuk rentang itu: basis saham itu diukur ulang.
 
 ## C4. Catatan

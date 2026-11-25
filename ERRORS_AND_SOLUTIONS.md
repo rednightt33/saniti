@@ -8918,7 +8918,7 @@ in its staleness check.
   registered globally is owned by that build; owning it centrally (one signal, one list) needs no change in the sections.
 - **Status:** fixed in `cb688250`, on the beta since 2026-11-24 (`6dee649d`, RAILWAY_CHANGELOG.md); tested by its author only; the live site does not run it.
 
-### M562 — WGSH 2026-03-31: a daily bar at half the price between two normal days (2026-11-24, OPEN)
+### M562 — WGSH 2026-03-31: a daily bar at half the price between two normal days (2026-11-24; marked by `4799ee94`, `e9fc3ab6`, `db7bf27e`, on the branch)
 
 - **Symptom:** `Price_Stock_Indonesia_IDX` WGSH daily: 2026-03-30 close 125, 2026-03-31 close 65 (-48.0 %), 2026-04-01
   close 128 (+96.9 %); no corporate action on those dates. Both moves are beyond any IDX daily limit of the time.
@@ -8931,10 +8931,15 @@ in its staleness check.
 - **Class:** a source error with no corporate action behind it; no check of ours sees it today (the Screener and the
   Backtest look only at recorded actions, the Backtest's broker check only at broker days).
 - **Solution:** the user 2026-11-24, UD45 "A": the bar stays as it is and carries a badge; the daily-limit check of
-  EXEC.md EXEC-PRICE-DISTORTION (a fixed cap of 35 %, UD44) marks it. Not built yet.
-- **Status:** OPEN.
+  EXEC.md EXEC-PRICE-DISTORTION (a fixed cap of 35 %, UD44) marks it. Built: `pricecheck.ts capAnomalies` (`4799ee94`;
+  a session beyond 35 % either way, a one-tick Rp1 move of a stock at Rp10 or below excepted, a recorded action's ex
+  date judged by the ex-date check), read by the Screener's row badges (`e9fc3ab6`: "Price anomaly", WGSH's two
+  sessions) and the Backtest's trade flags (`db7bf27e`: `flags.distortions` kind `anomaly`, warning
+  `PRICE_DISTORTIONS`). The bar itself is unchanged.
+- **Status:** marked by `4799ee94`, `e9fc3ab6` and `db7bf27e`, on the branch, not deployed; tested by its author only
+  (RECHECK.md `errors/M559-M562`). The source bar stays wrong (UD45 A).
 
-### M561 — A detected price distortion hides values (Screener rows, Backtest Flow values) instead of marking them (2026-11-24, OPEN)
+### M561 — A detected price distortion hides values (Screener rows, Backtest Flow values) instead of marking them (2026-11-24; fixed in `e9fc3ab6` and `db7bf27e` on the branch, the Screener Flow cell marks open)
 
 - **Symptom (the user, 2026-11-24):** "Tadi ada saham yang meskipun price distort, kita hide kan untuk screener. Dan untuk
   backtest ada lagi ternyata nilai indikator flow yang di hide karena price detected as distort ... Ini aneh dan ini
@@ -8954,10 +8959,25 @@ in its staleness check.
   cross-asset and macro revisions): the flag decides a mark, never whether a value exists.
 - **Proposed solution:** EXEC.md EXEC-PRICE-DISTORTION (one detection at the publisher, one handling: values as is with a
   badge; no look-ahead from a factor decided later); open questions UD41-UD43.
-- **Status:** OPEN.
+- **Solution (built 2026-11-24/25; the user: UD41 A, UD42 A, UD43 A, "Untuk 2-5 bisa go"):** one detection
+  (`apps/edge-bff/screener/src/core/pricecheck.ts`, read by the consumers from their own prices: check 1 on the whole
+  daily table costs 4.5 s and about 740 MB read on dev, so it is not run by the publisher; the publisher keeps the
+  Python twin for the basis `price` column). The Screener (`e9fc3ab6`): nothing hidden by default (both chips off,
+  presets too), a row badge per kind. The Backtest (`db7bf27e`): every Flow value is used as computed, the bars whose
+  window reads across an unsettled basis are noted, the trades flagged (`flags.distortions`, a badge in the trade list),
+  `FLOW_BASIS_CHANGE` reworded, `PRICE_DISTORTIONS` replacing the boundary warning. The value reads the published
+  columns whatever the publisher's later decision (the look-ahead gate's Stage C2 case), so no value on day t reads a
+  decision made after t. Saved screens: migration `20261125_001` (UD46 B, written and rehearsed, not applied: the go is
+  asked at execution).
+- **Open parts:** the Screener's Flow cells across an action whose lots are not one basis (D-5, with the publisher's
+  `basis` column) and the row badge only where a cell crosses the break (D-1): in progress (EXEC-PRICE-DISTORTION,
+  "Pelaksanaan"); a whole-history output crosses every old break, so its cells and trades are marked for any earlier
+  break (EXEC-PRICE-DISTORTION open part, with UD52).
+- **Status:** fixed in `e9fc3ab6` and `db7bf27e`, on the branch, not deployed; tested by its author only (RECHECK.md
+  `errors/M559-M562`); the parts above open.
 - **Lesson:** a quality flag marks a value; hiding it is a separate choice the user makes explicitly, per reader.
 
-### M560 — The publisher reads three stocks pulled again as "close not reloaded" (broker basis `price`) (2026-11-24, OPEN)
+### M560 — The publisher reads three stocks pulled again as "close not reloaded" (broker basis `price`) (2026-11-24; fixed in `4799ee94`, on the branch)
 
 - **Symptom:** the broker basis rows (`apps/terminal-publisher/publisher.py` `broker_basis`), recomputed with the
   publisher's own function on dev's rows (read-only role, 2026-11-24, broker data through 2026-11-09), give `price`
@@ -8981,11 +9001,16 @@ in its staleness check.
   2023-07-07, FITT 2024-06-25), equal to TradingView's own series; open part, register UD40. A limit-down session on
   the ex-date of an action near 10 % could still be misread; actions under 10 % stay unmeasured (UD38 asks their rule).
   Evidence: `verification/price_break_basis/` (`basis_now.py`, `jump_rule.py` and their 2026-11-24 results, read-only).
-- **Status:** OPEN (EXEC.md EXEC-PRICE-DISTORTION, register UD38, UD40).
+- **Solution (`4799ee94`, UD44, "UD45 A"):** `publisher.py price_check_side` decides `price` from the closes either side
+  of the ex date against the action's factor (`price_check_factor`; a rights issue's factor solved from the ex-date
+  close), the Python twin of `pricecheck.ts verdictOf` (`tests/test_price_check.py` holds the two on the same cases).
+  Recomputed on dev's rows: VKTR, AHAP and BUVA read `adjusted`.
+- **Status:** fixed in `4799ee94`, on the branch, not deployed (a publisher deploy and a manual run republish the
+  events files); tested by its author only (RECHECK.md `errors/M559-M562`).
 - **Lesson:** a measured flag is checked against a case whose answer is known (here the six stocks pulled again) before
   it is used to hide or show data.
 
-### M559 — The Screener hides and labels "history not adjusted" stocks whose price history was already pulled again (2026-11-24, OPEN)
+### M559 — The Screener hides and labels "history not adjusted" stocks whose price history was already pulled again (2026-11-24; fixed in `e9fc3ab6`, on the branch)
 
 - **Symptom:** FORU (rights issue, ex 2026-09-22) and PBSA (split 1:2, ex 2026-10-14) are left out of every default
   screen by the chip "No unadjusted price break", and when the chip is off their row reads "Price break: ... history
@@ -9019,7 +9044,12 @@ in its staleness check.
 - **2026-11-24, the user:** the goal approved ("Untuk 6 saham yang sudah benar price wise, badge nya bisa di remove.
   Screener bawaan harus menampilkan data yang sudah benar ... Ok untuk solusi kamu"); the solution revised the same day
   because the measured status it reads is wrong for three of the six (M560); EXEC.md EXEC-PRICE-DISTORTION.
-- **Status:** OPEN, the revision asked (EXEC.md register UD38).
+- **Solution (`e9fc3ab6`, EXEC-PRICE-DISTORTION):** `universe.ts distortionRemarks` replaces the date rule: an action is
+  flagged when its ex-date jump is in the history (measured on the snapshot's closes by `pricecheck.ts`, on any date),
+  uncertain from 2026-09-12 when it cannot be measured, an anomaly beyond 35 % with no action; the six stocks pulled
+  again read adjusted and carry no badge. Nothing is hidden by default (the chips off; UD42 A).
+- **Status:** fixed in `e9fc3ab6`, on the branch, not deployed (screener-worker and the page); tested by its author only
+  (RECHECK.md `errors/M559-M562`).
 - **Lesson:** a TEMPORARY rule that stands in for missing data is tied to that data: when the data arrives (here the
   pull and the measured basis), every rule that stood in for it is revisited in the same task.
 
@@ -9074,7 +9104,7 @@ in its staleness check.
   screener-worker heap tests fail on this machine only (SC-6: CI's Backend tests pass them).
 - **Open parts (owner and trigger in EXEC.md, EXEC-MU-ACCOUNTS):** the user's decisions UD33 (Alpha KAMA's warm-up from
   0: V2-1, B-3, N-2; answered 2026-11-24, option B recorded), UD34 (checks against TradingView itself: the HMA rounding N-1, Pine v6 colour constants V1-8,
-  Inside Bar's pointer at `yloc.abovebar`), UD35 (the sensitivity grid on a 0/1 condition, B-2, shared core; answered 2026-11-24, option C recorded as EXEC-SENSITIVITY-FLAGS), UD36 (the
+  Inside Bar's pointer at `yloc.abovebar`), UD35 (the sensitivity grid on a 0/1 condition, B-2, shared core; answered 2026-11-24, option C recorded as EXEC-SENSITIVITY-FLAGS; fixed in code in `2d954707`, on the session branch `185c0dd5`, not deployed: a yes/no first condition varies its first numeric setting, whether an output is a code derived from the registries (render kind, categories, flow kind F), never a list; the Deflated Sharpe counts only distinct cells; tested by its author only, RECHECK.md `errors/M558-B-2`), UD36 (the
   history class of state-machine outputs, SC-3, shared generator; fixed in `f1914745`, EXEC-PRICE-DISTORTION F2b, user
   2026-11-24 "UD36 --> saham itu tampil di semua screen, dan badge menjadi satu-satunya pelindung", "Untuk 2-5 bisa go":
   the generator follows its cut probe with a reach probe on four seeded price shapes, uptrend, crash, sideways and

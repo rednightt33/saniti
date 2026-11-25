@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 220 item
+## Menunggu uji ulang: 222 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -40,6 +40,8 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Backtest: tripwire rilis indikator (ERRORS M553) | EXEC-TRIPWIRE-LAB | 1 | 0 | 0 | 1 | 0 | 0 |
 | Screener: kelas riwayat indikator (ERRORS M558 SC-3, UD36) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
 | Terminal: Alpha KAMA dari titik settle (ERRORS M558 V2-1, B-3, N-2; UD33 B) | EXEC-PINE-INDICATORS | 1 | 0 | 0 | 1 | 0 | 0 |
+| Screener dan Backtest: harga terdistorsi (ERRORS M559-M562) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
+| Backtest: grid sensitivitas kondisi ya/tidak (ERRORS M558 B-2, UD35) | EXEC-SENSITIVITY-FLAGS | 1 | 0 | 0 | 1 | 0 | 0 |
 
 3 item sudah dua ronde diuji ulang. Aturan 8 membolehkan paling banyak dua ronde, lalu sisanya masuk
 register keputusan; uji berikutnya hanya dengan keputusan user:
@@ -348,11 +350,23 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 |---|---|---|---|---|---|
 | `errors/M558-UD33B` | Alpha KAMA drawn from the start of the data, far from the price for its first months | `3f05a220` | branch | M558 | 0 |
 
+### Screener dan Backtest: harga terdistorsi (ERRORS M559-M562) (1)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `errors/M559-M562` | Price distortion detected by a date rule, read wrong for three stocks, and hidden instead of marked | `4799ee94`, `e9fc3ab6`, `db7bf27e`, `af806747`, `6b86cf6e` | branch | M559, M560, M561, M562 | 0 |
+
+### Backtest: grid sensitivitas kondisi ya/tidak (ERRORS M558 B-2, UD35) (1)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `errors/M558-B-2` | The sensitivity grid moved a fixed 0.5 threshold on a yes/no condition | `185c0dd5` | branch | M558 | 0 |
+
 ## Hitungan per status
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 220 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 222 |
 | `fixed` | diuji ulang agen lain: beres | 111 |
 | `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 0 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
@@ -360,7 +374,7 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 | `open` | belum diperbaiki | 90 |
 | `accepted` | diterima user apa adanya | 4 |
 | `obsolete` | tidak berlaku lagi | 5 |
-| **Total** | | **430** |
+| **Total** | | **432** |
 
 Dari 90 baris `open`, 25 punya baris pemilik di PLAN.md atau EXEC.md dan 65 belum
 (aturan 1: setiap bagian yang terbuka butuh pemilik dan pemicu).

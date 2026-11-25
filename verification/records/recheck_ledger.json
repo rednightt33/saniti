@@ -10969,6 +10969,63 @@
    "tested_out_by": "none",
    "evidence": "EXEC.md EXEC-PINE-INDICATORS, UD33 execution: 'Diuji penulisnya saja (aturan 8)'",
    "from": "fix"
+  },
+  {
+   "key": "errors/M559-M562",
+   "execution": "EXEC-PRICE-DISTORTION",
+   "area": "Screener dan Backtest: harga terdistorsi (ERRORS M559-M562)",
+   "run": "",
+   "finding_id": "M559, M560, M561, M562",
+   "title": "Price distortion detected by a date rule, read wrong for three stocks, and hidden instead of marked",
+   "finding": "ERRORS M559-M562 symptoms (the user 2026-11-24): \"Tadi ada saham yang meskipun price distort, kita hide kan untuk screener. Dan untuk backtest ada lagi ternyata nilai indikator flow yang di hide karena price detected as distort ... Ini aneh dan ini salah\"; the six stocks pulled again on 2026-10-31 hidden and labelled \"history not adjusted\" (M559); VKTR, AHAP, BUVA read raw by the publisher's 15-session medians (M560); WGSH 2026-03-31 a bar at half the price (M562). No checker found them.",
+   "errors": [
+    "M559",
+    "M560",
+    "M561",
+    "M562"
+   ],
+   "fix_commits": [
+    "4799ee94",
+    "e9fc3ab6",
+    "db7bf27e",
+    "af806747",
+    "6b86cf6e"
+   ],
+   "fix_note": "4799ee94 (pricecheck.ts, publisher price_check_side), e9fc3ab6 (Screener row badges, chips off), db7bf27e (Backtest: Flow values kept and noted, trade flags, PRICE_DISTORTIONS), af806747 (docs), 6b86cf6e (migration 20261125_001, not applied)",
+   "runs_on": "branch",
+   "author_test": "screener pricecheck.test.ts on real cases (VKTR, AHAP, BUVA, FORU, PBSA, PSSI, WGSH); publisher tests 261 and tests/test_price_check.py; Screener vitest 1370; screener-worker 146/149 (two heap tests of this machine, one queue test passes alone); backtest-worker 288/289 (M463 heap test of this machine); look-ahead gate 24/24; Backtest page 107/107; the migration rehearsed on a local scratch database (apply, refused rerun, rollback)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce each symptom on the fixed code: the six stocks pulled again carry no badge and are in every default screen; VKTR, AHAP, BUVA read adjusted in the publisher's basis; WGSH shows \"Price anomaly\" on 2026-03-31 and 2026-04-01; a Backtest Flow value across an unsettled action has a value and its trade a flag. Collateral: the look-ahead gate (no value on day t reads later data), the Screener counts and chips, the publisher's Telegram basis report, saved screens after the migration, the old live page reading new remarks (kind, effect).",
+   "tested_out_by": "none",
+   "evidence": "ERRORS M559-M562 Status lines: 'tested by its author only'",
+   "from": "fix"
+  },
+  {
+   "key": "errors/M558-B-2",
+   "execution": "EXEC-SENSITIVITY-FLAGS",
+   "area": "Backtest: grid sensitivitas kondisi ya/tidak (ERRORS M558 B-2, UD35)",
+   "run": "",
+   "finding_id": "B-2",
+   "title": "The sensitivity grid moved a fixed 0.5 threshold on a yes/no condition",
+   "finding": "ERRORS M558 B-2 (UD35): the Backtest's sensitivity grid takes the first threshold as its axis; on a 0/1 flag or a category condition that is a fixed 0.5, so 25 cells give one result and count as trials; the user 2026-11-24: \"C ok - masukan EXEC\", \"Untuk 2-5 bisa go\".",
+   "errors": [
+    "M558"
+   ],
+   "fix_commits": [
+    "185c0dd5"
+   ],
+   "fix_note": "185c0dd5 (robustness.ts codedSide, the setting axis, grid_accepts; agent commit 2d954707)",
+   "runs_on": "branch",
+   "author_test": "backtest-worker 288/289 (4 new; M463 heap test of this machine); look-ahead gate 31/31; registry:check current; Backtest page vitest 106/106, smoke 57/57 (two loading-ring timing steps failed in 3 of 5 early runs, then passed); Screener vitest 1363; screener-worker 147/149",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Run the grid on strategies whose first condition is yes/no (Supertrend direction, Price Action break, Inside Bar, FL09, FL27) and on a threshold one (ADX 25): the axis and its titles, a refused column empty in both the worker and the result, the Deflated Sharpe trial count. Collateral: stored results still read as threshold grids, variant and lineage hashes unchanged, the smoke loading steps.",
+   "tested_out_by": "none",
+   "evidence": "ERRORS M558 UD35 part: 'tested by its author only'",
+   "from": "fix"
   }
  ]
 }

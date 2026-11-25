@@ -16740,6 +16740,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD51 | (answered 2026-11-24: "Ok GO") EXEC-TERMINAL-SESSION-TOGGLE item 3: the legend's shown rows in near black (#171717, like TradingView's #131722), hidden rows stay light grey, the values keep their line colours, on every legend row (main chart, indicator panes, Flow panes) | 2026-11-24 with context | the legend's look | before the build |
   | UD52 | EXEC-PRICE-DISTORTION F2b (UD36's fix, ERRORS M558 SC-3, same mechanism): the Screener decides once per output how far back a value reads (its history class), at the default settings. Bollinger Bands (I27), %B (I28) and Band Width (I29), released, are classed "window" (they read only the last N bars) at the default SMA basis; at basis EMA or RMA they read the whole history. A screen with those settings then marks the cell "Distorted" only when a price break is inside the last N bars, not when it is further back, though the EMA still carries it. Options: (a) one class per output and setting (the generator probes each basis; the remark rule reads the class of the setting in use), (b) leave it, the influence of an old break on an EMA band fades. Agent's recommendation: (a). | 2026-11-25 with context (end-of-phase report) | the cell marks of I27-I29 at EMA/RMA basis | before EXEC-PRICE-DISTORTION reaches the live site, or the user's choice to leave it |
   | UD53 | EXEC-RECHECK-LIST (RECHECK.md): (1) three of the four round-2 parts of ERRORS M558 (C-6, S-6, V1-7) have had the two re-check rounds rule 8 allows; a third round is the user's call; (2) after every deploy `python3 scripts/recheck_doc.py --sites` must run (rule 8 says it; rule 9 and INDICATOR_BETA_TO_LIVE.md do not yet); (3) should builds (not fixes) enter the ledger (the step-8 ledger held step 7's build; `cb688250`'s session pill and legend contrast are not in it). | 2026-11-25 with context (end-of-phase report) | the next re-check's scope; the deploy steps' wording | the next re-check the user approves |
+  | UD54 | EXEC-SENSITIVITY-FLAGS (built on the branch, `185c0dd5`): three details the agent applied as proposed: (1) "way A": the X axis goes to the first condition in order that has a setting, a later yes/no condition with a setting included (Inside Bar then Supertrend: Supertrend's ATR length); (2) a whole-number setting under 5 steps by at least 1 (Top N 3 gives 1-5, not 2, 2, 3, 4, 4); (3) FL09's Top N is read only with scope "Top-N": with scope "selected" its five columns are the same. Keep, or change? | 2026-11-25 with context (end-of-phase report) | the grid of yes/no strategies | before the release to the live site |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -17619,6 +17620,19 @@ konfirmasi user, section "Deploys").
   kondisi angka biasa (seperti ADX) tidak berubah; gerbang look-ahead tetap hijau.
 - **Pemicu:** go user untuk mengeksekusi.
 
+- **Eksekusi (2026-11-25, go user 2026-11-24 "Untuk 2-5 bisa go"):** commit `2d954707` (agen; di branch sesi
+  `185c0dd5`), belum di-deploy. `robustness.ts codedSide` membaca dari registry apakah ambang sebuah kondisi
+  membandingkan output berkode: indRegistry `outs[].r` state/marker atau categories, flow-kinds kind F, transform dengan
+  category_args. Hasilnya hari ini: I09 dan I12 direction, lab I54-I60, FL09, FL27. Sumbu X kondisi ya/tidak = setting
+  angka pertama, 20 % per langkah, minimal 1 untuk bilangan bulat (Top N 3 → 1-5), dibulatkan, di dalam min/max. Cara A
+  berjalan ke kondisi berikutnya, termasuk kondisi ya/tidak yang punya setting. Tanpa sumbu: `x_param` `none`, 5
+  backtest. Judul kolom: "SL % ↓ · Supertrend Atr Length →". Kolom yang ditolak worker kosong di grid dan di rencana
+  hasil (`grid_accepts`). Uji: worker 288/289 (tes heap M463 mesin ini), gerbang look-ahead 31/31, halaman 106/106,
+  smoke 57/57 (dua langkah waktu loading sempat gagal 3 dari 5 run lalu lulus; diawasi di CI).
+- **Detail diterapkan seperti usulan, ditanyakan ke user (UD54):** tafsiran cara A, langkah minimal 1 untuk bilangan
+  bulat di bawah 5, FL09 Top N yang tidak terbaca pada scope "selected" (lima kolom sama).
+- **Status uji:** diuji pembuatnya saja (RECHECK.md `errors/M558-B-2`); re-check aturan 8 menunggu persetujuan user.
+
 ## EXEC-PRICE-DISTORTION — harga terdistorsi: satu deteksi, nilai ditampilkan apa adanya dengan badge (ERRORS M559-M562; go user 2026-11-24)
 
 **Go user 2026-11-24:** "Deploy ke beta oke. Untuk 2-5 bisa go." (butir 2 daftar agen: EXEC-PRICE-DISTORTION bersama EXEC-SENSITIVITY-FLAGS dalam satu rilis core Backtest). Penulisan screen tersimpan (F4), deploy beta dan pemindahan `live` tetap ditanyakan saat sampai di sana.
@@ -17704,8 +17718,31 @@ basis (status `terms`, `pending`, `unresolved`) atau anomali harga.
   screener-worker 146/149 (dua tes heap gagal juga di commit dasar, batas memori mesin ini; satu tes antrean lolos bila
   dijalankan sendiri).
 - F2b (`e926355d`, agen): UD36 selesai, lihat register UD36; pertanyaan turunan UD52 (Bollinger basis EMA/RMA).
-- Belum: D-1 (badge baris hanya bila sel melewati patahan atau patahan di bar terakhir), D-5 (tanda sel Flow, status
-  basis lot di berkas `actions`), F3 Backtest, F4 migrasi screen tersimpan, F5 dokumen, F6-F7 deploy (konfirmasi user).
+- Langkah 3, F3 Backtest (`db7bf27e`, dokumen `af806747`): nilai Flow tidak lagi dikosongkan; `basis.ts basisDistorted`
+  (aturan basisBlocked tanpa perubahan) hanya menandai bar (`FlowNotes.distorted`); trade membawa `flags.distortions`
+  (flow di bar sinyal; patahan harga di jendela yang dibaca sinyal, `Calc.reach` dari aturan lookback Screener, sampai
+  bar keluar), badge di daftar trade dan kolom CSV; peringatan `PRICE_DISTORTIONS` menggantikan
+  `ADJUSTED_HISTORY_BOUNDARY`; `FLOW_BASIS_CHANGE` diganti katanya. **Perubahan rencana R3 (detail agen, dengan bukti):**
+  dua hitungan yang disambung di tanggal keputusan tidak dibuat. Uji gerbang look-ahead Stage C2
+  (`apps/backtest-worker/tests/lookahead.test.ts`) memodelkan lot yang sudah diskalakan sebagai bagian dari riwayat
+  terbit (K4 a, sama seperti harga yang di-adjust) dan hanya mengganti status keputusan; nilai dihitung dari kolom terbit
+  apa pun statusnya, jadi tidak membaca keputusan yang dibuat sesudah hari t. Gerbang look-ahead 24/24 (pit, lookahead,
+  grammar), worker 288/289 (tes heap M463 mesin ini), halaman 107/107.
+- F4 (`6b86cf6e`): migrasi `database/migrations/20261125_001_edge_bff_screener_chips_off.sql` (tabel cadangan universe
+  dulu, lalu kedua chip false, revision +1, updated_at tetap, definition_hash tetap seperti disimpan). Dilatih di
+  Postgres lokal sementara: 2 dari 4 screen contoh berubah, jalan ulang ditolak, blok rollback mengembalikan. Role baca
+  `pgweb` tidak punya akses ke `edge_bff.screener_items`, jadi jumlah screen nyata belum terbaca. **Belum dijalankan:**
+  APPLY menunggu go user (data user).
+- F5: CONTRACT.md, BACKTEST_END_TO_END.md, UPDATE_TABLE.md bagian C, ERRORS M559-M562.
+- Sedang dikerjakan agen: D-1 (badge baris hanya bila sel melewati patahan atau patahan di bar terakhir) dan D-5 (tanda
+  sel Flow Screener; kolom `basis` di berkas `actions` publisher; probe di generator registry yang menurunkan output Flow
+  mana yang membaca lot atau close).
+- Bagian terbuka (aturan 7, diajukan): output "seluruh riwayat" (EMA, RSI, dan 16 output lab sesudah UD36) melewati
+  setiap patahan lama, jadi sel Screener dan trade Backtest ditandai untuk patahan bertahun-tahun sebelumnya. Usulan:
+  jendela efektif per output dari probe jangkauan UD36 (sesudah berapa bar awal data tidak lagi berpengaruh dalam
+  toleransi), dipakai aturan lookback Screener dan `Calc.reach`. Bersama UD52.
+- Belum: F6-F7 deploy (konfirmasi user), run publisher manual, restart Postgres bila perlu, cek data nyata look-ahead
+  (`verification/backtest/lookahead/README.md`) sebelum rilis.
 
 **Rollback:** worker dan halaman: revert commit di `main`, `live` kembali ke commit sebelumnya (EXEC.md opsi A); F4:
 kembalikan universe dari tabel cadangan; publisher: run manual dengan versi sebelumnya.
