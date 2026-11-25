@@ -37,3 +37,11 @@ indicators I54 to I60 through the worker's '@edge-lab' registration, 8 price act
 A-C, 16 point-in-time), **0 leaks** on the four. The 10 refusals per stock are the same as on 2026-11-16 (the eight
 `sell` lines of buy-side Flow indicators and FL34's two metrics). COCO 799 sessions off the price basis without the
 factors, 0 with them; the other three 0.
+
+## 2026-11-25 (EXEC-PRICE-DISTORTION and EXEC-SENSITIVITY-FLAGS, before their release)
+
+`results_2026-11-25.json`: BBRI, BBCA, GOTO, COCO, 2023-01-02 to 2026-11-25 (897 to 928 bars, 24,509 to 89,483 broker
+rows), with the broker basis from the publisher's rule as changed by EXEC-PRICE-DISTORTION (`price_check_side`; COCO's
+two rights issues read `adjusted`, as before), on the branch head where every Flow value is kept and only marked
+(`basis.ts basisDistorted`): 214 series per stock, **0 leaks** on the four. The 10 refusals per stock are the same as on
+2026-11-23. COCO 799 sessions off the price basis without the factors, 0 with them; the other three 0.
