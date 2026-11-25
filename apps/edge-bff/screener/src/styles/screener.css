@@ -598,6 +598,13 @@ input[type="checkbox"],input[type="radio"]{accent-color:var(--text)}
 .res th button:hover{color:var(--text)}
 .res .sym{display:inline-flex;align-items:center;height:22px;padding:0 var(--s-4);border-radius:var(--r-sm);background:var(--text);border:1px solid var(--text);color:var(--surface);font-size:var(--fs-12);font-weight:var(--fw-semibold);letter-spacing:.02em}
 .res tbody tr.picked .sym{box-shadow:var(--shadow);transform:translateY(-1px)}
+/* EXEC-SCREENER-QUICK-UI (user 2026-11-25): the row's remarks (price break, possible break, price anomaly, stale) as one
+   badge on the ticker's top-right corner instead of a Remark column; its title names each remark, its date and why;
+   it takes no width (margin and translate), so the ticker stays where the rows without a badge have it */
+.res .rmark{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:-15px;transform:translate(9px,-10px);
+  border-radius:50%;background:var(--amber,#f59e0b);color:#fff;box-shadow:0 0 0 2px var(--surface);cursor:help;vertical-align:middle}
+.res .rmark .ico{width:9px;height:9px}
+.res .rmark:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
 
 /* positive counts and statuses: solid green, white text (preset match counts, "Match n/n") */
 :root{--pos-fill:#087f5b;--on-pos:#ffffff}

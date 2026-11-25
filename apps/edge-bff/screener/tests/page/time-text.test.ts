@@ -27,7 +27,7 @@ describe('timeText', () => {
 describe('the data line', () => {
   it('shows the publisher\'s timestamp as a readable WIB time, never the raw text', () => {
     const line = dataLine(844, '2026-10-29', '2026-10-29T12:59:56.101946+00:00');
-    expect(line).toBe('IDX equities (844 listings) · close 2026-10-29 · published 2026-10-29 19:59 WIB');
+    expect(line).toBe('IDX equities (844 listings) · close 29 October 2026 · published 2026-10-29 19:59 WIB');
     expect(line).not.toMatch(/\+00:00|\.\d{3,}|T\d/);
   });
 });

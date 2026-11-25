@@ -1,16 +1,17 @@
 /* EXEC-SCREENER-V21 layout: the "Add column" picker (reference layout.js 965-1000), the UI only. Which columns
-   exist, their values and their loading all come from extra-columns.ts (availableColumns, shownColumns, setColumns);
+   exist, their values and their loading all come from extra-columns.ts (LOCAL_COLUMNS, availableColumns, chosenColumns, setColumns);
    nothing is invented here: with no column offered the picker says so. A column that cannot be offered now is listed
    greyed with its reason. Removing a column from its header (×) goes through setColumns too. */
 import { esc, unitWords } from '../format.ts';
-import { availableColumns, setColumns, shownColumns } from '../extra-columns.ts';
+import { LOCAL_COLUMNS, availableColumns, chosenColumns, setColumns, type ExtraColumnDef } from '../extra-columns.ts';
 
 let q = '';
 const pop = () => document.getElementById('colPop')!;
 const btn = () => document.querySelector('#resTools [data-act="cols"]') as HTMLElement | null;
 
 function render() {
-  const all = availableColumns(), shown = shownColumns(), ql = q.trim().toLowerCase();
+  // the page's own columns (LOCAL_COLUMNS, from the row) first, then the worker's
+  const all: ExtraColumnDef[] = [...LOCAL_COLUMNS.map(c => ({ ...c, short:c.label, unit:null, format:'raw' as const, params:{}, paramText:'from the stock list', unavailable:null })), ...availableColumns()], shown = chosenColumns(), ql = q.trim().toLowerCase();
   const rows = all.filter(c => !ql || `${c.label} ${c.short} ${c.group}`.toLowerCase().includes(ql));
   const groups = [...new Set(rows.map(c => c.group))];
   const list = !all.length ? `<p class="colpop-e">No extra column can be added yet.</p>`
@@ -47,7 +48,7 @@ function reveal(id: string) {
   });
 }
 // setColumns draws the table itself: drawing it again here doubled the work of every add or remove (S4 D2)
-export function removeColumn(id: string) { setColumns(shownColumns().filter(x => x !== id)); if (!pop().hidden) render() }
+export function removeColumn(id: string) { setColumns(chosenColumns().filter(x => x !== id)); if (!pop().hidden) render() }
 
 export function bindColumns() {
   const p = pop();
@@ -55,9 +56,9 @@ export function bindColumns() {
   document.getElementById('resPane')!.addEventListener('click', e => { const x = (e.target as HTMLElement).closest('[data-xdel]') as HTMLElement | null; if (x) { e.stopPropagation(); removeColumn(x.dataset.xdel!) } }, true);
   p.addEventListener('change', e => {
     const cb = (e.target as HTMLElement).closest('[data-col]') as HTMLInputElement | null; if (!cb) return;
-    const id = cb.dataset.col!, cur = shownColumns();
+    const id = cb.dataset.col!, cur = chosenColumns();
     setColumns(cb.checked ? [...cur.filter(x => x !== id), id] : cur.filter(x => x !== id));
-    const h = p.querySelector('.colpop-h span'); if (h) h.textContent = shownColumns().length + ' added';
+    const h = p.querySelector('.colpop-h span'); if (h) h.textContent = chosenColumns().length + ' added';
     if (cb.checked) reveal(id);
   });
   p.addEventListener('click', e => { if ((e.target as HTMLElement).closest('[data-colclear]')) { setColumns([]); render(); (p.querySelector('input,button') as HTMLElement | null)?.focus() } });

@@ -85,7 +85,7 @@ const ACTION: Record<string, string> = { STOCK_SPLIT:'stock split', REVERSE_SPLI
   BONUS_SHARES:'bonus shares', STOCK_DIVIDEND:'stock dividend', WARRANT:'warrant' };
 export const actionText = (a: string) => ACTION[a] || a.toLowerCase().replace(/_/g, ' ');
 
-/** A row remark (P4; EXEC-PRICE-DISTORTION kinds, contract.ts PriceBreakRemark), as the Remark column and the preview
+/** A row remark (P4; EXEC-PRICE-DISTORTION kinds, contract.ts PriceBreakRemark), as the ticker's badge and the preview
     say it (report 9.2 wording). A remark without a kind (written before the kinds) reads as unadjusted. */
 export function remarkText(r: RowRemark): string {
   if (r.code === 'STALE') return `Stale: last trade ${r.last_bar_date}`;
@@ -366,9 +366,20 @@ export function savedErrorText(e: ApiError['error'], def: Definition | null | un
 export const failureOn = (e: unknown, def: Definition | null | undefined): string =>
   e instanceof ApiFailure ? e.wire ? savedErrorText(e.wire, def, e.retryAfter) : e.message : String(e);
 
-/** The page head's data line (report 9.2): listings, evaluation date and publication. */
+/** A YYYY-MM-DD date as "24 November 2026" (DD MMMM YYYY; the user 2026-11-25, EXEC-SCREENER-QUICK-UI); any other text
+    as it is. */
+const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export const longDate = (d: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d), mo = m ? Number(m[2]) : 0;
+  return m && mo >= 1 && mo <= 12 ? `${m[3]} ${LONG_MONTHS[mo - 1]} ${m[1]}` : d;
+};
+/** The page head's data line (report 9.2): listings, evaluation date (DD MMMM YYYY) and publication. */
 export const dataLine = (listed: number, evalDate: string, published: string) =>
-  `IDX equities (${nf(listed)} listings) · close ${evalDate} · published ${timeText(published)}`;
+  `IDX equities (${nf(listed)} listings) · close ${longDate(evalDate)} · published ${timeText(published)}`;
+/** The row badge beside the ticker (EXEC-SCREENER-QUICK-UI: the Remark column removed, the user 2026-11-25): one mark
+    whose title names every remark of the row, its kind, date and why. */
+export const rowRemarkTitle = (rs: RowRemark[]): string =>
+  rs.map(x => `${remarkBadge(x)} · ${x.code === 'STALE' ? x.last_bar_date : x.ex_date}\n${remarkTitle(x)}`).join('\n\n');
 
 /** "How conditions work", rewritten to the real semantics (report 9.2 Method & sources). */
 export const methodText = (evalDate: string) =>

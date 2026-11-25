@@ -157,6 +157,14 @@ export function shownColumns(): string[] {
   const by = specs().byId;
   return chosen.filter(id => by.get(id)?.test);
 }
+/** Columns the page draws from the row itself, offered in the same picker (EXEC-SCREENER-QUICK-UI, the user
+    2026-11-25: "kolom sector by default hilangkan tapi bisa ditambahkan di add column"): never asked of the worker. */
+export const LOCAL_COLUMNS: readonly { id: string; group: string; label: string }[] = [{ id:'local:sector', group:'Company', label:'Sector' }];
+const LOCAL_IDS = new Set(LOCAL_COLUMNS.map(c => c.id));
+/** The shown local columns (LOCAL_COLUMNS ids), in the order chosen. */
+export function shownLocal(): string[] { return chosen.filter(id => LOCAL_IDS.has(id)) }
+/** Every shown column the picker counts, local and worker ones, in the order chosen. */
+export function chosenColumns(): string[] { const w = new Set(shownColumns()); return chosen.filter(id => LOCAL_IDS.has(id) || w.has(id)) }
 /** Show these columns in this order (add, remove, reorder); asks the worker for what is missing. */
 export function setColumns(ids: string[]): void {
   chosen = [...new Set(ids.filter(x => typeof x === 'string'))].slice(0, 50);
