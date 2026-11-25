@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { UNIVERSE_DEFAULTS } from '../../src/core/contract.ts';
 import type { UniverseDef, UniverseRow } from '../../src/core/contract.ts';
-import { applyUniverse, hasPriceBreak, isStale, priceBreakDates, priceBreakRemarks } from '../../src/core/universe.ts';
+import { applyUniverse, distortionRemarks, hasPriceBreak, isStale, priceBreakDates } from '../../src/core/universe.ts';
 
 const row = (ticker: string, o: Partial<UniverseRow> = {}): UniverseRow => ({
   ticker, name: `${ticker} Tbk`, sector: 'Financials', industry: 'Banks', last: 1000, chg_1d_pct: 0.5, adv20_idr: 5e9,
@@ -21,11 +21,12 @@ const ROWS: UniverseRow[] = [
   row('EDGE', { last: 50, adv20_idr: 1e9, bars: 74 }),
   row('NOADV', { adv20_idr: null }),
 ];
-const def = (o: Partial<UniverseDef> = {}): UniverseDef => ({ ...UNIVERSE_DEFAULTS, ...o } as UniverseDef);
+/* the chips switched on: these tests read the hiding rule (EXEC-PRICE-DISTORTION: off by default since 2026-11-24) */
+const def = (o: Partial<UniverseDef> = {}): UniverseDef => ({ ...UNIVERSE_DEFAULTS, traded_on_eval_date: true, exclude_price_breaks: true, ...o } as UniverseDef);
 const tickers = (u: UniverseDef) => applyUniverse(ROWS, u).eligible.map(r => r.ticker);
 
 describe('applyUniverse', () => {
-  it('hides stale and price-break tickers by default and counts each once; the counts add up', () => {
+  it('hides stale and price-break tickers with the chips on and counts each once; the counts add up', () => {
     const r = applyUniverse(ROWS, def());
     expect(r.eligible.map(x => x.ticker)).toEqual(['BBCA', 'XCID', 'EDGE']);
     expect(r.counts).toEqual({ listed: 8, eligible: 3, stale_hidden: 1, price_break_hidden: 1, filtered_out: 3 });
@@ -37,12 +38,14 @@ describe('applyUniverse', () => {
     expect([r.counts.stale_hidden, r.counts.price_break_hidden]).toEqual([0, 0]);
     expect(r.eligible.find(x => x.ticker === 'PBSA')!.remarks[0].code).toBe('PRICE_BREAK');
   });
-  it('a request that leaves the P4 chips out hides as the defaults do (report 8.5 "Default true"); only false shows', () => {
+  it('the defaults and a request that leaves the chips out list them with their remarks (EXEC-PRICE-DISTORTION: "value harus tetap ditampilkan as is dengan badge"); only true hides', () => {
+    expect([UNIVERSE_DEFAULTS.traded_on_eval_date, UNIVERSE_DEFAULTS.exclude_price_breaks]).toEqual([false, false]);
     const { traded_on_eval_date: _t, exclude_price_breaks: _e, ...rest } = def();
     const r = applyUniverse(ROWS, rest as UniverseDef);
-    expect(r.eligible.map(x => x.ticker)).toEqual(['BBCA', 'XCID', 'EDGE']);
-    expect([r.counts.stale_hidden, r.counts.price_break_hidden]).toEqual([1, 1]);
-    expect(tickers(def({ traded_on_eval_date: false }))).toContain('ADHI');
+    expect(r.eligible.map(x => x.ticker)).toEqual(['BBCA', 'ADHI', 'PBSA', 'XCID', 'EDGE']);
+    expect([r.counts.stale_hidden, r.counts.price_break_hidden]).toEqual([0, 0]);
+    expect(tickers({ ...UNIVERSE_DEFAULTS } as UniverseDef)).toEqual(['BBCA', 'ADHI', 'PBSA', 'XCID', 'EDGE']);
+    expect(tickers(def({ traded_on_eval_date: true, exclude_price_breaks: false }))).not.toContain('ADHI');
   });
   it('a stale ticker that also has a price break is counted once, as stale', () => {
     const both = [row('BOTH', { stale: true, remarks: [{ code: 'PRICE_BREAK', action: 'RIGHT_ISSUE', ex_date: '2026-09-22', ratio_old: null, ratio_new: null, close_ratio: null }] })];
@@ -81,23 +84,30 @@ describe('applyUniverse', () => {
   });
 });
 
-describe('priceBreakRemarks (P4; report 6.12 rule, TEST PLAN 10b.4 "Price breaks")', () => {
-  const BOUNDARY = '2026-09-12', TYPES = ['STOCK_SPLIT', 'REVERSE_SPLIT', 'BONUS_SHARE', 'RIGHT_ISSUE', 'STOCK_DIVIDEND'];
-  const dates = ['2026-07-15', '2026-07-16', '2026-10-13', '2026-10-14', '2026-10-27'];
-  const closes = [920, 875, 845, 384, 302];
-  const act = (type: string, ex_date: string, ratio_old: number | null = 1, ratio_new: number | null = 2) => ({ ticker: 'X', type, ex_date, ratio_old, ratio_new });
-  const opts = { boundary: BOUNDARY, priceActionTypes: TYPES };
-  it('flags a price-affecting action with boundary <= ex-date <= the last bar, with the observed close ratio', () => {
-    expect(priceBreakRemarks([act('STOCK_SPLIT', '2026-10-14')], dates, closes, opts)).toEqual([
-      { code: 'PRICE_BREAK', action: 'STOCK_SPLIT', ex_date: '2026-10-14', ratio_old: 1, ratio_new: 2, close_ratio: 384 / 845 }]);
+describe('distortionRemarks (EXEC-PRICE-DISTORTION: the one rule, pricecheck.ts)', () => {
+  const BOUNDARY = '2026-09-12';
+  const act = (type: string, ex_date: string, ratio_old: number | null = 1, ratio_new: number | null = 2, amount_per_share: number | null = null) =>
+    ({ ticker: 'X', type, ex_date, ratio_old, ratio_new, amount_per_share });
+  const opts = { boundary: BOUNDARY };
+  it('a split left on the old scale is unadjusted (any date), the same split pulled again is no remark (PBSA before and after 2026-10-31)', () => {
+    const dates = ['2026-10-13', '2026-10-14', '2026-10-27'];
+    expect(distortionRemarks([act('STOCK_SPLIT', '2026-10-14')], dates, [845, 384, 302], opts)).toEqual([
+      { code: 'PRICE_BREAK', kind: 'unadjusted', action: 'STOCK_SPLIT', ex_date: '2026-10-14', ratio_old: 1, ratio_new: 2, close_ratio: 384 / 845, effect: 1 }]);
+    expect(distortionRemarks([act('STOCK_SPLIT', '2026-10-14')], dates, [422.5, 384, 302], opts)).toEqual([]);
+    expect(distortionRemarks([act('STOCK_SPLIT', '2022-08-30')], ['2022-08-29', '2022-08-30'], [800, 400], opts).map(r => r.kind)).toEqual(['unadjusted']);   // an old step too (UD40)
   });
-  it('never flags an action before the boundary (RAJA, adjusted), one after the last bar (MGLV) or a cash dividend', () => {
-    expect(priceBreakRemarks([act('STOCK_SPLIT', '2026-07-16'), act('STOCK_SPLIT', '2026-11-02'), act('DIVIDEND', '2026-10-13', null, null)], dates, closes, opts)).toEqual([]);
+  it('an action that cannot be measured is uncertain from the boundary on, with its size; before it, read as adjusted', () => {
+    const r = distortionRemarks([act('BONUS_SHARE', '2026-11-06', 30, 1)], ['2026-11-05', '2026-11-06'], [336, 334], opts);   // PSSI 3.3 %
+    expect(r.map(x => [x.kind, x.action, +(x.effect ?? 0).toFixed(4)])).toEqual([['uncertain', 'BONUS_SHARE', 0.0333]]);
+    expect(distortionRemarks([act('BONUS_SHARE', '2026-01-06', 30, 1)], ['2026-01-05', '2026-01-06'], [336, 334], opts)).toEqual([]);
+    expect(distortionRemarks([act('RIGHT_ISSUE', '2026-10-20', null, null)], ['2026-10-19', '2026-10-21'], [300, 290], opts).map(x => [x.kind, x.effect])).toEqual([['uncertain', null]]);
   });
-  it('an ex-date between sessions reads the next bar; missing ratios stay null; a duplicate is one remark; oldest first', () => {
-    const r = priceBreakRemarks([act('RIGHT_ISSUE', '2026-10-20', null, null), act('BONUS_SHARE', '2026-10-01'), act('BONUS_SHARE', '2026-10-01')], dates, closes, opts);
-    expect(r.map(x => [x.action, x.ex_date, x.ratio_old, x.close_ratio])).toEqual([['BONUS_SHARE', '2026-10-01', 1, 845 / 875], ['RIGHT_ISSUE', '2026-10-20', null, 302 / 384]]);
-    expect(priceBreakRemarks([act('STOCK_SPLIT', '2026-10-14')], [], [], opts)).toEqual([]);
+  it('a session beyond the cap with no action is an anomaly (WGSH); a cash dividend, an action after the last bar and a duplicate add nothing', () => {
+    const r = distortionRemarks([act('DIVIDEND', '2026-03-30', null, null), act('STOCK_SPLIT', '2026-05-02')], ['2026-03-30', '2026-03-31', '2026-04-01'], [125, 65, 128], opts);
+    expect(r.map(x => [x.kind, x.action, x.ex_date])).toEqual([['anomaly', 'PRICE_ANOMALY', '2026-03-31'], ['anomaly', 'PRICE_ANOMALY', '2026-04-01']]);
+    const twice = distortionRemarks([act('STOCK_SPLIT', '2026-10-14'), act('STOCK_SPLIT', '2026-10-14')], ['2026-10-13', '2026-10-14'], [845, 384], opts);
+    expect(twice.length).toBe(1);
+    expect(distortionRemarks([act('STOCK_SPLIT', '2026-10-14')], [], [], opts)).toEqual([]);
   });
   it('the ex-dates of a row\'s PRICE_BREAK remarks are what the cell rule reads', () => {
     expect(priceBreakDates(ROWS.find(r => r.ticker === 'PBSA')!)).toEqual(['2026-10-14']);

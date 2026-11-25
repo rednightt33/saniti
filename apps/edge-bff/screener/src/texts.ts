@@ -85,18 +85,24 @@ const ACTION: Record<string, string> = { STOCK_SPLIT:'stock split', REVERSE_SPLI
   BONUS_SHARES:'bonus shares', STOCK_DIVIDEND:'stock dividend', WARRANT:'warrant' };
 export const actionText = (a: string) => ACTION[a] || a.toLowerCase().replace(/_/g, ' ');
 
-/** A row remark (P4), as the Remark column and the preview say it (report 9.2 wording). */
+/** A row remark (P4; EXEC-PRICE-DISTORTION kinds, contract.ts PriceBreakRemark), as the Remark column and the preview
+    say it (report 9.2 wording). A remark without a kind (written before the kinds) reads as unadjusted. */
 export function remarkText(r: RowRemark): string {
   if (r.code === 'STALE') return `Stale: last trade ${r.last_bar_date}`;
   const ratio = r.ratio_old != null && r.ratio_new != null ? ` (${nf(r.ratio_old, 0)}:${nf(r.ratio_new, 0)})` : '';
+  if (r.kind === 'anomaly') return `Price anomaly: ${r.close_ratio != null ? `${r.close_ratio >= 1 ? '+' : '−'}${nf(Math.abs(r.close_ratio - 1) * 100, 1)}% ` : ''}on ${r.ex_date}, no corporate action recorded`;
+  if (r.kind === 'uncertain') return `Possible price break: ${actionText(r.action)}${ratio} ex ${r.ex_date}${r.effect != null ? `, about ${nf(Math.abs(r.effect) * 100, 1)}%` : ''}, not confirmed`;
   return `Price break: ${actionText(r.action)}${ratio} ex ${r.ex_date}, history not adjusted`;
 }
 /** The short badge of a remark and its full reason (title). */
-export const remarkBadge = (r: RowRemark) => r.code === 'STALE' ? 'Stale' : 'Price break';
+export const remarkBadge = (r: RowRemark) => r.code === 'STALE' ? 'Stale' : r.kind === 'anomaly' ? 'Price anomaly' : r.kind === 'uncertain' ? 'Possible break' : 'Price break';
 export function remarkTitle(r: RowRemark): string {
   if (r.code === 'STALE') return `${remarkText(r)}. The stock is evaluated at its own last bar; its values are shown.`;
-  const cr = r.close_ratio != null ? ` Close on the ex-date ÷ the close before: ${nf(r.close_ratio, 3)}.` : '';
-  return `${remarkText(r)}. Values whose look-back crosses the ex-date are shown and marked.${cr} Temporary: until the price history is adjusted for corporate actions.`;
+  const cr = r.close_ratio != null ? ` Close of that session ÷ the close before: ${nf(r.close_ratio, 3)}.` : '';
+  const why = r.kind === 'anomaly' ? ' A move beyond the exchange’s widest daily limit (35%): the source’s price for that session is likely wrong.'
+    : r.kind === 'uncertain' ? ' The action’s effect is too small to tell from a day’s move, or a price around it is missing: the history may not be adjusted.'
+    : ' The prices before it are on the old scale.';
+  return `${remarkText(r)}.${why} Values whose look-back crosses it are shown as computed and marked.${cr}`;
 }
 /** The CSV's remark cell (report 9.6): the code and its date. */
 export const remarkCsv = (rs: RowRemark[]) => rs.map(r => r.code === 'STALE' ? `STALE ${r.last_bar_date}` : `PRICE_BREAK ${r.action} ${r.ex_date}`).join('; ');
@@ -105,7 +111,7 @@ export const remarkCsv = (rs: RowRemark[]) => rs.map(r => r.code === 'STALE' ? `
 export function cellRemarkText(c: CellRemark, rowRemarks: RowRemark[]): string {
   const ex = rowRemarks.filter(r => r.code === 'PRICE_BREAK').map(r => (r as Extract<RowRemark, { code: 'PRICE_BREAK' }>).ex_date);
   return c === 'PRICE_BREAK_IN_LOOKBACK'
-    ? `Distorted: this value's look-back contains the unadjusted ex-date${ex.length ? ' ' + ex.join(', ') : ''}. Shown as computed.`
+    ? `Distorted: this value's look-back contains the price break${ex.length ? ' of ' + ex.join(', ') : ''}. Shown as computed.`
     : (c as string).toLowerCase().replace(/_/g, ' ');
 }
 

@@ -285,7 +285,7 @@ describe('extra columns: the auxiliary request (extra-columns.ts)', () => {
     ctx.catalog = catalog;
     ctx.R = { ...R, def:{ ...R.def!, universe:{ ...R.def!.universe, price_min:999 } } }; expect(cacheKeyOf('rvol')).not.toBe(k0);
     ctx.R = { ...R, rows:R.rows.slice(1) }; expect(cacheKeyOf('rvol')).not.toBe(k0);
-    ctx.R = { ...R, def:{ ...R.def!, universe:{ ...R.def!.universe, traded_on_eval_date:true } } };   // absent means true: same key
+    ctx.R = { ...R, def:{ ...R.def!, universe:{ ...R.def!.universe, traded_on_eval_date:false } } };   // absent means false (EXEC-PRICE-DISTORTION): same key
     expect(cacheKeyOf('rvol')).toBe(k0);
     ctx.R = R;
     // the table of another publication than the catalog asks nothing

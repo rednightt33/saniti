@@ -259,6 +259,10 @@ describe('the close against a flow price level (20-question test, item C)', () =
     const r = await run(fx, { universe: U(), conditions: [toWire(e, c)], logic: 'all' });
     expect(r.conditions[0]).toMatchObject({ eval_date_basis: 'flow_date', source: 'flow' });
     expect(r.rows.length).toBeGreaterThan(0);
-    for (const row of r.rows) expect(row.cells[0].eval_date).toBe(catalog.data.broker_window!.last);
+    // a stale stock, listed by default since EXEC-PRICE-DISTORTION, is evaluated at its own last bar (contract.ts STALE)
+    for (const row of r.rows) {
+      const stale = row.remarks.find(m => m.code === 'STALE') as { last_bar_date: string } | undefined;
+      expect(row.cells[0].eval_date, row.ticker).toBe(stale ? stale.last_bar_date : catalog.data.broker_window!.last);
+    }
   });
 });

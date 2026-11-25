@@ -9,9 +9,9 @@
      sectors_out / industries_out: drop a row whose value is in the list; never drop an unclassified row (P15);
    - price_min: last >= price_min; adv20_min_idr: adv20_idr >= adv20_min_idr; min_history_bars: bars >= the value;
      a null attribute fails a set bound (it cannot be shown to pass); boundaries inclusive (TEST PLAN 10b.5);
-   - traded_on_eval_date (default true, P4; absent means true, report 8.5 "Default true": only an explicit false
-     shows them): drop stale rows (row.stale, last_bar < E as the worker built the row); counted in stale_hidden;
-   - exclude_price_breaks (default true, P4; absent means true as above): drop rows with a PRICE_BREAK remark; counted
+   - traded_on_eval_date (default false since EXEC-PRICE-DISTORTION, user 2026-11-24: "value harus tetap ditampilkan as is dengan badge", UD42 A; was true, P4; absent means false: only an explicit true hides
+     them): drop stale rows (row.stale, last_bar < E as the worker built the row); counted in stale_hidden;
+   - exclude_price_breaks (default false as above; absent means false): drop rows with a PRICE_BREAK remark; counted
      in price_break_hidden (a row both stale and broken is counted once, as stale: the chips are applied in that
      order, so the counts form one funnel: listed = eligible + stale_hidden + price_break_hidden + filtered_out);
    - indices_in / groups_in (EXEC-SCREENER-STOCK-LISTS, user 2026-11-09 option 2): keep a row that is a current member
@@ -27,8 +27,9 @@
    Counts (contract.ts UniverseCounts): listed = rows.length; eligible = rows kept; stale_hidden and
    price_break_hidden as above (0 when the chip is off); filtered_out = listed - eligible - stale_hidden -
    price_break_hidden.
-   Pure module (no DOM, no Node API). priceBreakRemarks runs worker-side, at snapshot build. */
+   Pure module (no DOM, no Node API). distortionRemarks runs worker-side, at snapshot build. */
 import type { PriceBreakRemark, UniverseCounts, UniverseDef, UniverseRow, ValueTest } from './contract.ts';
+import { capAnomalies, checkActions, PRICE_ACTIONS } from './pricecheck.ts';
 
 /** eligible: the rows kept, in row order; pending: indexes into def.metric_filters that need the worker (above). */
 export interface UniverseResult { eligible: UniverseRow[]; counts: UniverseCounts; pending: number[] }
@@ -76,7 +77,7 @@ export function applyUniverse(rows: readonly UniverseRow[], def: UniverseDef): U
   const filters = (def.metric_filters || []).map(t => ({ t, attr: rowAttr(t, rows[0]) }));
   const pending = filters.flatMap((f, i) => f.attr === null ? [i] : []);
   const tickers = def.tickers ? new Set(def.tickers) : null, unclassified = def.include_unclassified === true;
-  const hideStale = def.traded_on_eval_date !== false, hideBroken = def.exclude_price_breaks !== false;   // P4: on unless switched off
+  const hideStale = def.traded_on_eval_date === true, hideBroken = def.exclude_price_breaks === true;   // off unless switched on (EXEC-PRICE-DISTORTION)
   let stale = 0, broken = 0;
   const eligible: UniverseRow[] = [];
   for (const r of rows) {
@@ -98,37 +99,36 @@ export function applyUniverse(rows: readonly UniverseRow[], def: UniverseDef): U
 
 /** STALE (report 6.5): the row's last bar is before E. */
 export const isStale = (row: Pick<UniverseRow, 'last_bar'>, evaluationDate: string): boolean => row.last_bar < evaluationDate;
-/** The row carries a PRICE_BREAK remark (derived at snapshot build, priceBreakRemarks). */
+/** The row carries a PRICE_BREAK remark (derived at snapshot build, distortionRemarks). */
 export const hasPriceBreak = (row: Pick<UniverseRow, 'remarks'>): boolean => row.remarks.some(r => r.code === 'PRICE_BREAK');
 
 /** One corporate action of the `actions` xsection file for one ticker (report 6.5 Phase 1 files; the caller passes the
     rows of that ticker). The file holds every action since the first price year and cash dividends too; the boundary
     and type rules below pick the price breaks. */
-export interface ActionRow { ticker: string; type: string; ex_date: string; ratio_old: number | null; ratio_new: number | null }
-/** The derived PRICE_BREAK remarks of one ticker (TEMPORARY until the D22 data-layer fix; report 6.12): one per action
-    whose type is in `priceActionTypes` (datafile.ts PRICE_ACTION_TYPES) with boundary (engine.ts
-    ADJUSTED_HISTORY_BOUNDARY, 2026-09-12) <= ex_date <= the ticker's last bar, oldest first. close_ratio = the close
-    of the ticker's first bar on or after the ex-date / the close of the bar before it (null when either is missing).
-    An ex-date after the last bar is not flagged until it is in the data (MGLV), an action before the boundary never
-    (RAJA, adjusted); a cash dividend is not a price-affecting type. The two constants are passed in, so this module
-    stays free of the backtest core for the page. The same action listed twice (same type, ex-date and ratios) gives one
-    remark; the remarks are ordered by ex-date, then type. */
-export function priceBreakRemarks(actions: readonly ActionRow[], dates: readonly string[], closes: ArrayLike<number | null | undefined>, opts: { boundary: string; priceActionTypes: readonly string[] }): PriceBreakRemark[] {
+export interface ActionRow { ticker: string; type: string; ex_date: string; ratio_old: number | null; ratio_new: number | null; amount_per_share?: number | null }
+/** EXEC-PRICE-DISTORTION (user 2026-11-24, ERRORS M559-M562): the PRICE_BREAK remarks of one ticker from the one rule
+    (pricecheck.ts; it replaces priceBreakRemarks' date rule, which flagged every action from the boundary on, the six
+    stocks pulled again on 2026-10-31 included): an action whose ex-date jump is its own (raw) on any date; one from
+    `boundary` on that cannot be measured (small, or no close or term: UD43); a session beyond the 35 % cap with no
+    recorded action (UD44). An action before the boundary that cannot be measured reads as adjusted, as the bulk load
+    left it. Up to the ticker's last bar; ordered by date, then action. */
+export function distortionRemarks(actions: readonly ActionRow[], dates: readonly string[], closes: ArrayLike<number | null | undefined>, opts: { boundary: string }): PriceBreakRemark[] {
   if (!dates.length) return [];
   const last = dates[dates.length - 1], seen = new Set<string>(), out: PriceBreakRemark[] = [];
   const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
   const num = (v: unknown): number | null => ok(v) ? v : null;
-  for (const a of actions) {
-    if (!opts.priceActionTypes.includes(a.type) || !(a.ex_date >= opts.boundary && a.ex_date <= last)) continue;
+  const priced = actions.filter(a => (PRICE_ACTIONS as readonly string[]).includes(a.type) && a.ex_date <= last);
+  const checks = checkActions(dates, closes, priced.map(a => ({ ex:a.ex_date, type:a.type, ratio_old:a.ratio_old, ratio_new:a.ratio_new, exercise:a.amount_per_share ?? null })));
+  checks.forEach((c, k) => {
+    const a = priced[k], kind = c.verdict === 'raw' ? 'unadjusted' : c.verdict === 'adjusted' || a.ex_date < opts.boundary ? null : 'uncertain';
     const id = `${a.type}|${a.ex_date}|${a.ratio_old}|${a.ratio_new}`;
-    if (seen.has(id)) continue;                                   // the same action published twice is one remark
+    if (!kind || seen.has(id)) return;                              // the same action listed twice is one remark
     seen.add(id);
-    let lo = 0, hi = dates.length - 1, d = -1;                    // the ticker's first bar on or after the ex-date
-    while (lo <= hi) { const mid = (lo + hi) >> 1; if (dates[mid] >= a.ex_date) { d = mid; hi = mid - 1 } else lo = mid + 1 }
-    const c = d >= 0 ? closes[d] : null, c0 = d >= 1 ? closes[d - 1] : null;
-    out.push({ code: 'PRICE_BREAK', action: a.type, ex_date: a.ex_date, ratio_old: num(a.ratio_old), ratio_new: num(a.ratio_new),
-      close_ratio: ok(c) && ok(c0) && c0 !== 0 ? c / c0 : null });
-  }
+    out.push({ code: 'PRICE_BREAK', kind, action: a.type, ex_date: a.ex_date, ratio_old: num(a.ratio_old), ratio_new: num(a.ratio_new),
+      close_ratio: c.jump === null ? null : 1 / c.jump, effect: c.factor === null ? null : c.factor - 1 });
+  });
+  for (const x of capAnomalies(dates, closes, priced.map(a => a.ex_date)))
+    out.push({ code: 'PRICE_BREAK', kind: 'anomaly', action: 'PRICE_ANOMALY', ex_date: x.date, ratio_old: null, ratio_new: null, close_ratio: x.close / x.prev, effect: null });
   return out.sort((x, y) => x.ex_date < y.ex_date ? -1 : x.ex_date > y.ex_date ? 1 : x.action < y.action ? -1 : x.action > y.action ? 1 : 0);
 }
 /** The ex-dates of a row's PRICE_BREAK remarks (the cell remark rule reads them, evaluate.ts priceBreakRemark). */

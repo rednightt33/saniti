@@ -131,7 +131,7 @@ INLINE_BYTES = 65536           # larger answers are parsed and packed in a threa
 REVIEWS_KEPT = 4096            # re-validation results kept in memory (per definition and registry versions)
 # The universe a My metric (one test) is validated in: the required fields of contract.ts UniverseDef only, so the
 # validation is the test's own (the worker checks the test as it checks a condition of a screen).
-METRIC_UNIVERSE = {'security_types': ['stock'], 'traded_on_eval_date': True, 'exclude_price_breaks': True}
+METRIC_UNIVERSE = {'security_types': ['stock'], 'traded_on_eval_date': False, 'exclude_price_breaks': False}   # EXEC-PRICE-DISTORTION: nothing hidden
 METRIC_CONDITION = 'conditions[0].test'
 
 # Report 8.8: every refusal edge-bff itself gives names the field where there is one and the fix (AGENTS.md "Gates and

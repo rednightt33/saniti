@@ -104,8 +104,8 @@ describe('contract', () => {
     expect(CELL_REMARKS).toEqual(['PRICE_BREAK_IN_LOOKBACK']);
   });
 
-  it('keeps the P4 chips on by default and the prototype liquidity defaults', () => {
-    expect(UNIVERSE_DEFAULTS).toMatchObject({ traded_on_eval_date: true, exclude_price_breaks: true, price_min: 50, adv20_min_idr: 1e9, include_unclassified: false });
+  it('keeps the chips off by default (EXEC-PRICE-DISTORTION, user 2026-11-24; P4 had them on) and the prototype liquidity defaults', () => {
+    expect(UNIVERSE_DEFAULTS).toMatchObject({ traded_on_eval_date: false, exclude_price_breaks: false, price_min: 50, adv20_min_idr: 1e9, include_unclassified: false });
     expect(Object.isFrozen(UNIVERSE_DEFAULTS)).toBe(true);
   });
 

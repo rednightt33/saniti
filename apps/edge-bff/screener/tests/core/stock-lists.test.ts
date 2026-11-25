@@ -29,7 +29,8 @@ const ROWS: UniverseRow[] = [
   row('BUMI', { sector: 'Energy', industry: 'Coal', indices: ['IDX30'], groups: ['BAKRIE'] }),
   (({ indices: _i, groups: _g, ...r }) => r)(row('OLD')),
 ];
-const def = (o: Partial<UniverseDef> = {}): UniverseDef => ({ ...UNIVERSE_DEFAULTS, ...o } as UniverseDef);
+/* the chips switched on (off by default since EXEC-PRICE-DISTORTION): these tests count stale ADHI apart from the lists */
+const def = (o: Partial<UniverseDef> = {}): UniverseDef => ({ ...UNIVERSE_DEFAULTS, traded_on_eval_date: true, exclude_price_breaks: true, ...o } as UniverseDef);
 const tickers = (u: Partial<UniverseDef>) => applyUniverse(ROWS, def(u)).eligible.map(r => r.ticker);
 
 describe('applyUniverse: index and group filters', () => {
@@ -84,11 +85,13 @@ const RSI = { id: 'a', enabled: true, test: { kind: 'value', op: 'lt', value: 30
 
 describe('validateUniverse: index and group filters', () => {
   it('a definition without the new keys normalizes and hashes as before the filters existed (pinned at commit 1a28d2ca), with or without the lists', async () => {
+    // the chips as they defaulted then (on; off by default since EXEC-PRICE-DISTORTION): stated, so the pinned hashes hold
+    const then = (u: Record<string, unknown>) => ({ traded_on_eval_date: true, exclude_price_breaks: true, ...u });
     const before: [unknown, string][] = [
-      [{ universe: { security_types: ['stock'] }, conditions: [], logic: 'all' }, '821bd576b9c379bcf295c8d08997600a73cf2cc4ef7c8936af188d6d4fbdd438'],
-      [{ universe: { security_types: ['stock'], sectors_in: ['Financials', 'Energy'], industries_out: ['Coal'], price_min: 50, adv20_min_idr: 1e9, tickers: ['BBCA', 'TLKM'] }, conditions: [RSI], logic: 'all' },
+      [{ universe: then({ security_types: ['stock'] }), conditions: [], logic: 'all' }, '821bd576b9c379bcf295c8d08997600a73cf2cc4ef7c8936af188d6d4fbdd438'],
+      [{ universe: then({ security_types: ['stock'], sectors_in: ['Financials', 'Energy'], industries_out: ['Coal'], price_min: 50, adv20_min_idr: 1e9, tickers: ['BBCA', 'TLKM'] }), conditions: [RSI], logic: 'all' },
         '9286be56f17e50c5b19d985be16a2efff49f988fed6c28afbaca5968f4d4732c'],
-      [{ universe: { security_types: ['stock'], include_unclassified: true, traded_on_eval_date: false, metric_filters: [{ kind: 'value', metric: { kind: 'universe', attr: 'last' }, op: 'gt', value: 100 }] }, conditions: [RSI], logic: 'any' },
+      [{ universe: then({ security_types: ['stock'], include_unclassified: true, traded_on_eval_date: false, metric_filters: [{ kind: 'value', metric: { kind: 'universe', attr: 'last' }, op: 'gt', value: 100 }] }), conditions: [RSI], logic: 'any' },
         '72ee993a070fefed8ab029e17b25e1b87bf2ee9225f8c1900618cd811d0b6934'],
     ];
     for (const [d, hash] of before) {

@@ -510,7 +510,7 @@ const bound = (x: unknown, field: string, integer: boolean, min: number): number
   return x;
 };
 /** The universe block, normalized (contract.ts UniverseDef; P15 classification values from the groupings). The P4 chips
-    traded_on_eval_date and exclude_price_breaks are true when absent (report 8.5 "Default true") and include_unclassified
+    traded_on_eval_date and exclude_price_breaks are false when absent (EXEC-PRICE-DISTORTION; were true, P4) and include_unclassified
     false; a present value that is not a boolean is INVALID_INPUT. The normalized block always holds security_types,
     the three booleans, the three bounds (null for none) and tickers (null for all); the include and exclude lists and
     metric_filters only when not empty (the page leaves empty ones out). So the definition hash of a request that leaves
@@ -545,8 +545,8 @@ export function validateUniverse(input: unknown, field: string, ctx: ValidateCon
   out.price_min = bound(u.price_min, `${field}.price_min`, false, 0);
   out.adv20_min_idr = bound(u.adv20_min_idr, `${field}.adv20_min_idr`, false, 0);
   out.min_history_bars = bound(u.min_history_bars, `${field}.min_history_bars`, true, 1);
-  out.traded_on_eval_date = bool(u.traded_on_eval_date, `${field}.traded_on_eval_date`, true);
-  out.exclude_price_breaks = bool(u.exclude_price_breaks, `${field}.exclude_price_breaks`, true);
+  out.traded_on_eval_date = bool(u.traded_on_eval_date, `${field}.traded_on_eval_date`, false);
+  out.exclude_price_breaks = bool(u.exclude_price_breaks, `${field}.exclude_price_breaks`, false);
   out.tickers = u.tickers === undefined || u.tickers === null ? null : [...stringList(u.tickers, `${field}.tickers`, [...ctx.tickers], 'tickers')];
   if (u.metric_filters !== undefined) {
     if (!Array.isArray(u.metric_filters)) throw new ScreenerError('INVALID_INPUT', `${field}.metric_filters must be a list of value tests.`, `${field}.metric_filters`);

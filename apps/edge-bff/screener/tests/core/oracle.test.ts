@@ -303,8 +303,9 @@ function universeOracle(u: Universe) {
   let stale = 0, broken = 0;
   const eligible: UniverseRow[] = [];
   for (const row of ROWS) {
-    if (u.traded !== false && row.last_bar < E) { stale++; continue }
-    if (u.breaks !== false && row.remarks.some(x => x.code === 'PRICE_BREAK')) { broken++; continue }
+    // the chips hide only when switched on (absent: off, EXEC-PRICE-DISTORTION 2026-11-24; P4 had absent mean on)
+    if (u.traded === true && row.last_bar < E) { stale++; continue }
+    if (u.breaks === true && row.remarks.some(x => x.code === 'PRICE_BREAK')) { broken++; continue }
     if (u.tickers && !u.tickers.includes(row.ticker)) continue;
     if (u.sectors_in && !(row.sector === null ? u.include_unclassified : u.sectors_in.includes(row.sector))) continue;
     if (u.price_min !== null && !(fin(row.last) && row.last >= u.price_min)) continue;

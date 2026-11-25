@@ -265,30 +265,32 @@ test('a screen without conditions lists the universe (universe_only)', async () 
   assert.ok(r.body.rows.every((x: any) => x.status === 'match' && x.met === 0 && x.cells.length === 0));
 });
 
-test('P4: stale and price-break tickers are hidden by default and counted; shown through the chips, they carry their remarks and their values, a price-derived cell across the ex-date marked PRICE_BREAK_IN_LOOKBACK', async () => {
+test('P4 (EXEC-PRICE-DISTORTION): stale and price-break tickers are shown by default with their remarks and their values, a price-derived cell across the ex-date marked PRICE_BREAK_IN_LOOKBACK; the chips switched on hide and count them', async () => {
   const u = universe(6, 320);
   u.prices.OLD = walk(9, 300, { last: '2026-08-21' });
   u.ref.push(['OLD', 'Stale', 'stock', 'Energy', 'Coal']);
-  const ex = u.prices.T002[u.prices.T002.length - 5][0];
+  const n = u.prices.T002.length, ex = u.prices.T002[n - 5][0];
+  // a 1:5 split whose history before the ex-date is still on the old scale (raw)
+  u.prices.T002 = u.prices.T002.map((b: any[], i: number) => i < n - 5 ? [b[0], b[1] * 5, b[2] * 5, b[3] * 5, b[4] * 5, b[5]] : b);
   const fake = await startFakeTerminal({ key: PROXY, publication: { finished_at: '2026-10-27T13:03:23Z', ...u, actions: [['T002', ex, 'STOCK_SPLIT', 1, 5, null, null]] } });
   const app = createApp(configFor(fake.url, { SCREENER_THREADS: '1' }), { pollMs: 3_600_000 });
   const port = await app.listen(0, '127.0.0.1');
   apps.push({ app, fake });
   await app.refresher.tick();
   const def = (chips: Record<string, boolean>) => ({ universe: { ...U, ...chips }, logic: 'all', conditions: [{ id: 'a', enabled: true, test: { kind: 'value', op: 'lt', value: 101, metric: { kind: 'indicator', indicator: 'I13', params: {}, output: 'rsi' } } }] });
-  const hidden = await call(port, 'POST', '/v1/run', runBody(def({})), auth(OWNER_A));
-  assert.deepEqual(hidden.body.universe, { listed: 7, eligible: 5, stale_hidden: 1, price_break_hidden: 1, filtered_out: 0 });
-  assert.ok(!hidden.body.rows.some((r: any) => r.ticker === 'OLD' || r.ticker === 'T002'));
-  const shown = await call(port, 'POST', '/v1/run', runBody(def({ traded_on_eval_date: false, exclude_price_breaks: false }), 2), auth(OWNER_A));
-  assert.equal(shown.body.universe.eligible, 7);
+  const shown = await call(port, 'POST', '/v1/run', runBody(def({})), auth(OWNER_A));
+  assert.deepEqual(shown.body.universe, { listed: 7, eligible: 7, stale_hidden: 0, price_break_hidden: 0, filtered_out: 0 });
   const old = shown.body.rows.find((r: any) => r.ticker === 'OLD'), split = shown.body.rows.find((r: any) => r.ticker === 'T002');
   assert.deepEqual(old.remarks, [{ code: 'STALE', last_bar_date: '2026-08-21' }]);
   assert.equal(old.cells[0].eval_date, '2026-08-21', 'evaluated at its own last bar, never NA for being stale');
-  assert.equal(split.remarks[0].code, 'PRICE_BREAK'); assert.equal(split.remarks[0].ex_date, ex);
-  assert.equal(split.cells[0].remark, 'PRICE_BREAK_IN_LOOKBACK'); assert.equal(typeof split.cells[0].value, 'number', 'the value is shown (P4.1 A)');
+  assert.equal(split.remarks[0].code, 'PRICE_BREAK'); assert.equal(split.remarks[0].kind, 'unadjusted'); assert.equal(split.remarks[0].ex_date, ex);
+  assert.equal(split.cells[0].remark, 'PRICE_BREAK_IN_LOOKBACK'); assert.equal(typeof split.cells[0].value, 'number', 'the value is shown as is (the user: "value harus tetap ditampilkan as is dengan badge")');
   assert.ok(shown.body.warnings.some((w: any) => w.code === 'PRICE_BREAKS_IN_RESULT'));
+  const hidden = await call(port, 'POST', '/v1/run', runBody(def({ traded_on_eval_date: true, exclude_price_breaks: true }), 2), auth(OWNER_A));
+  assert.deepEqual(hidden.body.universe, { listed: 7, eligible: 5, stale_hidden: 1, price_break_hidden: 1, filtered_out: 0 });
+  assert.ok(!hidden.body.rows.some((r: any) => r.ticker === 'OLD' || r.ticker === 'T002'));
   const universeRows = (await call(port, 'GET', '/v1/universe', undefined, auth())).body.rows;
-  assert.equal(universeRows.length, 7, 'GET universe lists the hidden tickers too, so the chips can count them');
+  assert.equal(universeRows.length, 7, 'GET universe lists every ticker, so the chips can count them');
 });
 
 test('compute_budget: a screen whose worst case is above SCREENER_MAX_CPU_MS is refused before compute, naming its costliest condition; a pre-warmed one passes', async () => {

@@ -9,7 +9,7 @@
      entry's rows, first and last dates, and the entries must cover the columns in ticker order (else DATA_INTEGRITY);
    - the `actions` xsection file: columns t, d, type, ratio_old, ratio_new (+ amount_per_share, currency for Phase 2);
      a superset (every action since the first price year, publisher decision 1), so the price-break rule's bounds are
-     applied by universe.ts priceBreakRemarks with engine.ts ADJUSTED_HISTORY_BOUNDARY (P4);
+     applied by universe.ts distortionRemarks (EXEC-PRICE-DISTORTION, pricecheck.ts) with engine.ts ADJUSTED_HISTORY_BOUNDARY;
    - the reference file ref/tickers.json.gz (name, type, sector, industry; TerminalClient.reference): every ticker of
      the price file must be in it (fixed key, ERRORS M250 class), else the refresh fails.
    Versions: price_data = datafile.dataVersion over (ticker, 'price', pack_sha256) of every ticker of the price file
@@ -43,7 +43,7 @@
    catalog's block (each list with its listed stocks, or REQUIRES_DATA with the reason); its sha256 is part of
    referenceHash, so a changed file is another snapshot (sid) and a refresh rebuilds on it. */
 import crypto from 'node:crypto';
-import { DataError, PRICE_ACTION_TYPES, dataVersion, priceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
+import { DataError, dataVersion, priceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import type { Columnar } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { ADJUSTED_HISTORY_BOUNDARY } from '../../edge-bff/backtest/src/core/engine.ts';
 import { byTicker } from '../../edge-bff/backtest/src/core/signals.ts';
@@ -61,7 +61,7 @@ import { INDICATORS, startParams } from '../../edge-bff/screener/src/core/regist
 import { resolveSignal } from '../../edge-bff/screener/src/core/transforms.ts';
 import { evaluationBar, round12 } from '../../edge-bff/screener/src/core/evaluate.ts';
 import { returnRankAll } from '../../edge-bff/screener/src/core/xsection.ts';
-import { priceBreakRemarks } from '../../edge-bff/screener/src/core/universe.ts';
+import { distortionRemarks } from '../../edge-bff/screener/src/core/universe.ts';
 import type { ActionRow } from '../../edge-bff/screener/src/core/universe.ts';
 import type { TickerReference } from '../../backtest-worker/src/terminal.ts';
 import { brokerFlowData, brokerRowsOf, brokerWindowOf, buildBrokerStore } from './broker.ts';
@@ -175,6 +175,7 @@ export function tickerEntries(doc: Columnar): TickerEntry[] {
 export function actionsByTicker(doc: Columnar): Map<string, ActionRow[]> {
   for (const c of ['t', 'd', 'type', 'ratio_old', 'ratio_new']) if (!doc.columns.includes(c)) throw integrity(`The actions file has no column ${c}.`, 'actions');
   const [t, d, type, ro, rn] = ['t', 'd', 'type', 'ratio_old', 'ratio_new'].map(c => doc[c] as unknown[]);
+  const ap = doc.columns.includes('amount_per_share') ? doc.amount_per_share as unknown[] : null;
   const out = new Map<string, ActionRow[]>();
   const num = (v: unknown, k: number, c: string) => {
     if (v === null) return null;
@@ -184,7 +185,8 @@ export function actionsByTicker(doc: Columnar): Map<string, ActionRow[]> {
   for (let k = 0; k < t.length; k++) {
     if (typeof t[k] !== 'string' || !t[k] || !isDate(d[k]) || typeof type[k] !== 'string')
       throw integrity(`The actions file's row ${k + 1} is not a ticker, an ex date and a type.`, 'actions');
-    const row: ActionRow = { ticker: t[k] as string, type: type[k] as string, ex_date: d[k] as string, ratio_old: num(ro[k], k, 'ratio_old'), ratio_new: num(rn[k], k, 'ratio_new') };
+    const row: ActionRow = { ticker: t[k] as string, type: type[k] as string, ex_date: d[k] as string, ratio_old: num(ro[k], k, 'ratio_old'), ratio_new: num(rn[k], k, 'ratio_new'),
+      ...(ap ? { amount_per_share: num(ap[k], k, 'amount_per_share') } : {}) };   // a rights issue's exercise price (EXEC-PRICE-DISTORTION)
     let list = out.get(row.ticker);
     if (!list) out.set(row.ticker, list = []);
     list.push(row);
@@ -265,13 +267,14 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
     const r = refBy.get(e.t)!;
     if (r.type !== 'stock') continue;
     // universe attributes (report 6.7) and the remarks of P4, by the core's own functions (metrics.ts
-    // universeAttributes: last close, 1D %, ADV20 = signals.ts liquidity, bars, stale; universe.ts priceBreakRemarks)
+    // universeAttributes: last close, 1D %, ADV20 = signals.ts liquidity, bars, stale; universe.ts distortionRemarks)
     const a = universeAttributes(tickerCalc({ ticker: e.t, dates: s.dates, bars: b }), E);
     const remarks: RowRemark[] = a.stale ? [{ code: 'STALE', last_bar_date: a.last_bar }] : [];
     const own = actions.get(e.t) ?? [];
     nActions += own.length;
     if (own.length) {
-      const breaks: PriceBreakRemark[] = priceBreakRemarks(own, s.dates, b.C, { boundary: ADJUSTED_HISTORY_BOUNDARY, priceActionTypes: PRICE_ACTION_TYPES });
+      // EXEC-PRICE-DISTORTION: the one rule (pricecheck.ts), the Backtest's too
+      const breaks: PriceBreakRemark[] = distortionRemarks(own, s.dates, b.C, { boundary: ADJUSTED_HISTORY_BOUNDARY });
       remarks.push(...breaks);
     }
     // the wire's numbers (round12, report 8.5): the page applies universe.ts to these very rows, the worker's S0 too

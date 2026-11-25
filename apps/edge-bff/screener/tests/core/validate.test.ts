@@ -27,10 +27,10 @@ describe('normalization and the definition hash', () => {
   it('states every default: a request that leaves defaults out hashes as one that states them; labels never change it', async () => {
     const short = validateDefinition({ universe: { security_types: ['stock'] }, conditions: [c({ kind: 'value', op: 'lt', value: 30, metric: ind('I13', 'rsi') })], logic: 'all' }, CTX);
     const long = validateDefinition({
-      universe: { security_types: ['stock'], sectors_in: [], include_unclassified: false, price_min: null, adv20_min_idr: null, min_history_bars: null, traded_on_eval_date: true, exclude_price_breaks: true, tickers: null, metric_filters: [] },
+      universe: { security_types: ['stock'], sectors_in: [], include_unclassified: false, price_min: null, adv20_min_idr: null, min_history_bars: null, traded_on_eval_date: false, exclude_price_breaks: false, tickers: null, metric_filters: [] },
       conditions: [{ ...c({ kind: 'value', op: 'lt', value: 30, metric: ind('I13', 'rsi', { length: 14, source: 'close' }) }), label: 'RSI oversold' }], logic: 'all' }, CTX);
     expect(short.conditions[0].test).toEqual({ kind: 'value', metric: { kind: 'indicator', indicator: 'I13', params: { length: 14, source: 'close' }, output: 'rsi' }, op: 'lt', value: 30 });
-    expect(short.universe).toEqual({ security_types: ['stock'], include_unclassified: false, price_min: null, adv20_min_idr: null, min_history_bars: null, traded_on_eval_date: true, exclude_price_breaks: true, tickers: null });
+    expect(short.universe).toEqual({ security_types: ['stock'], include_unclassified: false, price_min: null, adv20_min_idr: null, min_history_bars: null, traded_on_eval_date: false, exclude_price_breaks: false, tickers: null });
     expect(await definitionHash(short)).toBe(await definitionHash(long));
     expect(long.conditions[0].label).toBe('RSI oversold');
     const other = validateDefinition(def([c({ kind: 'value', op: 'lt', value: 30, metric: ind('I13', 'rsi', { length: 7 }) })]), CTX);
@@ -196,11 +196,11 @@ describe('the universe', () => {
     expect(refusal(() => validateUniverse({ ...U, adv20_min_idr: '1e9' }, 'u', CTX)).code).toBe('INVALID_INPUT');
     expect(validateUniverse({ ...U, price_min: 0, min_history_bars: 1 }, 'u', CTX)).toMatchObject({ price_min: 0, min_history_bars: 1 });
   });
-  it('security types are ["stock"] only; the P4 chips are booleans, true when absent', () => {
+  it('security types are ["stock"] only; the chips are booleans, false when absent (EXEC-PRICE-DISTORTION)', () => {
     expect(refusal(() => validateUniverse({ ...U, security_types: ['etf'] }, 'u', CTX)).field).toBe('u.security_types');
     expect(refusal(() => validateUniverse({ ...U, traded_on_eval_date: 'yes' }, 'u', CTX)).code).toBe('INVALID_INPUT');
-    expect(validateUniverse({ security_types: ['stock'] }, 'u', CTX)).toMatchObject({ traded_on_eval_date: true, exclude_price_breaks: true, include_unclassified: false });
-    expect(validateUniverse({ security_types: ['stock'], exclude_price_breaks: false }, 'u', CTX).exclude_price_breaks).toBe(false);
+    expect(validateUniverse({ security_types: ['stock'] }, 'u', CTX)).toMatchObject({ traded_on_eval_date: false, exclude_price_breaks: false, include_unclassified: false });
+    expect(validateUniverse({ security_types: ['stock'], exclude_price_breaks: true }, 'u', CTX).exclude_price_breaks).toBe(true);
   });
   it('a metric filter is a value test, normalized like a condition', () => {
     const u = validateUniverse({ ...U, metric_filters: [{ kind: 'value', op: 'gt', value: 1e10, metric: { kind: 'universe', attr: 'adv20_idr' } }] }, 'u', CTX);

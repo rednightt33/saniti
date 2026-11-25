@@ -107,20 +107,36 @@ test('no look-ahead (6.5 as-of policy): a price file with a bar after its public
   }
 });
 
-test('price breaks (P4): a price-affecting action from ADJUSTED_HISTORY_BOUNDARY to the last bar flags the row; before the boundary, after the last bar, or a dividend does not', async () => {
+test('price breaks (EXEC-PRICE-DISTORTION): the one rule of pricecheck.ts on the closes: a split whose jump is in the history flags the row on any date, one the history already absorbed does not, an action under 10 % from ADJUSTED_HISTORY_BOUNDARY on is uncertain, a session beyond 35 % with no action is an anomaly; after the last bar or a dividend does not', async () => {
   const u = market();
-  const ex = u.prices.T001[u.prices.T001.length - 10][0] as string;
+  const n = u.prices.T001.length, ex = u.prices.T001[n - 10][0] as string;
   assert.ok(ex >= ADJUSTED_HISTORY_BOUNDARY);
+  // T001: a 1:5 split whose history before the ex-date is still on the old scale (raw: the close falls to a fifth)
+  u.prices.T001 = u.prices.T001.map((b: unknown[], i: number) => i < n - 10 ? [b[0], ...(b.slice(1, 5) as number[]).map(x => x * 5), b[5]] : b);
+  // T002: a 1:2 split before the boundary whose history is raw too (no date rule: it is flagged)
+  const exOld = u.prices.T002[n - 80][0] as string;
+  assert.ok(exOld < ADJUSTED_HISTORY_BOUNDARY);
+  u.prices.T002 = u.prices.T002.map((b: unknown[], i: number) => i < n - 80 ? [b[0], ...(b.slice(1, 5) as number[]).map(x => x * 2), b[5]] : b);
+  // T004: one wrong bar with no action (WGSH's case): half the close, then back
+  const bad = n - 30;
+  u.prices.T004 = u.prices.T004.map((b: unknown[], i: number) => i === bad ? [b[0], b[1], b[2], (b[4] as number) / 2, (b[4] as number) / 2, b[5]] : b);
   const actions = [
+    ['T000', ex, 'STOCK_SPLIT', 1, 5, null, null],                       // adjusted already (the six stocks pulled again)
     ['T001', ex, 'STOCK_SPLIT', 1, 5, null, null],
-    ['T002', '2026-07-16', 'STOCK_SPLIT', 1, 2, null, null],             // before the boundary (RAJA's case)
+    ['T002', exOld, 'STOCK_SPLIT', 1, 2, null, null],
+    ['T003', ex, 'BONUS_SHARE', 20, 1, null, null],                      // effect 5 %: cannot be told from a day's move (UD43)
     ['T003', '2026-11-02', 'RIGHT_ISSUE', 10, 3, 500, 'IDR'],           // after the last bar (MGLV's case)
     ['T004', ex, 'DIVIDEND', null, null, 12.5, 'IDR'],                   // a cash dividend
   ];
   const { desc } = await buildSnapshot(await input(u.prices, u.ref, actions));
-  const remarks = (t: string) => desc.rows.find(r => r.ticker === t)!.remarks;
-  assert.deepEqual(remarks('T001').map(r => [r.code, (r as any).ex_date, (r as any).action]), [['PRICE_BREAK', ex, 'STOCK_SPLIT']]);
-  for (const t of ['T002', 'T003', 'T004']) assert.deepEqual(remarks(t), [], t);
+  const remarks = (t: string) => desc.rows.find(r => r.ticker === t)!.remarks.map(r => [(r as any).kind, (r as any).ex_date, (r as any).action]);
+  assert.deepEqual(remarks('T000'), []);
+  assert.deepEqual(remarks('T001'), [['unadjusted', ex, 'STOCK_SPLIT']]);
+  assert.deepEqual(remarks('T002'), [['unadjusted', exOld, 'STOCK_SPLIT']]);
+  assert.deepEqual(remarks('T003'), [['uncertain', ex, 'BONUS_SHARE']]);
+  assert.deepEqual(remarks('T004'), [['anomaly', u.prices.T004[bad][0], 'PRICE_ANOMALY'], ['anomaly', u.prices.T004[bad + 1][0], 'PRICE_ANOMALY']]);
+  const split = desc.rows.find(r => r.ticker === 'T001')!.remarks[0] as any;
+  assert.ok(Math.abs(split.close_ratio - 0.2) < 0.03 && Math.abs(split.effect - 4) < 1e-9, JSON.stringify(split));
 });
 
 test('groupings: the Backtest rule (backtest-worker catalog.ts groupingsOf) on the same reference file', () => {

@@ -16,8 +16,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -71,8 +71,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -134,8 +134,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -184,8 +184,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -221,8 +221,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -319,8 +319,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -381,8 +381,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -437,8 +437,8 @@
           "price_min": 50,
           "adv20_min_idr": 5000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -665,8 +665,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -713,8 +713,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -780,8 +780,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -851,8 +851,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -911,8 +911,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -983,8 +983,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -1050,8 +1050,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -1124,8 +1124,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -1212,8 +1212,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -1267,8 +1267,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null,
           "sectors_out": [
             "Financials"
@@ -1323,8 +1323,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -1398,8 +1398,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -1466,8 +1466,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -1528,8 +1528,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -1578,8 +1578,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null,
           "industries_in": [
             "Banks"
@@ -1656,8 +1656,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -1759,8 +1759,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [
@@ -1847,8 +1847,8 @@
           "price_min": 50,
           "adv20_min_idr": 1000000000,
           "min_history_bars": null,
-          "traded_on_eval_date": true,
-          "exclude_price_breaks": true,
+          "traded_on_eval_date": false,
+          "exclude_price_breaks": false,
           "tickers": null
         },
         "conditions": [

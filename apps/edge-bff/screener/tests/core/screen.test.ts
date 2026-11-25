@@ -31,7 +31,9 @@ const TICKERS = [...base, STALE, SHORT, BROKE];
 const rows: UniverseRow[] = TICKERS.map(t => rowOf(t, E, { adv20_idr: 5e9, last: 1000 },
   t === BROKE ? [{ code: 'PRICE_BREAK', action: 'STOCK_SPLIT', ex_date: EX, ratio_old: 1, ratio_new: 2, close_ratio: 0.5 }] : []));
 const CTX = vctx(TICKERS.map(t => t.ticker));
-const U = { ...UNIVERSE_DEFAULTS, price_min: null, adv20_min_idr: null } as Definition['universe'];
+// the chips switched on: the fixture's expectations read the hiding rule (off by default since EXEC-PRICE-DISTORTION; the
+// default is the test 'by default the stale and the broken stocks are listed')
+const U = { ...UNIVERSE_DEFAULTS, price_min: null, adv20_min_idr: null, traded_on_eval_date: true, exclude_price_breaks: true } as Definition['universe'];
 const close = { kind: 'price', field: 'close' } as const;
 const ind = (indicator: string, output: string, params?: Record<string, unknown>) => ({ kind: 'indicator' as const, indicator, output, ...(params ? { params } : {}) });
 const norm = (d: unknown) => validateDefinition(d, CTX);
@@ -93,6 +95,12 @@ describe('precomputed and dynamic are the same call at two times (report 6.7)', 
 
 describe('stage S0 and the P4 chips', () => {
   const plain = norm({ universe: U, logic: 'all', conditions: [] });
+  it('by default the stale and the broken stocks are listed, with their remarks (EXEC-PRICE-DISTORTION, user 2026-11-24)', () => {
+    const r = runScreen(norm({ universe: { ...UNIVERSE_DEFAULTS, price_min: null, adv20_min_idr: null }, logic: 'all', conditions: [] }), cold());
+    expect(r.universe).toEqual({ listed: 63, eligible: 63, stale_hidden: 0, price_break_hidden: 0, filtered_out: 0 });
+    expect(r.rows.find(x => x.ticker === 'STAL')?.remarks.map(m => m.code)).toEqual(['STALE']);
+    expect(r.rows.find(x => x.ticker === 'PBSA')?.remarks.some(m => m.code === 'PRICE_BREAK')).toBe(true);
+  });
   it('no condition lists the universe (universe_only): stale and price-break tickers hidden and counted', () => {
     const r = runScreen(plain, cold());
     expect([r.mode, r.need, r.universe]).toEqual(['universe_only', 0, { listed: 63, eligible: 61, stale_hidden: 1, price_break_hidden: 1, filtered_out: 0 }]);

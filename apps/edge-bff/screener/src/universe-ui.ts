@@ -86,7 +86,7 @@ const listVal = (u: UState) => {
 /** whether the universe differs from the documented defaults (Clear all is shown then) */
 export function universeEdited(u = S.universe): boolean {
   return !!(u.sectors_in?.length || u.sectors_out?.length || u.industries_in?.length || u.industries_out?.length || listsSet(u) || u.include_unclassified
-    || !isDefaultLiq(u) || u.min_history_bars != null || u.tickers?.length || u.filters.length || !u.traded_on_eval_date || !u.exclude_price_breaks);
+    || !isDefaultLiq(u) || u.min_history_bars != null || u.tickers?.length || u.filters.length || !!u.traded_on_eval_date || !!u.exclude_price_breaks);
 }
 
 /** the active-filter chips (scopeChips) */
@@ -129,7 +129,7 @@ function scopeChips(): { html: string; removable: number; texts: string[] } {
   const h = hidden(), E = ctx.catalog?.data.evaluation_date || null;
   if (U.traded_on_eval_date) add(chipTraded(E), h ? `hides ${h.stale}` : '', 'traded', 'Hides stale stocks (no trade on the evaluation date). Remove to list them with a remark.');
   else { out.push(`<span class="fchip off" title="Stale stocks are listed with a remark">Stale shown <b>${h ? h.stale : ''}</b><button class="link" data-uhide="traded" style="margin-left:4px">Hide</button></span>`); icon('traded', `Stale stocks shown${h ? ` (${h.stale})` : ''}`, '', 'off') }
-  if (U.exclude_price_breaks) add(chipNoBreak, h ? `hides ${h.breaks}` : '', 'breaks', 'Hides stocks whose price history crosses an unadjusted corporate action (temporary: until the price history is adjusted for corporate actions). Remove to list them with a remark.');
+  if (U.exclude_price_breaks) add(chipNoBreak, h ? `hides ${h.breaks}` : '', 'breaks', 'Hides stocks with a price break, a possible one or a price anomaly in their history. Remove to list them with a remark and their values marked.');
   else { out.push(`<span class="fchip off" title="Stocks with a price break are listed with a remark; their values are shown and marked">Price breaks shown <b>${h ? h.breaks : ''}</b><button class="link" data-uhide="breaks" style="margin-left:4px">Hide</button></span>`); icon('breaks', `Price breaks shown${h ? ` (${h.breaks})` : ''}`, '', 'off') }
   // the icons on the bar, and the full list they open (its open state survives a redraw)
   return { html:icons.join('') + `<div class="flist" id="uFlist" role="dialog" aria-label="Active filters"${flistOpen ? '' : ' hidden'}>${out.join('')}</div>`, removable:n, texts };

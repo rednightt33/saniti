@@ -2173,6 +2173,26 @@
      null
     ]
    ]
+  },
+  {
+   "t": "GA03",
+   "s": "near",
+   "c": [
+    [
+     "fail",
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     "pass",
+     25.4146078292,
+     null,
+     null,
+     null
+    ]
+   ]
   }
  ],
  "preset:minervini": [

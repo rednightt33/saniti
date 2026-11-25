@@ -17,9 +17,10 @@
    cross-section `metric`, universe `attr`) are typed `string` here on purpose: they are read from the generated
    catalog (screener-registry.json, screener-metrics.json) by validate.ts and the page, never kept in code (report 6.9).
 
-   P4 (user 2026-10-28, "P4 tidak, dihide tapi di remark saat di show di filter table"; P4.1 "P4 - pakai A"): stale
-   tickers and tickers with an unadjusted price break are hidden by default; shown through the universe chips, their
-   rows carry a remark with the reason, and price-derived values whose lookback crosses the ex-date are SHOWN with a
+   P4 (user 2026-10-28, "P4 tidak, dihide tapi di remark saat di show di filter table"; P4.1 "P4 - pakai A") hid stale
+   tickers and tickers with an unadjusted price break by default; since EXEC-PRICE-DISTORTION (user 2026-11-24: "value
+   harus tetap ditampilkan as is dengan badge", UD42 A) both are listed by default (the chips hide them only when
+   switched on): their rows carry a remark with the reason, and price-derived values whose lookback crosses the break are SHOWN with a
    cell remark, not blanked. A remark explains a value and never changes PASS, FAIL or NA (report 6.9 Remarks). Where a
    report section still says "blank" or "NA" for those cells, the user's P4.1 choice wins.
 
@@ -219,13 +220,12 @@ export const CONDITION_ID = /^[0-9a-z]{1,6}$/;
       the _out filters never drop it (P15); 'Undefined' is not a value; values come from catalog.groupings;
     - price_min (last close), adv20_min_idr (liquidity() at E): number >= 0 or null; min_history_bars: integer >= 1
       or null; boundaries inclusive;
-    - traded_on_eval_date (default true, P4; report 8.5 "Default true", so a request may leave it out and absent means
-      true, here, in universe.ts and in validate.ts's normalized definition): hides stale tickers (last bar before E);
+    - traded_on_eval_date (default false since EXEC-PRICE-DISTORTION, user 2026-11-24: "value harus tetap ditampilkan as is dengan badge", UD42 A; was true, P4; a request may leave it out and absent means false,
+      here, in universe.ts and in validate.ts's normalized definition): true hides stale tickers (last bar before E);
       false lists them with the row remark STALE, evaluated at their own last bar;
-    - exclude_price_breaks (default true, P4 user choice; chip "No unadjusted price break"; absent means true as
-      above): hides tickers with an unadjusted price-affecting action (ADJUSTED_HISTORY_BOUNDARY <= ex-date <= last
-      bar); false lists them with the row remark PRICE_BREAK and the cell remark PRICE_BREAK_IN_LOOKBACK on affected
-      cells (P4.1 A: values shown);
+    - exclude_price_breaks (default false as above; chip "No unadjusted price break" when switched on; absent means
+      false): true hides tickers with a PRICE_BREAK remark (pricecheck.ts); false lists them with the row remark and the
+      cell remark PRICE_BREAK_IN_LOOKBACK on affected cells (P4.1 A: values shown);
     - tickers: an explicit list, each must be in the universe (unknown tickers refused by name);
     - metric_filters: VALUE tests only, at most max_metric_filters;
     - indices_in / indices_out, groups_in / groups_out (additive, EXEC-SCREENER-STOCK-LISTS, user 2026-11-09 options 1A,
@@ -241,8 +241,8 @@ export interface UniverseDef {
   indices_in?: string[]; indices_out?: string[]; groups_in?: string[]; groups_out?: string[];
   include_unclassified?: boolean;
   price_min?: number | null; adv20_min_idr?: number | null; min_history_bars?: number | null;
-  traded_on_eval_date?: boolean;      // absent: true (P4)
-  exclude_price_breaks?: boolean;     // absent: true (P4)
+  traded_on_eval_date?: boolean;      // absent: false (EXEC-PRICE-DISTORTION; was true, P4)
+  exclude_price_breaks?: boolean;     // absent: false (EXEC-PRICE-DISTORTION; was true, P4)
   tickers?: string[] | null;
   metric_filters?: ValueTest[];
 }
@@ -250,7 +250,7 @@ export interface UniverseDef {
     report 6.12, 9.2). "Clear all" returns to these (report 9.2). */
 export const UNIVERSE_DEFAULTS: Readonly<UniverseDef> = Object.freeze<UniverseDef>({
   security_types: ['stock'], include_unclassified: false, price_min: 50, adv20_min_idr: 1e9, min_history_bars: null,
-  traded_on_eval_date: true, exclude_price_breaks: true, tickers: null, metric_filters: [],
+  traded_on_eval_date: false, exclude_price_breaks: false, tickers: null, metric_filters: [],
 });
 
 export type Logic = 'all' | 'any' | 'at_least';
@@ -281,12 +281,18 @@ export const NA_REASONS: readonly NaReason[] = ['INSUFFICIENT_HISTORY', 'NULL_AT
 /** Row remarks (P4; report 8.4 universe body, 8.5 rows[].remarks; codes in 6.9 Remarks). The page words them in
     src/texts.ts from these codes and fields (report 9.2), so no message travels.
     - STALE: the ticker's last bar is before E; last_bar_date is that bar;
-    - PRICE_BREAK (TEMPORARY, until the D22 data-layer fix): one remark per unadjusted price-affecting action (type in
-      PRICE_ACTION_TYPES of datafile.ts, ADJUSTED_HISTORY_BOUNDARY <= ex_date <= the ticker's last bar); action: its
-      type (STOCK_SPLIT, ...); ratio_old / ratio_new as published (null when absent); close_ratio = close on the
-      ex-date / close on the bar before (null when either is missing). */
+    - PRICE_BREAK: a distortion the price history holds (EXEC-PRICE-DISTORTION, user 2026-11-24; pricecheck.ts, the one
+      rule the Backtest reads too; universe.ts distortionRemarks), up to the ticker's last bar. kind 'unadjusted': a
+      price-affecting action (PRICE_ACTION_TYPES of datafile.ts) whose ex-date jump is the action's (any date);
+      'uncertain': one from ADJUSTED_HISTORY_BOUNDARY on whose effect is under 10 % or cannot be measured (UD43: effect
+      names its size when known); 'anomaly': a session moving beyond 35 % with no recorded action (UD44; action
+      'PRICE_ANOMALY', ex_date the session). action: the type; ratio_old / ratio_new as published (null when absent);
+      close_ratio = close of the ex-date session / close of the session before (null when either is missing); effect = the
+      action's factor minus 1 (null when unknown). A remark written before the kinds (no kind) reads as 'unadjusted'.
+      The ticker is never hidden by it unless the user turns the chip on (exclude_price_breaks, off by default). */
 export interface StaleRemark { code: 'STALE'; last_bar_date: string }
-export interface PriceBreakRemark { code: 'PRICE_BREAK'; action: string; ex_date: string; ratio_old: number | null; ratio_new: number | null; close_ratio: number | null }
+export type PriceBreakKind = 'unadjusted' | 'uncertain' | 'anomaly';
+export interface PriceBreakRemark { code: 'PRICE_BREAK'; action: string; ex_date: string; ratio_old: number | null; ratio_new: number | null; close_ratio: number | null; kind?: PriceBreakKind; effect?: number | null }
 export type RowRemark = StaleRemark | PriceBreakRemark;
 export type RowRemarkCode = RowRemark['code'];
 export const ROW_REMARK_CODES: readonly RowRemarkCode[] = ['STALE', 'PRICE_BREAK'];
