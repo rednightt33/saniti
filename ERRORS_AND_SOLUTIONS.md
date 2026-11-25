@@ -9085,8 +9085,8 @@ in its staleness check.
   of the ex date against the action's factor (`price_check_factor`; a rights issue's factor solved from the ex-date
   close), the Python twin of `pricecheck.ts verdictOf` (`tests/test_price_check.py` holds the two on the same cases).
   Recomputed on dev's rows: VKTR, AHAP and BUVA read `adjusted`.
-- **Status:** fixed in `4799ee94`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site (a publisher deploy and a manual run republish the
-  events files); tested by its author only (RECHECK.md `errors/M559-M562`).
+- **Status:** fixed in `4799ee94`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site; the publisher (`b14794ac`) and its run of 2026-11-25 19:21 UTC
+  republished the events files (VKTR, AHAP, BUVA read `adjusted`); tested by its author only (RECHECK.md `errors/M559-M562`).
 - **Lesson:** a measured flag is checked against a case whose answer is known (here the six stocks pulled again) before
   it is used to hide or show data.
 

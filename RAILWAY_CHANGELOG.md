@@ -21,7 +21,18 @@
      with the cron kept (`0,30 0,1,12 * * *`: it built and did not run), then Railway Run Now (19:21:33 UTC, the mutation
      telegram-monitor uses; away from every tick, so `should_run` lets it publish). The upload also carries the example
      mode's `examples.py` and the Radar cut by name (EXEC-MU-ACCOUNTS carried part "terminal-publisher's upload").
-- **The run:** in progress (recorded below when it ends).
+- **The run (19:21:33-19:25:38 UTC, `done` 237.9 s, `railway logs`):** 951 manifests read (33.2 s); `event stamps read`
+  changed 864 (the format bump, UD56), `broker_basis measured=361 attention=3 pending=1 unresolved=2 raw_price=1`; 864
+  events files and the packs written (865 files, 3.34 MB); `xsection` price the same bytes (not put again), actions
+  `actions.9a634f40f008e0e3` (3,501 rows, basis column 11 rows in the broker window 2026-08-14..2026-11-09); refs, radar,
+  overview, watchlist and broker days as usual; `state.json` 19:25:32 UTC. Read back from the bucket
+  (`events_check.py` through the publisher's own credentials, nothing printed): every named events file says format 4;
+  VKTR 2026-10-07, AHAP 2026-10-09 and BUVA 2026-10-14 now read price `adjusted` (before the run `raw`, ERRORS M560),
+  FORU and PBSA `adjusted`, COCO's two rights issues `terms`/`adjusted` as before, BRNA `same`, MGLV and PSSI `pending`.
+  screener-worker swapped to the publication at 19:28:18 UTC (60 broker days carried, 0 missing).
+- **Postgres restart (AGENTS.md "Postgres memory after large updates"):** `scripts/restart_postgres.py` READY at 19:35
+  UTC (memory 1.99 GB of its 2 GB limit, 0 statements, 0 user runs, no cron within 45 minutes, outside B6), then
+  `--apply`: deployment `387a3c04`, start 19:36:19 UTC, 12 s, `/ready` 200 on both sites.
 - **Shared:** both sites use the new workers from step 1 and 2 (engine and registry versions moved: saved screens and
   backtests are re-reviewed once); the live page stays on `ec739a06` until `live` moves (UD47 b, step 9 of the order).
 - **Rollback:** the beta: redeploy `edge-bff` `382cb664` (`6dee649d`); screener-worker: redeploy its deployment of
