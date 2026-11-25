@@ -11089,7 +11089,7 @@
     "f3970f7d"
    ],
    "fix_note": "4799ee94 (pricecheck.ts, publisher price_check_side), e9fc3ab6 (Screener row badges, chips off), db7bf27e (Backtest: Flow values kept and noted, trade flags, PRICE_DISTORTIONS), af806747 (docs), 6b86cf6e (migration 20261125_001, not applied); round-1 fixes: fa1f1f60 (Screener 1D note by kind, the anomaly check on every stock, the CSV kind), 6a2473fd (Backtest R3 point-in-time Flow values, flags reach the result, entry-only flags, legacy reach), 6d254189 (publisher side from the closes either side, no side above the market, EVENTS_FORMAT 4, verify of the basis column, the migration safe on odd rows)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "screener pricecheck.test.ts on real cases (VKTR, AHAP, BUVA, FORU, PBSA, PSSI, WGSH); publisher tests 261 and tests/test_price_check.py; Screener vitest 1370; screener-worker 146/149 (two heap tests of this machine, one queue test passes alone); backtest-worker 288/289 (M463 heap test of this machine); look-ahead gate 24/24; Backtest page 107/107; the migration rehearsed on a local scratch database (apply, refused rerun, rollback)",
    "status": "waiting",
    "open_row": "",
@@ -11280,7 +11280,7 @@
     "978734ff"
    ],
    "fix_note": "7d3e5b3c (agent 42e2d99e) (build-screener-registry.mjs effectiveProbe, effectiveCut, effectiveDecay, effectiveScaling, historyByOption, PROBE.effective and its five new shapes, registry rebuilt; new src/core/effective.ts movingBars, effectiveStarts, effectiveStartAt; registry.ts historyOf and the EffectiveWindow types; metrics.ts resolveIndicator historyClass and effectiveWindow; evaluate.ts seriesLookbackStart and seriesLookbackStarts; condition.ts startOf; backtest-worker grammar.ts noteReach; docs SCREENER_ONBOARDING.md, BACKTEST_END_TO_END.md, backtest/CONTRACT.md, contract.ts); 32fdb581 (agent 5edf87b3) (reach.test.mjs: the real-price checks share one measurement and yield to the event loop)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "screener: tsc, vitest 1402 pass and 1 skipped (54 files, two full runs clean; tests/core/reach.test.mjs 10: the eight real-price fixtures cut at 0.1 % at 208 settings, start, x1.5, x2, x3 and every option with a window, none exceeds its window; every window at a third fails; planted unadjusted splits x5, x2, x0.5 every 97 bars end inside the window, at most 0.78 of it; the RSI rule; Bollinger I27-I29 recursive at EMA and RMA; tests/core/lookback.test.ts: RSI unmarked on its window's first bar and marked one bar later, a break far older not, its row badge with it, Stochastic RSI and RSI 100 always, Bollinger basis at EMA marked 40 bars after, at SMA not; oracle.test.ts reads the window on its own on 240 random screens), registry:check current; backtest-worker 289/290 (the M463 heap test of this machine), look-ahead gate files 32/32 (lookahead, pit, flow-grammar, grammar with the new reach test: Calc.reach equals the Screener cell mark, the trade flag follows); Backtest page tsc, vitest 107/107; screener-worker 148/150 (the two heap tests of this machine; onboarding pointers 2/2); test_generated_files, test_recheck_ledger, test_recheck_doc",
    "status": "waiting",
    "open_row": "",
@@ -11313,7 +11313,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (engine.ts tradeDistortions(q.r.p, q.j, i))",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "flow-grammar.test.ts (a period from 2021-03: flagged exactly the signals whose FL17 window reads across the action; fails on the old line) and grammar.test.ts (a spike two months before every signal flags none from bar 150; from bar 1 the trades whose window holds it; fails on the old line); worker suites lookahead, pit, flow-grammar, grammar, engine, run, result green",
    "status": "waiting",
    "open_row": "",
@@ -11338,7 +11338,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (engine.ts: the warning reads FlowNotes.entry too)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "flow-grammar.test.ts: a vs_average over FL01 flags trades and warns FLOW_BASIS_CHANGE (fails without the fix)",
    "status": "waiting",
    "open_row": "",
@@ -11363,7 +11363,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (pricecheck.ts verdict none, universe.ts no remark; engine.ts priceDistortions no distortion for a terms factor below 1)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "universe.test.ts (BAJA 2:1 at Rp500 against 334 and 316: no remark; in the money still unadjusted), pricecheck.test.ts, engine.test.ts (above the market no flag whatever the session does; fails without the fix); Screener core 205 and worker suites green",
    "status": "waiting",
    "open_row": "",
@@ -11388,7 +11388,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (texts.ts ACTION keys RIGHT_ISSUE and BONUS_SHARE, the anomaly reason, chipNoBreak \"No price break or anomaly\"; smoke.mjs, universe-ui.ts, contract.ts)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "Screener core and page suites green; the smoke test reads the new chip label",
    "status": "waiting",
    "open_row": "",
@@ -11413,7 +11413,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (engine.ts priceDistortions reads the publisher's side as written)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "engine.test.ts (side raw unadjusted, null uncertain from the boundary, CMNP 2020-11-10 none)",
    "status": "waiting",
    "open_row": "",
@@ -11438,7 +11438,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (colorPicker.ts usedRow: the box's own colour first; assets.ts assetColors only the compare lines shown)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "color_picker.test.ts usedRow (3 cases); the Terminal suite 1,182 green; typecheck and build",
    "status": "waiting",
    "open_row": "",
@@ -11463,7 +11463,7 @@
     "978734ff"
    ],
    "fix_note": "978734ff (build-screener-registry.mjs effectiveProbe: breaks of every size the data holds on the shapes and the real fixtures; the registry rebuilt)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "tests/core/reach.test.mjs at every measured setting with breaks 100, 20, 2, 0.5, 0.2, 1e-5 on the eight real fixtures (10 of 10 green); npm run registry:check current",
    "status": "waiting",
    "open_row": "",

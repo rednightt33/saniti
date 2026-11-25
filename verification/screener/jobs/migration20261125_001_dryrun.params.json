@@ -1,0 +1,44 @@
+{
+ "_note": "EXEC-PRICE-DISTORTION F4 (UD46, the user 2026-11-24: \"B\"; ERRORS M561): migration 20261125_001_edge_bff_screener_chips_off.sql, DRYRUN. Staged by scripts/onboarding/run_job.sh with the migration file as an extra. DRYRUN runs it without its COMMIT, the probes inside, then ROLLBACK; APPLY commits it, then the probes read-only.",
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261125_001_edge_bff_screener_chips_off.sql"
+ ],
+ "probes": [
+  [
+   "screens_total",
+   null,
+   "SELECT count(*) FROM edge_bff.screener_items WHERE kind = 'screen'"
+  ],
+  [
+   "chips_on_left",
+   null,
+   "SELECT count(*) FROM edge_bff.screener_items WHERE kind = 'screen' AND ((definition #> '{definition,universe,traded_on_eval_date}') = 'true'::jsonb OR (definition #> '{definition,universe,exclude_price_breaks}') = 'true'::jsonb)"
+  ],
+  [
+   "backup_rows",
+   null,
+   "SELECT count(*), count(DISTINCT owner_key) FROM edge_bff.screener_items_chips_backup_20261125"
+  ],
+  [
+   "changed_rows",
+   null,
+   "SELECT count(*) FROM edge_bff.screener_items_chips_backup_20261125 b JOIN edge_bff.screener_items s USING (item_id) WHERE s.revision = b.revision + 1"
+  ],
+  [
+   "chips_after",
+   null,
+   "SELECT (s.definition #> '{definition,universe,traded_on_eval_date}')::text, (s.definition #> '{definition,universe,exclude_price_breaks}')::text, count(*) FROM edge_bff.screener_items_chips_backup_20261125 b JOIN edge_bff.screener_items s USING (item_id) GROUP BY 1, 2 ORDER BY 1, 2"
+  ],
+  [
+   "backup_grants",
+   null,
+   "SELECT CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END, string_agg(a.privilege_type, ',' ORDER BY a.privilege_type) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a WHERE n.nspname = 'edge_bff' AND c.relname = 'screener_items_chips_backup_20261125' AND a.grantee <> c.relowner GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "largest_screen_bytes",
+   null,
+   "SELECT max(octet_length(definition::text)) FROM edge_bff.screener_items WHERE kind = 'screen'"
+  ]
+ ]
+}

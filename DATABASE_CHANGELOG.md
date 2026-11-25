@@ -1,5 +1,27 @@
 # Database changelog
 
+## 2026-11-26 — EXEC-PRICE-DISTORTION F4: both hiding chips switched off once in every saved screen (edge_bff, migration 20261125_001; APPLIED on dev 2026-11-25 21:57 UTC; data)
+
+- **Why:** UD46, the user 2026-11-24: "B", "masukan exec ya"; the concept "value harus tetap ditampilkan as is dengan
+  badge" (ERRORS M561): a saved screen held the chips `traded_on_eval_date` and `exclude_price_breaks` as explicit true
+  values and would keep hiding the stocks the release shows with a badge. The user's go for the release, 2026-11-25:
+  "you have my approval to deploy", the order "A, ya" (the migration after the round-2 fixes).
+- **Migration:** `20261125_001_edge_bff_screener_chips_off.sql`, sha256 `728c4083…7a34b7f`: a backup table
+  `edge_bff.screener_items_chips_backup_20261125` (the universe of each screen it changes, owner only, nothing for
+  PUBLIC), each true chip set to false (a screen that would pass 65536 bytes has its true chips removed instead), the
+  revision raised by one, `updated_at` and `definition_hash` kept; a check that no screen still hides and every changed
+  row differs only in the two chips; a second run refuses. The rollback (by hand, with the user's go) is at the file's end.
+  Re-check round 2 (`agents_20261126-publisher`) rehearsed it on a scratch PostgreSQL 16: scalar universes (40,000 rows,
+  0.48 s), screens of 65534 to 65536 bytes, absent and false chips, the rollback.
+- **Jobs (orc-test-runner, `scripts/onboarding/run_job.sh`, `DATABASE_URL` set and removed for each run, `VAR_REMOVED`):**
+  DRYRUN (21:19 UTC, the body inside one rolled-back transaction, OK) and APPLY (21:57 UTC, committed, `JOB_DONE
+  MIGRATION APPLY`, `JOB_EXIT 0`); logs `verification/screener/jobs/migration20261125_001_{dryrun,apply}.log`. Read back
+  after the commit: 1 saved screen in all, 1 backed up (1 owner) and changed (revision + 1), both its chips `false`, 0
+  screens still hiding, the backup table with no grantee but its owner, the largest screen 773 bytes. M340 before each:
+  0 EDGE jobs, 0 orc turns, 0 statements. Not a large update (Postgres memory 0.49 GB).
+- **Live:** the live site's code (`ec739a06`) reads a false chip as off; `live` moves to the beta's commit in the same
+  release (step 9).
+
 ## 2026-11-23 — Step 7, the payment shell: payment orders and their events (edge_bff, migration 20261123_001; APPLIED on dev 2026-11-23 05:32 UTC)
 
 - **Why:** EXEC.md EXEC-MU-ACCOUNTS option A item 6; the user, 2026-11-22: "langkah 7 berkaitan dengan pembuatan

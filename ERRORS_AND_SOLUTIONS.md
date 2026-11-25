@@ -8887,7 +8887,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M566 — Re-check round 2 of the price-distortion release: a trade's flags on the run calendar's bar, a badge on rights issues above the market, effective windows measured on small breaks only (2026-11-26; fixed in `f3970f7d` and `978734ff`, on the branch)
+### M566 — Re-check round 2 of the price-distortion release: a trade's flags on the run calendar's bar, a badge on rights issues above the market, effective windows measured on small breaks only (2026-11-26; fixed in `f3970f7d` and `978734ff`, on the beta)
 
 - **Symptom (re-check round 2, five Opus medium agents, `agents_20261126-terminal`, `-screener`, `-backtest`,
   `-publisher`, `-history`, the user's go 2026-11-25; and the beta check of 2026-11-26):**
@@ -8936,7 +8936,7 @@ in its staleness check.
     172 to 203, ADX 198 to 229, KVO 377 to 557); Alpha KAMA (I05) and the PVO histogram read the whole history.
     `tests/core/reach.test.mjs` measures every setting with those breaks too, and its power check is a quarter of a
     window (a third is no longer always reached on the eight stocks).
-- **Status:** fixed in `f3970f7d` and `978734ff`, on the branch, not deployed; tested by their author only (RECHECK.md
+- **Status:** fixed in `f3970f7d` and `978734ff`, on the beta (`e9a3f013`, 2026-11-26), not on the live site; tested by their author only (RECHECK.md
   `agents_20261126-*`). Carried (EXEC-PRICE-DISTORTION, carried parts): P2-1 asked (UD60), P2-3 and S2-4 planned; S2-2
   (the live page reads the new worker until `live` moves) and P2-4 (the migration's fallback removes a chip the live
   page reads as on) end with the move of `live` in this release (step 9); the legacy `flow` conditions (top5, fnet,

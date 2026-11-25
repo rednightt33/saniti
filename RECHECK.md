@@ -35,10 +35,10 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Perbaikan sesudah ledger langkah 8 (2026-11-22/23) | EXEC-MU-ACCOUNTS | 7 | 3 | 4 | 0 | 0 | 0 |
 | Panduan lab, lab dibuka, jendela registrasi (test-out 2026-11-23) | EXEC-MU-ACCOUNTS | 17 | 0 | 13 | 0 | 4 | 0 |
 | Tahap preview dan Flow lab (cek langkah 2-3) | EXEC-MU-ACCOUNTS | 20 | 0 | 20 | 0 | 0 | 0 |
-| Screener dan Backtest: harga terdistorsi (ERRORS M559-M562) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
-| Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
-| Screener dan Backtest: re-check ronde 2 harga terdistorsi (ERRORS M566) | EXEC-PRICE-DISTORTION | 6 | 0 | 0 | 6 | 0 | 0 |
-| Terminal: kotak warna (ERRORS M566) | EXEC-PRICE-DISTORTION | 1 | 0 | 0 | 1 | 0 | 0 |
+| Screener dan Backtest: harga terdistorsi (ERRORS M559-M562) | EXEC-PRICE-DISTORTION | 1 | 0 | 1 | 0 | 0 | 0 |
+| Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) | EXEC-PRICE-DISTORTION | 1 | 0 | 1 | 0 | 0 | 0 |
+| Screener dan Backtest: re-check ronde 2 harga terdistorsi (ERRORS M566) | EXEC-PRICE-DISTORTION | 6 | 0 | 6 | 0 | 0 | 0 |
+| Terminal: kotak warna (ERRORS M566) | EXEC-PRICE-DISTORTION | 1 | 0 | 1 | 0 | 0 | 0 |
 
 1 item sudah dua ronde diuji ulang. Aturan 8 membolehkan paling banyak dua ronde, lalu sisanya masuk
 register keputusan; uji berikutnya hanya dengan keputusan user:
@@ -316,30 +316,30 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M559-M562` | Price distortion detected by a date rule, read wrong for three stocks, and hidden instead of marked | `4799ee94`, `e9fc3ab6`, `db7bf27e`, `af806747`, `6b86cf6e`, `fa1f1f60`, `6a2473fd`, `6d254189`, `f3970f7d` | branch | M559, M560, M561, M562 | 2 |
+| `errors/M559-M562` | Price distortion detected by a date rule, read wrong for three stocks, and hidden instead of marked | `4799ee94`, `e9fc3ab6`, `db7bf27e`, `af806747`, `6b86cf6e`, `fa1f1f60`, `6a2473fd`, `6d254189`, `f3970f7d` | beta | M559, M560, M561, M562 | 2 |
 
 ### Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M561-UD52-UD55` | A whole-history output was marked for every price break before it however old, and Bollinger at an EMA or RMA basis was classed window | `7d3e5b3c`, `32fdb581`, `978734ff` | branch | M561, M558 | 1 |
+| `errors/M561-UD52-UD55` | A whole-history output was marked for every price break before it however old, and Bollinger at an EMA or RMA basis was classed window | `7d3e5b3c`, `32fdb581`, `978734ff` | beta | M561, M558 | 1 |
 
 ### Screener dan Backtest: re-check ronde 2 harga terdistorsi (ERRORS M566) (6)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `agents_20261126-backtest/B2-1` | A trade's distortion flags read the run calendar's bar instead of the stock's | `f3970f7d` | branch | M566 | 0 |
-| `agents_20261126-backtest/B2-2` | FLOW_BASIS_CHANGE read another note set than the trade flags | `f3970f7d` | branch | M566 | 0 |
-| `agents_20261126-screener/S2-1` | A rights issue priced at or above the market got a badge without a size | `f3970f7d` | branch | M566 | 0 |
-| `agents_20261126-screener/S2-3-S2-5` | The anomaly reason, the action names and the chip label | `f3970f7d` | branch | M566 | 0 |
-| `agents_20261126-publisher/P2-2` | The Backtest recomputed a price side from the lots' factor | `f3970f7d` | branch | M566 | 0 |
-| `agents_20261126-history/H2-1` | Effective windows measured on small breaks only: large splits left values unmarked | `978734ff` | branch | M566 | 0 |
+| `agents_20261126-backtest/B2-1` | A trade's distortion flags read the run calendar's bar instead of the stock's | `f3970f7d` | beta | M566 | 0 |
+| `agents_20261126-backtest/B2-2` | FLOW_BASIS_CHANGE read another note set than the trade flags | `f3970f7d` | beta | M566 | 0 |
+| `agents_20261126-screener/S2-1` | A rights issue priced at or above the market got a badge without a size | `f3970f7d` | beta | M566 | 0 |
+| `agents_20261126-screener/S2-3-S2-5` | The anomaly reason, the action names and the chip label | `f3970f7d` | beta | M566 | 0 |
+| `agents_20261126-publisher/P2-2` | The Backtest recomputed a price side from the lots' factor | `f3970f7d` | beta | M566 | 0 |
+| `agents_20261126-history/H2-1` | Effective windows measured on small breaks only: large splits left values unmarked | `978734ff` | beta | M566 | 0 |
 
 ### Terminal: kotak warna (ERRORS M566) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `agents_20261126-terminal/T2-1-T2-2` | The colour boxes offered a hidden compare line's colour and lacked the box's own | `f3970f7d` | branch | M566 | 0 |
+| `agents_20261126-terminal/T2-1-T2-2` | The colour boxes offered a hidden compare line's colour and lacked the box's own | `f3970f7d` | beta | M566 | 0 |
 
 ## Hitungan per status
 

@@ -1,5 +1,32 @@
 # Railway changelog
 
+## 2026-11-26 — The beta on `e9a3f013`: the fixes of re-check round 2 (ERRORS M566); the saved-screen migration applied; `live` held for the user's confirmation
+
+- **The user's words (2026-11-25):** "Untuk recheck ronde 2, gunakan 5 agent Opus 5,5 medium. Setelah temuan tersebut ada,
+  segera dibereskan, kemudian you have my approval to deploy"; the order "A, ya".
+- **Before:** no deployment waiting or building; 0 EDGE jobs, 0 orc turns, 0 active statements (M340).
+- **Order (worker first):**
+  1. **backtest-worker `6261ed6b`** SUCCESS 21:46 UTC: CLI upload of `git archive e9a3f013` of its Dockerfile's COPY
+     paths with the Dockerfile (its `Backtest look-ahead gate` run 45703072149 green); start line
+     `engine_version="64ac7cd874cc0750"` (the tripwire's), `registry_version="2a69cd7d3f01ceaf"`.
+  2. **`main` `cb9bdfb6` → `e9a3f013`** 21:54 UTC (fast-forward; every check of `e9a3f013` green before the push: Backend
+     tests 45703072041, look-ahead gate, record statuses, generated files, page smoke, image builds): `edge-bff` `2b2c9704`
+     and `screener-worker` `3dd8ba65` SUCCESS; the beta's `/version` names `e9a3f013`, `/ready` 200; the live site
+     `/ready` 200 on `ec739a06`. terminal-publisher not uploaded (its code did not change since `b14794ac`).
+- **Beta checks (as the owner, read-only computations):** `beta_remarks.py` (862 stocks, RSI(14) < 100): BAJA, BRNA, MGLV
+  now no badge (S2-1), BMAS and PSSI "Possible break" with their size, WGSH and RDTX anomalies, BSWD (two) and PPGL price
+  breaks, 25 stale stocks with their badge, VKTR, AHAP, BUVA, FORU, PBSA, ENRG none. `beta_backtest.py` (2026-07-01 to
+  2026-11-09, FL01 lots against their 20-session average): VKTR 6 of 19 trades flagged `flow` (the six signals across its
+  unresolved rights issue), AHAP 3 of 16, BUVA 5 of 18, each run warning FLOW_BASIS_CHANGE (B2-1, B2-2).
+- **Migration 20261125_001** applied 21:57 UTC (DATABASE_CHANGELOG.md, same date): 1 saved screen, its two chips off.
+- **`live` not moved:** `scripts/live_diff.py --sites` lists 140 commits the live site lacks, among them beta-only
+  releases (EXEC-PINE-INDICATORS, EXEC-TERMINAL-SESSION-TOGGLE, step 7's payment shell, the preview stage); the move waits
+  for the user's confirmation with that list (EXEC-PRICE-DISTORTION P-2). Until then the live page (`ec739a06`) reads the
+  new workers (ERRORS M566 S2-2).
+- **Rollback:** the beta: redeploy `edge-bff` `237bc6f9` (`cb9bdfb6`) and screener-worker `d4588aef`; backtest-worker: a
+  CLI upload of `git archive cb9bdfb6` (its previous deployment `227c802f` was replaced); the migration: its rollback
+  block (by hand, with the user's go).
+
 ## 2026-11-26 — The beta on `cb9bdfb6`: EXEC-PRICE-DISTORTION with EXEC-SENSITIVITY-FLAGS, EXEC-RECHECK-LIST, EXEC-TRIPWIRE-LAB (a), Alpha KAMA B, the Screener quick UI (the user: "you have my approval to deploy")
 
 - **The user's words (2026-11-25):** "Untuk recheck ronde 2, gunakan 5 agent Opus 5,5 medium. Setelah temuan tersebut ada,
