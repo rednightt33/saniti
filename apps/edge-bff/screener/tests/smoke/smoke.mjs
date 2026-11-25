@@ -792,7 +792,7 @@ await at('P4: stale and price-break stocks hidden by default, shown with remarks
   await fresh(); await ready();
   const n0 = Number((await text('#uCount')).match(/In universe ([\d,]+)/)[1]);
   const chips = await page.evaluate(() => document.querySelector('#cardU .chipbar').textContent.replace(/\s+/g, ' '));
-  expect(/Traded on 2026-10-23 hides 2/.test(chips) && /No unadjusted price break hides 2/.test(chips), 'P4 chips missing: ' + chips);
+  expect(/Traded on 2026-10-23 hides 2/.test(chips) && /No price break or anomaly hides 2/.test(chips), 'P4 chips missing: ' + chips);
   // user 2026-11-08 (option 9): the filters are round icons; a click opens their list with the × buttons
   expect(await page.locator('#cardU .chipbar .ficon').count() >= 4 && await page.locator('#uFlist').isHidden(), 'the active filters are not round icons with their list closed');
   await page.click('#cardU .chipbar .ficon'); await page.waitForTimeout(100);

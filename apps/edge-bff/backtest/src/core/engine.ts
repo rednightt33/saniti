@@ -24,7 +24,7 @@
 import type { BacktestRequest, ExitPhase, ExitReason, Limits, SkippedSignal, SignalTrack } from './contract.ts';
 import type { BasisAction, CorporateAction, PriceSeries, BrokerColumns } from './datafile.ts';
 import { unknownBasis } from './datafile.ts';
-import { capAnomalies, measurable, verdictOf } from '../../../screener/src/core/pricecheck.ts';
+import { capAnomalies, measurable } from '../../../screener/src/core/pricecheck.ts';
 import type { FlowData } from './flow.ts';
 import type { Ledger, LedgerTrade } from './ledger.ts';
 import type { Num, Params } from '../../../terminal/src/calc/indicators.ts';
@@ -84,10 +84,10 @@ interface Prepared {
     session beyond the 35 % cap with no action (UD44). `bar` the ticker's first bar on or after the date. */
 export interface PriceDistortion { date: string; bar: number; kind: 'unadjusted' | 'uncertain' | 'anomaly' }
 /** The ticker's price distortions, by bar. Whether an action's jump is in the history: the publisher's reading of the
-    close across it (basis `price`, publisher.py price_check_side, the Python twin of pricecheck.ts verdictOf); where it
-    has none and the block gives the action's terms factor, verdictOf on the closes either side of the ex date; else not
-    measured. An action before the boundary that cannot be measured reads as adjusted, as the bulk load left it (the
-    Screener's rule). Values are never changed by it: it only flags trades and counts them (PRICE_DISTORTIONS). */
+    close across it (basis `price`, publisher.py price_check_side, the Python twin of pricecheck.ts verdictOf); null
+    there, or no block, is not measured. A rights issue priced above the market (its terms factor below 1) moves no
+    price and is no distortion. An action before the boundary that cannot be measured reads as adjusted, as the bulk
+    load left it (the Screener's rule). Values are never changed by it: it only flags trades and counts them (PRICE_DISTORTIONS). */
 export function priceDistortions(d: TickerData): PriceDistortion[] {
   const dates = d.prices.dates, C = d.prices.bars.C as ArrayLike<number | null>, n = dates.length, out: PriceDistortion[] = [];
   if (!n) return out;
@@ -97,11 +97,14 @@ export function priceDistortions(d: TickerData): PriceDistortion[] {
     if (a.date > dates[n - 1] || seen.has(`${a.type}|${a.date}`)) continue;
     seen.add(`${a.type}|${a.date}`);
     const i = barOf(a.date), b = d.basis?.find(x => x.ex === a.date && x.type === a.type);
-    let side = b?.price ?? null;
-    if (side === null && b && typeof b.terms === 'number' && measurable(a.type, b.terms)) {
-      const v = verdictOf(i > 0 ? C[i - 1] ?? null : null, C[i] ?? null, b.terms).verdict;
-      side = v === 'raw' ? 'raw' : v === 'adjusted' ? 'adjusted' : null;
-    }
+    // a rights issue above the market moves no price (pricecheck.ts measurable, the publisher's price_check_side gives
+    // it no side): no distortion to flag (re-check round 2, S2-1)
+    if (b && typeof b.terms === 'number' && !measurable(a.type, b.terms)) continue;
+    // the publisher's side as it wrote it (price_check_side on the closes either side, the twin of the Screener's
+    // pricecheck.ts): null is its "cannot be told" (an effect under the size it can tell, or a close missing), never
+    // recomputed here from the block's `terms`, which is the lots' factor and not the closes' (re-check round 2, P2-2:
+    // CMNP 2020-11-10 read raw here, too small to tell in the publisher and the Screener)
+    const side = b?.price ?? null;
     if (side === 'raw') out.push({ date: a.date, bar: i, kind: 'unadjusted' });
     else if (side === null && a.date >= ADJUSTED_HISTORY_BOUNDARY) out.push({ date: a.date, bar: i, kind: 'uncertain' });
   }
@@ -243,7 +246,9 @@ function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof reque
     if (startDate < FLOW_PRE_2021 || (notes?.first !== undefined && notes.first < FLOW_PRE_2021 && notes.first <= endDate)) pre.push(p.ticker);
     if (notes?.crossing) crossing.push(p.ticker);
     if (notes && (p.data.basis ?? []).some(a => a.status === 'terms' && a.factor !== 1 && a.ex > startDate)) lots.push(p.ticker);
-    if (notes && [...notes.distorted].some(i => i >= i0 && i <= iEnd)) basis.push(p.ticker);
+    // the bars the trade flags read (FlowNotes.entry: the entry conditions' windows, a transform's included) and the raw
+    // outputs' own windows (FlowNotes.distorted), so a run with a flagged trade always warns (re-check round 2, B2-2)
+    if (notes && [...notes.distorted, ...(notes.entry ?? [])].some(i => i >= i0 && i <= iEnd)) basis.push(p.ticker);
     const g = (p.data.flow?.gap_bars ?? []).filter(i => i >= start && i <= iEnd).length;
     if (g) gap.set(p.ticker, g);
     const u = p.data.flow?.unmatched_dates;
@@ -533,7 +538,9 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
       initial_risk_pct: q.risk ? q.risk / q.fill : null, entry_condition_ids: q.ids,
       flags: {
         corporate_actions: q.r.p.data.corporate_actions.filter(c => c.date > entryDate && c.date <= exitDate).map(c => ({ date: c.date, type: c.type })),
-        distortions: tradeDistortions(q.r.p, q.r.m.bar[q.j], i),
+        // the stock's own bars (q.j, i): tradeDistortions reads Calc.reach, FlowNotes.entry and the stock's dates by
+        // them; m.bar[q.j] is the run calendar's (re-check round 2, B2-1)
+        distortions: tradeDistortions(q.r.p, q.j, i),
         stop_and_target_same_bar: q.both, stale_mark: q.stale,
       },
     });

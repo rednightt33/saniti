@@ -176,3 +176,30 @@ test('UD55: an RSI condition reaches back its effective window as the Screener m
   conditionSeries(k, cond('b', { kind: 'value', metric: { kind: 'indicator', indicator: 'I14', output: 'k', params: {} }, op: 'gt', value: 50 }), 'entry.conditions[0]');
   assert.equal(k.reach![last], 0);
 });
+
+/* Re-check round 2 (agents_20261126-backtest, B2-1): a trade's price-distortion flags read the stock's own bars. With the
+   period starting long after the stock's first bar, a one-day spike (an anomaly) two months before every signal flags no
+   trade whose entry (close against its 5-session average) cannot read it; from the stock's first bar the trades whose
+   window holds the spike are flagged. */
+test('price-distortion flags follow the signal\'s own bar when the period starts after the stock\'s first bar (B2-1)', async () => {
+  const { prepare, run } = await import('../../edge-bff/backtest/src/core/engine.ts');
+  const { sessions, ticker } = await import('./lookahead/fixture.ts');
+  const dates = sessions('2025-01-06', 300), t = ticker('SPKE', 71, dates);
+  const C = t.bars.C as number[], H = t.bars.H as number[], O = t.bars.O as number[], L = t.bars.L as number[];
+  C[100] = Math.round(C[99] * 1.6); H[100] = C[100]; O[100] = C[100]; L[100] = C[100];
+  const ctx = () => prepare({ ihsg: { ticker: 'IHSG', dates, bars: t.bars, dropped: 0 } as never, classification: {},
+    tickers: { SPKE: { prices: { ticker: 'SPKE', dates, bars: t.bars, dropped: 0 } as never, corporate_actions: [] } } } as never);
+  const q = (from: number) => ({ schema_version: 1, mode: 'single', single: { ticker: 'SPKE', benchmark: 'buy_and_hold' }, period: { from: dates[from], to: dates[299], oos_fraction: 0 },
+    entry: { logic: 'all', at_least: 1, window_bars: 1, conditions: [{ id: 'p', kind: 'test', test: { kind: 'value', metric: { kind: 'transform', fn: 'vs_average', of: { kind: 'price', field: 'close' }, args: { ma: 'SMA', length: 5, form: 'percent' } }, op: 'gt', value: 0 } }] },
+    exit: { atr_length: 14, stop: { mode: 'none', pct: 0.07, atr_mult: 2, reward_risk_x: 2, line: { indicator: 'I09', output: 'supertrend' } }, take_profit: { mode: 'none', pct: 0.15, r_multiple: 2, atr_mult: 3 },
+      trailing: { mode: 'none', pct: 0.05, chandelier_length: 22, chandelier_mult: 3, line: { indicator: 'I01', output: 'sma' } }, max_hold_bars: 3, signals: { logic: 'any', conditions: [] } },
+    sizing: { capital_idr: 100e6, allocation_fraction: 1 }, costs: { buy_fee: 0.0015, sell_fee: 0.0025, slippage: 0.0005, skip_ara_open_gap: false, ara_gap_fraction: 0.2 },
+    robustness: { monte_carlo_runs: 0, seed: 7, sensitivity: false } }) as never;
+  const flagged = (l: { trades: { signal_bar: number; flags: { distortions?: unknown[] } }[]; dates: string[] }) =>
+    l.trades.filter(x => (x.flags.distortions ?? []).length).map(x => dates.indexOf(l.dates[x.signal_bar]));
+  const late = run(ctx(), q(150));
+  assert.ok(late.trades.length > 0);
+  assert.deepEqual(flagged(late), [], 'no trade of a period from bar 150 reads the spike of bar 100');
+  const early = run(ctx(), q(1)), near = flagged(early);
+  assert.ok(near.length > 0 && near.every(i => i >= 100 && i <= 106), `the flagged signals read the spike: ${near}`);
+});

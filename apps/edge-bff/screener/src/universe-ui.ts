@@ -2,7 +2,7 @@
    universe of report 8.5. Kept: Sector and Industry (lists and counts from catalog.groupings, unclassified stocks
    counted apart, P15), Liquidity (ADV20 ≥ Rp B and price ≥ Rp; defaults 1 B and 50). Shown disabled with their reason
    (P11 a): Board, Market cap, Free float, Special notation (off, its chip removed). New (P4): the chips
-   "Traded on E" and "No unadjusted price break", on by default, each naming how many tickers it hides. One rule for
+   "Traded on E" and "No price break or anomaly", on by default, each naming how many tickers it hides. One rule for
    "Clear all" and both liquidity clears: back to the documented defaults (report 9.2).
    EXEC-SCREENER-STOCK-LISTS (user 2026-11-09, option 1A): Index and Group (konglomerasi) beside Sector and Industry, from
    catalog.stock_lists: each list a chip with its name and its stocks in the universe (the definition as its tooltip),

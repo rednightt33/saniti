@@ -75,7 +75,7 @@ for t in tickers:
     trades = (res or {}).get('trades') or []
     marked = [x for x in trades if (x.get('flags') or {}).get('distortions')]
     kinds = sorted({d['kind'] for x in marked for d in x['flags']['distortions']})
-    warn = sorted({w.get('code') for w in (res or {}).get('warnings', []) if isinstance(w, dict)})
+    warn = sorted({w.get('code') for w in ((res or {}).get('meta') or {}).get('warnings', []) if isinstance(w, dict)})
     (out / f'{t}.json').write_text(json.dumps({'request_id': rid, 'trades': [{k: x.get(k) for k in ('entry_date', 'exit_date', 'flags')} for x in trades],
-                                               'warnings': (res or {}).get('warnings')}, indent=1, default=str))
+                                               'warnings': ((res or {}).get('meta') or {}).get('warnings')}, indent=1, default=str))
     print(t, 'FINISHED', 'trades', len(trades), 'marked', len(marked), 'kinds', kinds, 'warnings', warn)

@@ -54,11 +54,11 @@ describe('check 1: the 35 % cap', () => {
 });
 
 describe('a rights issue above the market (re-check 2026-11-25, finding A)', () => {
-  it('cannot be told: small, no factor, so no size; a reverse split below 1 still reads', async () => {
+  it('moves no price: verdict none, no factor (no badge, re-check round 2 S2-1); a reverse split below 1 still reads', async () => {
     const { checkActions, measurable } = await import('../../src/core/pricecheck.ts');
     const dates = ['2026-01-05', '2026-01-06'];
     const [c] = checkActions(dates, [101, 100], [{ ex: '2026-01-06', type: 'RIGHT_ISSUE', ratio_old: 2, ratio_new: 1, exercise: 140 }]);
-    expect([c.verdict, c.factor]).toEqual(['small', null]);
+    expect([c.verdict, c.factor]).toEqual(['none', null]);
     expect(measurable('REVERSE_SPLIT', 0.1)).toBe(true);
     const [r] = checkActions(dates, [100, 1000], [{ ex: '2026-01-06', type: 'REVERSE_SPLIT', ratio_old: 10, ratio_new: 1 }]);
     expect(r.verdict).toBe('raw');

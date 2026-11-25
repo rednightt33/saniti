@@ -273,7 +273,7 @@ export function initAssets(ctx: Ctx) {
       b.onclick = (e: any) => {
         e.preventDefault(); e.stopPropagation();
         // the colours on the chart: the compare lines' and the indicators' (checker S-6 and its re-checks)
-        cbox.toggle(b, { label:'Line', color:() => o.color, used:[...assets.map(x => x.opts.color), ...(ctx.indicatorColors?.() || [])],
+        cbox.toggle(b, { label:'Line', color:() => o.color, used:[...ctx.assetColors?.() ?? [], ...(ctx.indicatorColors?.() || [])],
           setColor:c => { o.color = c; b.style.setProperty('--c', c) }, onChange:() => live() });
       };
       return b;
@@ -358,7 +358,9 @@ export function initAssets(ctx: Ctx) {
   /* a pane's crosshair on session i (none while it has no broker data: a series of empty points has no value to sit on) */
   const crossAt = (q: FlowPane, i: number | undefined) => i === undefined || !q.combos.length ? q.chart.clearCrosshairPosition()
     : q.chart.setCrosshairPosition(q.net[i] || 0, dates[i] as any, q.bars);
-  ctx.assetColors = () => assets.map(x => x.opts.color);            // the colour boxes offer them (checker S-6)
+  // the colour boxes offer the compare lines drawn now (checker S-6); one hidden by its eye draws nothing, as a hidden
+  // indicator (re-check round 2, T2-1)
+  ctx.assetColors = () => assets.filter(x => x.opts.visible !== false).map(x => x.opts.color);
   ctx.extraFlowCharts = () => panes().map(p => p.chart);
   ctx.extraFlowHeight = () => panes().reduce((s, p) => s + p.el.getBoundingClientRect().height, 0);
   const paneH = () => Math.round(Math.max(130, Math.min(200, (mainCol.clientHeight - 46) * .18)));

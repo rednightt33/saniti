@@ -25,7 +25,9 @@ export const TICK_PRICE = 10;             // UD44 detail: at Rp10 or below a mov
 export const SMALL = 0.10;                // under this effect an action cannot be measured (publisher BASIS_PRICE_MIN)
 export const PRICE_ACTIONS = ['STOCK_SPLIT', 'REVERSE_SPLIT', 'BONUS_SHARE', 'RIGHT_ISSUE', 'STOCK_DIVIDEND'] as const;
 
-export type Verdict = 'adjusted' | 'raw' | 'small' | 'unknown';
+/** 'none': the action cannot move the price (a rights issue priced at or above the market: nobody takes it up, so the
+    raw and the adjusted history are the same and no value is distorted; re-check round 2, S2-1: BAJA, BRNA, MGLV) */
+export type Verdict = 'adjusted' | 'raw' | 'small' | 'unknown' | 'none';
 export interface ActionTerms { ex: string; type: string; ratio_old: number | null; ratio_new: number | null; exercise?: number | null }
 export interface ActionCheck { ex: string; type: string; factor: number | null; verdict: Verdict; jump: number | null }
 export interface Anomaly { date: string; prev: number; close: number; pct: number }
@@ -73,8 +75,9 @@ export function checkActions(dates: readonly string[], closes: ArrayLike<number 
     const i = firstOnOrAfter(dates, a.ex);
     const before = i > 0 ? closes[i - 1] ?? null : null, onEx = i < dates.length ? closes[i] ?? null : null;
     const factor = termsFactor(a.type, a.ratio_old, a.ratio_new, onEx as number | null, a.exercise ?? null);
-    // a rights issue above the market cannot be told (no factor, so no size is named for it)
-    if (!measurable(a.type, factor)) { out.push({ ex: a.ex, type: a.type, factor: null, verdict: 'small', jump: null }); continue }
+    // a rights issue above the market moves no price: no factor, and nothing to badge (re-check round 2, S2-1: as `small`
+    // it had a badge "possible break" without a size on BAJA, BRNA and MGLV, though raw and adjusted are the same)
+    if (!measurable(a.type, factor)) { out.push({ ex: a.ex, type: a.type, factor: null, verdict: 'none', jump: null }); continue }
     const v = verdictOf(before as number | null, onEx as number | null, factor);
     out.push({ ex: a.ex, type: a.type, factor, ...v });
   }

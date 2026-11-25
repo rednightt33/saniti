@@ -802,3 +802,26 @@ test('portfolio ranking: a candidate without a score on its signal bar ranks aft
   const n = go(market({ AAA: { bars: late, dates: DAYS.slice(20, 30) }, BBB: { bars: late, dates: DAYS.slice(20, 30) } }), request(29, q => portfolio(q, 1, 'rsi'), 20));
   assert.deepEqual(n.trades.map(t => t.ticker), ['AAA']);
 });
+
+test('a rights issue priced above the market flags no trade: raw and adjusted are the same (re-check round 2, S2-1: BAJA)', async () => {
+  const { priceDistortions } = await import('../../edge-bff/backtest/src/core/engine.ts');
+  const dates = weekdays(6, '2026-09-22'), C = [434, 436, 388, 334, 316, 310], ex = dates[4];
+  const data = (terms: number | null, price: 'adjusted' | 'raw' | null, closes = C) => ({ prices: prices('BAJA', dates, closes.map(c => bar(c, c, c, c))) as never,
+    corporate_actions: [{ date: ex, type: 'RIGHT_ISSUE' }],
+    basis: [{ ex, type: 'RIGHT_ISSUE', factor: 1, status: 'same' as const, price, decided: dates[5], terms }] }) as never;
+  // the publisher gives a rights issue above the market no side (price null) and its terms factor below 1: nothing flags,
+  // whatever the session does (here it rises by about its factor's inverse, which a check of the closes would call raw)
+  assert.deepEqual(priceDistortions(data(0.81, null)), []);
+  assert.deepEqual(priceDistortions(data(0.81, null, [434, 436, 388, 316, 390, 392])), []);
+  // a rights issue in the money: the publisher's side is read as written (raw: unadjusted), and its null ("cannot be
+  // told") is never recomputed from the lots' terms factor (re-check round 2, P2-2): uncertain from the boundary on, and
+  // nothing before it (CMNP 2020-11-10, terms 1.0947, too small to tell in the publisher and the Screener)
+  assert.deepEqual(priceDistortions(data(1.5, 'raw', [434, 436, 470, 474, 316, 310])).map(x => x.kind), ['unadjusted']);
+  assert.deepEqual(priceDistortions(data(1.5, null, [434, 436, 470, 474, 316, 310])).map(x => x.kind), ['uncertain']);
+  const old = weekdays(6, '2020-11-04');
+  assert.deepEqual(priceDistortions({ prices: prices('CMNP', old, [1800, 1790, 1795, 1810, 1655, 1650].map(c => bar(c, c, c, c))) as never,
+    corporate_actions: [{ date: old[4], type: 'RIGHT_ISSUE' }],
+    basis: [{ ex: old[4], type: 'RIGHT_ISSUE', factor: 1, status: 'same', price: null, decided: old[5], terms: 1.0947 }] } as never), []);
+  // without its terms (an older block) the action is uncertain from the boundary on, as before
+  assert.deepEqual(priceDistortions(data(null, null)).map(x => x.kind), ['uncertain']);
+});

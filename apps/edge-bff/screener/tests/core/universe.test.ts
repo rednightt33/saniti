@@ -102,6 +102,11 @@ describe('distortionRemarks (EXEC-PRICE-DISTORTION: the one rule, pricecheck.ts)
     expect(distortionRemarks([act('BONUS_SHARE', '2026-01-06', 30, 1)], ['2026-01-05', '2026-01-06'], [336, 334], opts)).toEqual([]);
     expect(distortionRemarks([act('RIGHT_ISSUE', '2026-10-20', null, null)], ['2026-10-19', '2026-10-21'], [300, 290], opts).map(x => [x.kind, x.effect])).toEqual([['uncertain', null]]);
   });
+  it('a rights issue priced at or above the market moves no price: no remark (BAJA 2026-09-28, 2 : 1 at Rp500 against 334 and 316; re-check round 2, S2-1)', () => {
+    expect(distortionRemarks([act('RIGHT_ISSUE', '2026-09-28', 2, 1, 500)], ['2026-09-25', '2026-09-28', '2026-09-29'], [334, 316, 310], opts)).toEqual([]);
+    // in the money it still reads: 1 : 1 at Rp100 against 300 and 200 (factor 1.5, the jump on the old scale) is unadjusted
+    expect(distortionRemarks([act('RIGHT_ISSUE', '2026-09-28', 1, 1, 100)], ['2026-09-25', '2026-09-28'], [300, 200], opts).map(x => x.kind)).toEqual(['unadjusted']);
+  });
   it('a session beyond the cap with no action is an anomaly (WGSH); a cash dividend, an action after the last bar and a duplicate add nothing', () => {
     const r = distortionRemarks([act('DIVIDEND', '2026-03-30', null, null), act('STOCK_SPLIT', '2026-05-02')], ['2026-03-30', '2026-03-31', '2026-04-01'], [125, 65, 128], opts);
     expect(r.map(x => [x.kind, x.action, x.ex_date])).toEqual([['anomaly', 'PRICE_ANOMALY', '2026-03-31'], ['anomaly', 'PRICE_ANOMALY', '2026-04-01']]);

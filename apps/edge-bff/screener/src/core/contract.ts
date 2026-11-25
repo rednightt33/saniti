@@ -223,7 +223,7 @@ export const CONDITION_ID = /^[0-9a-z]{1,6}$/;
     - traded_on_eval_date (default false since EXEC-PRICE-DISTORTION, user 2026-11-24: "value harus tetap ditampilkan as is dengan badge", UD42 A; was true, P4; a request may leave it out and absent means false,
       here, in universe.ts and in validate.ts's normalized definition): true hides stale tickers (last bar before E);
       false lists them with the row remark STALE, evaluated at their own last bar;
-    - exclude_price_breaks (default false as above; chip "No unadjusted price break" when switched on; absent means
+    - exclude_price_breaks (default false as above; chip "No price break or anomaly" when switched on; absent means
       false): true hides tickers with a PRICE_BREAK remark (pricecheck.ts); false lists them with the row remark and the
       cell remark PRICE_BREAK_IN_LOOKBACK on affected cells (P4.1 A: values shown);
     - tickers: an explicit list, each must be in the universe (unknown tickers refused by name);

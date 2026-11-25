@@ -83,8 +83,7 @@ export function buildColorPicker(o: PickerOptions): HTMLElement {
     box.append(grid);
     // the colours in use and a custom one: the browser's colour chooser, its value applied as it changes
     const used = document.createElement('div'); used.className = 'cpk-used';
-    const inGrid = new Set(COLOR_GRID.flat().map(norm));
-    [...new Set((o.used || []).map(norm))].filter(c => /^#[0-9a-f]{6}$/.test(c) && !inGrid.has(c)).slice(0, 9).forEach(c => used.append(swatch(c, color(), pick)));
+    usedRow(color(), o.used || []).forEach(c => used.append(swatch(c, color(), pick)));
     const add = document.createElement('label'); add.className = 'cpk-add'; add.title = 'Custom colour';
     const inp = document.createElement('input'); inp.type = 'color'; inp.value = /^#[0-9a-f]{6}$/i.test(color()) ? color() : '#2962ff'; inp.setAttribute('aria-label', 'Custom colour');
     inp.oninput = () => { setColor(inp.value); o.onChange(false) };
@@ -133,6 +132,14 @@ export function placeColorBox(vp: { w: number; h: number }, dlg: Rect, btn: Rect
    opened from a button, closed by a press elsewhere in the dialog, Escape, a second press on its button, or a colour
    picked in a box without line options; the focus returns to its button (checker S-4). A press on the backdrop while a
    box is open closes the box only (checker S-7): `backdropDown` says so, and the dialog skips that click. */
+/** The box's row of colours in use (beyond the grid, at most nine): its own colour first, so it always has its selected
+    swatch (re-check round 2, T2-2: a hidden indicator draws nothing, so its colour was not in `used` and the focus fell on
+    the next control), then the colours drawn on the chart, each once, as #rrggbb. */
+export function usedRow(current: string, used: readonly string[]): string[] {
+  const inGrid = new Set(COLOR_GRID.flat().map(norm));
+  return [...new Set([current, ...used].map(norm))].filter(c => /^#[0-9a-f]{6}$/.test(c) && !inGrid.has(c)).slice(0, 9);
+}
+
 export class ColorBoxHost {
   box: (HTMLDivElement & { owner?: HTMLElement }) | null = null;
   private swallow = false;

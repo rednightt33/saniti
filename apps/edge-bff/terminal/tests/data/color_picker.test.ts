@@ -73,4 +73,12 @@ describe('colour box (UD32)', () => {
     const d = dlgAt(1280, 300, 280), at = placeColorBox({ w: 1280, h: 300 }, d, btnIn(d, 100), box);
     expect(at.maxH).toBe(284); expect(at.top).toBe(8);
   });
+  it('the colours in use start with the box\'s own, so it always has its selected swatch (re-check round 2, T2-2)', async () => {
+    const { usedRow, COLOR_GRID } = await import('../../src/app/colorPicker');
+    // a hidden indicator's own colour is not among the drawn ones: it still comes first, once, lower-cased
+    expect(usedRow('#123ABC', ['#abcdef', '#123abc', '#bcdef0'])).toEqual(['#123abc', '#abcdef', '#bcdef0']);
+    // a grid colour is never repeated in the row; a value that is not #rrggbb is left out
+    expect(usedRow(COLOR_GRID[0][0], ['rgba(1,2,3,0.5)', '#abcdef'])).toEqual(['#abcdef']);
+    expect(usedRow('#000001', Array.from({ length: 12 }, (_, k) => `#0000${(k + 16).toString(16)}`)).length).toBe(9);
+  });
 });

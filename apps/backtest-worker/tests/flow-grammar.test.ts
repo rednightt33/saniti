@@ -221,6 +221,24 @@ test("the run's Flow warnings: before 2021, basis change, source gaps and droppe
   assert.deepEqual(w.FLOW_SOURCE_GAP, [2, ['WARN']]);
   assert.deepEqual(w.FLOW_ROWS_DROPPED, [2, ['WARN']]);
   assert.match(a.warnings.find(x => x.code === 'FLOW_ROWS_DROPPED')!.message, /1 day on the Regular board, 1 day on the Nego board/);
+  // re-check round 2 (agents_20261126-backtest, B2-1): the period starts long after the stock's first bar, so the run
+  // calendar's bar numbers differ from the stock's; a trade is flagged by its own signal bar: flagged exactly when the
+  // signal's FL17 window (20 sessions, the event within 3) reads across the unsettled action, and never otherwise
+  const ex = dates.indexOf(action), sig = (x: { signal_bar: number }) => dates.indexOf(a.dates[x.signal_bar]);
+  const flowFlag = (x: { flags: { distortions?: { kind: string }[] } }) => (x.flags.distortions ?? []).some(d => d.kind === 'flow');
+  assert.ok(a.trades.some(flowFlag), 'a trade whose window crosses the action is flagged');
+  for (const x of a.trades) {
+    const i = sig(x), crosses = i - 19 - 2 < ex && ex <= i;
+    if (flowFlag(x)) assert.ok(i >= ex && i - 19 - 2 < ex + 1 + 20, `flagged signal ${a.dates[x.signal_bar]} reads the action`);
+    if (crosses && i - 19 < ex) assert.ok(flowFlag(x), `signal ${a.dates[x.signal_bar]} reads across the action and is flagged`);
+  }
+  // B2-2: a transform over a one-session Flow output (FL01 lots against their 20-session average) flags the trades whose
+  // average reads across the action, and the run warns FLOW_BASIS_CHANGE for them (the warning reads the trade flags' bars)
+  const vsAvg = run(market([action]), { ...(req(dates.find(d => d >= '2021-03-01')!, 'FL17') as object),
+    entry: { logic: 'all', at_least: 1, window_bars: 1, conditions: [{ id: 't', kind: 'test', test: { kind: 'value', op: 'gt', value: 0,
+      metric: { kind: 'transform', fn: 'vs_average', of: { kind: 'flow', metric: 'FL01', output: 'buy', params: {} }, args: { ma: 'SMA', length: 20, form: 'percent' } } } }] } } as never);
+  assert.ok(vsAvg.trades.some(flowFlag), 'a trade whose average reads across the action is flagged');
+  assert.deepEqual(codes(vsAvg).FLOW_BASIS_CHANGE, [1, ['WARN']]);
   // P7 (K4 a, M449): the rights issue inside the period restates the published prices before it
   assert.deepEqual(a.warnings.filter(x => x.code === 'PRICES_RESTATED').map(x => [x.count, x.tickers]), [[1, ['WARN']]]);
   assert.deepEqual(run(market([]), req(dates.find(d => d >= '2021-03-01')!, 'FL17')).warnings.filter(x => x.code === 'PRICES_RESTATED'), []);

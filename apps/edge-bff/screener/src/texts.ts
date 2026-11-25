@@ -81,8 +81,10 @@ export const NA_TEXT: Record<NaReason, string> = {
 };
 export const naText = (r: string | null | undefined) => r ? (NA_TEXT as Record<string, string>)[r] || `n/a (${r.toLowerCase().replace(/_/g, ' ')})` : 'n/a';
 
-const ACTION: Record<string, string> = { STOCK_SPLIT:'stock split', REVERSE_SPLIT:'reverse split', RIGHTS_ISSUE:'rights issue',
-  BONUS_SHARES:'bonus shares', STOCK_DIVIDEND:'stock dividend', WARRANT:'warrant' };
+// the action types as the data names them (idx_event_annotation, pricecheck.ts PRICE_ACTIONS: RIGHT_ISSUE, BONUS_SHARE)
+// and the older plural spellings (re-check round 2, S2-5: "right issue" and "bonus share" fell back to the key)
+const ACTION: Record<string, string> = { STOCK_SPLIT:'stock split', REVERSE_SPLIT:'reverse split', RIGHT_ISSUE:'rights issue', RIGHTS_ISSUE:'rights issue',
+  BONUS_SHARE:'bonus shares', BONUS_SHARES:'bonus shares', STOCK_DIVIDEND:'stock dividend', WARRANT:'warrant' };
 export const actionText = (a: string) => ACTION[a] || a.toLowerCase().replace(/_/g, ' ');
 
 /** A row remark (P4; EXEC-PRICE-DISTORTION kinds, contract.ts PriceBreakRemark), as the ticker's badge and the preview
@@ -99,7 +101,9 @@ export const remarkBadge = (r: RowRemark) => r.code === 'STALE' ? 'Stale' : r.ki
 export function remarkTitle(r: RowRemark): string {
   if (r.code === 'STALE') return `${remarkText(r)}. The stock is evaluated at its own last bar; its values are shown.`;
   const cr = r.close_ratio != null ? ` Close of that session ÷ the close before: ${nf(r.close_ratio, 3)}.` : '';
-  const why = r.kind === 'anomaly' ? ' A move beyond the exchange’s widest daily limit (35%): the source’s price for that session is likely wrong.'
+  // re-check round 2, S2-3: with no action recorded the move is either a wrong price or an action not recorded yet (RDTX's
+  // split of 2026-11-24, ERRORS D31); the badge names both
+  const why = r.kind === 'anomaly' ? ' A move beyond the exchange’s widest daily limit (35%) with no corporate action recorded: either the source’s price for that session is wrong, or an action such as a split is not recorded yet.'
     : r.kind === 'uncertain' ? ' The action’s effect is too small to tell from a day’s move, or a price around it is missing: the history may not be adjusted.'
     : ' The prices before it are on the old scale.';
   return `${remarkText(r)}.${why} Values whose look-back crosses it are shown as computed and marked.${cr}`;
@@ -120,7 +124,8 @@ export function cellRemarkText(c: CellRemark, rowRemarks: readonly RowRemark[], 
 
 /** The universe chips (P4): label while on, and what the drawer's checkbox says. */
 export const chipTraded = (e: string | null) => `Traded on ${e || 'the evaluation date'}`;
-export const chipNoBreak = 'No unadjusted price break';
+// the chip hides every PRICE_BREAK remark: a break, a possible one and a price anomaly (re-check round 2, S2-5)
+export const chipNoBreak = 'No price break or anomaly';
 
 /* ---- refusals (report API CONTRACT 8.8, 8.9; AGENTS.md "Gates and evidence") ---------------------------------------
    A refusal's code, field, details and Retry-After travel; its words are put together here, so that every message names

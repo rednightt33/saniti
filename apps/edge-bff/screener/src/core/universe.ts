@@ -142,7 +142,7 @@ export function distortionRemarks(actions: readonly ActionRow[], dates: readonly
   const priced = actions.filter(a => (PRICE_ACTIONS as readonly string[]).includes(a.type) && a.ex_date <= last);
   const checks = checkActions(dates, closes, priced.map(a => ({ ex:a.ex_date, type:a.type, ratio_old:a.ratio_old, ratio_new:a.ratio_new, exercise:a.amount_per_share ?? null })));
   checks.forEach((c, k) => {
-    const a = priced[k], kind = c.verdict === 'raw' ? 'unadjusted' : c.verdict === 'adjusted' || a.ex_date < opts.boundary ? null : 'uncertain';
+    const a = priced[k], kind = c.verdict === 'raw' ? 'unadjusted' : c.verdict === 'adjusted' || c.verdict === 'none' || a.ex_date < opts.boundary ? null : 'uncertain';
     const id = `${a.type}|${a.ex_date}|${a.ratio_old}|${a.ratio_new}`;
     if (!kind || seen.has(id)) return;                              // the same action listed twice is one remark
     seen.add(id);
