@@ -104,10 +104,12 @@ Facts that matter downstream:
     (`request_symbol`, `"adjustment": "splits"` versus `"none"`).
   - Rows are upserted with `ON CONFLICT (ticker, date) DO UPDATE` and a new `ingestion_time` (`bulk_upsert_prices`).
   - The publisher publishes prices exactly as stored and never adjusts them.
-  - The backtest treats the stored history as mixed: back-adjusted for splits, bonus shares and rights before
-    2026-09-12, raw after that date. See `ADJUSTED_HISTORY_BOUNDARY` in `apps/edge-bff/backtest/src/core/engine.ts`;
-    it is warned about in every result and is decision K4 in CONTRACT.md. How that date was established is not
-    recorded (OPEN).
+  - The backtest no longer treats the stored history as mixed by a date (EXEC-PRICE-DISTORTION, user 2026-11-24; ERRORS
+    M559-M562): each stock's price history is checked by one rule (`apps/edge-bff/screener/src/core/pricecheck.ts`,
+    `engine.ts priceDistortions`): an action whose ex-date jump is still in the history (`unadjusted`, any date), one
+    from 2026-09-12 (`ADJUSTED_HISTORY_BOUNDARY`) on that cannot be measured (`uncertain`), a one-day move beyond 35 %
+    with no action (`anomaly`). A trade that reads one carries `flags.distortions` and the run warns
+    `PRICE_DISTORTIONS`; the prices are used as published.
   - No adjusted close is computed anywhere in the backtest. A fix belongs in the data layer (idx-price-cron or the
     price table, decision K4). INFERENCE: corrected closes change the price stamp, so the publisher would republish
     the affected years and packs on its own (section 4).
@@ -725,7 +727,8 @@ How a run works (rules in CONTRACT.md sections 4 to 7):
   close.
 - **Results**: the page's own formulas (`seriesStats`, `tradeStats`, `dsr`, `monteCarlo`), in-sample/out-of-sample
   split, benchmark (buy and hold or IHSG), sensitivity grid, warnings (`PERIOD_CLIPPED`, `TICKERS_EXCLUDED`,
-  `SURVIVORSHIP`, `ADJUSTED_HISTORY_BOUNDARY`, `DATA_GAP`, `ARB_NOT_MODELLED`, `TICK_NOT_MODELLED`), and events per
+  `SURVIVORSHIP`, `PRICE_DISTORTIONS`, `DATA_GAP`, `ARB_NOT_MODELLED`, `TICK_NOT_MODELLED`), the trades' flags
+  (`flags.distortions`: a badge beside the ticker in the trade list, `src/results/list.ts distBadges`), and events per
   ticker for the charts.
 - **Trials**: the lineage key is the strategy's shape (no numbers); the variant hash is what the engine reads in a
   canonical form. edge-bff passes the line's prior trials, the run adds its own, and the deflated Sharpe uses them.
@@ -976,11 +979,13 @@ The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13; this is where 
   issue, whether the broker prices and the published prices are on one basis across it and writes the factor and status
   into the events file (`basis`, `publisher.py broker_basis`; the Terminal reads only the events columns). The worker
   multiplies the broker lots before a `terms` action by its factor when it decodes the broker files
-  (`datafile.ts onPriceBasis`), so every Flow formula reads broker prices on the prices' basis; a Flow value is empty
-  only where the data up to its bar leaves the basis unsettled (`apps/backtest-worker/src/basis.ts`). Stage C2 (user
-  2026-11-16 "A", ERRORS M459): an action is decided once its 21 days after the ex date have passed (`decided`), from its
-  own window; before that date the worker treats it as undecided whatever the file says, and every Flow value (every
-  family) whose window crosses an undecided, unresolved or not-reloaded action is empty. The daily publisher run reports
+  (`datafile.ts onPriceBasis`), so every Flow formula reads broker prices on the prices' basis; a Flow value whose
+  window the data up to its bar leaves unsettled (`apps/backtest-worker/src/basis.ts basisDistorted`) is used as
+  computed and marked (EXEC-PRICE-DISTORTION, user 2026-11-24, UD41 A; before it the value was empty and opened no
+  trade). Stage C2 (user 2026-11-16 "A", ERRORS M459): an action is decided once its 21 days after the ex date have
+  passed (`decided`), from its own window; before that date the worker treats it as undecided whatever the file says,
+  and every Flow value (every family) whose window crosses an undecided, unresolved or not-reloaded action is marked
+  (the trade's `flags.distortions` kind `flow`, the run's `FLOW_BASIS_CHANGE`). The daily publisher run reports
   the recent actions that need attention on Telegram (`Broker_Basis_Report`: unresolved, or the price history not pulled
   again; a pending one is not listed); the steps after an action are `UPDATE_TABLE.md` part C.
 - **EDGE multi-user Phase 3b (EXEC-MU-ACCOUNTS; CONTRACT.md 13.12).** Stage 5: every context carries `allow` (per

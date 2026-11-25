@@ -395,8 +395,13 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
   published bar, section 4) **[D-period_clip]**; `TICKERS_EXCLUDED` (portfolio: the picked stocks left out, with
   `count`, `tickers` and `reasons`, section 4) **[D-exclude]**; `SURVIVORSHIP` (portfolio: the stocks are picked from
   today's published list, no delisted stock) **[D-K6]**;
-  `ADJUSTED_HISTORY_BOUNDARY` (period crosses 2026-09-12: history before is back-adjusted for splits/bonus/rights,
-  after is raw) and per-trade `flags.corporate_actions` **[D-K4]**; `DATA_GAP` (calendar days without a bar for a held
+  per-trade `flags.corporate_actions` **[D-K4]**; `PRICE_DISTORTIONS` (EXEC-PRICE-DISTORTION, user 2026-11-24, UD41 A;
+  it replaces `ADJUSTED_HISTORY_BOUNDARY`, the period crossing 2026-09-12: the trades whose signal window or holding
+  period reads a price distortion, `count` trades, `tickers`) and per-trade `flags.distortions` (`{date, kind}`: `flow`
+  a Flow value on the signal bar across an unsettled broker basis; `unadjusted` an action whose ex-date jump is in the
+  published history, `uncertain` one from 2026-09-12 on that cannot be measured, `anomaly` a one-day move beyond 35 %
+  with no action; the Screener's rule, `screener/src/core/pricecheck.ts`, through `engine.ts priceDistortions`, with
+  the window the signal read from the grammar's lookback rule, `Calc.reach`; values are never changed by it); `DATA_GAP` (calendar days without a bar for a held
   or signalled ticker; `count` = distinct (ticker, day) pairs, `tickers`); `ARB_NOT_MODELLED` (stops always fill at
   min(open, level); no lower-limit lock) **[D-K5a]**; `TICK_NOT_MODELLED`.
 - Events: per condition and ticker, a `SignalTrack` on the result calendar; entries and exits per ticker; every trade
@@ -815,7 +820,12 @@ before), from its own window only (a rights issue's terms in the VWAP form, so a
 treats an action as undecided on every bar before `decided` whatever the file says, and every Flow value (every family,
 the point-in-time ones included) whose window crosses an undecided, unresolved or not-reloaded action is empty; the
 per-day guard stays on the broker-price values. The lots before a `terms` action stay scaled (the adjusted history, K4
-a, `FLOW_LOTS_RESTATED`).
+a, `FLOW_LOTS_RESTATED`). EXEC-PRICE-DISTORTION (user 2026-11-24, UD41 A: "value harus tetap ditampilkan as is dengan
+badge"; ERRORS M561): such a value is no longer empty. It is used as computed, from the published columns whatever the
+status (so it reads no later decision: the look-ahead gate's Stage C2 case), and its bar is noted (`FlowNotes.distorted`,
+`basis.ts basisDistorted`): the trade it opens carries `flags.distortions` kind `flow`, the run `FLOW_BASIS_CHANGE`
+(the value used, the trades marked). The notes are per Flow entry: a bar where the window of any output of the computed
+entry crosses (at most the ex bar itself more than the output the condition reads).
 
 **13.3 Point-in-time indicators (sections 3, 5).** FL18, FL19, FL20, FL23, FL44, FL45, FL51 (`apps/backtest-worker/src/pit/`,
 worker-only, admins only): the brokers chosen again on each candle from the anchor (FL18-FL20, FL44, FL45: `anchor`) or
