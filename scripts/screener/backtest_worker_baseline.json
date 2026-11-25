@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "about": "The approved state of apps/backtest-worker for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a worker that differs from origin/main only while its content hash is worker_tree and the versions are these. Recorded with --record and changed only by a deliberate commit (EXEC-MU-RUNTIME).",
-  "base_commit": "6dee649d1844b02028967a841e97044fc3e6aafe",
-  "recorded_on": "92c7073da476b01fc181a8395dd675028184ceca",
+  "base_commit": "cb9bdfb68f4c08f2f6a3be3445924cde14cfad39",
+  "recorded_on": "978734fff9ffe3178df9b3be5f24b8a069244c68",
   "recorded_at": "2026-11-25",
-  "engine_version": "6e8074da8970ef7e",
-  "base_engine_version": "6ed4c80f76fcbd09",
+  "engine_version": "64ac7cd874cc0750",
+  "base_engine_version": "6e8074da8970ef7e",
   "registry_version": "2a69cd7d3f01ceaf",
-  "worker_tree": "32069fd256a5633eb59fc2aea297686fa3630d86325197ac189b4507fc3da088",
+  "worker_tree": "5ba678f2bd9516360734be4b80257634cffbb03b8830a0d67fba4db5324ee0ec",
   "worker_files": 69,
   "exec": {
     "section": "EXEC-PRICE-DISTORTION",
-    "decision": "\"Deploy ke beta oke. Untuk 2-5 bisa go.\" (2026-11-24; butir 2 EXEC-PRICE-DISTORTION bersama EXEC-SENSITIVITY-FLAGS dalam satu rilis core Backtest); \"value harus tetap ditampilkan as is dengan badge\"; \"UD41 A\"; \"C ok - masukan EXEC\" (UD35); \"2. OK - opus high\" dan \"3. Ok boleh\" (2026-11-25: re-check ronde 1 dan perbaikannya, UD52 a, UD53, UD55 a)"
+    "decision": "\"Deploy ke beta oke. Untuk 2-5 bisa go.\" (2026-11-24); \"value harus tetap ditampilkan as is dengan badge\"; \"UD41 A\"; \"C ok - masukan EXEC\" (UD35); \"2. OK - opus high\", \"3. Ok boleh\" (2026-11-25: UD52 a, UD53, UD55 a); \"Untuk recheck ronde 2, gunakan 5 agent Opus 5,5 medium. Setelah temuan tersebut ada, segera dibereskan, kemudian you have my approval to deploy\" (2026-11-25)"
   },
-  "note": "backtest-worker: basis.ts basisDistorted marks instead of emptying, grammar.ts noteDistorted, noteReach and noteEntryFlow, the R3 splice (bars before decided read the traded lots: grammar.ts pointInTime, pit/series.ts dSeries, dDistorted); with EXEC-SENSITIVITY-FLAGS run.ts the grid's per-column check; tests moved to the new rule (engine, flow-grammar, grammar, pit, look-ahead Stage C2 with the production model, run, result)"
+  "note": "backtest-worker: basis.ts basisDistorted marks, grammar.ts noteDistorted, noteReach and noteEntryFlow, the R3 splice (grammar.ts pointInTime, pit/series.ts); run.ts the grid's per-column check; tests moved to the rule and round 2's (engine: above the market, the side as written; flow-grammar: a late period's flags, a transform's warning; grammar: a spike outside every window)"
 }

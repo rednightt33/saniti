@@ -8887,6 +8887,63 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M566 — Re-check round 2 of the price-distortion release: a trade's flags on the run calendar's bar, a badge on rights issues above the market, effective windows measured on small breaks only (2026-11-26; fixed in `f3970f7d` and `978734ff`, on the branch)
+
+- **Symptom (re-check round 2, five Opus medium agents, `agents_20261126-terminal`, `-screener`, `-backtest`,
+  `-publisher`, `-history`, the user's go 2026-11-25; and the beta check of 2026-11-26):**
+  - **B2-1 (important):** on the beta, backtests of VKTR, AHAP and BUVA (2026-07-01 to 2026-11-09, FL01 lots against
+    their 20-session average) gave 19, 16 and 18 trades and none carried a `flow` flag, though VKTR's rights issue of
+    2026-10-07 is `unresolved` and six of its signals read across it; a synthetic one-day spike flagged 14 of 20 trades
+    two months before their window. `engine.ts:536` passed `q.r.m.bar[q.j]` (the run calendar's bar) to
+    `tradeDistortions`, which reads `Calc.reach`, `FlowNotes.entry` and the dates by the stock's own bar: the two agree
+    only when the period starts on the stock's first bar.
+  - **B2-2 (minor):** FLOW_BASIS_CHANGE read `FlowNotes.distorted` (the raw outputs' own window: FL01 one session) while
+    the trade flag reads `FlowNotes.entry` (the condition's window): a transform over a short Flow output flagged trades
+    without the warning.
+  - **S2-1 (important):** BAJA (2 : 1 at Rp500 against 334 and 316, ex 2026-09-28), BRNA and MGLV got "Possible break
+    ... effect too small to tell" without a size: a rights issue priced at or above the market was `small` in
+    `pricecheck.ts` (`6d254189`), and the Backtest flagged it `uncertain`; it moves no price, raw and adjusted are the
+    same, so no value is distorted (the user's concept, 2026-11-24: "value harus tetap ditampilkan as is dengan badge").
+  - **P2-2 (minor):** where the publisher wrote no price side, the Backtest recomputed one from the block's `terms`, the
+    lots' factor, not the closes': CMNP 2020-11-10 read `raw` there, too small to tell in the publisher and the Screener.
+  - **H2-1 (important):** the effective windows (UD55) were measured on cuts of synthetic shapes and checked with
+    1:5, 1:2 and 2:1 breaks only; the data holds splits of 1:10 (45), 1:20 (8), 1:25 (4), 1:50 (1), 1:100 (2) and reverse
+    splits up to 100000:1 (`stockbit_corporate_action`): at 1:20 and 1:25 EMA, MACD, ADX, Keltner, Bollinger at EMA and
+    the Alpha outputs moved by more than 0.1 % for 2-8 moving bars past their window, and a 5:1 reverse split on GOTO
+    (pinned at its floor) held Alpha KAMA (I05) 688 moving bars against its window of 140; %B at an EMA or RMA basis read
+    -35,740 where the true value is empty. The cell mark, the row badge and the trade flag all read that window.
+  - **S2-3, S2-5 (minor):** an anomaly's reason said the source's price is likely wrong (RDTX was an unrecorded split,
+    ERRORS D31); the action names RIGHT_ISSUE and BONUS_SHARE fell back to "right issue"/"bonus share"; the chip "No
+    unadjusted price break" also hid possible breaks and anomalies.
+  - **T2-1, T2-2 (minor):** a compare line hidden by its eye still offered its colour in both colour boxes; a hidden
+    indicator's own colour box had no swatch for its colour, so the focus opened on "Thickness".
+- **Verified root cause:** above, each from the agents' probes (`scratchpad/rc2`, `rc2bt/probes`) and reproduced by the
+  tests that now lock the fix (B2-1 fails on the old line, passes on the new; the same for S2-1's Backtest test).
+  **Class:** an index taken in one numbering and read in another (B2-1); two readers of one note set kept apart
+  (B2-2); a rule that cannot tell a size read as "small" (S2-1) and a fallback that recomputes what the source already
+  decided (P2-2); a bound measured on perturbations smaller than the data holds (H2-1).
+- **Solution:**
+  - `f3970f7d`: `engine.ts` passes the stock's bar (`q.j`); the warning reads `FlowNotes.entry` too; `pricecheck.ts`
+    verdict `none` for a rights issue above the market (no remark, `universe.ts`), the Backtest no distortion for it and
+    the publisher's side read as written; `texts.ts` the anomaly's reason, the action names and the chip label;
+    `colorPicker.ts usedRow` (the box's own colour first) and `assets.ts` (only the compare lines drawn now). Tests:
+    `flow-grammar.test.ts` (a late period: flagged exactly the signals across the action; a transform over FL01 warns),
+    `grammar.test.ts` (a spike two months before every signal flags none), `engine.test.ts` (above the market, as
+    written, CMNP), `universe.test.ts`, `pricecheck.test.ts`, `color_picker.test.ts`.
+  - `978734ff`: `build-screener-registry.mjs effectiveProbe` also plants breaks of every size the data holds
+    (`PROBE.effective.break_factors` 100, 20, 2, 0.5, 0.2, 1e-5) on the shapes and on the eight real-price fixtures, at
+    the user's tolerance; a late real break counts as a lower bound. The windows grew 10-50 % (RSI 14 175 to 193, MACD
+    172 to 203, ADX 198 to 229, KVO 377 to 557); Alpha KAMA (I05) and the PVO histogram read the whole history.
+    `tests/core/reach.test.mjs` measures every setting with those breaks too, and its power check is a quarter of a
+    window (a third is no longer always reached on the eight stocks).
+- **Status:** fixed in `f3970f7d` and `978734ff`, on the branch, not deployed; tested by their author only (RECHECK.md
+  `agents_20261126-*`). Carried (EXEC-PRICE-DISTORTION, carried parts): P2-1 asked (UD60), P2-3 and S2-4 planned; S2-2
+  (the live page reads the new worker until `live` moves) and P2-4 (the migration's fallback removes a chip the live
+  page reads as on) end with the move of `live` in this release (step 9); the legacy `flow` conditions (top5, fnet,
+  broker net) read rupiah, which a share count does not change: no `flow` flag is due (judged 2026-11-26).
+- **Lesson:** a bound is measured on the largest perturbation the data holds, derived from the data (the corporate
+  actions' sizes), not on a convenient one; an index is named by its numbering where it crosses a function boundary.
+
 ### M565 — Statistics: "<polyline> attribute points: Expected number, "0.0,NaN …"" when IHSG has no close on the chart (2026-11-25; fixed in `8530a75e`, on the beta)
 
 - **Symptom (found in passing by the re-check agents_20261125-terminal, 2026-11-25):** with the Statistics panel open

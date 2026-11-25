@@ -63,3 +63,10 @@ stock) and the history class per setting (UD52) with the effective window (UD55)
 the four. The 10 refusals per stock are the same as on 2026-11-23; `unchanged` 2 (GOTO 5). COCO's two rights issues read
 `terms` and `adjusted` (factors 2.7097, 1.7429); COCO 799 sessions off the price basis without the factors, 0 with them;
 the other three 0.
+
+## 2026-11-26, after re-check round 2 (M566)
+
+`results_2026-11-26_round2.json`: the same four stocks and dates on the head with round 2's fixes (a trade's flags on
+the stock's own bar, B2-1; the windows measured on breaks of every size the data holds, H2-1; the side read as the
+publisher wrote it, P2-2): 214 series per stock, **0 leaks** on the four; the 10 refusals per stock as before. The
+fixes change marks and flags only, never a value, so the series equal those of `results_2026-11-25_release.json`.
