@@ -2,16 +2,16 @@
   "schema": 1,
   "about": "The approved state of apps/backtest-worker for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a worker that differs from origin/main only while its content hash is worker_tree and the versions are these. Recorded with --record and changed only by a deliberate commit (EXEC-MU-RUNTIME).",
   "base_commit": "6dee649d1844b02028967a841e97044fc3e6aafe",
-  "recorded_on": "61def35db2556c9e943e32ee9bde4aec934ee407",
+  "recorded_on": "92c7073da476b01fc181a8395dd675028184ceca",
   "recorded_at": "2026-11-25",
-  "engine_version": "55bc5975f9f55934",
+  "engine_version": "6e8074da8970ef7e",
   "base_engine_version": "6ed4c80f76fcbd09",
   "registry_version": "2a69cd7d3f01ceaf",
-  "worker_tree": "f1561cca49526323a07d2057524100dfd475db71f4d79af258ca0927d4fb0a66",
+  "worker_tree": "32069fd256a5633eb59fc2aea297686fa3630d86325197ac189b4507fc3da088",
   "worker_files": 69,
   "exec": {
     "section": "EXEC-PRICE-DISTORTION",
-    "decision": "\"Deploy ke beta oke. Untuk 2-5 bisa go.\" (2026-11-24; butir 2 EXEC-PRICE-DISTORTION bersama EXEC-SENSITIVITY-FLAGS dalam satu rilis core Backtest, butir 5 Alpha KAMA opsi B); \"value harus tetap ditampilkan as is dengan badge\"; \"UD41 A\"; \"C ok - masukan EXEC\" (UD35, EXEC-SENSITIVITY-FLAGS)"
+    "decision": "\"Deploy ke beta oke. Untuk 2-5 bisa go.\" (2026-11-24; butir 2 EXEC-PRICE-DISTORTION bersama EXEC-SENSITIVITY-FLAGS dalam satu rilis core Backtest); \"value harus tetap ditampilkan as is dengan badge\"; \"UD41 A\"; \"C ok - masukan EXEC\" (UD35); \"2. OK - opus high\" dan \"3. Ok boleh\" (2026-11-25: re-check ronde 1 dan perbaikannya, UD52 a, UD53, UD55 a)"
   },
-  "note": "backtest-worker: basis.ts basisDistorted marks instead of emptying, grammar.ts noteDistorted and noteReach, pit/series.ts notes; with EXEC-SENSITIVITY-FLAGS run.ts the grid's per-column check (grid_accepts); tests moved to the new rule (engine, flow-grammar, pit, look-ahead Stage C2, run, result)"
+  "note": "backtest-worker: basis.ts basisDistorted marks instead of emptying, grammar.ts noteDistorted, noteReach and noteEntryFlow, the R3 splice (bars before decided read the traded lots: grammar.ts pointInTime, pit/series.ts dSeries, dDistorted); with EXEC-SENSITIVITY-FLAGS run.ts the grid's per-column check; tests moved to the new rule (engine, flow-grammar, grammar, pit, look-ahead Stage C2 with the production model, run, result)"
 }

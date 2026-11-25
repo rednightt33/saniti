@@ -52,3 +52,14 @@ rows), with the broker basis from the publisher's rule as changed by EXEC-PRICE-
 two rights issues read `adjusted`, as before), on the branch head where every Flow value is kept and only marked
 (`basis.ts basisDistorted`): 214 series per stock, **0 leaks** on the four. The 10 refusals per stock are the same as on
 2026-11-23. COCO 799 sessions off the price basis without the factors, 0 with them; the other three 0.
+
+## 2026-11-25, the release head (after re-check round 1, UD52 and UD55)
+
+`results_2026-11-25_release.json`: the same four stocks and dates, on the head that goes to the beta: the R3 rule (a
+point-in-time or window value on a bar before an action's `decided` date reads the traded lots, `grammar.ts`
+pointInTime, `pit/series.ts`), the publisher's closes either side of the ex date (`basis_from_export.py` passes them as
+`sides`, as `BASIS_SIDES_SQL` reads them), the cuts derived where each series changes (`derived_cuts` 305 to 356 per
+stock) and the history class per setting (UD52) with the effective window (UD55): 214 series per stock, **0 leaks** on
+the four. The 10 refusals per stock are the same as on 2026-11-23; `unchanged` 2 (GOTO 5). COCO's two rights issues read
+`terms` and `adjusted` (factors 2.7097, 1.7429); COCO 799 sessions off the price basis without the factors, 0 with them;
+the other three 0.
