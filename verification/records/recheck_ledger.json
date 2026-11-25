@@ -10966,7 +10966,7 @@
    ],
    "recheck_action": "Run the tripwire on a branch that releases one lab indicator (registry row, formula) and on one that also changes another formula or registry row: the first passes only with a release record naming its ids, the second is refused. Collateral: --record-core and --record still refuse while the formula files differ without a release record; Feature 04 and the Stockbit updater stay unapprovable; INDICATOR_BETA_TO_LIVE.md Part A, B, C and the lab Flow step name the commands that work.",
    "tested_out_by": "agents_20261125-publisher",
-   "evidence": "ERRORS M553 Status: 'fixed in `3609d50c` and `60651af6`, on the branch; tested by its author only'",
+   "evidence": "ERRORS M553 Status: 'fixed in `0c2d14d7` and `99adf57d`, on the branch; tested by its author only'",
    "from": "fix"
   },
   {

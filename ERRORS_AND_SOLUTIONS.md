@@ -9308,7 +9308,7 @@ in its staleness check.
   screener-worker suite's pointer test, red at `afcf2841`); the pointer moved in `7f193584`.
 - **Status:** on the beta since 2026-11-23 (`afcf2841`, `ce188bbb`, `7f193584` in `c91e2809`); the live site does not run it.
 
-### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23; fixed in `3609d50c`, records `60651af6`, on the branch)
+### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23; fixed in `0c2d14d7`, records `99adf57d` (agent commits 3609d50c, 60651af6), on the branch)
 
 - **Found by:** the pilot lab indicator Alpha Volatile (EXEC-PINE-INDICATORS, id I54), Part A "The tripwire in Part A".
 - **Symptom:** `npm run tripwire -- --record-core --exec EXEC-PINE-INDICATORS ...` (and `--record`) in `apps/edge-bff/screener`
@@ -9342,8 +9342,8 @@ in its staleness check.
   pinned by engine_version, not per id. The tripwire still runs by hand, not in CI.
 - **Verified:** tripwire tests 9/9 (4 new; a mutation with the formula comparison off turns the new test red);
   `scripts/tests/test_generated_files.py` 6/6; records against `5a722475` OK; the records of the EXEC-PINE-INDICATORS
-  release (I54-I60) and of its core changes (M554, M555) made in `60651af6`.
-- **Status:** fixed in `3609d50c` and `60651af6`, on the branch; tested by its author only (RECHECK.md, `errors/M553`).
+  release (I54-I60) and of its core changes (M554, M555) made in `99adf57d`.
+- **Status:** fixed in `0c2d14d7` and `99adf57d`, on the branch; tested by its author only (RECHECK.md, `errors/M553`).
   The Screener core changes after it (EXEC-PRICE-DISTORTION, UD36, UD33 B) need a core record before `main`.
 
 ### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed in `61fb22c4`, on the beta since 2026-11-23 (`fb4a5c3c`))
