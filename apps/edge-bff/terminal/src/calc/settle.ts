@@ -28,6 +28,8 @@ export interface Settle {
   cut: { default: number; [timeframe: string]: number };
 }
 export const SETTLE: Record<string, Settle> = {};
+// Alpha Kama (I58, released 2026-11-26 from src/lab/index.ts)
+SETTLE.alpha_kama = { measure: 'kama', hides: ['kama', 'color_index', 'color_state', 'long', 'short'], tolerance: 0.005, cut: { default: 50, M: 12 } };
 
 /** a run of bars [from, to) the formula computes in one go, drawn from `at` (`at` = `to`: not in this run) */
 export interface SettleRun { from: number; at: number; to: number }

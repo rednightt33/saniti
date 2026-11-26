@@ -17532,6 +17532,16 @@ dengan konfirmasi user per deploy.
 - Nama di EDGE ("3. ok"): "Alpha Price Action BUY" (Candle A BUY), "Alpha Price Action SELL" (Candle A SELL).
 
 
+**Rilis ke live (2026-11-26; INDICATOR_BETA_TO_LIVE.md Part B):** user: "Push to main push to live beserta indikator
+baru", lalu atas pertanyaan released atau preview: "A" (released: semua pengguna berbayar). I54-I60 pindah dari
+`terminal/src/lab/index.ts` ke `terminal/src/calc/indicators.ts` (aturan settle Alpha KAMA ke `calc/settle.ts`),
+`catalog/releases.json` stage `released`, registry dibangun ulang, pin tes disesuaikan (53 ke 60 indikator, 76 ke 122
+keluaran; batas biaya di tes parameter kini `maxOf`, karena I58 dan I59 punya batas sendiri di bawah batas biaya), golden
+Screener ditambah kasus baru (hanya tambahan), pointer SCREENER_ONBOARDING digeser, tripwire `--record-release` dan
+`--record-core`, cek look-ahead data nyata 0 kebocoran (`results_2026-11-26_release.json`). `ORACLE_NOTES` tidak berlaku:
+I54-I60 belum punya baris di spesifikasi AI (`scripts/terminal_indicator_spec.py`), yang ikut langkah 6. Formula
+referensi AI (Part B langkah 6) tidak ikut: perlu migrasi baru dan persetujuan user tersendiri.
+
 ## EXEC-TRIPWIRE-LAB — tripwire Backtest untuk rilis indikator (ERRORS M553; pilihan (a) 2026-11-24, go user 2026-11-24)
 
 **Go user 2026-11-24:** "Deploy ke beta oke. Untuk 2-5 bisa go." (butir 4 daftar agen: pilihan (a), `--record-release`).

@@ -59,6 +59,14 @@ const REGISTRY: Record<string, { id: string; outs: string[]; defs: Record<string
   pvi: { id: 'I51', outs: ['pvi'], defs: { initial_value: 1000 } },
   kvo: { id: 'I52', outs: ['kvo', 'signal'], defs: { fast_length: 34, slow_length: 55, signal_length: 13 } },
   market_fi: { id: 'I53', outs: ['market_fi'], defs: { volume_scale: 1 } },
+  // I54-I60, released 2026-11-26 (INDICATOR_BETA_TO_LIVE.md Part B)
+  alpha_volatile: { id: 'I54', outs: ['distance', 'decile', 'upper_z', 'lower_z', 'direction', 'outside_up', 'outside_down', 'outside_any', 'back_in_up', 'back_in_down', 'back_in_any'], defs: { ma_type: 'EMA', ma_length: 26, lookback_length: 100, decile: 9, z_multiplier: 2 } },
+  inside_bar: { id: 'I55', outs: ['ib', 'break_up', 'break_down'], defs: {} },
+  price_action_buy: { id: 'I56', outs: ['level_1', 'level_a', 'level_b', 'break_1', 'break_a', 'break_b'], defs: { lookback_length: 30, break_source: 'High (wick)' } },
+  price_action_sell: { id: 'I57', outs: ['level_1', 'level_a', 'level_b', 'break_1', 'break_a', 'break_b'], defs: { lookback_length: 30, break_source: 'Low (wick)' } },
+  alpha_kama: { id: 'I58', outs: ['kama', 'ema_x', 'color_index', 'color_state', 'long', 'short'], defs: { kama_length: 89, kama_factor_1: 0.66, kama_factor_2: 0.0645, smoothing_method: 'T3', smoothing_length: 3, vhf_adaptive: true, linear_regression: false, gradient_lookback: 14, ema_length: 20 } },
+  alpha_extract: { id: 'I59', outs: ['bdo', 'signal', 'upper', 'upper_extreme', 'lower', 'lower_extreme', 'bull', 'bear', 'positive'], defs: { ma_type: 'EMA', source: 'Close', ma_length: 23, median_length: 4, atr_length: 14, smooth_length: 5, dynamic_window: 120, dynamic_smooth: 10, dynamic_expansion: 0.2, signal_multiplier: 1.5 } },
+  alpha_divergence: { id: 'I60', outs: ['bull_div', 'bear_div', 'buy_a', 'swing_high', 'swing_low'], defs: { swing_mode: 'Original (SMI extreme)' } },
 };
 /* registry parameters the calculation does not read (fixed by the spec or informational) */
 const IGNORED = ['bop.source', 'adr.timeframe', 'rvol.reference_method', 'rvol.include_current_bar', 'obv.calculation_parameters', 'pvt.calculation_parameters', 'adl.calculation_parameters'];
@@ -85,8 +93,8 @@ const last = (o: Out, k: string) => o[k][o[k].length - 1];
 const finiteOrNull = (o: Out) => Object.entries(o).every(([k, a]) => k === '_breaks' || a.every(v => v === null || Number.isFinite(v)));
 
 describe('registry coverage', () => {
-  it('has the 53 registry keys and no other', () => {
-    expect(KEYS).toHaveLength(53);
+  it('has the 60 registry keys and no other', () => {
+    expect(KEYS).toHaveLength(60);
     expect(Object.keys(F).sort()).toEqual([...KEYS].sort());
   });
   it.each(KEYS)('%s returns every registry output, aligned to the bars', key => {

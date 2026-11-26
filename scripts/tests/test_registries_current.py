@@ -21,7 +21,7 @@ CHECKS = [('apps/backtest-worker', 'scripts/build-registry.mjs', './loader/regis
 @pytest.mark.parametrize('folder, script, loader', CHECKS)
 def test_registry_is_current(folder, script, loader):
     run = subprocess.run(['node', '--experimental-strip-types', '--no-warnings=ExperimentalWarning', '--import', loader, script, '--check'],
-                         cwd=ROOT / folder, capture_output=True, text=True, timeout=600)
+                         cwd=ROOT / folder, capture_output=True, text=True, timeout=1500)   # the Screener's: about 9.5 min of one core (ERRORS M568)
     assert run.returncode == 0, f'{folder}: {run.stdout}{run.stderr} (run `npm run registry` there)'
 
 

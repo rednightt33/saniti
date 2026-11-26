@@ -1,6 +1,6 @@
 /* The Screener's indicator contract (report TARGET ARCHITECTURE 6.8; TEST PLAN 10b.10 "Contract drift"): the
-   generated screener-registry.json is current (the generator's --check re-derives every probe field), covers the 53
-   base indicators and their 76 outputs, the overlay keeps its rules, the probes give the documented answers on the
+   generated screener-registry.json is current (the generator's --check re-derives every probe field), covers the 60
+   indicators (53 base and the seven Pine indicators I54-I60, released 2026-11-26) and their 122 outputs, the overlay keeps its rules, the probes give the documented answers on the
    synthetic series (cases where a rule applies, and one where it must not), and registry.ts refuses and accepts what
    the narrowing says (each refusal naming the field and the fix). */
 import { describe, expect, it } from 'vitest';
@@ -25,10 +25,10 @@ const refusal = (fn: () => unknown): ScreenerError => {
 
 describe('generated file', () => {
   // the generator's --check itself runs in registry-check.test.mjs (it needs node:child_process)
-  it('holds every one of the 53 base indicators and 76 outputs, from the running base registry', () => {
-    expect(INDICATORS.length).toBe(53);
+  it('holds every one of the 60 indicators and 122 outputs, from the running base registry', () => {
+    expect(INDICATORS.length).toBe(60);
     expect(Object.keys(SBY_ID).sort()).toEqual(Object.keys(BY_ID).sort());
-    expect(INDICATORS.reduce((n, r) => n + r.outputs.length, 0)).toBe(76);
+    expect(INDICATORS.reduce((n, r) => n + r.outputs.length, 0)).toBe(122);
     for (const r of INDICATORS) expect(r.outputs.map(o => o.key)).toEqual(BY_ID[r.id].outputs);
     expect(SCREENER_REGISTRY.registry_version).toBe(REGISTRY_VERSION);
     expect(registryProblems()).toEqual([]);
@@ -111,7 +111,7 @@ describe('overlay', () => {
   it('keeps the shapes of report 6.9.1', () => {
     const count: Record<string, number> = {};
     for (const r of INDICATORS) count[r.overlay.shape] = (count[r.overlay.shape] || 0) + 1;
-    expect(count).toEqual({ line: 6, band: 4, dir: 2, osc: 25, pair: 8, adx: 1, vol: 2, cum: 5 });
+    expect(count).toEqual({ line: 10, band: 4, dir: 3, osc: 27, pair: 8, adx: 1, vol: 2, cum: 5 });   // with I54-I60 (released 2026-11-26): osc I54 I59, dir I55, line I56-I58 I60
   });
   it('offers no raw level test on a cumulative line, and says why', () => {
     for (const id of ['I40', 'I41', 'I44', 'I50', 'I51']) {
@@ -295,7 +295,7 @@ describe('registry.ts parameters (report 6.8 narrowing, I7)', () => {
     expect(isDefaultParams(ind('I13'), defaultParams(ind('I13')))).toBe(true);
     expect(isDefaultParams(ind('I13'), resolveScreenerParams(ind('I13'), { length: 7 }, 'p', OPTS))).toBe(false);
     const cat = catalogIndicators(OPTS);
-    expect(cat.length).toBe(53);
+    expect(cat.length).toBe(60);
     const cci = cat.find(c => c.id === 'I19')!;
     expect(cci.params.find(p => p.key === 'length')).toMatchObject({ max: capOf(ind('I19').params[0], OPTS.capBudgetMs), integer: true });
     expect(cci.params.find(p => p.key === 'constant')).toMatchObject({ min: 0, exclusive_min: true });
@@ -311,6 +311,6 @@ describe('registry.ts parameters (report 6.8 narrowing, I7)', () => {
       expect([c.id, c.short]).toEqual([c.id, SBY_ID[c.id].short]);
       expect([c.id, typeof c.description, c.description.length >= 20 && c.description.length <= 160]).toEqual([c.id, 'string', true]);
     }
-    expect(new Set(cat.map(c => c.description)).size).toBe(53);
+    expect(new Set(cat.map(c => c.description)).size).toBe(60);
   });
 });

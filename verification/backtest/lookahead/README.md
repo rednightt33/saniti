@@ -70,3 +70,12 @@ the other three 0.
 the stock's own bar, B2-1; the windows measured on breaks of every size the data holds, H2-1; the side read as the
 publisher wrote it, P2-2): 214 series per stock, **0 leaks** on the four; the 10 refusals per stock as before. The
 fixes change marks and flags only, never a value, so the series equal those of `results_2026-11-25_release.json`.
+
+## 2026-11-26, the release head of I54-I60 (after re-check round 3, M568)
+
+`results_2026-11-26_release.json`: the same four stocks and dates on the head that releases the seven Pine indicators
+(their formulas now in `terminal/src/calc/indicators.ts`, read by the public registry, no longer through '@edge-lab') and
+carries round 3's fixes (the windows measured on every split size the data holds, raised by 5 %): 214 series per stock,
+**0 leaks** on the four; the 10 refusals per stock as before; COCO 799 sessions off the price basis without the factors,
+0 with them. The move changes where the formulas live, not what they compute: the report is identical to
+`results_2026-11-26_round2.json`, which read them through '@edge-lab'.

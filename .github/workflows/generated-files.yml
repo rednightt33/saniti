@@ -19,7 +19,8 @@ concurrency:
 jobs:
   repository-scripts:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 30: the Screener registry check alone takes about 9.5 minutes of one core since 2026-11-26 (ERRORS M568)
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

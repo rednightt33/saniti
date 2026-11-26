@@ -1,7 +1,7 @@
 /* Parameter validation against the registry, through the wire (semantic review, EXEC-SCREENER; report TARGET
    ARCHITECTURE 6.1 I7 "refused, never clamped", 6.8 narrowing and caps; API CONTRACT 8.4 catalog params, 8.8
    PARAM_OUT_OF_RANGE {field, min, max, exclusive_min, integer}; TEST PLAN 10b.2 "a custom length above the default cap
-   is refused", 10b.10). For every parameter of the 53 indicators, the catalog the page builds its form from
+   is refused", 10b.10). For every parameter of the 60 indicators, the catalog the page builds its form from
    (catalogIndicators) and validateDefinition agree at every edge, in a real condition of the output's own form: the
    minimum (inclusive or exclusive), the maximum or the derived cap of an O(N·n) parameter, whole numbers, every offered
    option and a bogus one, booleans, an unknown key; each refusal names the field path in the request and carries the
@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import type { CatalogIndicator } from '../../src/core/contract.ts';
 import { UNIVERSE_DEFAULTS } from '../../src/core/contract.ts';
 import { ScreenerError } from '../../src/core/errors.ts';
-import { INDICATORS, capOf, capProblems, catalogIndicators } from '../../src/core/registry.ts';
+import { INDICATORS, SCREENER_REGISTRY, capOf, capProblems, catalogIndicators, maxOf } from '../../src/core/registry.ts';
 import type { ScreenerIndicator } from '../../src/core/registry.ts';
 import { validateDefinition } from '../../src/core/validate.ts';
 import { vctx } from './helpers.ts';
@@ -45,7 +45,7 @@ const run = (ind: ScreenerIndicator, params: Record<string, unknown>, ctx = CTX)
   return { at: `definition.conditions[0].${c.at}.params`, error: refusal(() => validateDefinition({ universe: U, logic: 'all', conditions: [{ id: 'a', enabled: true, test: c.test }] }, ctx)) };
 };
 
-describe('every parameter of the 53: the catalog the page reads and the validation agree at every edge', () => {
+describe('every parameter of the 60: the catalog the page reads and the validation agree at every edge', () => {
   const catalog = new Map<string, CatalogIndicator>(catalogIndicators({ capBudgetMs: CTX.capBudgetMs }).map(x => [x.id, x]));
   for (const ind of INDICATORS) {
     it(`${ind.id} ${ind.key}`, () => {
@@ -69,7 +69,9 @@ describe('every parameter of the 53: the catalog the page reads and the validati
           out('20', 'INVALID_CONDITION');                                                         // a wrong JSON type: the field and its range named
           if (p.max === undefined && !p.integer) ok(1e6);
           const cap = capOf(ind.params.find(x => x.key === p.key)!, CTX.capBudgetMs);
-          if (cap !== undefined) { expect(p.max).toBe(cap); expect(typeof p.default === 'number' && p.default <= cap).toBe(true) }
+          // the lower of the parameter's own max and the cost cap (maxOf): the Pine indicators released on 2026-11-26 hold
+          // both (I58 smoothing_length max 50 under a cap of 252)
+          if (cap !== undefined) { expect(p.max).toBe(maxOf(ind.params.find(x => x.key === p.key)!, CTX.capBudgetMs)); expect(typeof p.default === 'number' && p.default <= p.max!).toBe(true) }
         } else if (p.type === 'enum') {
           for (const o of p.options!) ok(o);
           const r = f('Bogus');
@@ -85,7 +87,12 @@ describe('every parameter of the 53: the catalog the page reads and the validati
     });
   }
   it('the caps follow SCREENER_CAP_BUDGET_MS: a smaller budget lowers them and the catalog says so; none falls below a default', () => {
-    const low = 500, ctx = { ...CTX, capBudgetMs: low }, i10 = INDICATORS.find(x => x.id === 'I10')!;
+    // the smaller budget is the lowest one every default still fits under, derived from the cost model and the largest
+    // default of a capped parameter (I54's lookback 100 since 2026-11-26), so a new default moves it without a code change
+    const m = SCREENER_REGISTRY.cost_model, capped = INDICATORS.flatMap(r => r.params.filter(p => capOf(p, CTX.capBudgetMs) !== undefined));
+    const top = Math.max(...capped.map(p => Number(p.default))), low = Math.ceil(top * m.ns_per_bar_length * m.reference_bars / 1e6);
+    expect(low).toBeLessThan(CTX.capBudgetMs);
+    const ctx = { ...CTX, capBudgetMs: low }, i10 = INDICATORS.find(x => x.id === 'I10')!;
     const cap = capOf(i10.params[0], low)!;
     expect(cap).toBeLessThan(capOf(i10.params[0], CTX.capBudgetMs)!);
     expect(catalogIndicators({ capBudgetMs: low }).find(x => x.id === 'I10')!.params[0].max).toBe(cap);

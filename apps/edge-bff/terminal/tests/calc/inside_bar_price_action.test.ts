@@ -4,7 +4,7 @@
 // plus the edges and causality. INDICATOR_BETA_TO_LIVE.md Part A step 7.
 import { describe, expect, it } from 'vitest';
 import { F } from '../../src/calc/indicators';
-import '../../src/lab/index';
+// released 2026-11-26: the formulas are in calc/indicators.ts (INDICATOR_BETA_TO_LIVE.md Part B)
 
 type N = number | null;
 function path(n: number) {

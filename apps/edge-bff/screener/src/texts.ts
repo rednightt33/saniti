@@ -385,6 +385,9 @@ export const dataLine = (listed: number, evalDate: string, published: string) =>
     whose title names every remark of the row, its kind, date and why. */
 export const rowRemarkTitle = (rs: RowRemark[]): string =>
   rs.map(x => `${remarkBadge(x)} · ${x.code === 'STALE' ? x.last_bar_date : x.ex_date}\n${remarkTitle(x)}`).join('\n\n');
+/** The badge's spoken name: each kind of the row's remarks once (re-check round 3, G3-1: WGSH's two anomalies read
+    "Price anomaly, Price anomaly"); the title names every remark with its date. */
+export const rowRemarkLabel = (rs: RowRemark[]): string => [...new Set(rs.map(x => remarkBadge(x)))].join(', ');
 
 /** "How conditions work", rewritten to the real semantics (report 9.2 Method & sources). */
 export const methodText = (evalDate: string) =>

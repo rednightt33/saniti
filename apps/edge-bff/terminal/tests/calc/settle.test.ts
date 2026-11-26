@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { F, type Bars, type IndicatorFn } from '../../src/calc/indicators';
 import { SETTLE, cutOf, settleRuns, settled, unsettledAt, type Settle } from '../../src/calc/settle';
-import '../../src/lab/index';
+// released 2026-11-26: the formulas are in calc/indicators.ts (INDICATOR_BETA_TO_LIVE.md Part B)
 import { loadFixtures } from './fixtures.mjs';
 
 type N = number | null;

@@ -170,7 +170,7 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
    `tests/core/pricecheck.test.ts`, `tests/core/lookback.test.ts` "PRICE_BREAK_IN_LOOKBACK at the edge of each lookback".
    - **Flow cells (D-5; the user 2026-11-24: "berikut juga untuk cell flownya?", yes).** A flow cell is marked only when
      its output reads what is distorted, a fact the registry generator derives per output by its basis probe
-     (`apps/edge-bff/screener/scripts/build-screener-registry.mjs:1255` `basisReads`, section 1.10): `reads` the broker
+     (`apps/edge-bff/screener/scripts/build-screener-registry.mjs:1264` `basisReads`, section 1.10): `reads` the broker
      lots, the close, the volume. Over the sessions it reads (`apps/edge-bff/screener/src/core/condition.ts:544`
      `flowStart`: its `flowDepth` plus the test's `within`, ending at the evaluated candle, or from the loaded window's
      start when `reads_from` is `window_start`; a window test adds its own sessions), it carries

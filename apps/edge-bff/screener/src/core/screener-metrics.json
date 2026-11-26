@@ -801,7 +801,7 @@
       ],
       "unit": "rank",
       "formula": "100 x (number of population returns strictly lower) / (P - 1), return = (close[t] / close[t - N] - 1) x 100 at each ticker's evaluation bar",
-      "interpretation": "Percentile of the N-session return among the listed stocks that traded on the evaluation date and have no unadjusted price break; 100 is the strongest.",
+      "interpretation": "Percentile of the N-session return among the listed stocks that traded on the evaluation date and have no price break, possible break or price anomaly; 100 is the strongest.",
       "misuse": "The population is fixed before any filter, so filters never move a rank; a shown stale or price-break ticker is ranked against it without joining it.",
       "evidence": "verification/screener/audit/html_model.md section 2.1 rs_rank; report TARGET ARCHITECTURE 6.9 rs_rank (P7)",
       "requires": null,

@@ -5,7 +5,7 @@
 // Part A step 7: the page tests run the public build and never see a lab formula.
 import { describe, expect, it } from 'vitest';
 import { F } from '../../src/calc/indicators';
-import '../../src/lab/index';
+// released 2026-11-26: the formulas are in calc/indicators.ts (INDICATOR_BETA_TO_LIVE.md Part B)
 
 type N = number | null;
 /** a deterministic price path: trend, two waves, noise from a fixed LCG, three jumps (so the band is left both ways) */

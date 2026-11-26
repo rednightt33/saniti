@@ -1,5 +1,5 @@
 /* The one series path (report TARGET ARCHITECTURE 6.7; TEST PLAN 10b.2 "Precomputed vs dynamic"): explicit registry
-   defaults give the same key and bit-identical tails as no parameters, for all 53; a custom length is computed by F
+   defaults give the same key and bit-identical tails as no parameters, for all 60 (53 base and the seven Pine indicators released on 2026-11-26); a custom length is computed by F
    through Calc and equals a direct F call bit for bit; a tail holds exactly the full series' last bars; pre-warmed
    entries report 'precomputed' and survive the LRU, custom ones report 'dynamic' and are evicted by bytes. */
 import { describe, expect, it } from 'vitest';
@@ -18,7 +18,7 @@ const ctx = (maxBytes = 1 << 30) => ({ versions: V, tailLength: tailLength(130),
 const same = (a: Float64Array, b: Float64Array) => a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
 
 describe('series()', () => {
-  it('explicit defaults hit the same key and give bit-identical tails, for all 53 indicators and 76 outputs', () => {
+  it('explicit defaults hit the same key and give bit-identical tails, for all 60 indicators and 122 outputs', () => {
     const c = ctx();
     let outputs = 0;
     for (const r of INDICATORS) for (const o of r.outputs) {
@@ -39,7 +39,7 @@ describe('series()', () => {
       expect(same(fresh.tail.values, warm.tail.values)).toBe(true);
       outputs++;
     }
-    expect(outputs).toBe(76);
+    expect(outputs).toBe(122);
   });
 
   it('RSI(7) is dynamic, not default, and equals F.rsi with length 7 bit for bit', () => {

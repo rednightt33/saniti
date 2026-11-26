@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "registry_version": "2a69cd7d3f01ceaf",
+  "registry_version": "91ef7941e9731f97",
   "generated_by": "apps/backtest-worker/scripts/build-registry.mjs",
   "sources": [
     {
@@ -9,7 +9,7 @@
     },
     {
       "file": "apps/edge-bff/terminal/src/calc/indicators.ts",
-      "sha256": "b7e1164ed8d3e295e155ee721d8b5518ef64a7e65bd88670da442163211d5224"
+      "sha256": "ea5e3aec598a96190772d7929e3b4096657d909b467263e4609e89120531af41"
     }
   ],
   "indicators": [

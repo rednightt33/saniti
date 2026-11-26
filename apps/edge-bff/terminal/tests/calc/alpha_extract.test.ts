@@ -5,7 +5,7 @@
 // signals the user asked for (BULL, BEAR; no zero cross), the warm-up as TradingView draws it, and causality.
 import { describe, expect, it } from 'vitest';
 import { F } from '../../src/calc/indicators';
-import '../../src/lab/index';
+// released 2026-11-26: the formulas are in calc/indicators.ts (INDICATOR_BETA_TO_LIVE.md Part B)
 
 type N = number | null;
 function bars(n: number) {

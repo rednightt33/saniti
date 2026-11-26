@@ -193,8 +193,14 @@ export const PROBE = Object.freeze({
     // factor (and the volumes by the inverse), a perturbation a cut does not bound: the probe also plants such breaks at
     // break_every and measures the window at the user's `tolerance`. The factors span the actions in the data
     // (stockbit_corporate_action, 2026-11-26: splits up to 1:100, so the old prices up to 100 times the new; reverse
-    // splits up to 100000:1, so down to 1e-5; RDTX's unrecorded 1:20 of 2026-11-24): 100, 20, 2, 0.5, 0.2, 1e-5
-    break_factors: Object.freeze([100, 20, 2, 0.5, 0.2, 1e-5]), break_every: 111,
+    // splits up to 100000:1, so down to 1e-5; RDTX's unrecorded 1:20 of 2026-11-24). Re-check round 3 (H3-1): every size
+    // the data holds, not a sample of them (a 10:1 or 20:1 reverse split held Alpha KAMA at its other sources longer than
+    // the 5:1 the set had): 1:100, 1:50, 1:25, 1:20, 1:10, 1:2, 2:1, 5:1, 10:1, 20:1, 25:1, 100000:1
+    break_factors: Object.freeze([100, 50, 25, 20, 10, 2, 0.5, 0.2, 0.1, 0.05, 0.04, 1e-5]), break_every: 111,
+    // H3-2: a break planted every real_every bars misses the worst position by a few bars (RSI 1-3 bars past its window
+    // at 1:100 on IHSG): the measured window is raised by window_margin, so a cell may be marked a little past the date,
+    // never left unmarked inside it
+    window_margin: 0.05,
     // and on the Terminal's real-price fixtures (apps/edge-bff/terminal/tests/calc/fixtures: a stock pinned at its floor
     // for years, GOTO, holds a recursion such as Alpha KAMA's longer than any shape; H2-1): a break every real_every bars
     // from real_from while real_margin bars follow it, the measure of tests/core/reach.test.mjs
@@ -474,9 +480,12 @@ export function effectiveProbe(run, outputs, fieldsOf) {
   });
   // the breaks on the real fixtures, as tests/core/reach.test.mjs measures them: the value on the broken history against
   // the one on the bars from the break on, which never saw it, at the user's tolerance of the broken history's magnitude
-  for (const { ticker, bars } of REAL_BARS()) for (const f of E.break_factors) {
-    for (let d = E.real_from; d < bars.C.length - E.real_margin; d += E.real_every) {
-      const broken = breakBars(bars, d, f), full = run(broken), part = run(sliceBars(broken, d));
+  // (the bars from the break on are the same at every factor, so their run is made once per break: round 3 doubled the
+  // factors without doubling the generator's time, which the registry check in CI holds)
+  for (const { ticker, bars } of REAL_BARS()) for (let d = E.real_from; d < bars.C.length - E.real_margin; d += E.real_every) {
+    const part = run(sliceBars(bars, d));
+    for (const f of E.break_factors) {
+      const broken = breakBars(bars, d, f), full = run(broken);
       for (const o of outputs) {
         const r = res[o];
         for (const v of full[o]) if (isN(v)) { r.values++; if (!Number.isInteger(v)) r.whole = false }
@@ -494,7 +503,7 @@ export function effectiveProbe(run, outputs, fieldsOf) {
     if (r.open) return [o, { bars: null, reason: 'not_bounded', at: r.open, ...ratios }];
     if (r.end > E.end_ratio) return [o, { bars: null, reason: 'reset', at: r.endAt, ...ratios }];
     if (r.decay >= E.decay_ratio) return [o, { bars: null, reason: 'no_decay', at: r.decayAt, ...ratios }];
-    return [o, { bars: r.moving + 1, reason: null, at: r.at, ...ratios }];
+    return [o, { bars: Math.ceil((r.moving + 1) * (1 + E.window_margin)), reason: null, at: r.at, ...ratios }];
   }));
 }
 /** The value of whole-number or number parameter p at `factor` times its start value `v`, within its range (a whole

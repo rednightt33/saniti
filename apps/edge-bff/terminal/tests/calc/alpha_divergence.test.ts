@@ -5,7 +5,7 @@
 // which is never an output; and causality of every output.
 import { describe, expect, it } from 'vitest';
 import { DRAWINGS, F } from '../../src/calc/indicators';
-import '../../src/lab/index';
+// released 2026-11-26: the formulas are in calc/indicators.ts (INDICATOR_BETA_TO_LIVE.md Part B)
 
 type N = number | null;
 function bars(n: number, seed = 2718) {

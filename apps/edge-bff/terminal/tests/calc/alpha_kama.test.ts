@@ -5,7 +5,7 @@
 // reading on every bar, the colour groups, the signals, the start of history and causality.
 import { describe, expect, it } from 'vitest';
 import { F } from '../../src/calc/indicators';
-import { KAMA_PALETTE } from '../../src/lab/index';
+import { KAMA_PALETTE } from '../../src/calc/indicators';
 
 type N = number | null;
 function bars(n: number, seed = 4242) {

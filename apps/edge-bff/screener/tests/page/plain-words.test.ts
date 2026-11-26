@@ -108,7 +108,7 @@ describe('the catalog a user reads is plain words', () => {
     // the walk reaches what the page shows from the catalog: unavailable reasons, every preset, every indicator
     expect(shown.filter(([w, s]) => / reason$/.test(w) && s).length).toBeGreaterThan(70);
     expect(new Set(shown.filter(([w]) => w.startsWith('preset ')).map(([w]) => w.split(' ')[1])).size).toBe(presetDefinitions().length);
-    expect(new Set(shown.filter(([w]) => w.startsWith('indicator ')).map(([w]) => w.split(' ')[1])).size).toBe(53);
+    expect(new Set(shown.filter(([w]) => w.startsWith('indicator ')).map(([w]) => w.split(' ')[1])).size).toBe(60);
     expect(offending(shown)).toEqual([]);
     // the cases that used to show a wire value: a pattern's "Line" options (indicator ids), Keltner's bands style, and
     // a preset's unavailable legs (condition ids, metric_filters[0])

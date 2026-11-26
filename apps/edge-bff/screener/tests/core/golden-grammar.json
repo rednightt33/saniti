@@ -1609,6 +1609,646 @@
   "20aa497d9bd4c19e851e3df6",
   "d13d4a8b3b8add19b5970157"
  ],
+ "indicator:I54:value|distance|gt": [
+  "0ffb78ad534f363062f4bb6d",
+  "75df6f5899b33fa99df5d140",
+  "83d05a977097cf3379f2f3b1"
+ ],
+ "indicator:I54:value|distance|lt": [
+  "184ff02d9fb720c419f3f1e3",
+  "843c89cdf853c1b43745a7ab",
+  "ffef346a9e582f663d791081"
+ ],
+ "indicator:I54:value|distance|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I54:state_output|distance|gt": [
+  "1bf57c2229b65ad9c10ca701",
+  "0f9e3decdd3c32122b671ee0",
+  "56636a2f61417e4877bc09a9"
+ ],
+ "indicator:I54:state_output|distance|lt": [
+  "756e937f65a43609a15ecb99",
+  "dfd53ef727f18d509cadfe1b",
+  "3c8128b745ac9526b8e106e9"
+ ],
+ "indicator:I54:event_value|distance|crosses_above": [
+  "6ddbf5a3125300572413b2a9",
+  "0956c5148a6adead3e59f60a",
+  "7ddb1737ba7a4bed293631f8"
+ ],
+ "indicator:I54:event_value|distance|crosses_below": [
+  "e55ad34c8edc02b86f44ed65",
+  "8ebe9eb060fcf76b2391a26a",
+  "593d60bfe03b1b24fa55dafa"
+ ],
+ "indicator:I54:value|decile|gt": [
+  "8e24bc338571cb0768fee9e9",
+  "0e1598d7031738e3afa46cf7",
+  "89cfde2818232749d05092bc"
+ ],
+ "indicator:I54:value|decile|lt": [
+  "307bab82114cd44d3ff5538c",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I54:value|decile|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I54:value|upper_z|gt": [
+  "0e1598d7031738e3afa46cf7",
+  "0e1598d7031738e3afa46cf7",
+  "89cfde2818232749d05092bc"
+ ],
+ "indicator:I54:value|upper_z|lt": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I54:value|upper_z|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I54:value|lower_z|gt": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I54:value|lower_z|lt": [
+  "0e1598d7031738e3afa46cf7",
+  "0e1598d7031738e3afa46cf7",
+  "89cfde2818232749d05092bc"
+ ],
+ "indicator:I54:value|lower_z|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I54:state_value|direction|gt": [
+  "5e0db96172820f1fbd962fa4",
+  "6a8eb23343c853eb7743fa2f",
+  "b13332820b33ee25509b15c3"
+ ],
+ "indicator:I54:state_value|direction|lt": [
+  "e9a248ca6a865d372596ce1b",
+  "d6968dd5ff5e48c528f57376",
+  "188ea643d5e4480dd5c78e97"
+ ],
+ "indicator:I54:state_value|outside_up|gt": [
+  "1bf57c2229b65ad9c10ca701",
+  "0f9e3decdd3c32122b671ee0",
+  "56636a2f61417e4877bc09a9"
+ ],
+ "indicator:I54:event_value|outside_up|crosses_above": [
+  "71737882207a6d1b8c06f144",
+  "9d895feba32437045489adce",
+  "ec306013759dad713a346073"
+ ],
+ "indicator:I54:state_value|outside_down|gt": [
+  "756e937f65a43609a15ecb99",
+  "dfd53ef727f18d509cadfe1b",
+  "3c8128b745ac9526b8e106e9"
+ ],
+ "indicator:I54:event_value|outside_down|crosses_above": [
+  "1f5b54215249e251302ba48d",
+  "d7e032d3004e3aba74c0e8a6",
+  "7ad571204d4cc177c6e69811"
+ ],
+ "indicator:I54:state_value|outside_any|gt": [
+  "e9a248ca6a865d372596ce1b",
+  "d6968dd5ff5e48c528f57376",
+  "188ea643d5e4480dd5c78e97"
+ ],
+ "indicator:I54:event_value|outside_any|crosses_above": [
+  "883fb26e8c162c159b3251f2",
+  "f9289c196171dc7b2579887d",
+  "64e85bd157b499a4370d91ed"
+ ],
+ "indicator:I54:event_value|back_in_up|crosses_above": [
+  "f4bb5e867109182ae57320fc",
+  "c04809928942b9b3e8c9f12d",
+  "f699e86d27208d473396c651"
+ ],
+ "indicator:I54:event_value|back_in_down|crosses_above": [
+  "8dff721db5a9de9cacb11de8",
+  "8e37d51a4f21f9e16500a112",
+  "1a5750e590c0bfbe467404ba"
+ ],
+ "indicator:I54:event_value|back_in_any|crosses_above": [
+  "f12f462c1e88b562f0abeebb",
+  "58fbaece4bf0d89bf22217ac",
+  "4aa5f0de6bacf71e4f2247c9"
+ ],
+ "indicator:I55:state_value|ib|gt": [
+  "d2b3c1469ab98a26d2950aa4",
+  "774f528ad5ef132f1f025553",
+  "e64e650ef0684e7da2cf7ced"
+ ],
+ "indicator:I55:event_value|ib|crosses_above": [
+  "1834d25d4e9dd8c7423e2e14",
+  "ab8691de929967eea19e2c83",
+  "5ff057f05f903bf3e82f0435"
+ ],
+ "indicator:I55:state_value|break_up|gt": [
+  "3a7184abc3a135ea4f251545",
+  "3845ae742cf0270e80d28acf",
+  "debd9c499e8f556a5723e09d"
+ ],
+ "indicator:I55:event_value|break_up|crosses_above": [
+  "3a7184abc3a135ea4f251545",
+  "3845ae742cf0270e80d28acf",
+  "debd9c499e8f556a5723e09d"
+ ],
+ "indicator:I55:state_value|break_down|gt": [
+  "46f932d0558fba72a815fef3",
+  "0dd1d7728cdfff7579a8ac84",
+  "0ef9728d32d086e9af0da69d"
+ ],
+ "indicator:I55:event_value|break_down|crosses_above": [
+  "46f932d0558fba72a815fef3",
+  "0dd1d7728cdfff7579a8ac84",
+  "0ef9728d32d086e9af0da69d"
+ ],
+ "indicator:I56:state_level|level_1|gt": [
+  "ebf1c57a4def1987ffbed261",
+  "83dd4fd28589fb06b1455ecb",
+  "1bee4570cfbef0ccd2aea125"
+ ],
+ "indicator:I56:state_level|level_1|lt": [
+  "cc096b412458aa60d0ec2294",
+  "3d2fe26b390dd27ce38b4f25",
+  "97d20134f8e5da7a1398b136"
+ ],
+ "indicator:I56:event_level|level_1|crosses_above": [
+  "268d9811ddc9d860d2c40ee5",
+  "da328f6db71dbf8ab19c7514",
+  "08ea5c4a2f93f8ef73a7bbef"
+ ],
+ "indicator:I56:event_level|level_1|crosses_below": [
+  "c06f74e1403df809ac37c4b3",
+  "750787ef7096eb91eca973ed",
+  "2a5a99bd53366b46a2e1b79e"
+ ],
+ "indicator:I56:value_pct_distance|level_1|gt": [
+  "82c3560cc997e5713391de45",
+  "53aacba465c17529f8a183a0",
+  "6682c433fad6da9f31c52058"
+ ],
+ "indicator:I56:value_pct_distance|level_1|lt": [
+  "7d8b27d1d0486c61f6db2c8f",
+  "772e3378f25898799e9833b3",
+  "0f980433d8b39df383fb0d70"
+ ],
+ "indicator:I56:value_pct_distance|level_1|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I56:state_level|level_a|gt": [
+  "06bac54a3c7635edb564969e",
+  "9395ccec6f459279b2ec99c4",
+  "50e8d8cec8af50c625c29be3"
+ ],
+ "indicator:I56:state_level|level_a|lt": [
+  "fb17dfaf3928d1364fd16ca7",
+  "7be0c62ad311e84fc418e355",
+  "e65f497c99f231b9d0fb97ff"
+ ],
+ "indicator:I56:event_level|level_a|crosses_above": [
+  "91eaf0cf0b9252e7e7b695f3",
+  "e6b42177cb840817b35e43ee",
+  "59937182411f7637dafd98a5"
+ ],
+ "indicator:I56:event_level|level_a|crosses_below": [
+  "01da1fc3935100a47708748e",
+  "616bf447b62325f02200a23a",
+  "7b998d686877a9da7691d45b"
+ ],
+ "indicator:I56:value_pct_distance|level_a|gt": [
+  "a5f7bcbf2aecf8ae6011cb38",
+  "4c3994e052952f6ac20458f1",
+  "3d078739c9985741d58d9cf2"
+ ],
+ "indicator:I56:value_pct_distance|level_a|lt": [
+  "497d4685d0305c7405ce1e3a",
+  "5d4adbd7f519690de6904670",
+  "05c850fb5fc24ef29dee46e3"
+ ],
+ "indicator:I56:value_pct_distance|level_a|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I56:state_level|level_b|gt": [
+  "03036080d0ccefd0da843eb8",
+  "60a278ca3ea3955b259dd11b",
+  "b328ef38c1d73d0674794db8"
+ ],
+ "indicator:I56:state_level|level_b|lt": [
+  "3e77740c5a446facb9dd9074",
+  "e2dd2e2dd3e4910e8768f01e",
+  "1e257e34fa4a7e54c0ed45ae"
+ ],
+ "indicator:I56:event_level|level_b|crosses_above": [
+  "d4ef13808a522f6b2161990d",
+  "856deaaefc32b517bda24489",
+  "17ffc4f4141986bb6534a892"
+ ],
+ "indicator:I56:event_level|level_b|crosses_below": [
+  "2a963a91293b77534c42ffb7",
+  "eaedaa0158658d8a790c061d",
+  "2798ba0976c7c4a80773a213"
+ ],
+ "indicator:I56:value_pct_distance|level_b|gt": [
+  "a44f29d1798673cd26e7d0a8",
+  "19e159d00cfb1bade6504985",
+  "5a0f538bb10d61adfbc3c537"
+ ],
+ "indicator:I56:value_pct_distance|level_b|lt": [
+  "1acebdf3c57c9ea85257386f",
+  "bed6e98873faa520dc243d6a",
+  "420cc642c61e4080f6c221b4"
+ ],
+ "indicator:I56:value_pct_distance|level_b|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I56:state_value|break_1|gt": [
+  "0930e9758c800fb1547ad38a",
+  "062a1f210dbadbe6965d249c",
+  "d3f98e0b0599aac201ee4f81"
+ ],
+ "indicator:I56:event_value|break_1|crosses_above": [
+  "a8ea89865c4df428d461ca8e",
+  "925b7fdece168834959e2e6d",
+  "dff0ee112cafe00654c265fe"
+ ],
+ "indicator:I56:state_value|break_a|gt": [
+  "9173f404d55ced8bb9981041",
+  "8df5471af059648af57aa74d",
+  "a5fcbc4a002562a91a41e5f4"
+ ],
+ "indicator:I56:event_value|break_a|crosses_above": [
+  "2265c726a93e8486f32ba735",
+  "97d762ce7bdfa71f27de3995",
+  "a5fcbc4a002562a91a41e5f4"
+ ],
+ "indicator:I56:state_value|break_b|gt": [
+  "60cccfc55cba314b72e89548",
+  "ef64c68f296a542079563718",
+  "59937182411f7637dafd98a5"
+ ],
+ "indicator:I56:event_value|break_b|crosses_above": [
+  "cf02311b97676086387bf2df",
+  "9fd1cfc1fa59c799d9e89189",
+  "59937182411f7637dafd98a5"
+ ],
+ "indicator:I57:state_level|level_1|gt": [
+  "597556c298534ba43b9a7bf2",
+  "13983e62a7b18b57c77a5614",
+  "524865367c19dd0e008fb16b"
+ ],
+ "indicator:I57:state_level|level_1|lt": [
+  "d77c73083de0f3523defa822",
+  "77a6f0c220ed6e6f4969f468",
+  "b499351f38ed8922e7a781b1"
+ ],
+ "indicator:I57:event_level|level_1|crosses_above": [
+  "05f416ce31efd0a359442051",
+  "9dae0af5aeaafed564335764",
+  "04d88add742ac3f4d64a915e"
+ ],
+ "indicator:I57:event_level|level_1|crosses_below": [
+  "2211fd4b95c7c63571aaea2a",
+  "2aa9bc6758f3c07f8f1ce524",
+  "eaeb66c40a7e64c7e0e8d9a7"
+ ],
+ "indicator:I57:value_pct_distance|level_1|gt": [
+  "16857dd99d56c555e83b1f48",
+  "0d5c9774aa7e1071bb218d79",
+  "9409411917f89031b2f23b94"
+ ],
+ "indicator:I57:value_pct_distance|level_1|lt": [
+  "2e0a5e73938d8712f1a65bf3",
+  "8c231ffcab09526cc7181923",
+  "db1cfc66b47f48274ae703d0"
+ ],
+ "indicator:I57:value_pct_distance|level_1|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I57:state_level|level_a|gt": [
+  "180c268757fa66ab4a4b2e43",
+  "54609a1e651d057929c19779",
+  "fb539f8df0ce043d5223135f"
+ ],
+ "indicator:I57:state_level|level_a|lt": [
+  "a91e07a6abac1039b1a6aef2",
+  "355d8d55d213a742c0d56486",
+  "87fc41fd52ec4cfc1a09c553"
+ ],
+ "indicator:I57:event_level|level_a|crosses_above": [
+  "cf0c3ed8b1a6397152c2bd88",
+  "24484f97aec4f1e4eede2c51",
+  "6829742da6891c3380b6790e"
+ ],
+ "indicator:I57:event_level|level_a|crosses_below": [
+  "f7035afcac3b39e29b540c6d",
+  "fed1a5975b0b99f8d7147ac8",
+  "1a2b5cecd4587040a3171789"
+ ],
+ "indicator:I57:value_pct_distance|level_a|gt": [
+  "b1263c2f8abc99aee9db1835",
+  "509d188635140e9339deb647",
+  "34acc3d02d276d05fc27f64f"
+ ],
+ "indicator:I57:value_pct_distance|level_a|lt": [
+  "0b52f6376fd3c669be5351a0",
+  "b642fd0438729861880e2f22",
+  "a359ef71b92d136430ea8bae"
+ ],
+ "indicator:I57:value_pct_distance|level_a|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I57:state_level|level_b|gt": [
+  "8b01071d6a93655ef7bcc627",
+  "527172cd93a84c74386b477b",
+  "6d73274f550f19ecf379945f"
+ ],
+ "indicator:I57:state_level|level_b|lt": [
+  "afbffa92cd0b5e5dad3448e2",
+  "d0ad0cf91a209d8a77c74df9",
+  "349448eafb5ec3b1ad8ff1ed"
+ ],
+ "indicator:I57:event_level|level_b|crosses_above": [
+  "43b146d2b207ff9c145b7214",
+  "83b9a564569ef4f57eca0a67",
+  "f8df58cd4ecf8f89c409cc1b"
+ ],
+ "indicator:I57:event_level|level_b|crosses_below": [
+  "011b41be80a6ea996a7cdead",
+  "815229dd759c0f665f93a392",
+  "4b55ab8fa74a2f50002392f6"
+ ],
+ "indicator:I57:value_pct_distance|level_b|gt": [
+  "877937ed559fc201ca86961f",
+  "27307d2ecc6a8b98f605c7dc",
+  "655ff7793a2e58c8a50e954e"
+ ],
+ "indicator:I57:value_pct_distance|level_b|lt": [
+  "34851cbe0fc459fd0163fc27",
+  "28517bad59b380c9e999da53",
+  "d6220cb2aa180537b6f68f45"
+ ],
+ "indicator:I57:value_pct_distance|level_b|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I57:state_value|break_1|gt": [
+  "7d6065b285c31f3a4bdd9886",
+  "93f560950800c0291e70d0db",
+  "f71ce0f07fa416a473d56a5a"
+ ],
+ "indicator:I57:event_value|break_1|crosses_above": [
+  "c2c795d1fe96414a6b202e6c",
+  "325d2692ad53a5747473c60c",
+  "771fa1c49bdee4607985a3be"
+ ],
+ "indicator:I57:state_value|break_a|gt": [
+  "efda2aa7a25c5dd5f16ccbf9",
+  "a58a5c9dd819deaddd3bf1b3",
+  "8722c815c3aa7de70e29db67"
+ ],
+ "indicator:I57:event_value|break_a|crosses_above": [
+  "efda2aa7a25c5dd5f16ccbf9",
+  "477d6483d15fad399b10c967",
+  "8722c815c3aa7de70e29db67"
+ ],
+ "indicator:I57:state_value|break_b|gt": [
+  "eb73a08dde154a0101a07ef5",
+  "97d294f098df9b6608b53ca0",
+  "5e275de11dbbdd84f4ceec3e"
+ ],
+ "indicator:I57:event_value|break_b|crosses_above": [
+  "0c1c7329d2530f220011d1d4",
+  "97d294f098df9b6608b53ca0",
+  "5e275de11dbbdd84f4ceec3e"
+ ],
+ "indicator:I58:state_level|kama|gt": [
+  "603ef866356145e5f0f46224",
+  "c567bf749ae5d88652ccf1a4",
+  "6ac3bcce9ac9b8900ca1a605"
+ ],
+ "indicator:I58:state_level|kama|lt": [
+  "3062bb1478b7011e2046e717",
+  "cc47b8e495fd911a0604aa04",
+  "d2cfa0848737d1a2f80fcee2"
+ ],
+ "indicator:I58:event_level|kama|crosses_above": [
+  "5a4ab069d6ffd624d64c3f9e",
+  "d149c3120a4917e027defea2",
+  "bb96a37b2e2f77f493b7983a"
+ ],
+ "indicator:I58:event_level|kama|crosses_below": [
+  "88c43c1fdbf8734e9007d42c",
+  "12323456cd1e781e6a9efc75",
+  "36cb759f2f56507d5297439b"
+ ],
+ "indicator:I58:value_pct_distance|kama|gt": [
+  "7ad7b5d6512d212f83d5d540",
+  "6ecd0d4f2736c964c0e49e9c",
+  "cdbd2dbc85f14b49b7c25150"
+ ],
+ "indicator:I58:value_pct_distance|kama|lt": [
+  "d0b4fbfdc69513e33a7e9a18",
+  "9a115aec4d4b9753e70e3953",
+  "2f29a9ad647829af720d50eb"
+ ],
+ "indicator:I58:value_pct_distance|kama|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I58:state_output|ema_x|gt": [
+  "3fb8bcb0b8f28252a4bb48c3",
+  "c90f672956fa9e0babce85b2",
+  "8cee3bb48d7981a436469593"
+ ],
+ "indicator:I58:state_output|ema_x|lt": [
+  "4af49c3ab5f58e8ea7e8dc1b",
+  "ed1abb2c2dfcf70993e55869",
+  "b33b1b85461e72552ef02771"
+ ],
+ "indicator:I58:event_output|ema_x|crosses_above": [
+  "ec6e7f2764fd7519d6fb4973",
+  "1a6a653edde252f9fc3772ce",
+  "85bf4b7eb3eea6ceaa747e15"
+ ],
+ "indicator:I58:event_output|ema_x|crosses_below": [
+  "c917eafa8df4c5b84d583d7f",
+  "88ea648e4c4f6f871650c5c0",
+  "ee8007edeb945b5ce96b671f"
+ ],
+ "indicator:I58:state_category|color_state|gt": [
+  "1e3b62bf9a53b850f36ca02a",
+  "76d62018d62a58b67fdfa586",
+  "381497535bbe125d478e12b2"
+ ],
+ "indicator:I58:event_category_change|color_state|gt": [
+  "88ba33cb73999279b8f17fc9",
+  "e824676dd62e2ba1cf1a4226",
+  "b44e2e9590a9824754d1a8d1"
+ ],
+ "indicator:I58:state_value|long|gt": [
+  "20aa497d9bd4c19e851e3df6",
+  "d8a8e446c500ab1b0eb23185",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I58:event_value|long|crosses_above": [
+  "20aa497d9bd4c19e851e3df6",
+  "d8a8e446c500ab1b0eb23185",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I58:state_value|short|gt": [
+  "e8da61b1cfdea3555da0cb6d",
+  "3f579ea8daea197df6146067",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I58:event_value|short|crosses_above": [
+  "e8da61b1cfdea3555da0cb6d",
+  "3f579ea8daea197df6146067",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I59:state_value|bull|gt": [
+  "cfea6ea345f4e72ac754b48e",
+  "5d08a5c59138c42217978d34",
+  "8734c08e49e3073352196134"
+ ],
+ "indicator:I59:event_value|bull|crosses_above": [
+  "cfea6ea345f4e72ac754b48e",
+  "103da29a90aa81ccc52e8a40",
+  "8734c08e49e3073352196134"
+ ],
+ "indicator:I59:state_value|bear|gt": [
+  "a67f4c63186affc5aa5f1bc8",
+  "ae2f73a5d02326a506c14fb5",
+  "af98f01940d5ccfb0754aa7e"
+ ],
+ "indicator:I59:event_value|bear|crosses_above": [
+  "d79660ea51ad4caab96ba50b",
+  "ae2f73a5d02326a506c14fb5",
+  "d047a1224e28b337a942bd62"
+ ],
+ "indicator:I60:state_value|bull_div|gt": [
+  "e9c48fbd60ad5d320fba93a5",
+  "3010adddd5da10fb2cffc81f",
+  "34a06d6b8bb440e91e0a054b"
+ ],
+ "indicator:I60:event_value|bull_div|crosses_above": [
+  "e9c48fbd60ad5d320fba93a5",
+  "3010adddd5da10fb2cffc81f",
+  "34a06d6b8bb440e91e0a054b"
+ ],
+ "indicator:I60:state_value|bear_div|gt": [
+  "9293a0418300cf00d1e51e9f",
+  "d04ce72f303b43c2315863d8",
+  "97c7185c7390348afa79f8f2"
+ ],
+ "indicator:I60:event_value|bear_div|crosses_above": [
+  "9293a0418300cf00d1e51e9f",
+  "d04ce72f303b43c2315863d8",
+  "97c7185c7390348afa79f8f2"
+ ],
+ "indicator:I60:state_value|buy_a|gt": [
+  "0e08c16714c15efe0790f182",
+  "c4241104f6f308b200171ccf",
+  "4e0a0ce4e0f43442c7caa3a7"
+ ],
+ "indicator:I60:event_value|buy_a|crosses_above": [
+  "0e08c16714c15efe0790f182",
+  "c4241104f6f308b200171ccf",
+  "4e0a0ce4e0f43442c7caa3a7"
+ ],
+ "indicator:I60:state_level|swing_high|gt": [
+  "a8da6eb71da966cfaa9794ed",
+  "1c97acd3b5348bf9ad212319",
+  "e1af2b42fbc7081857a80580"
+ ],
+ "indicator:I60:state_level|swing_high|lt": [
+  "ce3d7269431acc29681a1901",
+  "ad7bd5c1a12a1fcb4586d47f",
+  "91540f7d6bb8f962d4affe5f"
+ ],
+ "indicator:I60:event_level|swing_high|crosses_above": [
+  "a8716d77854819922c3a0de9",
+  "313b459b05dc96a69d884d4a",
+  "46cb22c6bbf9e8c1037308de"
+ ],
+ "indicator:I60:event_level|swing_high|crosses_below": [
+  "980ed6434c0fb94c79cc723e",
+  "a1bcc1ce2f1fef703986942a",
+  "7f8b8639cbacb56110e1b505"
+ ],
+ "indicator:I60:value_pct_distance|swing_high|gt": [
+  "ca39cd27d50ad0a59ae5b09d",
+  "5074b6df95d70db25f885240",
+  "c43834437ca0bb440dfbe6ac"
+ ],
+ "indicator:I60:value_pct_distance|swing_high|lt": [
+  "e4e5134694e0bbf76ed82d2c",
+  "41769d3b5e209068060f4802",
+  "ac20d3cd8111356d87630c00"
+ ],
+ "indicator:I60:value_pct_distance|swing_high|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
+ "indicator:I60:state_level|swing_low|gt": [
+  "b5d568d7737522d4eda409f6",
+  "cc0ba9866a18f772203068d1",
+  "2e318ab035c1f4458d632b69"
+ ],
+ "indicator:I60:state_level|swing_low|lt": [
+  "f0b1f9c5d38e9238bb51b7c3",
+  "820aed707c5d16d1dee84c31",
+  "39370cbc1bf2ab5d8d9413a6"
+ ],
+ "indicator:I60:event_level|swing_low|crosses_above": [
+  "e09c528f11a2e8a9161ddd1e",
+  "8f93d2c3883050e05bf5df79",
+  "7bb571b54b640da83fb45de0"
+ ],
+ "indicator:I60:event_level|swing_low|crosses_below": [
+  "829d74a204e8d1c4ffad7b4c",
+  "e772faee93ec07af9b879e99",
+  "b0ac626471c54f37d6a98578"
+ ],
+ "indicator:I60:value_pct_distance|swing_low|gt": [
+  "dcc83f9fc5e826634f7be1b2",
+  "91e083aa8467654cd645a05b",
+  "8dd5df08144550961b689cd0"
+ ],
+ "indicator:I60:value_pct_distance|swing_low|lt": [
+  "905495c12a8956ecc138b692",
+  "a3477d7efed832061bc74aa9",
+  "aeec78bb45c2d3a89b9750e0"
+ ],
+ "indicator:I60:value_pct_distance|swing_low|between": [
+  "20aa497d9bd4c19e851e3df6",
+  "20aa497d9bd4c19e851e3df6",
+  "d13d4a8b3b8add19b5970157"
+ ],
  "metric:hi52:metric|value|gt": [
   "20aa497d9bd4c19e851e3df6",
   "a37c4ebe833a57c800d83837",

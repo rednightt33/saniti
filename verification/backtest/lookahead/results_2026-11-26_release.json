@@ -1,0 +1,247 @@
+[
+ {
+  "ticker": "BBRI",
+  "bars": 928,
+  "from": "2023-01-02",
+  "to": "2026-11-25",
+  "broker_rows": 89483,
+  "cuts": [
+   "2024-05-20",
+   "2025-02-21",
+   "2025-12-04",
+   "2026-07-15"
+  ],
+  "derived_cuts": 323,
+  "anchor": "2023-03-30",
+  "basis": [
+   [
+    "2011-01-11",
+    "STOCK_SPLIT",
+    "unresolved",
+    1,
+    null
+   ],
+   [
+    "2017-11-10",
+    "STOCK_SPLIT",
+    "unresolved",
+    1,
+    null
+   ],
+   [
+    "2021-09-08",
+    "RIGHT_ISSUE",
+    "unresolved",
+    1,
+    null
+   ]
+  ],
+  "off_basis_sessions": 0,
+  "off_basis_sessions_without_factors": 0,
+  "series": 214,
+  "groups": {
+   "indicators": 122,
+   "price_action": 8,
+   "candles": 20,
+   "grammar": 4,
+   "flow_a_c": 44,
+   "point_in_time": 16
+  },
+  "leaks": [],
+  "refused": [
+   "FL01.sell: INVALID_CONDITION",
+   "FL02.sell: INVALID_CONDITION",
+   "FL03.sell: INVALID_CONDITION",
+   "FL04.sell: INVALID_CONDITION",
+   "FL05.sell: INVALID_CONDITION",
+   "FL13.sell: INVALID_CONDITION",
+   "FL32.sell: INVALID_CONDITION",
+   "FL33.sell: INVALID_CONDITION",
+   "FL34.value: METRIC_UNAVAILABLE",
+   "FL34.change: METRIC_UNAVAILABLE"
+  ],
+  "unchanged": [
+   "I60.bear_div",
+   "candle three_white_soldiers"
+  ]
+ },
+ {
+  "ticker": "BBCA",
+  "bars": 928,
+  "from": "2023-01-02",
+  "to": "2026-11-25",
+  "broker_rows": 88776,
+  "cuts": [
+   "2024-05-20",
+   "2025-02-21",
+   "2025-12-04",
+   "2026-07-15"
+  ],
+  "derived_cuts": 321,
+  "anchor": "2023-03-30",
+  "basis": [
+   [
+    "2004-06-08",
+    "STOCK_SPLIT",
+    "unresolved",
+    1,
+    null
+   ],
+   [
+    "2008-01-28",
+    "STOCK_SPLIT",
+    "unresolved",
+    1,
+    null
+   ],
+   [
+    "2021-10-13",
+    "STOCK_SPLIT",
+    "unresolved",
+    1,
+    null
+   ]
+  ],
+  "off_basis_sessions": 0,
+  "off_basis_sessions_without_factors": 0,
+  "series": 214,
+  "groups": {
+   "indicators": 122,
+   "price_action": 8,
+   "candles": 20,
+   "grammar": 4,
+   "flow_a_c": 44,
+   "point_in_time": 16
+  },
+  "leaks": [],
+  "refused": [
+   "FL01.sell: INVALID_CONDITION",
+   "FL02.sell: INVALID_CONDITION",
+   "FL03.sell: INVALID_CONDITION",
+   "FL04.sell: INVALID_CONDITION",
+   "FL05.sell: INVALID_CONDITION",
+   "FL13.sell: INVALID_CONDITION",
+   "FL32.sell: INVALID_CONDITION",
+   "FL33.sell: INVALID_CONDITION",
+   "FL34.value: METRIC_UNAVAILABLE",
+   "FL34.change: METRIC_UNAVAILABLE"
+  ],
+  "unchanged": [
+   "candle three_white_soldiers",
+   "candle three_black_crows"
+  ]
+ },
+ {
+  "ticker": "GOTO",
+  "bars": 928,
+  "from": "2023-01-02",
+  "to": "2026-11-25",
+  "broker_rows": 82325,
+  "cuts": [
+   "2024-05-20",
+   "2025-02-21",
+   "2025-12-04",
+   "2026-07-15"
+  ],
+  "derived_cuts": 356,
+  "anchor": "2023-03-30",
+  "basis": [],
+  "off_basis_sessions": 0,
+  "off_basis_sessions_without_factors": 0,
+  "series": 214,
+  "groups": {
+   "indicators": 122,
+   "price_action": 8,
+   "candles": 20,
+   "grammar": 4,
+   "flow_a_c": 44,
+   "point_in_time": 16
+  },
+  "leaks": [],
+  "refused": [
+   "FL01.sell: INVALID_CONDITION",
+   "FL02.sell: INVALID_CONDITION",
+   "FL03.sell: INVALID_CONDITION",
+   "FL04.sell: INVALID_CONDITION",
+   "FL05.sell: INVALID_CONDITION",
+   "FL13.sell: INVALID_CONDITION",
+   "FL32.sell: INVALID_CONDITION",
+   "FL33.sell: INVALID_CONDITION",
+   "FL34.value: METRIC_UNAVAILABLE",
+   "FL34.change: METRIC_UNAVAILABLE"
+  ],
+  "unchanged": [
+   "candle hammer",
+   "candle hanging_man",
+   "candle dragonfly_doji",
+   "candle piercing_line",
+   "candle three_black_crows"
+  ]
+ },
+ {
+  "ticker": "COCO",
+  "bars": 897,
+  "from": "2023-01-02",
+  "to": "2026-11-25",
+  "broker_rows": 24509,
+  "cuts": [
+   "2024-04-30",
+   "2025-01-24",
+   "2025-12-15",
+   "2026-07-20"
+  ],
+  "derived_cuts": 305,
+  "anchor": "2023-03-30",
+  "basis": [
+   [
+    "2021-12-09",
+    "RIGHT_ISSUE",
+    "unresolved",
+    1,
+    null
+   ],
+   [
+    "2025-10-09",
+    "RIGHT_ISSUE",
+    "terms",
+    2.709675218,
+    "adjusted"
+   ],
+   [
+    "2026-07-09",
+    "RIGHT_ISSUE",
+    "terms",
+    1.74294668,
+    "adjusted"
+   ]
+  ],
+  "off_basis_sessions": 0,
+  "off_basis_sessions_without_factors": 799,
+  "series": 214,
+  "groups": {
+   "indicators": 122,
+   "price_action": 8,
+   "candles": 20,
+   "grammar": 4,
+   "flow_a_c": 44,
+   "point_in_time": 16
+  },
+  "leaks": [],
+  "refused": [
+   "FL01.sell: INVALID_CONDITION",
+   "FL02.sell: INVALID_CONDITION",
+   "FL03.sell: INVALID_CONDITION",
+   "FL04.sell: INVALID_CONDITION",
+   "FL05.sell: INVALID_CONDITION",
+   "FL13.sell: INVALID_CONDITION",
+   "FL32.sell: INVALID_CONDITION",
+   "FL33.sell: INVALID_CONDITION",
+   "FL34.value: METRIC_UNAVAILABLE",
+   "FL34.change: METRIC_UNAVAILABLE"
+  ],
+  "unchanged": [
+   "candle morning_star",
+   "candle three_white_soldiers"
+  ]
+ }
+]

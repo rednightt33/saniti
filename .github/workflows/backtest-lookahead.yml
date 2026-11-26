@@ -53,7 +53,9 @@ jobs:
 
   screener-and-backtest-page:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 30: the Screener's registry check runs two full generator checks at a time, each about 9.5 minutes of one core since
+    # re-check round 3 (2026-11-26, ERRORS M568: every split size on the eight real-price fixtures)
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
