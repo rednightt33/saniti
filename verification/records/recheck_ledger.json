@@ -11724,6 +11724,31 @@
    "tested_out_by": "none",
    "evidence": "ERRORS M571 Status: 'fixed in `ff9921ff`, on the branch, not deployed; tested by its author only'",
    "from": "fix"
+  },
+  {
+   "key": "errors/M572",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: nama file keluarga sector/ (ERRORS M572)",
+   "run": "",
+   "finding_id": "M572",
+   "title": "The contract named the per-sector files with the index ticker in capitals, which terminal-api never serves",
+   "finding": "ERRORS M572 symptom: CONTRACT.md 3.4 named the files sector-stocks-<INDEX> (e.g. sector-stocks-IDXFINANCE); terminal-api keeps only names matching ^[a-z0-9][a-z0-9_-]{0,31}$ (apps/terminal-api/app/bucket.py:13), so the files would have been left out of GET /sector silently.",
+   "errors": [
+    "M572"
+   ],
+   "fix_commits": [
+    "e7d510b6"
+   ],
+   "fix_note": "e7d510b6 (CONTRACT.md 3.4: sector-stocks-<index> lowercased; the publisher, terminal-api, edge-bff and the page follow it)",
+   "runs_on": "not_code",
+   "author_test": "the publisher's tests check every sector file name against XSECTION_NAME; terminal-api's test refuses an uppercase entry",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "List every file name the sector family can produce (sector.py) and check each against terminal-api's XSECTION_NAME and the publisher's key rule; on the beta, GET /api/v1/sector/index lists the eleven sector-stocks-<index> files and each opens.",
+   "tested_out_by": "none",
+   "evidence": "ERRORS M572 Status: 'tested by its author only'",
+   "from": "fix"
   }
  ]
 }

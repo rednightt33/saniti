@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-11-26 — EXEC-SECTOR-ANALYSIS S1 on dev: migration 20261126_001 and the Feature 08 fill on orc-test-runner; Postgres restarted
+
+- **The user's words (2026-11-26):** "1A 2A 3 go" (the go for S0-S4 on the branch and S1 on the dev database).
+- **Before:** no deployment waiting or building; orc-test-runner idle (runner_guard); 0 EDGE jobs, 0 orc turns.
+- **orc-test-runner jobs** (`scripts/onboarding/run_job.sh`, `DATABASE_URL` set per run and removed: `VAR_REMOVED` each
+  time): migration DRYRUN and APPLY of `20261126_001_feature_08_group_daily.sql` (sha256 `ec5288b6…`), the Feature 08
+  fill DRYRUN (5 dates, 0 differences) and APPLY (1,407 dates, 98,490 rows, 159 s, VERDICT APPLY_OK); details in
+  DATABASE_CHANGELOG.md.
+- **Postgres restart** after the fill (`large_write`, `scripts/restart_postgres.py --apply`, every guard passed: 1.53 GB,
+  0 statements, 0 user runs, outside B6 at 02:41 WIB): deployment `387a3c04`, start 19:41:58 UTC, 11 s; `edge-bff` and
+  `edge-bff-live` `/ready` 200.
+- **No service deployed:** feature-04-worker, terminal-publisher, terminal-api and edge-bff keep their code until the
+  user confirms each deploy.
+
 ## 2026-11-26 — The beta and the live site on `53b4fafb`: the Admin page's copy of the design system follows decision 8 (ERRORS M571, Backend tests red on `450f4b46`); `live` moved from `450f4b46`
 
 - **The user's words (2026-11-26):** "2" (beta, then live), after the report of the red Backend tests on `450f4b46`

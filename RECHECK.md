@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 219 item
+## Menunggu uji ulang: 220 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -38,6 +38,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Publisher: berkas events terbit ulang bila isi aksi korporasi berubah (ERRORS M567) | EXEC-EVENTS-STAMP | 1 | 1 | 0 | 0 | 0 | 0 |
 | Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) | EXEC-PRICE-DISTORTION | 4 | 4 | 0 | 0 | 0 | 0 |
 | Backtest, Screener dan Terminal: state fokus dan terpilih mengikuti Terminal, pilihan yang terpotong (ERRORS M570) | EXEC-VISUAL-STATES | 2 | 2 | 0 | 0 | 0 | 0 |
+| Sector Analysis: nama file keluarga sector/ (ERRORS M572) | EXEC-SECTOR-ANALYSIS | 1 | 0 | 0 | 0 | 1 | 0 |
 
 ### Akun dan keamanan: re-check ronde 1 (R1) (40)
 
@@ -328,11 +329,17 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | `errors/M570` | The Backtest and the Screener drew a field being filled with their own line, not the Terminal's selected state; four kinds of select cut their choice | `450f4b46` | live | M570 | 0 |
 | `errors/M571` | The Admin page's copy of the design system kept the old decision 8; Backend tests red on 450f4b46 | `ff9921ff` | live | M571 | 0 |
 
+### Sector Analysis: nama file keluarga sector/ (ERRORS M572) (1)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `errors/M572` | The contract named the per-sector files with the index ticker in capitals, which terminal-api never serves | `e7d510b6` | bukan kode | M572 | 0 |
+
 ## Hitungan per status
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 219 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 220 |
 | `fixed` | diuji ulang agen lain: beres | 130 |
 | `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 2 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
@@ -340,7 +347,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | `open` | belum diperbaiki | 90 |
 | `accepted` | diterima user apa adanya | 4 |
 | `obsolete` | tidak berlaku lagi | 5 |
-| **Total** | | **450** |
+| **Total** | | **451** |
 
 Dari 90 baris `open`, 25 punya baris pemilik di PLAN.md atau EXEC.md dan 65 belum
 (aturan 1: setiap bagian yang terbuka butuh pemilik dan pemicu).

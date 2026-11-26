@@ -8887,6 +8887,35 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M573 — The shared pgweb login cache rewritten in another format broke the Postgres restart check (2026-11-26; fixed the same day, no code change)
+
+- **Symptom:** every `scripts/onboarding/run_job.sh` job ended with `POSTGRES_MEMORY_CHECK` followed by a
+  `json.decoder.JSONDecodeError`; `python3 scripts/restart_postgres.py` failed the same way, so neither the memory check
+  nor a `large_write` restart could run.
+- **Verified root cause:** the agent refreshed the expired pgweb login by writing `~/.pgweb_auth` as `user:pass` text for
+  a scratchpad helper, while the repository's `verification/terminal_api/pgq.py` (read by `restart_postgres.py`) keeps the
+  same file as JSON `{u, p, d}` (`pgq.py:5-19`). **Class:** one cache file shared by two readers with different formats.
+- **Solution:** the file removed and rewritten by the repository's own `pgq.auth()` (JSON from Railway, never printed);
+  the scratchpad helper now reads that JSON. The restart check then answered normally (0.31 GB, below the threshold) and
+  the fill's `large_write` restart ran.
+- **Status:** fixed 2026-11-26 before the fill (a local file of the session; nothing in the repository changed, so
+  there is nothing for a re-check to test).
+- **Lesson:** refresh a shared credential cache only through the repository's own helper (`pgq.auth()`), never by hand.
+
+### M572 — The Sector Analysis contract named the per-sector files with the index ticker in capitals, which terminal-api never serves (2026-11-26; fixed in the contract before any code ran)
+
+- **Symptom (found by the S3 build part):** `verification/sector_analysis/CONTRACT.md` §3.4 named the files
+  `sector-stocks-<INDEX>` (e.g. `sector-stocks-IDXFINANCE`); terminal-api keeps only names matching
+  `^[a-z0-9][a-z0-9_-]{0,31}$` (`apps/terminal-api/app/bucket.py:13` XSECTION_NAME), and the publisher's key rule is the
+  same (`apps/terminal-publisher/publisher.py:578`), so the files would have been left out of `GET /sector` silently.
+- **Verified root cause:** the contract was written without reading the file-name rule of the family it extends.
+  **Class:** a new file family's names not checked against the rule of the services that carry it.
+- **Solution:** the contract says `sector-stocks-<index>` lowercased; the publisher, terminal-api, edge-bff and the page
+  use it, and the publisher's tests check every name against XSECTION_NAME.
+- **Status:** fixed in `e7d510b6` (the contract), before any code was deployed; tested by its author only (RECHECK.md
+  `errors/M572`).
+- **Lesson:** a new file of a published family is checked against terminal-api's XSECTION_NAME in its first test.
+
 ### M571 — Backend tests red on `450f4b46`: the Admin page's copy of the design system kept the old decision 8 (2026-11-26; fixed in `ff9921ff`, on the live site since 2026-11-26 (`53b4fafb`))
 
 - **Symptom:** Backend tests on `main` (run 45775529508) and `live` (45775842126), job `edge-bff-pages`, step "Admin page":
