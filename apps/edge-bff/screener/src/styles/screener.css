@@ -1567,8 +1567,8 @@ span.qpl>.lab{align-self:start;padding-top:2px}
 .tf-add span.on{background:var(--surface);color:var(--text);font-weight:var(--fw-semibold);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .tf-add span.na{cursor:not-allowed}
 .rr{display:block;min-width:0}
-.rr.qs .sel{width:100%;height:var(--h-sm);font-size:var(--fs-12);background:var(--surface-2)}
-.qrow:hover .rr.qs .sel,.qrow.act .rr.qs .sel{background:var(--surface)}
+.rr.qs .sel{width:100%;height:var(--h-sm);font-size:var(--fs-12);background-color:var(--surface-2)}
+.qrow:hover .rr.qs .sel,.qrow.act .rr.qs .sel{background-color:var(--surface)}
 /* .rr.qt: see the settings column rules (one line, or Customize) */
 .rr .ln{display:flex;align-items:center;gap:var(--s-3)}
 .rr .lead{min-width:44px;font-size:var(--fs-xs);color:var(--text-3)}
@@ -1734,8 +1734,8 @@ span.qpl>.lab{align-self:start;padding-top:2px}
 .qcols,.qrow{grid-template-columns:minmax(0,1fr) 88px 224px 276px 88px}
 .qrow.na>.qnm{grid-column:1/-2}
 .tf-add{display:block;min-width:0}
-.tf-add .tf-sel{width:100%;height:32px;font-size:13px;background:var(--surface-2)}
-.qrow:hover .tf-add .tf-sel{background:var(--surface)}
+.tf-add .tf-sel{width:100%;height:32px;font-size:13px;background-color:var(--surface-2)}
+.qrow:hover .tf-add .tf-sel{background-color:var(--surface)}
 .qrow{--qnm-b:1;--qnm-h:calc(var(--qnm-b) * 20px + 2 * 16px + 2px)}
 .qnm{height:var(--qnm-h);align-content:center;overflow:hidden}
 .qnm b,.qnm small{white-space:normal;text-overflow:clip;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden}
@@ -1797,3 +1797,24 @@ span.qpl>.lab{align-self:start;padding-top:2px}
 .hbar button:disabled{opacity:.4;cursor:default}
 .hbar button.del{color:var(--red)}
 .hbar button:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+
+/* ---------- VISUAL-STATES (the user 2026-11-26: "Acuan selected state untuk tweak customize indicator adalah seperti
+   terminal"; the proposal https://claude.ai/artifact/8LnVv9y5zc9ZG99xgFRCUx; "Ok, apply it") ---------- */
+/* A4: a field or select being filled takes the Terminal's selected state, as the Add a condition window already did: no
+   border line, the soft shadow (a plain text input keeps its grey line: its box is often the search field around it) */
+.inp:focus,.sel:focus,.title-in:focus,select:focus,textarea:focus,input[type=number]:focus{border-color:transparent;box-shadow:var(--sel-shadow)}
+/* B2: an added row as the Backtest's: the row 13 % green (18 % under the pointer), its name in the text colour, Added a
+   filled green button; under the pointer it still turns into the red Remove (.qrow.isadd:hover .qact.on) */
+.qwin .qrow.isadd{background:color-mix(in srgb,var(--green) 13%,var(--surface))}
+.qwin .qrow.isadd:hover{background:color-mix(in srgb,var(--green) 18%,var(--surface))}
+.qrow.isadd .qnm b{color:var(--text)}
+.qact.on{background:var(--green);border-color:var(--green);color:var(--surface);font-weight:var(--fw-semibold)}
+/* D1: Add under the pointer, as the Terminal's Indicators window */
+.qwin .qact:not(.on):hover{background:var(--hover);border-color:var(--border-2)}
+/* C4 (the user: "ini leave as is juga. Tapi kalau terpotong tambahkan saja ... Misalkan Origin..."): the window keeps its
+   columns; a choice longer than its box ends in "…" (the open list shows it whole) */
+.qwin .qrow select{text-overflow:ellipsis}
+/* D2: the thin chevron of the Terminal and the Backtest instead of the browser's own arrow, in the window and the cards
+   (the window's Condition and Timeframe selects set background-color, not the shorthand, so the chevron stays) */
+.qwin select,#cardC select{-webkit-appearance:none;appearance:none;padding-right:26px;background-repeat:no-repeat;background-position:right 9px center;background-size:10px 10px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='%238f8f8f' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}

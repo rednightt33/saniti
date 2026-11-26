@@ -12,7 +12,7 @@
 
 /* ---- tokens added by the state layer (decision 1: spec v1.2 + the Overview/Radar state layer) ---- */
 :root{
-  --focus-border:var(--text-3); --focus-shadow:none;                       /* decision 8: grey 1px focus, no shadow */
+  --focus-border:transparent; --focus-shadow:var(--shadow);                 /* decision 8 (changed 2026-11-26): the Terminal's selected state */
   --shadow-sm:0 1px 2px rgba(0,0,0,.06),0 2px 8px -2px rgba(0,0,0,.10);
   --pick:color-mix(in srgb,var(--blue) 6%,var(--surface));                /* selected table row */
   --pick-hover:color-mix(in srgb,var(--blue) 9%,var(--surface));
@@ -45,7 +45,8 @@
 .tbl tbody tr.on:hover td{background:var(--pick-hover)}
 .tbl tbody tr.on td:first-child{box-shadow:inset 3px 0 0 var(--text)}
 
-/* ---- decision 8: inputs focus with a grey border, no ring ---- */
+/* ---- decision 8 (the user 2026-11-26, VISUAL-STATES: "Acuan selected state ... seperti terminal"): a field being filled
+   takes the Terminal's selected state, its border line gone and the soft shadow (--shadow), no ring ---- */
 input:focus,select:focus,textarea:focus,.inp:focus,.sel:focus{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
 
 /* ---- a trigger whose menu is open (any element with aria-haspopup) ---- */

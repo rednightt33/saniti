@@ -912,3 +912,24 @@ html,body{font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);font-
 .viewbar .tabsrow>.vtabs,.viewbar .tabsrow>.hbtn{flex-shrink:0}   /* the note gives way first: the tabs' counts stay on one line */
 .viewbar .vnote[hidden]{display:none}
 .xfb-l .fchip[hidden]{display:none}   /* a chip that does not fit the row (filterbar.ts fit, user "2B") */
+
+/* ---------- VISUAL-STATES (the user 2026-11-26: "Acuan selected state untuk tweak customize indicator adalah seperti
+   terminal"; the proposal https://claude.ai/artifact/8LnVv9y5zc9ZG99xgFRCUx; "Ok, apply it") ---------- */
+/* A1-A3: a field being filled takes the Terminal's selected state (its settings dialog): no border line, the soft shadow
+   (--shadow is the Terminal's --sel-shadow), in the builder's cards, the condition window and its Customize panel */
+.inp:focus,.sel:focus,#cw .inp:focus,#cw .sel:focus,#cwPop .inp:focus,#cwPop .sel:focus{border-color:transparent;box-shadow:var(--shadow);outline:none}
+/* B1: an added row says so in a stronger green: the row 13 % green (18 % under the pointer) and Added a filled green
+   button; under the pointer it still turns into the red Remove (#cw .qact.on:hover, #cw .qrow.isadd:hover .qact.on) */
+#cw .qrow.isadd{background:color-mix(in srgb,var(--green) 13%,var(--surface))}
+#cw .qrow.isadd:hover{background:color-mix(in srgb,var(--green) 18%,var(--surface))}
+#cw .qact.on{background:var(--green);border-color:var(--green);color:var(--surface);font-weight:600}
+/* D1: Add under the pointer, as the Terminal's Indicators window */
+#cw .qact:not(.on):hover{background:var(--hover);border-color:var(--border-2)}
+/* C3: the Condition column grows to 330 px when the window has the room (1440 px wide), so the longest conditions show
+   whole; a narrower window keeps 232 px and a label that still does not fit ends in "…"; a parameter select shows its
+   whole option and the parameters go to a second line when the cell is full (Alpha Divergence's Swing Detection Mode) */
+#cw .qwin[data-mode=B].xs-sc .qcols,#cw .qwin[data-mode=B].xs-sc .qrow:not(.na){grid-template-columns:minmax(240px,1fr) minmax(232px,330px) minmax(260px,1.1fr) 80px!important}
+#cw .qrow select{text-overflow:ellipsis}
+#cw .qbox .sel{max-width:100%;flex:0 0 auto}
+#cw .qt .qbox{flex-wrap:wrap;row-gap:4px;min-width:0;max-width:100%}
+#cw .qrow .qt{flex-wrap:wrap;row-gap:6px}

@@ -99,7 +99,7 @@ Corporate action = `.pill.info` with the calendar icon; Radar hit = ink pill (us
 <label class="field"><span>List name</span><input class="inp" value="Core"></label>
 <input class="inp custom" value="25">   <!-- a parameter changed from its default: blue text -->
 ```
-Focus: grey border, no ring (decision 8). Errors under the field: `<small class="ferr">` in `--red`, naming the fix.
+Focus: the border line goes and the soft shadow `--shadow` shows, no ring: the Terminal's selected state (decision 8, changed 2026-11-26). Errors under the field: `<small class="ferr">` in `--red`, naming the fix.
 
 ## Table
 ```html

@@ -40,13 +40,17 @@ this folder is the source, the artifact follows it.
 7. **Numbers:** en-US digits, U+2212 minus (`−`), percent `+1.78%`, rupiah `Rp 8.15T` / `Rp 116.6B` / `Rp 4.2M`, prices
    with thousands commas (`edge-ds.js`: `pct`, `rp`, `amount`, `price`). Up = `.up` (green), down = `.down` (red).
    (The Backtest's Indonesian format is an existing exception; do not copy it.)
-8. **Inputs:** focus is a grey 1 px border, no ring.
+8. **Inputs:** focus is the Terminal's selected state: the border line goes and the soft shadow `--shadow` takes its place,
+   no ring (changed by the user 2026-11-26, VISUAL-STATES: "Acuan selected state untuk tweak customize indicator adalah seperti
+   terminal"; it was a grey 1 px border). A select is as wide as its longest choice where the row has room, and a choice
+   that still does not fit ends in "…".
 9. **Icons:** the sprite in `assets/icons.svg`, 16 px, stroke 1.6, `currentColor`. A new icon is a new `<symbol>` in
    the same style.
 10. **Primary button:** ink (`.btn.primary`); a button that runs something may turn green when it can run
     (`.btn.primary.ready`). Shortcuts show as `<kbd>` inside the button (hidden on phones) with `aria-keyshortcuts`.
 11. **Terminal** (`apps/edge-bff/terminal`) has its own older look and the user's rule "Terminal jangan disentuh": it is
-    not a model for new pages and is not restyled.
+    not a model for new pages and is not restyled, except its states: since 2026-11-26 its selected (focus) state and
+    its Add-button hover are the model the Backtest and the Screener follow (VISUAL-STATES).
 
 Also, from the pages and the spec (not up for choice):
 - Language of the UI: **English** labels (wording in `static/edge-labels.js` for the shell). Plain words; a refusal or

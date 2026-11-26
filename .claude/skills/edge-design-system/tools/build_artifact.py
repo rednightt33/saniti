@@ -135,9 +135,9 @@ comp('Toggle', 'Controls', 90, 'Filter toggles (pill buttons) and the on/off swi
  '''- `.tog` + `aria-pressed`: a filter of what is shown; answer with a toast saying what is filtered and how many remain.
 - `.switch` + `role="switch"` + `aria-checked`: a setting that applies at once.''',
  '''<div class="row" style="padding:16px"><button class="tog on" aria-pressed="true"><svg class="ic ic-sm"><use href="#i-radar"/></svg>Radar</button><button class="tog" aria-pressed="false">Corporate action</button><button class="switch on" role="switch" aria-checked="true" aria-label="Near misses"></button><span class="muted">Near misses</span></div>''')
-comp('Field', 'Controls', 120, 'Labelled inputs; grey border on focus; blue text for a value changed from its default.',
+comp('Field', 'Controls', 120, 'Labelled inputs; on focus the border line goes and the soft shadow shows (as the Terminal shows a selected field); blue text for a value changed from its default.',
  '''- `<label class="field"><span>Label</span><input class="inp"></label>`; errors under the field in red, naming the fix.
-- `.inp.custom` marks a parameter changed from its default. Focus: grey 1px border, no ring (decision 8).''',
+- `.inp.custom` marks a parameter changed from its default. Focus: the border line goes and the soft shadow `--shadow` shows, no ring (decision 8, changed 2026-11-26).''',
  '''<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px"><label class="field"><span>List name</span><input class="inp" value="Core"></label><label class="field"><span>Search</span><input class="inp" placeholder="Search code or name, e.g. AD"></label><label class="field"><span>RSI below</span><input class="inp custom" value="25"></label></div>''')
 comp('Card', 'Layout', 200, 'Card with header: title over a grey subtitle, Period label and segmented control on the right.',
  '''- `.card` (radius 12, 1px border, no shadow) › `.card-h` › `.ttl` (`h3` + `.ttl-s`) and `.pctl` (`.plab` + `.seg.sm`); body `.card-b`.

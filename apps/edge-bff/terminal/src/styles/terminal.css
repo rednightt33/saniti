@@ -1087,6 +1087,13 @@ html.fit .ind-row .ind-k{min-width:0;overflow:hidden;text-overflow:ellipsis}
 /* - Flow settings dialogs: every select as wide as the multi-selects, labels on one line, the date field and its
      "On chart" button whole, a shadow where the body scrolls (V4, V7, V9) */
 .idlg-flow select.idlg-in{width:176px;padding-right:26px;text-overflow:ellipsis}
+/* VISUAL-STATES C1-C2 (the user 2026-11-26: "Identify similar case seperti ini, di mana keterangan customizable
+   indicator-nya terpotong. Dan benarkan agar tidak terpotong"; "Ok, apply it"): a settings select is as wide as its
+   longest choice, from its old width up to 260 px, so Alpha Divergence's Swing Detection Mode, Top Brokers · Imbalance's
+   Show as, Net Flow / Turnover Ratio's Change line vs and Loaders' Cost show whole (the 107 indicators scanned on
+   2026-11-26); the Style tab's small selects keep their width */
+.idlg select.idlg-in:not(.sm){width:auto;min-width:128px;max-width:260px}
+.idlg-flow select.idlg-in:not(.sm){min-width:176px}
 .idlg-flow .idlg-row > span:first-child{white-space:nowrap}
 .idlg-flow .idlg-fixed{max-width:176px;text-align:right;white-space:normal}
 .idlg-flow input[type=date].idlg-in{width:136px;padding:0 8px;font-size:13px}
