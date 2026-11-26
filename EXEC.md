@@ -16765,7 +16765,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD64 | ERRORS M569 (2026-11-26; the class: an exposure opened for a set time and closed by a later deploy that needs a confirmation): a registration window could close itself at its end time (an end time set with the opening, read by edge-bff on every request), so its close needs no second deploy and no second confirmation; or keep the close a deploy, confirmed together with the opening. Proposed, not built | 2026-11-26 with context | the next registration window (the launch) | before registration opens again |
   | UD65 | (answered 2026-11-26: "UD65 a": kept as it is) ERRORS M570, EXEC-VISUAL-STATES (2026-11-26; latent, rule 7): in the Screener's add window the row of Alpha Divergence (I60) gives its Swing Detection Mode box 34 px of room for its text, so the chosen "Original (SMI extreme)" shows as "Origina…" and the box overlaps the word "within" after it; it was the same before the change (C4, the user: "leave as is ... kalau terpotong tambahkan saja ..."). Every other shown choice that does not fit (10, the Condition column at 182 px) ends in "…" inside its own box. Options: (a) keep it; (b) let that row's settings wrap to a second line, as the Backtest window does (C3); (c) a narrower label for the choice ("Original", "Proposed"). | 2026-11-26 with context (VISUAL-STATES report) | the look of one Screener row | when the user answers; kept as is until then |
   | UD66 | (answered 2026-11-26: "a1 / b ok / c 1 / d1 … / e ok / f released … / g ok jd open in terminal / h hapus / i ok / j …", EXEC-SECTOR-ANALYSIS) PLAN.md SECTOR-ANALYSIS (2026-11-26): the Sector Analysis page from the user's prototype. A: this page vs ROTATION_SPEC.md (median, equal-weight market benchmark, three lenses) and the "RRG"/"RS-Ratio" names; B: the prototype's synthetic data replaced by real data; C: EMA20 (not in the database); D: the industry and treemap weight (trading value, median, or market cap that is not in the database); E: 1M = 20 or 21 sessions, 1Y = 250 or 252; F: the release path of a new tab (a lab tab is held, LAB_TAB_HELD_UNTIL); G: where Open in Screener goes; H: the hidden cards; I: the date picker (latest only, or 20 dates like the Overview); J: who may open it (plans, visitors' example). Each with the agent's recommendation | 2026-11-26 with context | the build of the page | before the build starts |
-  | UD67 | EXEC-SECTOR-ANALYSIS (2026-11-26): (1) what "Open in Terminal" opens (the selected sector's index, e.g. IDXFINANCE, IHSG when none; a stock row or dot opens that stock); (2) the names "Relative Rotation Graph", "RS-Ratio", "RS-Momentum" (RRG Research marks) replaced by neutral names or kept; (3) the go for S0-S4 on the branch and S1 on the dev database | 2026-11-26 with context | the build of the page | before the build starts |
+  | UD67 | (answered 2026-11-26: "1A 2A 3 go") EXEC-SECTOR-ANALYSIS (2026-11-26): (1) what "Open in Terminal" opens (the selected sector's index, e.g. IDXFINANCE, IHSG when none; a stock row or dot opens that stock); (2) the names "Relative Rotation Graph", "RS-Ratio", "RS-Momentum" (RRG Research marks) replaced by neutral names or kept; (3) the go for S0-S4 on the branch and S1 on the dev database | 2026-11-26 with context | the build of the page | before the build starts |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -18101,7 +18101,7 @@ is juga" dan "ini maksudnya sebelum samadengan sesudah"; C4 "ini leave as is jug
   salinan); user 2026-11-26: "2" (beta lalu live): beta `edge-bff` `a0b4577c` dan live `edge-bff-live` `444669f2`
   SUCCESS di `53b4fafb`.
 
-## EXEC-SECTOR-ANALYSIS — halaman Sector Analysis dari HTML final user (keputusan UD66 2026-11-26; menunggu "go")
+## EXEC-SECTOR-ANALYSIS — halaman Sector Analysis dari HTML final user (keputusan UD66 2026-11-26; go 2026-11-26)
 
 **Asal:** `PLAN.md` SECTOR-ANALYSIS (dipindah ke sini 2026-11-26). HTML final user "sector-analysis (1).html" (2026-11-26,
 "Terlampir"); audit `verification/sector_analysis/final/`. Nama halaman: "Sector Analysis" (user 2026-11-26).
@@ -18145,3 +18145,7 @@ klik di setiap tab, maka efeknya sama seperti dia mengklik overview."
 
 **Pertanyaan terbuka (register UD67):** (1) tujuan "Open in Terminal"; (2) nama "Relative Rotation Graph", "RS-Ratio",
 "RS-Momentum" (merek RRG Research) diganti nama netral atau tetap; (3) "go" untuk S0-S4 di branch dan S1 di database dev.
+
+**Jawaban user 2026-11-26: "1A 2A 3 go".** (1) "Open in Terminal" membuka indeks sektor yang dipilih (IHSG bila belum ada),
+baris atau titik saham membuka saham itu; (2) nama netral: "Rotation map", "Relative strength", "Momentum"; (3) go untuk
+S0-S4 di branch dan S1 di database dev. Deploy layanan tetap ditanyakan satu per satu.
