@@ -1,6 +1,6 @@
 # Leaderboard EDGE: spesifikasi 12 tabel (6 teknikal, 6 flow) dan sudut lain
 
-**Status:** masuk to-do list (`PLAN.md` LEADERBOARD, user 2026-11-14: "Ini semua dimasukkan ke to-do list ya"). Belum dibangun.
+**Status:** masuk to-do list (`PLAN.md` LEADERBOARD, user 2026-11-14: "Ini semua dimasukkan ke to-do list ya"). Belum dibangun. **Catatan 2026-11-26:** semua tabel Flow (F1-F6) membaca data broker dan asing (Feature 02, 03, 05, 06, `IDX_Broker_Summary`) yang berhenti 2026-11-09 sampai token Stockbit baru (UD3); tabel teknikal (T1-T6) memakai data sampai 2026-11-26.
 Disusun 2026-11-13; ambang dan level adalah usulan sampai halamannya dibahas. Rotasi ada di [`ROTATION_SPEC.md`](ROTATION_SPEC.md).
 **Sumber angka contoh:** database dev, dibaca dengan role `pgweb` (read-only), as-of **9 Nov 2026** (tanggal terakhir yang
 dimiliki semua tabel broker; `Feature_01` sudah sampai 12 Nov). Papan Regular. Gerbang "Luas" pada tanggal itu: total beli

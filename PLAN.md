@@ -22,6 +22,11 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
 ## SECTOR-ANALYSIS — halaman baru Sector Analysis dari prototipe HTML user (disetujui sebagai arah 2026-11-26; audit selesai, menunggu jawaban UD66)
 
+**Lanjutan 2026-11-26 (kata user):** "Nama page baru ini adalah Sector Analysis." dan "Goalnya adalah saya mau bikinin
+lagi HTML static berdasarkan roadmap yang sudah di agree. Baru setelah itu, saya akan kirimkan HTML final untuk kita
+bentuk page baru ini." Acuan yang dikirim ke user: `ROTATION_SPEC.md` dan `LEADERBOARD_SPEC.md` (enam tabel Flow asing
+dan broker). Pembangunan menunggu HTML final user; UD66 dijawab bersama HTML itu.
+
 **Kata user (2026-11-26, dengan `sector-analysis (1).html`):** "Saya akan melampirkan ke kamu adalah HTML yang akan kita
 buat menjadi page baru. Kita bisa mulai untuk menambahkan page ini di beta, kemudian di bagian live. Ini adalah entirely
 new panel dengan chart yang baru juga. Jadi saya minta kamu untuk audit dengan visual ... mapping kira-kira di database

@@ -1,6 +1,6 @@
 # Rotation Map EDGE: spesifikasi halaman rotasi dan panel Analisis Sektor
 
-**Status:** masuk to-do list (`PLAN.md` ROTATION-MAP, user 2026-11-14). Spesifikasi usulan. Bagian yang sudah diputuskan user ditandai dengan tanggal dan kata-katanya; sisanya
+**Status:** masuk to-do list (`PLAN.md` ROTATION-MAP, user 2026-11-14). **Catatan 2026-11-26:** level 11 indeks sektor IDX dan LQ45 sudah ada di database (bagian 6); data broker dan asing (Feature 02, 03, 05, 06) berhenti 2026-11-09 sampai token Stockbit baru (UD3); EMA20 dan market cap belum ada. Halaman baru "Sector Analysis" (`PLAN.md` SECTOR-ANALYSIS) dirancang ulang oleh user dari spesifikasi ini. Spesifikasi usulan. Bagian yang sudah diputuskan user ditandai dengan tanggal dan kata-katanya; sisanya
 usulan. Belum dibangun. Disusun 2026-11-13.
 **Sumber angka contoh:** database dev, dibaca dengan role `pgweb` (read-only), as-of **9 Nov 2026**, papan Regular,
 gerbang "Luas" (426 saham dengan sektor, di luar "Undefined"). Satu tanggal; kestabilan belum diuji.
@@ -190,9 +190,9 @@ Klik baris di P3, P4 atau P6 membuka Terminal untuk saham itu.
 | Breadth EMA 50/200 | `Feature_04_Technical_Indicator` | Siap |
 | Breadth EMA 20 | dari close harian | Hitung |
 | Arus asing | `Feature_06_Foreign_Domestic` | Siap |
-| IHSG | `Feature_01_Stock_Daily_INDEX` (IHSG satu-satunya level indeks di database) | Siap |
+| IHSG | `Feature_01_Stock_Daily_INDEX`; levelnya di `Price_Stock_Indonesia_IDX` (TradingView `IDX:COMPOSITE`, sejak 2018) | Siap |
 | Anggota indeks (33: LQ45, IDX30, KOMPAS100, JII, …) dan grup konglomerasi (33: DANANTARA, SALIM, ASTRA, …) | `Stock_List`, `Stock_List_Member` (keanggotaan terkini; riwayat `Stock_List_Member_History` mulai 2026-11-09). Koreksi 2026-11-14: versi sebelumnya menyebut data ini tidak ada | Siap untuk kelompok "Indeks" dan "Grup" (median anggota). Catatan: keanggotaan terkini dipakai untuk semua titik ekor; satu saham bisa masuk banyak indeks |
-| Level indeks sektoral dan LQ45 (harga indeksnya) | – | **Data baru** |
+| Level indeks sektoral dan LQ45 (harga indeksnya) | `Price_Stock_Indonesia_IDX` (TradingView `IDX:IDXFINANCE` dan 10 lainnya, harian sejak 2021-01-25; `IDX:LQ45` sejak 2018), dipetakan ke nama sektor oleh `Feature_Index_Entity` (SECTOR) | Siap sejak 2026-11-15 (EXEC-INDEX-GROUP-HISTORY; diperiksa di dev 2026-11-26). Sebelumnya "Data baru" |
 | Pengiriman ke halaman | Satu file ringkasan per tanggal (semua kelompok dan anggota untuk T, T−5, T−20 dan harian 20 sesi), ditulis publisher seperti file Terminal | Belum ada; dibangun bersama leaderboard |
 
 ---
