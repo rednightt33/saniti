@@ -312,6 +312,35 @@ universe, period and metric and sums, weights or orders the publisher's rows. Op
 Tests: `tests/test_overview.py` (routes, refusals, the tab first in the rail and edge-nav in Chromium, the image stage),
 `overview/tests/` (`npm test`); look check and independent recalculation in `verification/overview/REHEARSAL.md`.
 
+## Sector Analysis tab (EXEC-SECTOR-ANALYSIS S3, 2026-11-26)
+
+The user's prototype as a page of its own (decisions UD66 A-J and UD67, the go "1A 2A 3 go" of 2026-11-26; the build
+contract `verification/sector_analysis/CONTRACT.md`). The gateway and the shell (S3):
+
+- **Data:** `app/sector.py` on `app/pages.py`, as the Overview's: `GET /api/v1/sector/index` lists the publisher's
+  family `sector/` and `GET /api/v1/sector/file/<name>?sha=` relays a file's bytes from terminal-api (its `/sector`
+  routes, the gateway key only), `private, no-cache` with the ETag (a 304 only after the check). Both need `sector.view`.
+  Names: `sector-meta`, `sector-series`, `sector-day-YYYY-MM-DD` and `sector-stocks-<index>`, the index ticker
+  lowercased (`sector-stocks-idxfinance`: terminal-api keeps only lowercase names of at most 32 characters, CONTRACT
+  3.4); refusals `SECTOR_INVALID_NAME`, `SECTOR_FILE_NOT_PUBLISHED`, `SECTOR_FILE_REPLACED`, `SECTOR_UNAVAILABLE`,
+  `SECTOR_NOT_CONFIGURED`.
+- **Page:** the build of `sector/` (the page part, S4; the Dockerfile's `sector` stage, not kept in git) at
+  `static/sector-app/`, shown in a frame at `/sector`, the
+  Overview's policy (`connect-src 'self'`); its words in `static/edge-labels.js` (`sector`: "Sector Analysis"), the rail
+  entry and the phone's pages menu right after Overview (icon `navSector`), shown only with `capabilities.sector`
+  (terminal-api configured). Open in Terminal uses `edge-nav` as the Overview's (decision G).
+- **Release and plans:** tab `sector` released in `catalog/releases.json` (decision F: on the beta from `main`; the live
+  site only when `live` moves, on the user's request). Migration `20261126_050`: `sector.view` for the paid plan,
+  `sector.example` for the free and the guest plan (decision J), the admin's `*` both.
+- **Example (decision J):** `app/examples.py` `SectorLatest`, as the Overview's: the live publication's opening view on
+  its newest day (`sector-meta` with that one date, `sector-series` up to it, that day's file), each file cut to the
+  contract's fields; the older days and every `sector-stocks-<index>` stay with `sector.view`. The shell opens it as
+  every example (`ExampleTabPage`, `?example=1`); the page keeps its five tabs switchable and locks every other control
+  with `lockOnly` (`shared/example-view.ts`), whose click asks for the Overview example's sign-in or upgrade box.
+
+Tests: `tests/test_sector.py` (routes, refusals, names, plans, the release, the example, the rail, the phone menu and the
+visitor's example in Chromium), terminal-api `tests/test_api.py` (`/sector`).
+
 ## Watchlist tab (EXEC-WATCHLIST L5, 2026-11-16)
 
 The account's named lists of stocks, each with the indicators it shows, every text in English. Design: the approved
@@ -1159,8 +1188,8 @@ unset = that owner), so nothing changes for it; an owner EDGE_ADMIN_OWNERS does 
 - **At dispatch** (`app/worker.py`): a queued run's owner is read again; without `monitor.chat` or the model the run ends
   FAILED `CAPABILITY_REQUIRED` before any Orc call.
 - **Terminal proxy** (`/api/terminal/v1/*`): `terminal.view` before any call to terminal-api.
-- **Page files** (`app/pages.py`): `/api/v1/<family>/index` and `/file/<name>` need `overview.view`, `radar.view` or
-  `watchlist.view`, checked before the shared caches. Files are sent `private, no-cache` with their ETag; a `?sha=`
+- **Page files** (`app/pages.py`): `/api/v1/<family>/index` and `/file/<name>` need `overview.view`, `radar.view`,
+  `watchlist.view` or `sector.view` (EXEC-SECTOR-ANALYSIS), checked before the shared caches. Files are sent `private, no-cache` with their ETag; a `?sha=`
   request with a matching If-None-Match answers 304 only after the check. The principal's terminal headers are built
   before the caches too, so what edge-bff refuses for that principal itself (a quota of 0) holds whether the caches are
   warm or cold (re-check R1-31). A page file is granted, counted and audited on terminal-api for the principal whose
