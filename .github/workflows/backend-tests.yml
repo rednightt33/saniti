@@ -91,6 +91,7 @@ jobs:
           (cd screener && npm ci && npm run build)
           (cd radar && npm ci && npm run build)
           (cd overview && npm ci && npm run build)
+          (cd sector && npm ci && npm run build)
           (cd admin && npm ci && npm run build)
       # -rR and --rerun-show-tracebacks (the example-mode checker and its re-check, ERRORS M510 and M527): a test that
       # passed only on its rerun is named in the summary (-rR) and its first failure's traceback is printed, so a rerun
@@ -112,6 +113,9 @@ jobs:
         run: npm ci && npm run build && npx vitest run
       - name: Overview (typecheck, build, tests)
         working-directory: apps/edge-bff/overview
+        run: npm ci && npm run build && npx vitest run
+      - name: Sector Analysis (typecheck, build, tests; EXEC-SECTOR-ANALYSIS S4)
+        working-directory: apps/edge-bff/sector
         run: npm ci && npm run build && npx vitest run
       - name: Radar (typecheck, build, tests)
         working-directory: apps/edge-bff/radar

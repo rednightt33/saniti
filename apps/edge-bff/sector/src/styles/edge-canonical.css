@@ -1,0 +1,167 @@
+/* =====================================================================
+   EDGE Design System — canonical layer (after spec-v1.2.css)
+   ---------------------------------------------------------------------
+   User decisions 2026-11-18 ("v1.2, contoh pola disesuaikan token, 11 usulan setuju, go"):
+   spec v1.2 is the base; where EDGE's pages differ, this layer holds the ONE version a new page uses.
+   Load order:  Inter  →  spec-v1.2.css  →  edge-canonical.css  →  the page's own CSS (unlayered, wins).
+   Every value is a spec token; the few new tokens below are the state layer of the Overview and Radar
+   pages (apps/edge-bff/overview/src/styles/overview.css:448-463), which these decisions adopt.
+   ===================================================================== */
+
+@layer edge-canonical {
+
+/* ---- tokens added by the state layer (decision 1: spec v1.2 + the Overview/Radar state layer) ---- */
+:root{
+  --focus-border:transparent; --focus-shadow:var(--shadow);                 /* decision 8 (changed 2026-11-26): the Terminal's selected state */
+  --shadow-sm:0 1px 2px rgba(0,0,0,.06),0 2px 8px -2px rgba(0,0,0,.10);
+  --pick:color-mix(in srgb,var(--blue) 6%,var(--surface));                /* selected table row */
+  --pick-hover:color-mix(in srgb,var(--blue) 9%,var(--surface));
+  --raise:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border-2);            /* decision 3: the selected segment */
+  --h-row:36px;                                                           /* decision 6: dense rows are the standard */
+}
+:root.dark,:root[data-theme="dark"]{--shadow-sm:0 1px 2px rgba(0,0,0,.45),0 2px 8px -2px rgba(0,0,0,.55)}
+
+/* ---- decision 3: segmented control — the selected button is raised white on a grey track ---- */
+.seg{background:var(--surface-2)}
+.seg button.on,.seg button[aria-pressed="true"],.seg button[aria-selected="true"],.seg button[aria-checked="true"]{
+  background:var(--surface);color:var(--text);box-shadow:var(--raise)}
+
+/* ---- decision 4: tabs are underline tabs (40px, 2px ink bar under the selected one, optional count) ---- */
+.tabs{display:flex;flex-wrap:nowrap;gap:var(--s-7);align-items:stretch;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{position:relative;height:40px;padding:0 var(--s-1);border:0;border-radius:0;background:none;box-shadow:none;
+  color:var(--text-2);font-weight:var(--fw-medium);gap:var(--s-4);flex:none}
+.tabs button:hover{background:none;color:var(--text);box-shadow:none}
+.tabs button.on,.tabs button[aria-selected="true"]{background:none;color:var(--text);font-weight:var(--fw-semibold)}
+.tabs button::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;border-radius:2px;background:transparent;transition:background var(--dur) var(--ease)}
+.tabs button.on::after,.tabs button[aria-selected="true"]::after{background:var(--text)}
+.tabs button:focus-visible{outline-offset:-2px}
+.cnt{display:inline-flex;align-items:center;justify-content:center;height:20px;min-width:20px;padding:0 var(--s-3);border-radius:var(--r-pill);
+  background:var(--sel);color:var(--text-2);font-size:var(--fs-xs);font-weight:var(--fw-semibold)}
+.tabs button.on .cnt,.tabs button[aria-selected="true"] .cnt{background:var(--text);color:var(--surface)}
+
+/* ---- decision 2: the selected state is .on (+ aria-pressed / aria-selected); tables mark it too ---- */
+.tbl tbody tr.on td{background:var(--pick)}
+.tbl tbody tr.on:hover td{background:var(--pick-hover)}
+.tbl tbody tr.on td:first-child{box-shadow:inset 3px 0 0 var(--text)}
+
+/* ---- decision 8 (the user 2026-11-26, VISUAL-STATES: "Acuan selected state ... seperti terminal"): a field being filled
+   takes the Terminal's selected state, its border line gone and the soft shadow (--shadow), no ring ---- */
+input:focus,select:focus,textarea:focus,.inp:focus,.sel:focus{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
+
+/* ---- a trigger whose menu is open (any element with aria-haspopup) ---- */
+[aria-haspopup][aria-expanded="true"],[aria-haspopup][aria-expanded="true"]:hover:not(:disabled){background:var(--sel);border-color:transparent;box-shadow:var(--shadow-sm)}
+
+/* ---- decision 10: the primary button is ink; a button that RUNS something may turn green when it can run ---- */
+.btn.primary.ready{background:var(--green-600);border-color:var(--green-600);color:#fff}
+.btn.primary.ready:hover:not(:disabled){background:var(--green-700);border-color:var(--green-700)}
+.btn kbd{margin-left:var(--s-2)}
+@media (hover:none),(max-width:640px){.btn kbd{display:none}}
+
+/* ---- decision 9: icons are the 16px sprite, stroke 1.6 (icons.svg) ---- */
+.ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic-sm{width:14px;height:14px}
+.ic.filled{fill:currentColor}
+
+/* ---- page header (title, one-line purpose, data-date pills, actions) ---- */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s-6);flex-wrap:wrap;margin-bottom:var(--s-8)}
+.head p{margin-top:var(--s-1);color:var(--text-3)}
+.head .actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--s-4)}
+/* decision 5: data-date pills — prices green (.pill.pos), broker data amber (.pill.warn), each with .dot */
+
+/* ---- card header: title (+ stacked subtitle), "Period" label + segmented on the right ---- */
+.card-h .ttl{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1 1 140px}
+.card-h .ttl-s{font-size:var(--fs-12);color:var(--text-3);line-height:16px;font-weight:var(--fw-regular)}
+.card-h .pctl{flex:none;display:flex;align-items:center;gap:var(--s-4);margin-left:auto}
+.card-h .plab{flex:none;color:var(--text-3);font-size:var(--fs-12)}
+.card-h .grow{flex:1}
+.card-h .hint{color:var(--text-3);font-size:var(--fs-12)}
+
+/* ---- KPI tile (label, purpose line, value, change, 64×26 sparkline) ---- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:var(--s-8)}
+.ktile{position:relative;min-height:84px;padding:var(--s-5) var(--s-7);display:flex;flex-direction:column;justify-content:space-between;
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease);outline:none}
+.ktile:is(:hover,:focus-visible){background:var(--surface-2);border-color:var(--border-2)}
+.ktile:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.ktile .lb{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);font-size:var(--fs-xs);color:var(--text-3);font-weight:var(--fw-medium);line-height:20px}
+.ktile .ksub{font-size:var(--fs-xs);color:var(--text-3);line-height:16px}
+.ktile .v{font-size:var(--fs-2xl);font-weight:var(--fw-semibold);line-height:22px}
+.ktile .s{font-size:var(--fs-12);line-height:16px;color:var(--text-3)}
+.ktile .s b{font-weight:var(--fw-medium)}
+.ktile svg.sp{position:absolute;right:var(--s-7);bottom:var(--s-5)}
+.adbar{display:flex;height:5px;border-radius:3px;overflow:hidden;gap:1px;margin:2px 0 1px}
+.adbar i{display:block;height:100%}
+
+/* ---- tooltips: two kinds ----
+   .ttip  ink box, white text: a hint on a tile, badge or icon (Overview .ktt)
+   .ctip  surface card: the hover read-out of a chart, one row per series (Overview .cv .tip) */
+.ttip{position:fixed;z-index:var(--z-toast);pointer-events:none;width:max-content;max-width:260px;padding:var(--s-4) var(--s-5);border-radius:var(--r-md);
+  background:var(--gray-900);color:#fff;box-shadow:var(--shadow-lg);font-size:var(--fs-12);line-height:1.45}
+.ttip[hidden],.ctip[hidden]{display:none}
+.ttip .t{display:block;font-weight:var(--fw-semibold);margin-bottom:var(--s-2)}
+.ttip .r{display:flex;justify-content:space-between;gap:var(--s-8)}
+.ttip .r span{color:#bdbdbd}
+.ttip .r b{font-weight:var(--fw-medium);white-space:nowrap}
+.ttip .up{color:#3ecf8e} .ttip .down{color:#ff6369}
+.ctip{position:absolute;z-index:5;pointer-events:none;min-width:150px;padding:var(--s-3) var(--s-5);background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-md);box-shadow:var(--shadow-lg);font-size:var(--fs-12);line-height:1.5}
+.ctip .d{display:block;color:var(--text-3);font-size:var(--fs-xs);margin-bottom:2px}
+.ctip .r{display:flex;align-items:center;gap:var(--s-3)}
+.ctip .r i{width:8px;height:8px;border-radius:2px;flex:none}
+.ctip .r span{flex:1;color:var(--text-2)}
+.ctip .r b{font-weight:var(--fw-medium);margin-left:var(--s-6)}
+
+/* ---- chart surfaces (hand-made SVG): grid, base line, axis labels, crosshair ---- */
+:root{--chart-grid:#f0f0f0;--chart-base:#c4c4c4}
+:root.dark,:root[data-theme="dark"]{--chart-grid:#1f1f1f;--chart-base:#4a4a4a}
+.ax{font-size:var(--fs-2xs);fill:var(--text-3);font-variant-numeric:tabular-nums}
+.xh{stroke:var(--text-3);stroke-width:1}
+
+/* ---- horizontal value bars (ranking, foreign net buy/sell) ---- */
+.hbars{display:grid;gap:var(--s-3)}
+.hbar{display:grid;grid-template-columns:44px minmax(0,1fr) 64px;align-items:center;gap:var(--s-4);font-size:var(--fs-12)}
+.hbar .trk{height:8px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+.hbar .trk i{display:block;height:100%;border-radius:2px}
+.hbar .val{text-align:right;font-variant-numeric:tabular-nums}
+
+/* ---- floating window (Terminal ⤢ windows: Broker summary 880×520, Broker inventory 720×560) ---- */
+.win{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column}
+.win-h{display:flex;align-items:center;gap:var(--s-5);padding:var(--s-5) var(--s-7);border-bottom:1px solid var(--border)}
+.win-h strong{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
+.win-h small{color:var(--text-3);font-size:var(--fs-12);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.win-h .acts{margin-left:auto;display:flex;gap:var(--s-1)}
+.win-b{padding:var(--s-6) var(--s-7) var(--s-7);overflow:auto}
+.win-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-4);margin-bottom:var(--s-5)}
+
+/* ---- right panel card (320px side panels of Terminal / Screener / Backtest) ---- */
+.side{width:320px;display:grid;gap:var(--s-6)}
+.side .card-h{padding:var(--s-6) var(--s-7) var(--s-3)}
+.side .card-b{padding:0 var(--s-7) var(--s-7)}
+
+/* ---- day-count boxes ("k of N days", streaks) and the one-row heat strip ---- */
+.kofn{display:grid;grid-auto-flow:column;grid-auto-columns:9px;gap:2px;align-items:end}
+.kofn .col{display:grid;gap:2px}
+.kofn i{display:block;width:9px;height:9px;border-radius:1.5px;background:var(--sel)}
+.kofn i.on{background:var(--up)} .kofn i.neg{background:var(--down)}
+.heat{display:flex;gap:2px}
+.heat i{display:block;width:11px;height:19px;border-radius:2px}
+
+/* ---- signal matrix (one row per stock, Strong / Neutral / Weak cells) ---- */
+.mx{display:grid;grid-template-columns:72px repeat(var(--mx-cols,5),minmax(0,1fr));gap:var(--s-2);font-size:var(--fs-xs);align-items:center}
+.mx .h{color:var(--text-3);text-align:center;font-weight:var(--fw-medium)}
+.mx .c{height:22px;border-radius:var(--r-xs);display:grid;place-items:center;font-weight:var(--fw-semibold)}
+.mx .c.s{background:var(--green-bg);color:var(--green)} .mx .c.w{background:var(--red-bg);color:var(--red)} .mx .c.n{background:var(--sel);color:var(--text-3)}
+
+/* ---- event timeline (dot on a rule, title, small grey meta) ---- */
+.tl{position:relative;padding-left:var(--s-8)}
+.tl::before{content:"";position:absolute;left:4px;top:4px;bottom:4px;width:1px;background:var(--border)}
+.tl .e{position:relative;padding:var(--s-3) 0;font-size:var(--fs-12)}
+.tl .e::before{content:"";position:absolute;left:calc(-1 * var(--s-8));top:11px;width:9px;height:9px;border-radius:50%;background:var(--surface);border:2px solid var(--text-3)}
+.tl .e.pos::before{border-color:var(--up)} .tl .e.neg::before{border-color:var(--down)} .tl .e.info::before{border-color:var(--blue)}
+.tl .e small{display:block;color:var(--text-3);font-size:var(--fs-xs)}
+
+/* ---- scrollbars: thin, neutral, theme-aware ---- */
+*::-webkit-scrollbar{width:4px;height:4px}
+*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner{background:transparent}
+*::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--text-3) 40%,transparent);border-radius:999px}
+}
