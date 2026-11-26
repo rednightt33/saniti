@@ -17907,6 +17907,19 @@ isi yang dibaca pembaca. Tempat lain dengan mekanisme sama yang perlu diperiksa 
 
 **Pemicu:** go user untuk eksekusi.
 
+**Go user (2026-11-26):** "Jalankan mitigasi 4 sekarang"; bersama "Assign 5 sonnet medium to test out 9 perbaikan diatas
+cepat saja", "Jika ada temuan perbaiki", "Push to main push to live beserta indikator baru" (re-check ronde 3 dengan lima
+agen Sonnet medium; `live` dipindah ke commit beta, pilihan A; status indikator baru di live ditanyakan: released atau
+preview).
+
+**Pelaksanaan (2026-11-26):** `publisher.py` `EVENT_STAMPS_SQL` membawa md5 isi setiap kolom yang dibaca berkas events
+dan basis broker (tanpa `ingestion_time` dan `source_fetched_at`); sidik berkas events menjadi
+`format=4;rows;last;ing;content=<16 hex>`. Diukur di dev: 124.380 baris, 1,26 s (sidik lama 0,10 s). Tes
+`test_an_event_row_whose_content_changes_republishes_its_ticker_only` (gagal tanpa perubahan ini); publisher 269 lulus.
+Sidik harga diperiksa: pemuat harga (`idx-price-cron price_update.py:660`) memperbarui `ingestion_time` setiap baris yang
+berubah, jadi sidik harga tidak punya celah ini. Run pertama sesudah deploy menerbitkan ulang semua berkas events sekali
+(update besar: restart Postgres sesudahnya). ERRORS M567.
+
 ## EXEC-SCREENER-QUICK-UI — format tanggal close, badge remark di ticker, kolom Sector opsional (user 2026-11-25)
 
 Kata-kata user 2026-11-25 (dua screenshot halaman Market Screener: A, judul screen dengan "close 2026-11-24" dilingkari;

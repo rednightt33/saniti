@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 221 item
+## Menunggu uji ulang: 222 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -39,6 +39,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) | EXEC-PRICE-DISTORTION | 1 | 0 | 1 | 0 | 0 | 0 |
 | Screener dan Backtest: re-check ronde 2 harga terdistorsi (ERRORS M566) | EXEC-PRICE-DISTORTION | 6 | 0 | 6 | 0 | 0 | 0 |
 | Terminal: kotak warna (ERRORS M566) | EXEC-PRICE-DISTORTION | 1 | 0 | 1 | 0 | 0 | 0 |
+| Publisher: berkas events terbit ulang bila isi aksi korporasi berubah (ERRORS M567) | EXEC-EVENTS-STAMP | 1 | 0 | 0 | 1 | 0 | 0 |
 
 1 item sudah dua ronde diuji ulang. Aturan 8 membolehkan paling banyak dua ronde, lalu sisanya masuk
 register keputusan; uji berikutnya hanya dengan keputusan user:
@@ -341,11 +342,17 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 |---|---|---|---|---|---|
 | `agents_20261126-terminal/T2-1-T2-2` | The colour boxes offered a hidden compare line's colour and lacked the box's own | `f3970f7d` | beta | M566 | 0 |
 
+### Publisher: berkas events terbit ulang bila isi aksi korporasi berubah (ERRORS M567) (1)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `errors/M567` | An events file was not republished when a corporate action's content changed without a new row, date or load time | `930931cd` | branch | M567 | 0 |
+
 ## Hitungan per status
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 221 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 222 |
 | `fixed` | diuji ulang agen lain: beres | 123 |
 | `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 0 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
@@ -353,7 +360,7 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 | `open` | belum diperbaiki | 90 |
 | `accepted` | diterima user apa adanya | 4 |
 | `obsolete` | tidak berlaku lagi | 5 |
-| **Total** | | **443** |
+| **Total** | | **444** |
 
 Dari 90 baris `open`, 25 punya baris pemilik di PLAN.md atau EXEC.md dan 65 belum
 (aturan 1: setiap bagian yang terbuka butuh pemilik dan pemicu).

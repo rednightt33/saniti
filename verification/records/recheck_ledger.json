@@ -11472,6 +11472,31 @@
    "tested_out_by": "none",
    "evidence": "ERRORS M566 Status: 'fixed in `f3970f7d` and `978734ff`, on the branch, not deployed; tested by their author only'",
    "from": "fix"
+  },
+  {
+   "key": "errors/M567",
+   "execution": "EXEC-EVENTS-STAMP",
+   "area": "Publisher: berkas events terbit ulang bila isi aksi korporasi berubah (ERRORS M567)",
+   "run": "fix",
+   "finding_id": "M567",
+   "title": "An events file was not republished when a corporate action's content changed without a new row, date or load time",
+   "finding": "ERRORS M567 symptom: the publisher republishes a ticker's events file only when its stamp changes (row count, last event date, last ingestion_time; publisher.py EVENT_STAMPS_SQL, changed_events). An edit of a row's ratio or exercise price that keeps those three (an UPDATE outside the Stockbit round) left the events file and its broker basis on the old terms while the actions file carried the new ones: the Screener's badge and the Backtest would disagree.",
+   "errors": [
+    "M567"
+   ],
+   "fix_commits": [
+    "930931cd"
+   ],
+   "fix_note": "930931cd (EVENT_STAMPS_SQL content digest; changed_events stamp content=)",
+   "runs_on": "branch",
+   "author_test": "tests/test_publisher.py test_an_event_row_whose_content_changes_republishes_its_ticker_only (fails without the digest); publisher 269 passed; EXPLAIN ANALYZE on dev 1.26 s",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Change one corporate action row's ratio or exercise price without changing the row count, the last date or ingestion_time (on a copy or a fake database): the next run republishes that ticker's events file and measures its basis again, and nothing else; a run with nothing changed publishes nothing. Collateral: the run's time, the first run after the deploy republishes every events file once.",
+   "tested_out_by": "none",
+   "evidence": "ERRORS M567 Status: 'fixed in `930931cd`, on the branch, not deployed; tested by its author only'",
+   "from": "fix"
   }
  ]
 }

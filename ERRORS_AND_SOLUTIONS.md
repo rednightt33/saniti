@@ -8887,6 +8887,25 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M567 — An events file was not republished when a corporate action's content changed without a new row, date or load time (2026-11-26; fixed in `930931cd`, on the branch)
+
+- **Symptom (found from the code, 2026-11-26, while answering the user):** the publisher republishes a ticker's events
+  file only when its stamp changes: row count, last event date and last `ingestion_time` (`publisher.py` EVENT_STAMPS_SQL,
+  changed_events). An edit of a row's ratio or exercise price that keeps those three (an UPDATE outside the Stockbit
+  round) left the events file and its broker basis on the old terms, while the `actions` file (rebuilt from the whole
+  table every daily run) carried the new ones: the Screener's badge and the Backtest would disagree. Not seen yet: the
+  only loader (the Stockbit round, `refresh_idx_event_annotation`) rewrites every row, so every load time moves.
+- **Verified root cause:** the stamp reads load metadata, not the content the readers read. **Class:** a change detector
+  built on metadata; checked elsewhere: the price stamp is safe (the price loader sets `ingestion_time` on every row it
+  changes, `idx-price-cron/price_update.py:660`).
+- **Solution (`930931cd`, EXEC-EVENTS-STAMP; the user 2026-11-26: "ok untuk celah 4 masukan exec", "Jalankan mitigasi 4
+  sekarang"):** the stamp also carries an md5 of every column the events file and the broker basis read (load metadata
+  left out); 1.26 s on dev for 124,380 rows. Test: an edited row republishes its ticker only; nothing changed, nothing
+  published (fails without the digest).
+- **Status:** fixed in `930931cd`, on the branch, not deployed (a publisher upload; its first run republishes every events
+  file once); tested by its author only (RECHECK.md `errors/M567`).
+- **Lesson:** a change stamp is a digest of what the reader reads, not of when it was loaded.
+
 ### M566 — Re-check round 2 of the price-distortion release: a trade's flags on the run calendar's bar, a badge on rights issues above the market, effective windows measured on small breaks only (2026-11-26; fixed in `f3970f7d` and `978734ff`, on the beta)
 
 - **Symptom (re-check round 2, five Opus medium agents, `agents_20261126-terminal`, `-screener`, `-backtest`,
