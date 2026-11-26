@@ -16764,7 +16764,8 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD63 | (answered 2026-11-26: "Biarkan dulu as is": the window's accounts and sessions left as they are for now) Step 9 close, plan step 4 (2026-11-26): the accounts made while registration was open (2026-11-23 03:24 to 2026-11-26 05:53 UTC; one registration code was mailed on 2026-11-24 14:58 UTC, after the planned close) are listed on the beta's admin page (Accounts, newest first). For each: keep it (it signs in only once marked a test account), disable it, or End sessions (the pre-launch mode masks a window session without revoking it, test-out F3, ERRORS M549). No account is deleted (ERRORS M535) | 2026-11-26 with context | the window's accounts and sessions | before registration opens again |
   | UD64 | ERRORS M569 (2026-11-26; the class: an exposure opened for a set time and closed by a later deploy that needs a confirmation): a registration window could close itself at its end time (an end time set with the opening, read by edge-bff on every request), so its close needs no second deploy and no second confirmation; or keep the close a deploy, confirmed together with the opening. Proposed, not built | 2026-11-26 with context | the next registration window (the launch) | before registration opens again |
   | UD65 | (answered 2026-11-26: "UD65 a": kept as it is) ERRORS M570, EXEC-VISUAL-STATES (2026-11-26; latent, rule 7): in the Screener's add window the row of Alpha Divergence (I60) gives its Swing Detection Mode box 34 px of room for its text, so the chosen "Original (SMI extreme)" shows as "Origina…" and the box overlaps the word "within" after it; it was the same before the change (C4, the user: "leave as is ... kalau terpotong tambahkan saja ..."). Every other shown choice that does not fit (10, the Condition column at 182 px) ends in "…" inside its own box. Options: (a) keep it; (b) let that row's settings wrap to a second line, as the Backtest window does (C3); (c) a narrower label for the choice ("Original", "Proposed"). | 2026-11-26 with context (VISUAL-STATES report) | the look of one Screener row | when the user answers; kept as is until then |
-  | UD66 | PLAN.md SECTOR-ANALYSIS (2026-11-26): the Sector Analysis page from the user's prototype. A: this page vs ROTATION_SPEC.md (median, equal-weight market benchmark, three lenses) and the "RRG"/"RS-Ratio" names; B: the prototype's synthetic data replaced by real data; C: EMA20 (not in the database); D: the industry and treemap weight (trading value, median, or market cap that is not in the database); E: 1M = 20 or 21 sessions, 1Y = 250 or 252; F: the release path of a new tab (a lab tab is held, LAB_TAB_HELD_UNTIL); G: where Open in Screener goes; H: the hidden cards; I: the date picker (latest only, or 20 dates like the Overview); J: who may open it (plans, visitors' example). Each with the agent's recommendation | 2026-11-26 with context | the build of the page | before the build starts |
+  | UD66 | (answered 2026-11-26: "a1 / b ok / c 1 / d1 … / e ok / f released … / g ok jd open in terminal / h hapus / i ok / j …", EXEC-SECTOR-ANALYSIS) PLAN.md SECTOR-ANALYSIS (2026-11-26): the Sector Analysis page from the user's prototype. A: this page vs ROTATION_SPEC.md (median, equal-weight market benchmark, three lenses) and the "RRG"/"RS-Ratio" names; B: the prototype's synthetic data replaced by real data; C: EMA20 (not in the database); D: the industry and treemap weight (trading value, median, or market cap that is not in the database); E: 1M = 20 or 21 sessions, 1Y = 250 or 252; F: the release path of a new tab (a lab tab is held, LAB_TAB_HELD_UNTIL); G: where Open in Screener goes; H: the hidden cards; I: the date picker (latest only, or 20 dates like the Overview); J: who may open it (plans, visitors' example). Each with the agent's recommendation | 2026-11-26 with context | the build of the page | before the build starts |
+  | UD67 | EXEC-SECTOR-ANALYSIS (2026-11-26): (1) what "Open in Terminal" opens (the selected sector's index, e.g. IDXFINANCE, IHSG when none; a stock row or dot opens that stock); (2) the names "Relative Rotation Graph", "RS-Ratio", "RS-Momentum" (RRG Research marks) replaced by neutral names or kept; (3) the go for S0-S4 on the branch and S1 on the dev database | 2026-11-26 with context | the build of the page | before the build starts |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -18099,3 +18100,48 @@ is juga" dan "ini maksudnya sebelum samadengan sesudah"; C4 "ini leave as is jug
   rusak di beta atau live. Diperbaiki di `ff9921ff` (salinan Admin disamakan, langkah update skill menemukan semua
   salinan); user 2026-11-26: "2" (beta lalu live): beta `edge-bff` `a0b4577c` dan live `edge-bff-live` `444669f2`
   SUCCESS di `53b4fafb`.
+
+## EXEC-SECTOR-ANALYSIS — halaman Sector Analysis dari HTML final user (keputusan UD66 2026-11-26; menunggu "go")
+
+**Asal:** `PLAN.md` SECTOR-ANALYSIS (dipindah ke sini 2026-11-26). HTML final user "sector-analysis (1).html" (2026-11-26,
+"Terlampir"); audit `verification/sector_analysis/final/`. Nama halaman: "Sector Analysis" (user 2026-11-26).
+
+**Jawaban user UD66, 2026-11-26 (verbatim):** "a1 / b ok / c 1 / d1 but design plugablebuntuk ganti pakai marketcap / e ok /
+f released saja dulu di main, baru nanti all di pusu je live once saya cek sesuai point J / g ok jd open in terminal /
+h hapus / i ok / j saat ini hanya main, but later bisa semua pengunjung termasuk free. Untuk free dan guest, which is yang
+belum login, efeknya akan sama seperti overview, tapi dia bisa cross tab. Dia bisa pilih tab 1, 2, 3, 4, 5. Tapi kalau
+klik di setiap tab, maka efeknya sama seperti dia mengklik overview."
+
+| Butir | Keputusan | Akibat di pembangunan |
+|---|---|---|
+| A | A1: HTML final adalah isi halaman; Leaderboard (`LEADERBOARD_SPEC.md`) dan Rotation Map 3 lensa (`ROTATION_SPEC.md`) tetap butir terpisah | 5 tab, 20 kartu seperti HTML final; indeks sektor resmi IDX, pembanding IHSG (dan LQ45 di Beta) |
+| B | data buatan diganti data nyata | garis saham, riwayat breadth per sektor, jarak EMA dan lama status, beta/korelasi saham, close/volume, baris industri |
+| C | C1: EMA20 dihapus | breadth EMA50 dan EMA200 saja |
+| D | D1 (nilai transaksi 20 hari), dengan desain yang bisa diganti ke market cap | bobot dibaca dari satu fungsi basis (seperti `overview_stock_size`, `size_basis` di file); mengganti ke market cap = mengganti basis, halaman membaca labelnya dari file |
+| E | sama dengan Overview | 1M, 3M, YTD, 1Y dan rentang Custom memakai definisi Overview |
+| F | tab `released` di `main` (beta); ke live nanti setelah user mengecek (butir J) | setiap pemindahan `live` sebelum itu menyebut Sector Analysis di pertanyaannya (`live_diff`) |
+| G | tombol menjadi "Open in Terminal" | membuka Terminal (lihat pertanyaan terbuka 1) |
+| H | kartu tersembunyi dihapus | kode dan markup kartu mati dibuang |
+| I | 20 tanggal terakhir seperti Overview | file hari per tanggal |
+| J | sekarang hanya di beta; nanti semua pengunjung termasuk free; free dan tamu: contoh seperti Overview, tetapi bisa pindah antar 5 tab halaman; klik lain di tiap tab = efek klik di Overview (minta masuk/upgrade) | mode contoh satu hari dengan tab internal bisa dipilih |
+
+**Rencana eksekusi (usulan):**
+1. **S0 Catatan dan rumus:** `SECTOR_FORMULAS.md` (rumus tiap kartu dengan contoh nyata, bahasa sederhana) dengan tes
+   sidik jari seperti `OVERVIEW_FORMULAS.md`; register UD66 dijawab.
+2. **S1 Database (dev, expand-only):** tabel agregat harian per kelompok (pasar, 11 sektor, 58 industri): anggota, naik/
+   tetap/turun, di atas EMA50/200, return 5D > 0 dan > IHSG, indeks industri (bobot dari fungsi basis, bawaan nilai
+   transaksi 20 hari), jumlah basis. Fungsi pembaruan per tanggal; pengisian riwayat bertahap per kelompok tanggal sejak
+   2021-01-25 (indeks sektor ada sejak itu), Postgres di-restart sesudahnya (update besar); katalog Table/Column/Feature;
+   EXPLAIN pola query utama; cek independen terhadap hitungan ulang langsung.
+3. **S2 Publisher `sector.py`:** file `sector-meta`, `sector-series` (300 sesi), `sector-day-<tanggal>` (20 tanggal) dan
+   `sector-stocks-<sektor>` (diunduh hanya saat drill-down sektor itu dibuka); file ditulis hanya bila isinya berubah,
+   riwayat dipakai ulang antar-lari.
+4. **S3 terminal-api, edge-bff, shell:** rute indeks dan file dengan cache per sidik isi; tab `sector` di file rilis
+   (released); entri rail, ikon dan kata-kata; hak akses paket; mode contoh (butir J).
+5. **S4 Halaman `sector-app`:** porting HTML final dengan data nyata; keputusan A-J; perbaikan cacat audit (21 + 8,
+   termasuk tampilan ponsel); design system EDGE; tes vitest; cek 1440/390 px terang dan gelap.
+6. **S5 Verifikasi dan rilis:** pemeriksa (model dan tingkat pilihan user); CI hijau; deploy beta per layanan dengan
+   konfirmasi user (migrasi, publisher + Run Now, terminal-api, edge-bff); live atas permintaan user sesudah butir J.
+
+**Pertanyaan terbuka (register UD67):** (1) tujuan "Open in Terminal"; (2) nama "Relative Rotation Graph", "RS-Ratio",
+"RS-Momentum" (merek RRG Research) diganti nama netral atau tetap; (3) "go" untuk S0-S4 di branch dan S1 di database dev.
