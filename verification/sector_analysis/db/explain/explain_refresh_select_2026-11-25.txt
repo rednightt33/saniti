@@ -1,0 +1,252 @@
+GroupAggregate  (cost=97524.02..97531.48 rows=71 width=144) (actual time=59.663..61.117 rows=70.00 loops=1)
+  Group Key: ('MARKET'::text), ('IHSG'::text), (NULL::text)
+  Buffers: shared hit=6856
+  CTE u
+    ->  Seq Scan on "IDX_Stock_Universe" s  (cost=0.00..98.55 rows=844 width=41) (actual time=0.007..1.511 rows=862.00 loops=1)
+          Filter: ("Security Type" = 'stock'::text)
+          Rows Removed by Filter: 89
+          Buffers: shared hit=88
+  CTE sec
+    ->  Seq Scan on "Feature_Index_Entity" e  (cost=0.00..2.96 rows=11 width=16) (actual time=0.015..0.018 rows=11.00 loops=1)
+          Filter: (entity_kind = 'SECTOR'::text)
+          Rows Removed by Filter: 66
+          Buffers: shared hit=2
+  CTE ind
+    ->  GroupAggregate  (cost=59.96..67.02 rows=59 width=64) (actual time=2.716..2.888 rows=58.00 loops=1)
+          Group Key: u_3.industry
+          Buffers: shared hit=88
+          ->  Sort  (cost=59.96..62.06 rows=843 width=64) (actual time=2.691..2.726 rows=841.00 loops=1)
+                Sort Key: u_3.industry
+                Sort Method: quicksort  Memory: 72kB
+                Buffers: shared hit=88
+                ->  CTE Scan on u u_3  (cost=0.00..18.99 rows=843 width=64) (actual time=0.009..2.091 rows=841.00 loops=1)
+                      Filter: ((industry IS NOT NULL) AND (industry <> 'Undefined'::text))
+                      Rows Removed by Filter: 21
+                      Storage: Memory  Maximum Storage: 75kB
+                      Buffers: shared hit=88
+  CTE st
+    ->  Nested Loop Left Join  (cost=41.41..3848.59 rows=330 width=48) (actual time=0.195..12.754 rows=837.00 loops=1)
+          Buffers: shared hit=3372
+          ->  Hash Semi Join  (cost=40.98..2456.86 rows=330 width=47) (actual time=0.158..0.744 rows=837.00 loops=1)
+                Hash Cond: ((p.ticker)::text = u_4.ticker)
+                Buffers: shared hit=24
+                ->  Bitmap Heap Scan on "Price_Stock_Indonesia_IDX" p  (cost=13.55..2424.02 rows=661 width=47) (actual time=0.030..0.364 rows=907.00 loops=1)
+                      Recheck Cond: (date = '2026-11-25'::date)
+                      Filter: (is_final AND ((timeframe)::text = 'Daily'::text))
+                      Heap Blocks: exact=21
+                      Buffers: shared hit=24
+                      ->  Bitmap Index Scan on "Price_Stock_Indonesia_IDX_date_idx"  (cost=0.00..13.38 rows=661 width=0) (actual time=0.018..0.018 rows=907.00 loops=1)
+                            Index Cond: (date = '2026-11-25'::date)
+                            Index Searches: 1
+                            Buffers: shared hit=3
+                ->  Hash  (cost=16.88..16.88 rows=844 width=32) (actual time=0.124..0.125 rows=862.00 loops=1)
+                      Buckets: 1024  Batches: 1  Memory Usage: 40kB
+                      ->  CTE Scan on u u_4  (cost=0.00..16.88 rows=844 width=32) (actual time=0.001..0.055 rows=862.00 loops=1)
+                            Storage: Memory  Maximum Storage: 75kB
+          ->  Limit  (cost=0.43..4.19 rows=1 width=12) (actual time=0.013..0.014 rows=1.00 loops=837)
+                Buffers: shared hit=3348
+                ->  Index Scan using "Price_Stock_Indonesia_IDX_final_idx" on "Price_Stock_Indonesia_IDX" q  (cost=0.43..27110.34 rows=7196 width=12) (actual time=0.013..0.013 rows=1.00 loops=837)
+                      Index Cond: (((ticker)::text = (p.ticker)::text) AND (date < '2026-11-25'::date))
+                      Index Searches: 837
+                      Buffers: shared hit=3348
+  CTE f4
+    ->  Hash Semi Join  (cost=39.62..3905.50 rows=941 width=29) (actual time=1.242..2.805 rows=837.00 loops=1)
+          Hash Cond: (t.ticker = u_5.ticker)
+          Buffers: shared hit=877
+          ->  Bitmap Heap Scan on "Feature_04_Technical_Indicator" t  (cost=12.19..3865.07 rows=963 width=29) (actual time=1.113..2.507 rows=863.00 loops=1)
+                Recheck Cond: (trade_date = '2026-11-25'::date)
+                Filter: ((timeframe = 'Daily'::text) AND (asset_type = 'equity'::text))
+                Rows Removed by Filter: 24
+                Heap Blocks: exact=874
+                Buffers: shared hit=877
+                ->  Bitmap Index Scan on "Feature_04_Technical_Indicator_trade_date_idx"  (cost=0.00..11.95 rows=1002 width=0) (actual time=0.056..0.057 rows=887.00 loops=1)
+                      Index Cond: (trade_date = '2026-11-25'::date)
+                      Index Searches: 1
+                      Buffers: shared hit=3
+          ->  Hash  (cost=16.88..16.88 rows=844 width=32) (actual time=0.121..0.121 rows=862.00 loops=1)
+                Buckets: 1024  Batches: 1  Memory Usage: 40kB
+                ->  CTE Scan on u u_5  (cost=0.00..16.88 rows=844 width=32) (actual time=0.003..0.055 rows=862.00 loops=1)
+                      Storage: Memory  Maximum Storage: 75kB
+  CTE w0
+    ->  Subquery Scan on s_1  (cost=44685.62..44689.63 rows=67 width=40) (actual time=15.503..15.939 rows=883.00 loops=1)
+          Buffers: shared hit=1219
+          ->  HashAggregate  (cost=44685.62..44688.96 rows=67 width=114) (actual time=15.502..15.874 rows=883.00 loops=1)
+                Group Key: p_2.ticker
+                Filter: (sum((p_2.close * p_2.volume)) > '0'::numeric)
+                Batches: 1  Memory Usage: 625kB
+                Buffers: shared hit=1219
+                CTE days
+                  ->  Limit  (cost=3.39..5.11 rows=20 width=4) (actual time=0.034..0.046 rows=20.00 loops=1)
+                        Buffers: shared hit=15
+                        InitPlan 6
+                          ->  Seq Scan on "Feature_Index_Entity" e_1  (cost=0.00..2.96 rows=1 width=8) (actual time=0.006..0.011 rows=1.00 loops=1)
+                                Filter: (entity_kind = 'MARKET'::text)
+                                Rows Removed by Filter: 76
+                                Buffers: shared hit=2
+                        ->  Index Only Scan using "Price_Stock_Indonesia_IDX_final_idx" on "Price_Stock_Indonesia_IDX" p_1  (cost=0.43..620.41 rows=7199 width=4) (actual time=0.033..0.043 rows=20.00 loops=1)
+                              Index Cond: ((ticker = (InitPlan 6).col1) AND (date <= '2026-11-25'::date))
+                              Heap Fetches: 9
+                              Index Searches: 1
+                              Buffers: shared hit=15
+                InitPlan 8
+                  ->  Aggregate  (cost=0.45..0.46 rows=1 width=8) (actual time=0.053..0.054 rows=1.00 loops=1)
+                        Buffers: shared hit=15
+                        ->  CTE Scan on days  (cost=0.00..0.40 rows=20 width=0) (actual time=0.035..0.049 rows=20.00 loops=1)
+                              Storage: Memory  Maximum Storage: 17kB
+                              Buffers: shared hit=15
+                ->  Result  (cost=14.16..44575.25 rows=13974 width=54) (actual time=0.471..9.746 rows=17176.00 loops=1)
+                      One-Time Filter: ((InitPlan 8).col1 = 20)
+                      Buffers: shared hit=1219
+                      ->  Nested Loop  (cost=14.16..44575.25 rows=13974 width=54) (actual time=0.415..8.161 rows=17176.00 loops=1)
+                            Buffers: shared hit=1204
+                            ->  HashAggregate  (cost=0.45..0.65 rows=20 width=4) (actual time=0.008..0.018 rows=20.00 loops=1)
+                                  Group Key: d.date
+                                  Batches: 1  Memory Usage: 32kB
+                                  ->  CTE Scan on days d  (cost=0.00..0.40 rows=20 width=4) (actual time=0.000..0.001 rows=20.00 loops=1)
+                                        Storage: Memory  Maximum Storage: 17kB
+                            ->  Bitmap Heap Scan on "Price_Stock_Indonesia_IDX" p_2  (cost=13.71..2221.92 rows=681 width=58) (actual time=0.047..0.308 rows=858.80 loops=20)
+                                  Recheck Cond: (d.date = date)
+                                  Filter: (is_final AND (volume IS NOT NULL) AND ((timeframe)::text = 'Daily'::text))
+                                  Rows Removed by Filter: 44
+                                  Heap Blocks: exact=1135
+                                  Buffers: shared hit=1204
+                                  ->  Bitmap Index Scan on "Price_Stock_Indonesia_IDX_date_idx"  (cost=0.00..13.54 rows=681 width=0) (actual time=0.036..0.036 rows=1047.20 loops=20)
+                                        Index Cond: (date = d.date)
+                                        Index Searches: 20
+                                        Buffers: shared hit=69
+  CTE w1
+    ->  Subquery Scan on s_2  (cost=44685.62..44689.63 rows=67 width=40) (actual time=13.816..14.291 rows=884.00 loops=1)
+          Buffers: shared hit=1298
+          ->  HashAggregate  (cost=44685.62..44688.96 rows=67 width=114) (actual time=13.814..14.225 rows=884.00 loops=1)
+                Group Key: p_4.ticker
+                Filter: (sum((p_4.close * p_4.volume)) > '0'::numeric)
+                Batches: 1  Memory Usage: 625kB
+                Buffers: shared hit=1298
+                CTE days
+                  ->  Limit  (cost=3.39..5.11 rows=20 width=4) (actual time=0.048..0.059 rows=20.00 loops=1)
+                        Buffers: shared hit=14
+                        InitPlan 10
+                          ->  Seq Scan on "Feature_Index_Entity" e_2  (cost=0.00..2.96 rows=1 width=8) (actual time=0.011..0.017 rows=1.00 loops=1)
+                                Filter: (entity_kind = 'MARKET'::text)
+                                Rows Removed by Filter: 76
+                                Buffers: shared hit=2
+                        ->  Index Only Scan using "Price_Stock_Indonesia_IDX_final_idx" on "Price_Stock_Indonesia_IDX" p_3  (cost=0.43..620.39 rows=7198 width=4) (actual time=0.047..0.055 rows=20.00 loops=1)
+                              Index Cond: ((ticker = (InitPlan 10).col1) AND (date <= '2026-11-24'::date))
+                              Heap Fetches: 8
+                              Index Searches: 1
+                              Buffers: shared hit=14
+                InitPlan 12
+                  ->  Aggregate  (cost=0.45..0.46 rows=1 width=8) (actual time=0.065..0.066 rows=1.00 loops=1)
+                        Buffers: shared hit=14
+                        ->  CTE Scan on days days_1  (cost=0.00..0.40 rows=20 width=0) (actual time=0.050..0.062 rows=20.00 loops=1)
+                              Storage: Memory  Maximum Storage: 17kB
+                              Buffers: shared hit=14
+                ->  Result  (cost=14.16..44575.25 rows=13974 width=54) (actual time=0.103..9.056 rows=17171.00 loops=1)
+                      One-Time Filter: ((InitPlan 12).col1 = 20)
+                      Buffers: shared hit=1298
+                      ->  Nested Loop  (cost=14.16..44575.25 rows=13974 width=54) (actual time=0.034..7.760 rows=17171.00 loops=1)
+                            Buffers: shared hit=1284
+                            ->  HashAggregate  (cost=0.45..0.65 rows=20 width=4) (actual time=0.006..0.015 rows=20.00 loops=1)
+                                  Group Key: d_1.date
+                                  Batches: 1  Memory Usage: 32kB
+                                  ->  CTE Scan on days d_1  (cost=0.00..0.40 rows=20 width=4) (actual time=0.000..0.002 rows=20.00 loops=1)
+                                        Storage: Memory  Maximum Storage: 17kB
+                            ->  Bitmap Heap Scan on "Price_Stock_Indonesia_IDX" p_4  (cost=13.71..2221.92 rows=681 width=58) (actual time=0.041..0.320 rows=858.55 loops=20)
+                                  Recheck Cond: (d_1.date = date)
+                                  Filter: (is_final AND (volume IS NOT NULL) AND ((timeframe)::text = 'Daily'::text))
+                                  Rows Removed by Filter: 44
+                                  Heap Blocks: exact=1215
+                                  Buffers: shared hit=1284
+                                  ->  Bitmap Index Scan on "Price_Stock_Indonesia_IDX_date_idx"  (cost=0.00..13.54 rows=681 width=0) (actual time=0.031..0.031 rows=1047.25 loops=20)
+                                        Index Cond: (date = d_1.date)
+                                        Index Searches: 20
+                                        Buffers: shared hit=69
+  CTE sx
+    ->  Hash Right Join  (cost=58.17..89.71 rows=919 width=88) (actual time=46.791..49.349 rows=862.00 loops=1)
+          Hash Cond: (f4.ticker = u_6.ticker)
+          Buffers: shared hit=6766
+          ->  CTE Scan on f4  (cost=0.00..18.82 rows=941 width=56) (actual time=1.244..3.063 rows=837.00 loops=1)
+                Storage: Memory  Maximum Storage: 62kB
+                Buffers: shared hit=877
+          ->  Hash  (cost=47.62..47.62 rows=844 width=64) (actual time=45.541..45.547 rows=862.00 loops=1)
+                Buckets: 1024  Batches: 1  Memory Usage: 68kB
+                Buffers: shared hit=5889
+                ->  Hash Right Join  (cost=31.79..47.62 rows=844 width=64) (actual time=31.616..45.364 rows=862.00 loops=1)
+                      Hash Cond: (st.ticker = u_6.ticker)
+                      Buffers: shared hit=5889
+                      ->  Hash Left Join  (cost=4.36..15.65 rows=330 width=64) (actual time=31.017..44.391 rows=837.00 loops=1)
+                            Hash Cond: (st.ticker = w1.ticker)
+                            Buffers: shared hit=5889
+                            ->  Hash Left Join  (cost=2.18..11.12 rows=330 width=56) (actual time=16.420..29.548 rows=837.00 loops=1)
+                                  Hash Cond: (st.ticker = w0.ticker)
+                                  Buffers: shared hit=4591
+                                  ->  CTE Scan on st  (cost=0.00..6.60 rows=330 width=48) (actual time=0.196..12.957 rows=837.00 loops=1)
+                                        Storage: Memory  Maximum Storage: 56kB
+                                        Buffers: shared hit=3372
+                                  ->  Hash  (cost=1.34..1.34 rows=67 width=40) (actual time=16.216..16.217 rows=883.00 loops=1)
+                                        Buckets: 1024  Batches: 1  Memory Usage: 47kB
+                                        Buffers: shared hit=1219
+                                        ->  CTE Scan on w0  (cost=0.00..1.34 rows=67 width=40) (actual time=15.506..16.110 rows=883.00 loops=1)
+                                              Storage: Memory  Maximum Storage: 51kB
+                                              Buffers: shared hit=1219
+                            ->  Hash  (cost=1.34..1.34 rows=67 width=40) (actual time=14.586..14.588 rows=884.00 loops=1)
+                                  Buckets: 1024  Batches: 1  Memory Usage: 47kB
+                                  Buffers: shared hit=1298
+                                  ->  CTE Scan on w1  (cost=0.00..1.34 rows=67 width=40) (actual time=13.819..14.446 rows=884.00 loops=1)
+                                        Storage: Memory  Maximum Storage: 51kB
+                                        Buffers: shared hit=1298
+                      ->  Hash  (cost=16.88..16.88 rows=844 width=32) (actual time=0.593..0.594 rows=862.00 loops=1)
+                            Buckets: 1024  Batches: 1  Memory Usage: 40kB
+                            ->  CTE Scan on u u_6  (cost=0.00..16.88 rows=844 width=32) (actual time=0.001..0.049 rows=862.00 loops=1)
+                                  Storage: Memory  Maximum Storage: 75kB
+  ->  Sort  (cost=132.44..132.62 rows=71 width=184) (actual time=59.593..59.710 rows=2544.00 loops=1)
+        Sort Key: ('MARKET'::text), ('IHSG'::text), (NULL::text), x.ticker
+        Sort Method: quicksort  Memory: 390kB
+        Buffers: shared hit=6856
+        ->  Hash Left Join  (cost=32.70..130.26 rows=71 width=184) (actual time=52.744..54.796 rows=2544.00 loops=1)
+              Hash Cond: (u.ticker = x.ticker)
+              Buffers: shared hit=6856
+              ->  Hash Right Join  (cost=2.83..99.42 rows=71 width=128) (actual time=2.964..4.457 rows=2544.00 loops=1)
+                    Hash Cond: ((('MARKET'::text) = ('MARKET'::text)) AND (('IHSG'::text) = ('IHSG'::text)))
+                    Buffers: shared hit=90
+                    ->  Append  (cost=0.00..83.07 rows=1799 width=96) (actual time=0.001..0.911 rows=2544.00 loops=1)
+                          ->  CTE Scan on u  (cost=0.00..16.88 rows=844 width=96) (actual time=0.001..0.085 rows=862.00 loops=1)
+                                Storage: Memory  Maximum Storage: 75kB
+                          ->  Hash Join  (cost=0.36..26.79 rows=111 width=96) (actual time=0.010..0.336 rows=841.00 loops=1)
+                                Hash Cond: (u_1.sector = sec_1.sector)
+                                ->  CTE Scan on u u_1  (cost=0.00..16.88 rows=844 width=64) (actual time=0.001..0.055 rows=862.00 loops=1)
+                                      Storage: Memory  Maximum Storage: 75kB
+                                ->  Hash  (cost=0.22..0.22 rows=11 width=32) (actual time=0.004..0.004 rows=11.00 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                      ->  CTE Scan on sec sec_1  (cost=0.00..0.22 rows=11 width=32) (actual time=0.001..0.002 rows=11.00 loops=1)
+                                            Storage: Memory  Maximum Storage: 17kB
+                          ->  Hash Join  (cost=1.92..30.40 rows=844 width=96) (actual time=0.016..0.326 rows=841.00 loops=1)
+                                Hash Cond: (u_2.industry = ind_1.industry)
+                                ->  CTE Scan on u u_2  (cost=0.00..16.88 rows=844 width=64) (actual time=0.001..0.054 rows=862.00 loops=1)
+                                      Storage: Memory  Maximum Storage: 75kB
+                                ->  Hash  (cost=1.18..1.18 rows=59 width=32) (actual time=0.011..0.012 rows=58.00 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 12kB
+                                      ->  CTE Scan on ind ind_1  (cost=0.00..1.18 rows=59 width=32) (actual time=0.001..0.005 rows=58.00 loops=1)
+                                            Storage: Memory  Maximum Storage: 20kB
+                    ->  Hash  (cost=1.76..1.76 rows=71 width=96) (actual time=2.955..2.958 rows=70.00 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 14kB
+                          Buffers: shared hit=90
+                          ->  Append  (cost=0.00..1.76 rows=71 width=96) (actual time=0.002..2.935 rows=70.00 loops=1)
+                                Buffers: shared hit=90
+                                ->  Result  (cost=0.00..0.01 rows=1 width=96) (actual time=0.001..0.001 rows=1.00 loops=1)
+                                ->  CTE Scan on sec  (cost=0.00..0.22 rows=11 width=96) (actual time=0.016..0.022 rows=11.00 loops=1)
+                                      Storage: Memory  Maximum Storage: 17kB
+                                      Buffers: shared hit=2
+                                ->  CTE Scan on ind  (cost=0.00..1.18 rows=59 width=96) (actual time=2.718..2.903 rows=58.00 loops=1)
+                                      Storage: Memory  Maximum Storage: 20kB
+                                      Buffers: shared hit=88
+              ->  Hash  (cost=18.38..18.38 rows=919 width=88) (actual time=49.774..49.774 rows=862.00 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 88kB
+                    Buffers: shared hit=6766
+                    ->  CTE Scan on sx x  (cost=0.00..18.38 rows=919 width=88) (actual time=46.793..49.623 rows=862.00 loops=1)
+                          Storage: Memory  Maximum Storage: 89kB
+                          Buffers: shared hit=6766
+Planning:
+  Buffers: shared hit=43
+Planning Time: 5.588 ms
+Execution Time: 61.436 ms

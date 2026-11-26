@@ -3,7 +3,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY publisher.py radar.py overview.py watchlist.py ./
-RUN useradd --uid 10001 --create-home publisher && chmod a+r /app/publisher.py /app/radar.py /app/overview.py /app/watchlist.py
+COPY publisher.py radar.py overview.py watchlist.py sector.py ./
+RUN useradd --uid 10001 --create-home publisher && chmod a+r /app/publisher.py /app/radar.py /app/overview.py /app/watchlist.py /app/sector.py
 USER publisher
 CMD ["python", "publisher.py"]

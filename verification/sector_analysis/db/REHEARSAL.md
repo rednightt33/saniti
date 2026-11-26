@@ -13,7 +13,7 @@ definitions and the measurements of `EXPLAIN.md`.
   listing, volume 0, a close equal to its EMA, a stock without a Feature 04 row on one date, an industry without weights,
   an industry without members, a fund with a weight), IHSG, 11 SECTOR entities, a non-final weekday.
 
-## Results (`rehearsal/rehearse_output.txt`, VERDICT PASS, 32 checks)
+## Results (`rehearsal/rehearse_output.txt`, VERDICT PASS, 39 checks)
 
 | Check | Result |
 |---|---|
@@ -33,6 +33,7 @@ definitions and the measurements of `EXPLAIN.md`.
 | Grants | `terminal_market_reader` reads the table and `feature_08_weight`, gets "permission denied" on `refresh_feature_08_day` |
 | `feature_08_weight` | the rows of `overview_stock_size`, one basis `adv20_value` |
 | Worker (`Feature08Refresher` with the real SQL) | the finished equity run is due (not the bond run, not the open one); its window = the 5 market dates ending at it through the newest date (7 dates); it waits while the backfill lock is held; refreshes; the values unchanged; every row of the window rewritten (119); then nothing is due; a finished Telegram retry without a date is due on the newest market date |
+| Publisher (`apps/terminal-publisher/sector.py`, every statement it sends, as the role `terminal_market_reader`; a stand-in Feature 01 for the picker dates) | available; not busy; the stamp reads every input; 33 files (meta, series, 11 sector-stocks named by the lowercased index, 20 day files); the series breadth and industry levels are the Feature 08 rows; the newest day file's 1D returns and sessions in status equal a count over the rows |
 | Backfill job (`backfill/backfill_job.py`, run locally on this database) | DRYRUN: 5 dates rolled back, 0 differences; APPLY: 30 dates, 510 rows, 16 breadth dates equal to BREADTH_SQL, 3 dates validated with 0 differences, no negative level, VERDICT APPLY_OK |
 
 Example values (2026-02-02): MARKET members 7, EMA50 3 of 5, EMA200 2 of 4, advancers 6, unchanged 1, decliners 0,

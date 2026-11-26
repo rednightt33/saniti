@@ -1,0 +1,50 @@
+Subquery Scan on overview_stock_size  (cost=44685.66..44689.66 rows=67 width=72) (actual time=17.653..17.927 rows=772.00 loops=1)
+  Buffers: shared hit=15610
+  ->  HashAggregate  (cost=44685.66..44688.99 rows=67 width=114) (actual time=17.653..17.876 rows=772.00 loops=1)
+        Group Key: p.ticker
+        Filter: (sum((p.close * p.volume)) > '0'::numeric)
+        Batches: 1  Memory Usage: 337kB
+        Buffers: shared hit=15610
+        CTE days
+          ->  Limit  (cost=3.39..5.14 rows=20 width=4) (actual time=0.054..0.059 rows=20.00 loops=1)
+                Buffers: shared hit=6
+                InitPlan 1
+                  ->  Seq Scan on "Feature_Index_Entity" e  (cost=0.00..2.96 rows=1 width=8) (actual time=0.018..0.024 rows=1.00 loops=1)
+                        Filter: (entity_kind = 'MARKET'::text)
+                        Rows Removed by Filter: 76
+                        Buffers: shared hit=2
+                ->  Index Only Scan using "Price_Stock_Indonesia_IDX_final_idx" on "Price_Stock_Indonesia_IDX" p_1  (cost=0.43..337.23 rows=3840 width=4) (actual time=0.053..0.055 rows=20.00 loops=1)
+                      Index Cond: ((ticker = (InitPlan 1).col1) AND (date <= '2023-06-14'::date))
+                      Heap Fetches: 0
+                      Index Searches: 1
+                      Buffers: shared hit=6
+        InitPlan 3
+          ->  Aggregate  (cost=0.45..0.46 rows=1 width=8) (actual time=0.067..0.068 rows=1.00 loops=1)
+                Buffers: shared hit=6
+                ->  CTE Scan on days  (cost=0.00..0.40 rows=20 width=0) (actual time=0.056..0.063 rows=20.00 loops=1)
+                      Storage: Memory  Maximum Storage: 17kB
+                      Buffers: shared hit=6
+        ->  Result  (cost=14.16..44575.25 rows=13974 width=54) (actual time=0.206..14.282 rows=14665.00 loops=1)
+              One-Time Filter: ((InitPlan 3).col1 = 20)
+              Buffers: shared hit=15610
+              ->  Nested Loop  (cost=14.16..44575.25 rows=13974 width=54) (actual time=0.137..13.195 rows=14665.00 loops=1)
+                    Buffers: shared hit=15604
+                    ->  HashAggregate  (cost=0.45..0.65 rows=20 width=4) (actual time=0.009..0.020 rows=20.00 loops=1)
+                          Group Key: d.date
+                          Batches: 1  Memory Usage: 32kB
+                          ->  CTE Scan on days d  (cost=0.00..0.40 rows=20 width=4) (actual time=0.000..0.002 rows=20.00 loops=1)
+                                Storage: Memory  Maximum Storage: 17kB
+                    ->  Bitmap Heap Scan on "Price_Stock_Indonesia_IDX" p  (cost=13.71..2221.92 rows=681 width=58) (actual time=0.108..0.604 rows=733.25 loops=20)
+                          Recheck Cond: (d.date = date)
+                          Filter: (is_final AND (volume IS NOT NULL) AND ((timeframe)::text = 'Daily'::text))
+                          Rows Removed by Filter: 41
+                          Heap Blocks: exact=15535
+                          Buffers: shared hit=15604
+                          ->  Bitmap Index Scan on "Price_Stock_Indonesia_IDX_date_idx"  (cost=0.00..13.54 rows=681 width=0) (actual time=0.044..0.044 rows=776.75 loops=20)
+                                Index Cond: (date = d.date)
+                                Index Searches: 20
+                                Buffers: shared hit=69
+Planning:
+  Buffers: shared hit=9
+Planning Time: 0.609 ms
+Execution Time: 18.044 ms

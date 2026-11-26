@@ -1,0 +1,142 @@
+[
+ {
+  "query": "refresh_select",
+  "date": "2026-11-25",
+  "execution": "Execution Time: 61.436 ms",
+  "buffers": "Buffers: shared hit=6856",
+  "error": null
+ },
+ {
+  "query": "day_rows",
+  "date": "2026-11-25",
+  "execution": "Execution Time: 2.468 ms",
+  "buffers": "Buffers: shared hit=989",
+  "error": null
+ },
+ {
+  "query": "weights",
+  "date": "2026-11-25",
+  "execution": "Execution Time: 10.470 ms",
+  "buffers": "Buffers: shared hit=1219",
+  "error": null
+ },
+ {
+  "query": "fp_f04_window",
+  "date": "2026-11-25",
+  "execution": "Execution Time: 9.000 ms",
+  "buffers": "Buffers: shared hit=965 read=2",
+  "error": null
+ },
+ {
+  "query": "f04_history_50_tickers",
+  "date": "2026-11-25",
+  "execution": "Execution Time: 2055.104 ms",
+  "buffers": "Buffers: shared hit=10974 read=2490",
+  "error": null
+ },
+ {
+  "query": "refresh_select",
+  "date": "2026-10-29",
+  "execution": "Execution Time: 296.855 ms",
+  "buffers": "Buffers: shared hit=7675 read=1018",
+  "error": null
+ },
+ {
+  "query": "day_rows",
+  "date": "2026-10-29",
+  "execution": "Execution Time: 2.462 ms",
+  "buffers": "Buffers: shared hit=1045",
+  "error": null
+ },
+ {
+  "query": "weights",
+  "date": "2026-10-29",
+  "execution": "Execution Time: 9.887 ms",
+  "buffers": "Buffers: shared hit=2154",
+  "error": null
+ },
+ {
+  "query": "fp_f04_window",
+  "date": "2026-10-29",
+  "execution": "Execution Time: 10.843 ms",
+  "buffers": "Buffers: shared hit=967 read=49",
+  "error": null
+ },
+ {
+  "query": "f04_history_50_tickers",
+  "date": "2026-10-29",
+  "execution": "Execution Time: 50.901 ms",
+  "buffers": "Buffers: shared hit=13363 read=56",
+  "error": null
+ },
+ {
+  "query": "refresh_select",
+  "date": "2023-06-14",
+  "execution": "Execution Time: 815.299 ms",
+  "buffers": "Buffers: shared hit=36417 read=1803",
+  "error": null
+ },
+ {
+  "query": "day_rows",
+  "date": "2023-06-14",
+  "execution": "Execution Time: 18.508 ms",
+  "buffers": "Buffers: shared hit=1569 read=36",
+  "error": null
+ },
+ {
+  "query": "weights",
+  "date": "2023-06-14",
+  "execution": "Execution Time: 18.044 ms",
+  "buffers": "Buffers: shared hit=15610",
+  "error": null
+ },
+ {
+  "query": "fp_f04_window",
+  "date": "2023-06-14",
+  "execution": "Execution Time: 413.606 ms",
+  "buffers": "Buffers: shared hit=850 read=1399",
+  "error": null
+ },
+ {
+  "query": "f04_history_50_tickers",
+  "date": "2023-06-14",
+  "execution": "Execution Time: 586.295 ms",
+  "buffers": "Buffers: shared hit=9966 read=1261",
+  "error": null
+ },
+ {
+  "query": "refresh_select",
+  "date": "2021-03-15",
+  "execution": "Execution Time: 1260.775 ms",
+  "buffers": "Buffers: shared hit=26994 read=2102",
+  "error": null
+ },
+ {
+  "query": "day_rows",
+  "date": "2021-03-15",
+  "execution": "Execution Time: 3.205 ms",
+  "buffers": "Buffers: shared hit=1345",
+  "error": null
+ },
+ {
+  "query": "weights",
+  "date": "2021-03-15",
+  "execution": "Execution Time: 12.943 ms",
+  "buffers": "Buffers: shared hit=12725",
+  "error": null
+ },
+ {
+  "query": "fp_f04_window",
+  "date": "2021-03-15",
+  "execution": "Execution Time: 229.214 ms",
+  "buffers": "Buffers: shared hit=724 read=1117",
+  "error": null
+ },
+ {
+  "query": "f04_history_50_tickers",
+  "date": "2021-03-15",
+  "execution": "Execution Time: 3202.380 ms",
+  "buffers": "Buffers: shared hit=9376 read=907",
+  "error": null
+ }
+]

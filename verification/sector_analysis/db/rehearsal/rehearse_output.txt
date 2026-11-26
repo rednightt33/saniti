@@ -37,4 +37,11 @@ CHECK PASS worker: the values are the same after its refresh
 CHECK PASS worker: every row of the window was written again :: 119
 CHECK PASS worker: then nothing is due
 CHECK PASS worker: a finished retry without a date is due on the newest market date :: [datetime.date(2026, 2, 13)]
+CHECK PASS publisher: available as the publisher role
+CHECK PASS publisher: not busy (filled back to the first series date, no backfill lock) :: None
+CHECK PASS publisher: the stamp reads every input :: ['2026-02-13', '2026-02-13', '2026-02-13', '1730a18d519cf4cc3b2c4752f89841b6', 'a548497d44c5490f88e6e5c67bb5f232', 'd4c450288f12f6b0bc175861d2fcf41f', '7acc685d0cd2e9aae738298274356cb6', 'bb5966931493
+CHECK PASS publisher: every file of the contract :: 33 files
+CHECK PASS publisher: meta names the weight basis and every stock
+CHECK PASS publisher: series breadth and industry levels are the Feature 08 rows
+CHECK PASS publisher: the newest day file's returns and sessions in status equal a count over the rows :: []
 VERDICT PASS

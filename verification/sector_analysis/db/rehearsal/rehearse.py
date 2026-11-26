@@ -286,6 +286,63 @@ def worker_section(db, before):
         check('worker: a finished retry without a date is due on the newest market date', due == [DATES[-1]], str(due))
 
 
+def publisher_section(db):
+    """apps/terminal-publisher/sector.py on this database (every statement it sends, as it runs on dev): available,
+    busy, stamp and files with the publisher role's grants; the files' figures against this script's own data. Feature
+    01 is a stand-in here (the picker reads only its dates)."""
+    sys.path.insert(0, str(REPO / 'apps/terminal-publisher'))
+    import sector
+    with psycopg.connect(db, autocommit=True) as c:
+        c.execute('CREATE TABLE public."Feature_01_Stock_Daily" (ticker text, date date)')
+        c.execute('INSERT INTO public."Feature_01_Stock_Daily" SELECT ticker, date FROM public."Price_Stock_Indonesia_IDX" '
+                  "WHERE is_final AND ticker <> 'IHSG'")
+        c.execute('GRANT SELECT ON public."Feature_01_Stock_Daily" TO terminal_market_reader')
+        c.execute('SET ROLE terminal_market_reader')
+        check('publisher: available as the publisher role', sector.available(c))
+        check('publisher: not busy (filled back to the first series date, no backfill lock)', sector.busy(c) is None, str(sector.busy(c)))
+        st = sector.stamp(c)
+        check('publisher: the stamp reads every input', all(v is not None for v in st), str(st)[:200])
+        files, kept, carry = sector.files(c, {}, [])
+        docs = {n: d for n, d, _, _ in files}
+        names = sorted(docs)
+        indexes = [r[0] for r in c.execute("SELECT ticker FROM public.\"Feature_Index_Entity\" WHERE entity_kind = 'SECTOR'")]
+        want = sorted(['sector-meta', 'sector-series', *(f'sector-stocks-{t.lower()}' for t in indexes),
+                       *(f'sector-day-{d}' for d in DATES[-sector.DAY_DATES:])])
+        check('publisher: every file of the contract', names == want and not kept, f'{len(names)} files')
+        meta, series = docs['sector-meta'], docs['sector-series']
+        check('publisher: meta names the weight basis and every stock', meta['weight_basis'] == 'adv20_value'
+              and meta['stocks']['ticker'] == sorted(STOCKS) and meta['dates'] == [d.isoformat() for d in DATES[-20:]])
+        f08 = table(c)
+        b = series['breadth']['Financials']
+        ok = all(b['a50'][k] == f08[(d, 'SECTOR', 'Financials')]['above_ema50'] and b['members'][k] == f08[(d, 'SECTOR', 'Financials')]['members']
+                 for k, d in enumerate(DATES))
+        lv = series['industry']['Banks']['level']
+        check('publisher: series breadth and industry levels are the Feature 08 rows', ok and all(
+            (lv[k] is None) == (f08[(d, 'INDUSTRY', 'Banks')]['index_level'] is None) for k, d in enumerate(DATES)))
+        day = docs[f'sector-day-{DATES[-1].isoformat()}']['stocks']
+        tick = meta['stocks']['ticker']
+        bad = []
+        for n, i in enumerate(day['i']):
+            t = tick[i]
+            k = len(DATES) - 1
+            want_r1 = round((close_of(t, k) / close_of(t, k - 1) - 1) * 100, 4) if close_of(t, k - 1) else None
+            if day['r1d'][n] != want_r1 or day['close'][n] != round(close_of(t, k), 2):
+                bad.append((t, 'r1d', day['r1d'][n], want_r1))
+            for e, col in ((50, 1), (200, 2)):
+                rows = [f04_row(t, j) for j in range(k, -1, -1) if f04_row(t, j)]
+                s = None if rows[0][col] is None else int(rows[0][0] > rows[0][col])
+                run_n = 0
+                for r in rows:
+                    if r[col] is None or int(r[0] > r[col]) != s:
+                        break
+                    run_n += 1
+                want_days = None if s is None else min(run_n, sector.STATUS_CAP)
+                if day[f'days{e}'][n] != want_days:
+                    bad.append((t, f'days{e}', day[f'days{e}'][n], want_days))
+        check('publisher: the newest day file\'s returns and sessions in status equal a count over the rows', not bad, str(bad[:4]))
+        c.execute('RESET ROLE')
+
+
 def main(admin):
     db = setup(admin)
     sql = MIGRATION.read_text()
@@ -411,6 +468,7 @@ def main(admin):
         check('feature_08_weight equals overview_stock_size (one basis)', w[1] == 1 and w[0] == c.execute(
             'SELECT count(*) FROM public.overview_stock_size(%s)', (DATES[-1],)).fetchone()[0], str(w))
     worker_section(db, before)
+    publisher_section(db)
     print('VERDICT ' + ('PASS' if not FAILURES else f'FAIL {FAILURES}'))
     return 0 if not FAILURES else 1
 
