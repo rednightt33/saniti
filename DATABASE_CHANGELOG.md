@@ -1,11 +1,30 @@
 # Database changelog
 
-## 2026-11-26 — EXEC-SECTOR-ANALYSIS S1: Feature_08_Group_Daily, feature_08_weight, refresh_feature_08_day (migration 20261126_001; written and rehearsed, NOT APPLIED)
+## 2026-11-26 — EXEC-SECTOR-ANALYSIS S1: Feature_08_Group_Daily, feature_08_weight, refresh_feature_08_day (migration 20261126_001; applied on dev 2026-11-26 19:3x UTC and filled from 2021-01-25)
+
+- **Applied on dev (2026-11-26, the user's go "1A 2A 3 go" for S1 on the dev database):**
+  - DRYRUN (orc-test-runner, `scripts/onboarding/migration_job.py`): sha256
+    `ec5288b6507621d2a73657313f3ed9dae31afdc543e3cf321d71eb3eaca5b462`, body OK; inside the rolled-back transaction the
+    refresh of 2026-11-25 and 2026-11-26 took 115 and 59 ms, 70 rows each; MARKET 2026-11-25: 837 members, EMA50 133 of
+    837, EMA200 132 of 829 (the Overview's figures); catalog 1 table, 18 columns, 18 Feature rows; `terminal_market_reader`
+    reads the table and `feature_08_weight` (883 weights, `adv20_value`) and is refused the refresh; `pgweb_reader` reads.
+  - APPLY: the same sha256; the objects exist, the catalog rows read back (1/18/18), the grants as in the dry run; the
+    table empty until the fill.
+  - Fill (`verification/sector_analysis/db/backfill/`, DRYRUN then APPLY): 1,407 market dates from 2021-01-25 to
+    2026-11-26, 98,490 rows (70 groups each), 159 s; the independent validator on 8 dates (2021-01-25, 2021-01-26,
+    2022-03-09, 2023-06-14, 2023-12-08, 2024-10-01, 2025-03-03, 2026-11-26): 0 differences; MARKET breadth equal to the
+    Overview's BREADTH_SQL on 14 dates; no negative level; 2,014 NULL levels, all of small industries on dates where no
+    member had both closes (Consumer Electronics 854 before 2024-08-07, Sports Equipment & Hobbies Goods 284, Gas
+    Utilities 257, Alternative Energy Equipment 243, ...), the level carried as the contract says.
+  - Postgres restarted after the fill by `run_job.sh` (`large_write`): 1.53 GB before, deployment `387a3c04`, start
+    19:41:58 UTC, 11 s, both sites `/ready` 200.
+  - Not yet: feature-04-worker's daily refresh (its deploy) and the publisher's `sector` family (its deploy), each with
+    the user's confirmation.
 
 - **Why:** the Sector Analysis page (UD66 A-J, UD67 "1A 2A 3 go", 2026-11-26; `verification/sector_analysis/CONTRACT.md`
   section 2) needs per-sector breadth history and industry indexes that cannot be computed in the browser (Feature 04 is
   2.5 GB and EMA200 needs its warm-up).
-- **Migration (not applied):** `20261126_001_feature_08_group_daily.sql`, sha256 `ec5288b6…` at the commit that adds this
+- **Migration:** `20261126_001_feature_08_group_daily.sql`, sha256 `ec5288b6…` at the commit that adds this
   entry (`sha256sum` it again before applying):
   - table `Feature_08_Group_Daily` (`date`, `group_kind` MARKET/SECTOR/INDUSTRY, `group_name`; `sector`, `members`,
     `n_ema50`, `above_ema50`, `n_ema200`, `above_ema200`, `adv_1d`, `unch_1d`, `dec_1d`, `weight_basis`, `weight_sum`,
