@@ -119,7 +119,8 @@ class FakeTerminalApi:
             'logos': gz({'columns': ['ticker', 'sha256'], 'ticker': [], 'sha256': []}),
         }
         sample = ROOT / 'watchlist' / 'tests' / 'fixture' / 'watchlist-stocks.sample.json'
-        self.pages = {'watchlist': {'watchlist-stocks': gzip.compress(sample.read_bytes(), mtime=0)}, 'overview': {}, 'radar': {}}
+        self.pages = {'watchlist': {'watchlist-stocks': gzip.compress(sample.read_bytes(), mtime=0)}, 'overview': {}, 'radar': {},
+                      'sector': {}}
         self.refuse, self.locked, self.tickers = {}, set(), None
         self.apply_header, self.cuts = False, {}
         fake = self
@@ -327,7 +328,7 @@ class Live:
         self.store = store
         self.terminal, self.screener, self.backtest = FakeTerminalApi(), FakeScreenerWorker(), FakeWorker()
         for name, folder in (('BACKTEST_APP', 'backtest'), ('SCREENER_APP', 'screener'), ('RADAR_APP', 'radar'),
-                             ('OVERVIEW_APP', 'overview'), ('WATCHLIST_APP', 'watchlist')):
+                             ('OVERVIEW_APP', 'overview'), ('SECTOR_APP', 'sector'), ('WATCHLIST_APP', 'watchlist')):
             if (ROOT / folder / 'dist' / 'index.html').is_file():
                 monkeypatch.setattr(main, name, ROOT / folder / 'dist')
         self.sock = socket.socket(); self.sock.bind(('127.0.0.1', 0)); port = self.sock.getsockname()[1]

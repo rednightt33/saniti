@@ -55,9 +55,11 @@ def test_a_visitor_reads_bbca_and_the_whole_ticker_list_and_is_refused_another_t
         assert body['visitor'] is True and body['authenticated'] is False and body['csrf_token'] == ''
         assert body['owner_key'] is None and body['access']['owner_key'] is None
         # the Terminal's grants and, since the example mode as the user set it on 2026-11-21 (migration 20261121_002,
-        # ERRORS M527), the example flags of the five data pages; no tab's view other than the Terminal's
+        # ERRORS M527), the example flags of the five data pages, and Sector Analysis's since 20261126_050
+        # (EXEC-SECTOR-ANALYSIS decision J); no tab's view other than the Terminal's
         assert body['access']['capabilities'] == ['backtest.example', 'overview.example', 'radar.example',
-                                                  'screener.example', 'terminal.view', 'watchlist.example']
+                                                  'screener.example', 'sector.example', 'terminal.view',
+                                                  'watchlist.example']
         assert body['access']['limits']['terminal.tickers'] == ['BBCA']
         assert body['access']['plan'] == guest_plan(store) and r.headers['x-edge-entitlements'].startswith('db-')
         # BBCA's chart and the ticker list go to terminal-api under the guest owner, with the visitor's key

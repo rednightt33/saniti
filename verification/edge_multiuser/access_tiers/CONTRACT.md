@@ -794,7 +794,8 @@ is built, checked, and deployed on its own.
   - Terminal: `terminal.layouts`, `terminal.drawings` and `terminal.presets` (a new capability) on their writes.
   - Watchlist: `watchlist.view`; the Screener's star (the Screener's own watchlist, `/api/v1/screener/watchlist`) also
     needs `watchlist.view` (ERRORS M481 C2 1).
-  - The page files: `overview.view`, `radar.view` and `watchlist.view`, checked before the shared caches (`pages.py`).
+  - The page files: `overview.view`, `radar.view` and `watchlist.view`, checked before the shared caches (`pages.py`);
+    `sector.view` since EXEC-SECTOR-ANALYSIS (2026-11-26, migration `20261126_050`).
   - A route-walk test fails on an `/api` route of any module without its `need`, unless it is public or named in
     `PRINCIPAL_ONLY` with the reason it needs none (`tests/test_route_table.py`, derived from `app.routes`; built,
     `fix-records`, R1-27: the earlier walks covered a list of modules).

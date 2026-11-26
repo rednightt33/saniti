@@ -32,6 +32,16 @@ Two sources (TABS):
   one list. A missing list or a member the file does not hold answers EXAMPLE_UNAVAILABLE: the example names its list
   and never shows another (ERRORS M527). No watchlist-radar (radar.view). Cut once per pair of publications and
   process.
+- Sector Analysis's latest market date (EXEC-SECTOR-ANALYSIS decision J, the user 2026-11-26: "Untuk free dan guest ...
+  efeknya akan sama seperti overview, tapi dia bisa cross tab. Dia bisa pilih tab 1, 2, 3, 4, 5. Tapi kalau klik di
+  setiap tab, maka efeknya sama seperti dia mengklik overview"; verification/sector_analysis/CONTRACT.md 3.5), as the
+  Market Overview's: the live publication's three files of the opening view (sector-meta, sector-series, the newest
+  sector-day), read through the page relay and cut here to that day: the date picker to it, the series to its dates up
+  to that day (the whole series the publication holds, SECTOR_SESSIONS: the opening views of the page's five tabs read
+  up to a year of it, CONTRACT 5), each file to the fields CONTRACT 3 names (SECTOR_*_SHAPE, fail closed). The older day
+  files and every sector-stocks-<index> (a sector's stock lines, opened by a click) stay with sector.view. The page
+  keeps its five tabs switchable and locks every other control (its own lockOnly, shared/example-view.ts). Cut once per
+  publication and process.
 
 The guarantee is these routes: they hand out only the example's files, and only to a principal holding the tab's
 <tab>.example (auth.need(..., guests=True), before the caches); a page's live routes still need <tab>.view, and the
@@ -60,8 +70,9 @@ logger = logging.getLogger('edge_bff.examples')
 
 # the tabs whose page reads an example in this build (the page's own example mode: src/main.ts of each), their names in
 # the refusals and their source; a tab joins with its page
-TABS = {'radar': 'Radar', 'overview': 'Market Overview', 'watchlist': 'Watchlist', 'backtest': 'Backtest', 'screener': 'Screener'}
-LATEST = {'overview', 'watchlist'}                      # the latest publication, trimmed; every other tab is stored
+TABS = {'radar': 'Radar', 'overview': 'Market Overview', 'watchlist': 'Watchlist', 'backtest': 'Backtest', 'screener': 'Screener',
+        'sector': 'Sector Analysis'}
+LATEST = {'overview', 'watchlist', 'sector'}            # the latest publication, trimmed; every other tab is stored
 NAME = re.compile(r'[a-z0-9][a-z0-9_-]{0,63}')          # edge_bff.example_files.name (example_files_name)
 SHA = re.compile(r'[0-9a-f]{64}')
 REFRESH_SECONDS = 300                                   # a capture shows within this long; nothing changes otherwise
@@ -134,6 +145,24 @@ WATCHLIST_COLUMNS = ('ticker', 'name', 'sector', 'last', 'r1d', 'r1m', 'trend') 
 # a flat [kind, date, role] or dropped)
 WATCHLIST_LEFT_OUT = ()
 ISO_DATE = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}')
+
+# Sector Analysis's opening view (module docstring; verification/sector_analysis/CONTRACT.md 3.1-3.3, the fields each
+# file keeps at every depth, the shapes above: a field the publisher adds later is left out until it is named here). The
+# series keeps its dates up to the example's day, at most SECTOR_SESSIONS of them (the publication's 300: the page's five
+# tabs open on views that read up to a year of the series, and the page computes every period from it, CONTRACT 5); a
+# line is cut with its dates, by position. The day file is the day's whole (every stock of that one date).
+SECTOR_SESSIONS = 300
+SECTOR_DAY = re.compile(r'sector-day-([0-9]{4}-[0-9]{2}-[0-9]{2})')
+SECTOR_META_SHAPE = {'schema': KEEP, 'market': KEEP, 'benchmarks': KEEP, 'weight_basis': KEEP, 'weight_label': KEEP,
+                     'periods': {'*': KEEP}, 'sectors': [{'name': KEEP, 'short': KEEP, 'index': KEEP}],
+                     'industries': [{'name': KEEP, 'sector': KEEP}],
+                     'stocks': {'ticker': KEEP, 'name': KEEP, 'sector': KEEP, 'industry': KEEP},
+                     'dates': KEEP, 'prices_through': KEEP, 'breadth_through': KEEP}
+SECTOR_BREADTH_KEYS = ('members', 'n50', 'a50', 'n200', 'a200', 'adv', 'unch', 'dec')
+SECTOR_INDUSTRY_KEYS = ('level', 'members')
+SECTOR_STOCK_KEYS = ('i', 'close', 'volume', 'r1d', 'r5d', 'r1m', 'r3m', 'weight', 'above_ema50', 'above_ema200',
+                     'd_ema50', 'd_ema200', 'days50', 'days200', 'since50', 'since200')
+SECTOR_DAY_SHAPE = {'schema': KEEP, 'date': KEEP, 'prior_date': KEEP, 'stocks': {k: KEEP for k in SECTOR_STOCK_KEYS}}
 
 
 def flat(value):
@@ -213,6 +242,33 @@ def overview_view(meta, series, day):
     out['intraday'] = {OVERVIEW_BARS: kept(bars, BARS_SHAPE)} if bars is not None else {}
     return [('overview-meta', m, len(m['stocks']['ticker'])), ('overview-series', s, len(s['dates'])),
             (f'overview-day-{d}', out, n)]
+
+
+def sector_view(meta, series, day):
+    """The three files of Sector Analysis's opening view on the day's date, cut to it (module docstring) -> [(name, doc,
+    rows)]."""
+    d = day['date']
+    dates = series.get('dates') if isinstance(series.get('dates'), list) else []
+    end = max((i for i, x in enumerate(dates) if isinstance(x, str) and x <= d), default=-1)
+    lo = max(0, end + 1 - SECTOR_SESSIONS)
+    cut = lambda a: list(a[lo:end + 1]) if end >= 0 and isinstance(a, list) and flat(a) else []
+    lines = lambda block: {k: cut(v) for k, v in block.items()} if isinstance(block, dict) else {}
+    groups = lambda block, keys: ({k: {f: cut(v.get(f)) for f in keys if f in v} for k, v in block.items()
+                                   if isinstance(v, dict)} if isinstance(block, dict) else {})
+    s = {'schema': kept(series.get('schema'), KEEP), 'dates': cut(dates), 'index': lines(series.get('index')),
+         'sector': lines(series.get('sector')), 'breadth': groups(series.get('breadth'), SECTOR_BREADTH_KEYS),
+         'industry': groups(series.get('industry'), SECTOR_INDUSTRY_KEYS)}
+    m = kept(meta, SECTOR_META_SHAPE)
+    m['dates'] = [d]
+    out = kept(day, SECTOR_DAY_SHAPE)
+    stocks = out.get('stocks') or {}
+    n = len(stocks['i']) if isinstance(stocks.get('i'), list) else 0
+    # read by position (CONTRACT 3.3: aligned by `i`): a column of another length, or not a list of plain values, is null
+    out['stocks'] = {k: (stocks[k] if isinstance(stocks.get(k), list) and len(stocks[k]) == n else [None] * n)
+                     for k in SECTOR_STOCK_KEYS}
+    tickers = (m.get('stocks') or {}).get('ticker')
+    return [('sector-meta', m, len(tickers) if isinstance(tickers, list) else 0), ('sector-series', s, len(s['dates'])),
+            (f'sector-day-{d}', out, n)]
 
 
 class ExampleDataError(Exception):
@@ -505,11 +561,61 @@ class WatchlistLatest:
             return kept
 
 
+class SectorLatest:
+    """Sector Analysis's opening view on its latest market date, from the live publication (module docstring), read
+    through its page relay for the principal (app/pages.py), as OverviewLatest reads the Market Overview's."""
+
+    def __init__(self, pages, not_ready):
+        self.pages, self.not_ready = pages, not_ready
+        self.made = None                                  # (the live files' sha256s, the example made of them)
+        self.lock = asyncio.Lock()
+
+    async def current(self, p):
+        pages = self.pages
+        if pages is None or not pages.settings.terminal_url:
+            raise Refused(self.not_ready())
+        sent = terminal_access.headers(pages.settings, p)   # the principal's own refusals first, caches or not
+        data = await pages.index(p, sent)
+        if data is None:
+            raise RuntimeError('the Sector Analysis index could not be read')
+        files = data['files']
+        days = sorted(n for n in files if SECTOR_DAY.fullmatch(n))
+        if not days or 'sector-meta' not in files or 'sector-series' not in files:
+            return {'index': None, 'bodies': {}}
+        names = ('sector-meta', 'sector-series', days[-1])
+        key = tuple(files[n].get('sha256') for n in names)
+        if self.made is not None and self.made[0] == key:
+            return self.made[1]
+        async with self.lock:
+            if self.made is not None and self.made[0] == key:
+                return self.made[1]
+            docs = []
+            for n in names:
+                body, failed = await pages.body_of(p, sent, n, files[n].get('sha256'), files[n])
+                if failed is not None:
+                    raise Refused(failed)
+                docs.append(json.loads(gzip.decompress(body)))
+            meta, series, day = docs
+            if not (isinstance(meta, dict) and isinstance(series, dict) and isinstance(day, dict)
+                    and ISO_DATE.fullmatch(str(day.get('date'))) and f'sector-day-{day["date"]}' == names[2]):
+                raise ExampleDataError('sector_files_unreadable')
+            bodies, entries = {}, {}
+            for name, doc, rows in sector_view(meta, series, day):
+                body, sha = encode(doc)
+                bodies[name] = (sha, body)
+                entries[name] = {'sha256': sha, 'bytes': len(body), 'rows': rows, 'as_of': day['date']}
+            kept = {'index': {'finished_at': data.get('finished_at'), 'as_of': day['date'], 'files': entries},
+                    'bodies': bodies}
+            self.made = (key, kept)
+            return kept
+
+
 class Examples:
     """The example of every tab of TABS (module docstring)."""
 
-    def __init__(self, store, overview, watchlist, clock=time.monotonic):
+    def __init__(self, store, overview, watchlist, clock=time.monotonic, sector=None):
         self.store, self.overview, self.watchlist, self.clock = store, overview, watchlist, clock
+        self.sector = sector                              # EXEC-SECTOR-ANALYSIS: Sector Analysis's page relay
 
     def routes(self, app, auth):
         for tab, label in TABS.items():
@@ -518,9 +624,9 @@ class Examples:
     def tab_routes(self, app, auth, tab, label):
         text = messages(label)
         # before the kept files (module docstring); a tab whose example reads terminal-api for the principal (LATEST, the
-        # Overview and the Watchlist) passes the guard of every route that calls it: a request carrying a header edge-bff
-        # sets itself is refused 400 (terminal_access.guard; the example-mode re-check, ERRORS M527). A stored tab reads
-        # the database only.
+        # Overview, the Watchlist and Sector Analysis) passes the guard of every route that calls it: a request carrying
+        # a header edge-bff sets itself is refused 400 (terminal_access.guard; the example-mode re-check, ERRORS M527). A
+        # stored tab reads the database only.
         base = auth.need(f'{tab}.example', guests=True)
         need = terminal_access.guard(base) if tab in LATEST else base
 
@@ -530,7 +636,8 @@ class Examples:
 
         not_ready = lambda: failure('EXAMPLE_NOT_READY', 404)
         latest = {'overview': lambda: OverviewLatest(self.overview, not_ready),
-                  'watchlist': lambda: WatchlistLatest(self.watchlist, self.overview, not_ready)}
+                  'watchlist': lambda: WatchlistLatest(self.watchlist, self.overview, not_ready),
+                  'sector': lambda: SectorLatest(self.sector, not_ready)}
         assert set(latest) == LATEST, 'a LATEST tab needs its source here'
         source = latest[tab]() if tab in LATEST else Stored(self.store, tab, self.clock)
 

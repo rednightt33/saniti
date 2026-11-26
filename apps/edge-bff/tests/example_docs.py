@@ -184,3 +184,63 @@ def screener_example():
     releases = json.loads((ROOT / 'catalog' / 'releases.json').read_text())
     rows = examples.build(None, 'screener', SCREENER_AS_OF, {}, [], example=screener_made_up(), releases=releases)
     return {r[1]: json.loads(gzip.decompress(r[6])) for r in rows}
+
+
+# EXEC-SECTOR-ANALYSIS S3: a made-up Sector Analysis publication in the shapes of verification/sector_analysis/CONTRACT.md
+# section 3 (the publisher part writes the real one; no builder of it is in this tree yet), so the example tests and the
+# page relay's tests read the files the page reads. Every ticker, close and count is made up.
+SECTOR_DATES = weekdays('2026-11-26', 300)                    # sector-series: the 300 newest market dates
+SECTOR_DAYS = SECTOR_DATES[-3:]                               # three day files (the publication: 20); the newest is the example's
+SECTOR_GROUPS = [('Energy', 'Energy', 'IDXENERGY'), ('Financials', 'Financials', 'IDXFINANCE'),
+                 ('Technology', 'Technology', 'IDXTECHNO')]
+SECTOR_INDUSTRIES = [('Banks', 'Financials'), ('Oil, Gas & Coal', 'Energy'), ('Software & IT Services', 'Technology')]
+
+
+def sector_files():
+    """Every file of a made-up Sector Analysis publication: meta, series, three day files and one stock file per sector
+    (named with its index ticker lowercased, CONTRACT 3.4)."""
+    n = len(SECTOR_DATES)
+    sector_of = {t: SECTOR_GROUPS[i % len(SECTOR_GROUPS)][0] for i, t in enumerate(TICKERS)}
+    industry_of = {s: ind for ind, s in SECTOR_INDUSTRIES}
+    line = lambda base, j: [round(base + k * 0.5 + j, 2) for k in range(n)]
+    breadth = lambda m: {'members': [m] * n, 'n50': [m] * n, 'a50': [m // 2 + k % 3 for k in range(n)], 'n200': [m] * n,
+                         'a200': [m // 3 + k % 2 for k in range(n)], 'adv': [m // 2] * n, 'unch': [1] * n,
+                         'dec': [m - m // 2 - 1] * n}
+    members = {s: sum(1 for t in TICKERS if sector_of[t] == s) for s, _, _ in SECTOR_GROUPS}
+    files = {
+        'sector-meta': {'schema': 1, 'market': 'IHSG', 'benchmarks': ['IHSG', 'LQ45'], 'weight_basis': 'adv20_value',
+                        'weight_label': '20-day average traded value',
+                        'periods': {'1D': 1, '3D': 3, '1W': 5, '2W': 10, '1M': 20, '3M': 60, '6M': 120, '1Y': 252},
+                        'sectors': [{'name': s, 'short': short, 'index': index} for s, short, index in SECTOR_GROUPS],
+                        'industries': [{'name': ind, 'sector': s} for ind, s in SECTOR_INDUSTRIES],
+                        'stocks': {'ticker': list(TICKERS), 'name': [f'Company {t}' for t in TICKERS],
+                                   'sector': [sector_of[t] for t in TICKERS],
+                                   'industry': [industry_of[sector_of[t]] for t in TICKERS]},
+                        'dates': SECTOR_DATES[-20:], 'prices_through': SECTOR_DATES[-1],
+                        'breadth_through': SECTOR_DATES[-1]},
+        'sector-series': {'schema': 1, 'dates': list(SECTOR_DATES),
+                          'index': {'IHSG': line(7000, 0), 'LQ45': line(900, 1)},
+                          'sector': {s: line(1000, j) for j, (s, _, _) in enumerate(SECTOR_GROUPS)},
+                          'breadth': {'IHSG': breadth(len(TICKERS)), **{s: breadth(m) for s, m in members.items()}},
+                          'industry': {ind: {'level': line(100, j), 'members': [members[s]] * n}
+                                       for j, (ind, s) in enumerate(SECTOR_INDUSTRIES)}},
+    }
+    m = len(TICKERS)
+    for k, d in enumerate(SECTOR_DAYS):
+        at = SECTOR_DATES.index(d)
+        files[f'sector-day-{d}'] = {'schema': 1, 'date': d, 'prior_date': SECTOR_DATES[at - 1], 'stocks': {
+            'i': list(range(m)), 'close': [1000 + i + k for i in range(m)], 'volume': [10_000 * (i + 1) for i in range(m)],
+            'r1d': [round((i % 7 - 3) * 0.4, 2) for i in range(m)], 'r5d': [round((i % 5 - 2) * 1.1, 2) for i in range(m)],
+            'r1m': [round((i % 9 - 4) * 1.7, 2) for i in range(m)], 'r3m': [round((i % 11 - 5) * 2.3, 2) for i in range(m)],
+            'weight': [1.0e9 * (i + 1) for i in range(m)], 'above_ema50': [i % 2 for i in range(m)],
+            'above_ema200': [None if i == 0 else (i + 1) % 2 for i in range(m)],
+            'd_ema50': [round((i % 6 - 3) * 0.9, 2) for i in range(m)],
+            'd_ema200': [round((i % 8 - 4) * 1.3, 2) for i in range(m)],
+            'days50': [1 + i % 12 for i in range(m)], 'days200': [1 + i % 30 for i in range(m)],
+            'since50': [SECTOR_DATES[at - i % 12] for i in range(m)],
+            'since200': [SECTOR_DATES[at - i % 30] for i in range(m)]}}
+    for s, _, index in SECTOR_GROUPS:
+        held = [t for t in TICKERS if sector_of[t] == s]
+        files[f'sector-stocks-{index.lower()}'] = {'schema': 1, 'sector': s, 'dates': list(SECTOR_DATES), 'ticker': held,
+                                                   'close': [line(500, j) for j, _ in enumerate(held)]}
+    return files

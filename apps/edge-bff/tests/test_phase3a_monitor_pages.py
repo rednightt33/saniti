@@ -1,5 +1,5 @@
 """EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, decisions D1 and D5; builder B2): the Monitor (AI) routes, the Terminal
-proxy and the Overview/Radar/Watchlist page files need their capability.
+proxy and the Overview/Radar/Watchlist/Sector Analysis page files need their capability.
 
 - a route walk: every Monitor route, every Terminal proxy route and every page-file route depends on
   auth.need(<capability>, write) as ROUTE_CAPS names it; a new route without an entry fails with the entry to add;
@@ -59,6 +59,8 @@ ROUTE_CAPS = {
     ('POST', '/api/terminal/v1/{path:path}'): ('terminal.view', True),
     ('GET', '/api/v1/overview/index'): ('overview.view', False),
     ('GET', '/api/v1/overview/file/{name}'): ('overview.view', False),
+    ('GET', '/api/v1/sector/index'): ('sector.view', False),               # EXEC-SECTOR-ANALYSIS S3
+    ('GET', '/api/v1/sector/file/{name}'): ('sector.view', False),
     ('GET', '/api/v1/radar/index'): ('radar.view', False),
     ('GET', '/api/v1/radar/file/{name}'): ('radar.view', False),
     ('GET', '/api/v1/watchlist/index'): ('watchlist.view', False),
@@ -66,7 +68,7 @@ ROUTE_CAPS = {
 }
 # the routes of this stage: the Monitor's, the Terminal proxy's and the page files'
 IN_SCOPE = re.compile(r'/api/v1/(?:runs|conversations|exports|models)(?:/.*)?|/api/terminal/v1/.*'
-                      r'|/api/v1/(?:overview|radar|watchlist)/(?:index|file/\{name\})')
+                      r'|/api/v1/(?:overview|radar|sector|watchlist)/(?:index|file/\{name\})')
 # what each refused request sends (a valid shape, so only the capability can refuse it)
 BODIES = {
     ('POST', '/api/v1/runs'): {'message': 'Explain GOTO', 'submission_key': 'one'},
@@ -87,6 +89,7 @@ def concrete(path, method):
     if method == 'POST' and out.startswith('/api/terminal/v1/'):
         out = '/api/terminal/v1/bundle'
     return out.replace('/overview/file/radar-days', '/overview/file/overview-meta') \
+              .replace('/sector/file/radar-days', '/sector/file/sector-meta') \
               .replace('/watchlist/file/radar-days', '/watchlist/file/watchlist-stocks')
 
 

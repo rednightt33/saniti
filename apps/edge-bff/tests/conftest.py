@@ -114,6 +114,8 @@ def database():
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261122_001_edge_bff_support.sql').read_text())
             # step 7, the payment shell: the orders, their events and subscriptions.provider 'midtrans'
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261123_001_edge_bff_payments.sql').read_text())
+            # EXEC-SECTOR-ANALYSIS S3: the Sector Analysis tab's sector.view (paid) and sector.example (free, guest)
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261126_050_edge_bff_sector_capabilities.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:

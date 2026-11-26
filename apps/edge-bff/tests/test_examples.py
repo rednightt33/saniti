@@ -540,7 +540,7 @@ def test_the_overview_example_is_the_free_plans_and_follows_a_new_publication(gu
 
 
 @pytest.mark.parametrize('tab', sorted(examples_module.LATEST))
-def test_a_principals_own_terminal_refusal_on_a_latest_example_keeps_its_code(guests, store, watchlist_api, monkeypatch, tab):
+def test_a_principals_own_terminal_refusal_on_a_latest_example_keeps_its_code(guests, store, latest_api, monkeypatch, tab):
     """The example-mode checker (ERRORS M527): the Overview example builds the principal's terminal-api headers first
     (terminal_access.headers: a guest without a well-formed visitor key, a ticker list too long for the header, a limit
     of 0 where the database allows one); such a refusal of the principal itself is answered with its own status, code
@@ -551,7 +551,7 @@ def test_a_principals_own_terminal_refusal_on_a_latest_example_keeps_its_code(gu
     def refused(settings, p):
         raise own
     with TestClient(create_app(guests, store, FakeOrc())) as c:
-        (overview_example if tab == 'overview' else watchlist_example)(c, VISITOR)   # it opens; then the principal is refused
+        latest_example(c, tab, VISITOR)                          # it opens; then the principal is refused
         monkeypatch.setattr(examples_module.terminal_access, 'headers', refused)
         for path in (f'/api/v1/examples/{tab}/index', f'/api/v1/examples/{tab}/file/{tab}-meta'):
             r = c.get(path, headers=VISITOR)
@@ -624,6 +624,49 @@ def watchlist_api(overview_api, monkeypatch):
     monkeypatch.setattr(httpx, 'AsyncClient', PagesApi)
     PagesApi.watchlist = {n: gz(doc) for n, doc in watchlist_files().items()}
     return PagesApi
+
+
+class LatestApi(PagesApi):
+    """PagesApi, and terminal-api's /sector routes and bucket serving a made-up Sector Analysis publication
+    (example_docs.sector_files; EXEC-SECTOR-ANALYSIS S3, tests/test_sector.py holds its own tests)."""
+    sector = {}
+
+    def answer(self, method, url, content):
+        if url.endswith('/api/terminal/v1/sector') and method == 'GET':
+            return httpx.Response(200, json={'finished_at': '2026-11-26T11:00:00Z', 'files': {
+                n: {'sha256': hashlib.sha256(b).hexdigest(), 'bytes': len(b), 'rows': 1, 'as_of': '2026-11-26'}
+                for n, b in LatestApi.sector.items()}})
+        if url.endswith('/api/terminal/v1/sector') and method == 'POST':
+            name = json.loads(content)['names'][0]
+            b = LatestApi.sector[name]
+            return httpx.Response(200, json={'files': [{'name': name, 'url': f'https://bucket.example/sector/{name}',
+                                                        'sha256': hashlib.sha256(b).hexdigest(), 'bytes': len(b)}]})
+        return super().answer(method, url, content)
+
+    def stream(self, method, url, params=None, headers=None):
+        if url.startswith('https://bucket.example/sector/'):
+            return streamed(LatestApi.sector[url.rsplit('/', 1)[1]])
+        return super().stream(method, url, params, headers)
+
+
+@pytest.fixture
+def latest_api(watchlist_api, monkeypatch):
+    """terminal-api serving every LATEST tab's live publication: the Market Overview's, the Watchlist's, Sector Analysis's."""
+    from example_docs import sector_files
+    monkeypatch.setattr(httpx, 'AsyncClient', LatestApi)
+    LatestApi.sector = {n: gz(doc) for n, doc in sector_files().items()}
+    return LatestApi
+
+
+def latest_example(c, tab, headers):
+    """A LATEST tab's example: its index and every file it lists."""
+    r = c.get(f'/api/v1/examples/{tab}/index', headers=headers)
+    assert r.status_code == 200, r.text
+    index = r.json()
+    for name, e in index['files'].items():
+        f = c.get(f'/api/v1/examples/{tab}/file/{name}?sha={e["sha256"]}', headers=headers)
+        assert f.status_code == 200 and f.headers['etag'] == f'"{e["sha256"][:32]}"', (tab, name)
+    return index
 
 
 def watchlist_example(c, headers):
