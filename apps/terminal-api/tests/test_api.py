@@ -1428,3 +1428,50 @@ def test_state_never_shows_the_overview_index_or_its_carry():
     b = s3_bucket({**FakeBucket.state_doc, 'overview': OVERVIEW, 'overview_stamp': ['x'], 'overview_carry': {}})
     assert not hidden & set(STATE_FIELDS) and not hidden & set(b.state())
     assert b.page('overview') == ('2026-10-27T13:03:17Z', OVERVIEW)
+
+
+# ---- EXEC-SECTOR-ANALYSIS S3: Sector Analysis's files go the same way (verification/sector_analysis/CONTRACT.md 4) ----
+SHA_SECTOR = '4' * 64
+SECTOR = {'sector-meta': {'key': f'v1/sector/sector-meta.{SHA_META[:16]}.json.gz', 'sha256': SHA_META, 'bytes': 18_000,
+                          'rows': 900, 'as_of': '2026-11-26'},
+          'sector-stocks-idxfinance': {'key': f'v1/sector/sector-stocks-idxfinance.{SHA_SECTOR[:16]}.json.gz',
+                                       'sha256': SHA_SECTOR, 'bytes': 40_000, 'rows': 105, 'as_of': '2026-11-26'}}
+
+
+def sector_rack(bucket=None):
+    bucket = radar_rack(bucket)
+    # an index ticker in capitals is not a name this service keeps (XSECTION_NAME): the publisher writes it lowercased
+    # (CONTRACT 3.4, sector-stocks-idxfinance), so such an entry is left out of the index and never presigned
+    upper = {'sector-stocks-IDXFINANCE': {**SECTOR['sector-stocks-idxfinance'],
+                                          'key': f'v1/sector/sector-stocks-IDXFINANCE.{SHA_SECTOR[:16]}.json.gz'}}
+    bucket.state_doc = {**bucket.state_doc, 'sector': {**json.loads(json.dumps(SECTOR)), **upper}, 'sector_stamp': ['x']}
+    return bucket
+
+
+def test_sector_lists_and_grants_its_files_to_the_gateway_only():
+    client, store = gateway_client(sector_rack())
+    r = client.get(f'{API}/sector', headers=GATEWAY)
+    assert r.status_code == 200 and r.json()['files'] == {
+        n: {k: e[k] for k in ('sha256', 'bytes', 'rows', 'as_of')} for n, e in sorted(SECTOR.items())}
+    r = client.post(f'{API}/sector', headers=GATEWAY, json={'names': ['sector-meta', 'sector-stocks-idxfinance']})
+    assert r.status_code == 200, r.text
+    assert [f['url'] for f in r.json()['files']] == [
+        f'https://bucket.example/{SECTOR[n]["key"]}?X-Amz-Expires=120&sig=x' for n in ('sector-meta', 'sector-stocks-idxfinance')]
+    row = store.access[-1]
+    assert (row['ticker'], row['dataset'], row['files'], row['bytes']) == (quota.REF, 'sector', 2, 58_000)
+    for name in ('overview-meta', 'sector-day-2026-11-25'):                  # another family's or an unpublished file
+        r = client.post(f'{API}/sector', headers=GATEWAY, json={'names': [name]})
+        assert r.status_code == 404 and r.json()['error'] == 'sector_not_published', name
+    assert client.post(f'{API}/sector', headers=GATEWAY, json={'names': ['sector-stocks-IDXFINANCE']}).status_code == 400
+
+
+def test_sector_refuses_a_subscriber_session_and_every_service_key():
+    client, store, _ = services_client(sector_rack())
+    for headers in (SCREENER, BACKTEST):
+        r = client.get(f'{API}/sector', headers=headers)
+        assert r.status_code == 403 and r.json()['error'] == 'gateway_only'
+        assert 'Sector Analysis' in r.json()['message'] and '/api/v1/sector' in r.json()['message']
+    direct = TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN})
+    assert sign_in(direct).status_code == 200
+    assert direct.post(f'{API}/sector', json={'names': ['sector-meta']}).json()['error'] == 'gateway_only'
+    assert all(a['dataset'] != 'sector' for a in store.access)

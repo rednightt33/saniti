@@ -150,7 +150,7 @@ CONTRACT.md section 8b "3c in detail"; code `app/entitlements.py` (the headers),
 - `/state`: no data file, no refusal; `xsection` is null for such an owner, and `refs` is null without `reference`.
 - `/logo/{t}`: an image, not data, so no filter here (edge-bff refuses another ticker's logo first, and a plan without the
   dataset `reference` is given the logo list of its own tickers only).
-- The page routes (`/radar`, `/overview`, `/watchlist`): the headers are accepted for the per-owner audit and quota, with
+- The page routes (`/radar`, `/overview`, `/watchlist`, `/sector`; Sector Analysis since EXEC-SECTOR-ANALYSIS S3): the headers are accepted for the per-owner audit and quota, with
   no new refusal (edge-bff gates those tabs itself). edge-bff keeps a page file it relayed in a process cache by sha256
   (`apps/edge-bff/app/pages.py`), so a file is granted, counted and audited here for the first owner that reads it in an
   edge-bff process, not for every reader (re-check R1-5, R1-31).

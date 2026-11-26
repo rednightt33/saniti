@@ -61,7 +61,8 @@ def xsection_index(raw):
 
 # EXEC-RADAR R5, EXEC-OVERVIEW: the EDGE pages whose files the publisher builds (publisher.py PAGES); each is served by
 # GET/POST /<family> to the EDGE gateway key only
-PAGE_FAMILIES = ('radar', 'overview', 'watchlist')   # EXEC-WATCHLIST: the Watchlist's daily file
+PAGE_FAMILIES = ('radar', 'overview', 'watchlist', 'sector')   # EXEC-WATCHLIST: the Watchlist's daily file;
+# EXEC-SECTOR-ANALYSIS S3: Sector Analysis (verification/sector_analysis/CONTRACT.md 3 and 4)
 
 
 def page_index(raw, family):
