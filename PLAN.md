@@ -20,6 +20,35 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
+## SECTOR-ANALYSIS — halaman baru Sector Analysis dari prototipe HTML user (disetujui sebagai arah 2026-11-26; audit selesai, menunggu jawaban UD66)
+
+**Kata user (2026-11-26, dengan `sector-analysis (1).html`):** "Saya akan melampirkan ke kamu adalah HTML yang akan kita
+buat menjadi page baru. Kita bisa mulai untuk menambahkan page ini di beta, kemudian di bagian live. Ini adalah entirely
+new panel dengan chart yang baru juga. Jadi saya minta kamu untuk audit dengan visual ... mapping kira-kira di database
+kita apakah sudah cukup ... cek database kita apakah kita perlu membuat fitur baru ... Pertimbangkan efisiensi penarikan
+data, penghitungan fitur ... perpindahan data dari Postgres ke storage, beserta dengan data apa yang user download ...
+List down what you about to do dan aplikasikan best practice ... Konfirmasi."
+
+- **Audit (2026-11-26, `verification/sector_analysis/`):** 5 tab (Overview, Relative Strength, Rotation, Pair Matrix,
+  Breadth), 20 kartu dengan jendela perbesar; 21 cacat (tampilan ponsel rusak di 3 tab, drill-down sektor tidak terbuka,
+  dll.). Data prototipe = file Overview yang sudah ada (`overview-series`, `-meta`, `-day`) + peta industri per saham.
+  Data buatan (acak/ilustratif) di: garis harga saham (Sector · stocks), riwayat breadth per sektor, jarak ke EMA dan
+  lama status, beta saham, close/volume jendela A/U/D, baris industri drill-down.
+- **Database dev (pgweb, baca saja, 2026-11-26):** 11 indeks sektor IDX (`Feature_Index_Entity` SECTOR, harian sejak
+  2021-01-25 sampai 2026-11-26), IHSG dan LQ45 sejak 2018; klasifikasi 862 saham, 11 sektor, 58 industri
+  (`IDX_Stock_Universe`); F01, F04 (EMA50/200 untuk 861 saham) dan harga sampai 2026-11-26; F06 (asing) berhenti
+  2026-11-09 (UD3). Tidak ada: EMA20 (hanya SMA20), kapitalisasi pasar (EXEC-MCAP belum go). Agregat breadth per sektor
+  per tanggal 1,9 ms (satu tanggal) dan 18 ms (21 sesi), tetapi 300 sesi sekaligus melewati batas 30 detik: riwayat
+  dibangun bertahap, bukan dihitung saat halaman dibuka.
+- **Rencana usulan:** tabel agregat harian per kelompok (pasar/sektor/industri) yang diperbarui bertahap; modul publisher
+  yang menulis file berversi (indeks, meta, seri, hari, saham per sektor yang diunduh saat dibutuhkan) ke storage; rute
+  terminal-api/edge-bff dengan cache per sha; aplikasi halaman sendiri (`sector-app`) dari prototipe dengan data nyata;
+  dokumen rumus dengan tes sidik jari seperti Overview.
+- **Pertanyaan (register UD66, A-J):** hubungan dengan `ROTATION_SPEC.md` (median, pembanding sama bobot, 3 lensa) dan
+  nama "RRG"; data buatan diganti data nyata; EMA20; bobot industri dan treemap; definisi 1M dan 1Y; jalur rilis tab baru
+  (tab "lab" belum bisa, `LAB_TAB_HELD_UNTIL`); tujuan Open in Screener; kartu tersembunyi; pemilih tanggal; siapa yang
+  bisa membuka.
+
 ## RADAR — halaman Radar untuk library screener S1-S8 (desain disetujui 2026-11-12 s.d. 2026-11-14; rancangan, belum "go")
 
 **Kata user:** "saya mau screener ini dijadikan page baru" (2026-11-12); "Sekarang kita akan fokus ke S1 sampai S7 tadi.
