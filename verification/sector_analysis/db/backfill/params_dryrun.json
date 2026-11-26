@@ -1,0 +1,2 @@
+{"mode": "DRYRUN", "from": "2021-01-25", "sample_dates": 5, "large_write": false,
+ "note": "EXEC-SECTOR-ANALYSIS S1: the first 5 dates inside one rolled-back transaction, timed and validated"}

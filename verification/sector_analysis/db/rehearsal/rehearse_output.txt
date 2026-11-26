@@ -1,0 +1,40 @@
+CHECK PASS migration applied (COMMIT, its own checks passed)
+CHECK PASS a second application is refused :: Feature_08_Group_Daily already exists: reconcile before applying
+CHECK PASS every column of every row equals the independent computation :: 510 rows, 0 differences []
+CHECK PASS the dev validator (validate_feature_08.py) finds no difference on any date :: []
+CHECK PASS one row per market date and group :: 17 groups x 30 dates
+VALUE MARKET 2026-02-02 {'sector': None, 'members': 7, 'n_ema50': 5, 'above_ema50': 3, 'n_ema200': 4, 'above_ema200': 2, 'adv_1d': 6, 'unch_1d': 1, 'dec_1d': 0, 'weight_basis': 'adv20_value', 'weight_sum': 2848277.5, 'ret_1d_w': 1.5883163923132297, 'index_level': 101.58831639231323}
+VALUE Banks 2026-02-02 {'sector': 'Financials', 'members': 2, 'n_ema50': 2, 'above_ema50': 1, 'n_ema200': 2, 'above_ema200': 1, 'adv_1d': 2, 'unch_1d': 0, 'dec_1d': 0, 'weight_basis': 'adv20_value', 'weight_sum': 2460905.0, 'ret_1d_w': 1.452488155251756, 'index_level': 101.45248815525176}
+VALUE Oil & Gas 2026-02-02 {'sector': 'Energy', 'members': 1, 'n_ema50': 1, 'above_ema50': 1, 'n_ema200': 1, 'above_ema200': 0, 'adv_1d': 1, 'unch_1d': 0, 'dec_1d': 0, 'weight_basis': None, 'weight_sum': None, 'ret_1d_w': None, 'index_level': None}
+VALUE Tobacco 2026-02-02 {'sector': 'Consumer Non-Cyclicals', 'members': 0, 'n_ema50': 0, 'above_ema50': 0, 'n_ema200': 0, 'above_ema200': 0, 'adv_1d': 0, 'unch_1d': 0, 'dec_1d': 0, 'weight_basis': None, 'weight_sum': None, 'ret_1d_w': None, 'index_level': None}
+VALUE Banks first 2026-01-05 {'sector': 'Financials', 'members': 2, 'n_ema50': 2, 'above_ema50': 1, 'n_ema200': 2, 'above_ema200': 1, 'adv_1d': 0, 'unch_1d': 0, 'dec_1d': 0, 'weight_basis': None, 'weight_sum': None, 'ret_1d_w': None, 'index_level': 100.0}
+CHECK PASS the Banks return uses the previous date's weights (and differs from the same-date weights) :: prev-date 1.452488, same-date 1.479767
+CHECK PASS Banks level is chain-linked from 100 and carries over the dates without a return
+CHECK PASS an industry without weights: level 100 on the first date, then NULL
+CHECK PASS an industry without members: members 0, level NULL after the first date
+CHECK PASS the fund is in no group
+CHECK PASS MARKET breadth equals the Overview BREADTH_SQL on every date :: 30 dates
+CHECK PASS a second refresh of every date writes the same values
+CHECK PASS refreshing from an older date onward gives the same values
+CHECK PASS a date after a missing date is refused :: refresh_feature_08_day(2026-02-10): the previous market date 2026-02-09 has no row while older dates have: refresh the dates in order from the first missing one (the index level is chain-linked)
+CHECK PASS after refreshing in order the values are back
+CHECK PASS refresh(2026-02-14) is refused :: refresh_feature_08_day(2026-02-14): not a market date: IHSG has no final daily close on it; pass a date of the market calendar
+CHECK PASS refresh(2026-02-16) is refused :: refresh_feature_08_day(2026-02-16): not a market date: IHSG has no final daily close on it; pass a date of the market calendar
+CHECK PASS refresh(None) is refused :: refresh_feature_08_day: a market date is required
+CHECK PASS a reclassified industry: the old name has no row on that date, the new one starts at 100
+CHECK PASS back to the original classification :: []
+CHECK PASS catalog rows: 1 table, 18 columns, 18 active Feature definitions :: (1, 18, 18)
+CHECK PASS the publisher role reads the table and the weights :: 510 rows, (6, 'adv20_value')
+CHECK PASS the publisher role cannot run the refresh :: permission denied for function refresh_feature_08_day
+CHECK PASS feature_08_weight equals overview_stock_size (one basis) :: (6, 1, 'adv20_value')
+CHECK PASS worker: the finished equity run is due (not the bond run, not the open one) :: [datetime.date(2026, 2, 11)]
+CHECK PASS worker: its window is the 5 market dates ending at it, through the newest date :: [datetime.date(2026, 2, 5), datetime.date(2026, 2, 6), datetime.date(2026, 2, 9), datetime.date(2026, 2, 10), datetime.date(2026, 2, 11), datetime.date(2026, 2, 12), datetime.date(2026, 2, 13)]
+{"event": "feature08_refresh_waiting", "reason": "the Feature 08 backfill is running", "due": 1}
+CHECK PASS worker: waits while the backfill holds its lock
+{"event": "feature08_refreshed", "anchors": ["2026-02-11"], "dates": ["2026-02-05", "2026-02-06", "2026-02-09", "2026-02-10", "2026-02-11", "2026-02-12", "2026-02-13"], "rows": 119, "seconds": 0.0}
+CHECK PASS worker: refreshes the due window
+CHECK PASS worker: the values are the same after its refresh
+CHECK PASS worker: every row of the window was written again :: 119
+CHECK PASS worker: then nothing is due
+CHECK PASS worker: a finished retry without a date is due on the newest market date :: [datetime.date(2026, 2, 13)]
+VERDICT PASS
