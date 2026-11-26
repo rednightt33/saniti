@@ -17873,6 +17873,40 @@ Pemicu "aksi yang tidak tercatat" di atas terpenuhi: kasus pertama RDTX (ERRORS 
 | S2-4 (titik buta probe Flow) | probe basis Flow (`basisReads`) tidak melihat keluaran yang hanya membaca lot di luar jendela yang ia uji (temuan ronde 1, belum direncanakan) | eksekusi ini | perubahan berikutnya pada `flowprobe.ts` atau registry Flow |
 | S2-2, P2-4 (live membaca worker baru) | halaman live (`ec739a06`) membaca worker baru: chip menyala menyembunyikan saham bertanda, anomali dibaca "history not adjusted"; screen dekat 65536 byte yang chipnya dihapus migrasi dibaca live sebagai menyala | eksekusi ini | `live` dipindah ke commit beta yang sama (langkah 9 rilis ini) |
 
+## EXEC-EVENTS-STAMP — berkas events terbit ulang bila isi aksi korporasinya berubah (user 2026-11-26)
+
+**Keputusan user (2026-11-26):** "ok untuk celah 4 masukan exec". Disetujui untuk direncanakan, belum dieksekusi:
+eksekusi menunggu go user.
+
+**Masalah (dari kode, 2026-11-26):** publisher menerbitkan ulang berkas events satu saham hanya bila "sidik"-nya berubah:
+jumlah baris, tanggal event terakhir dan `ingestion_time` terakhir di `public.idx_event_annotation`
+(`apps/terminal-publisher/publisher.py:213` `EVENT_STAMPS_SQL`, `:2506-2531` `changed_events`). Jalur normal aman: putaran
+Stockbit mengisi ulang seluruh tabel (`refresh_idx_event_annotation`, `database/migrations/20261026_002_event_annotation_terms.sql:79-80`),
+sehingga `ingestion_time` semua baris berganti dan semua berkas terbit ulang. Celahnya: perubahan isi baris tanpa
+mengubah tiga hal itu (misalnya UPDATE rasio atau harga pelaksanaan langsung lewat SQL) tidak menerbitkan ulang berkas
+events saham itu, sementara berkas `actions` (dibangun dari seluruh tabel setiap run harian, `publisher.py:1675`) sudah
+memakai nilai baru. Akibatnya badge Screener memakai rasio baru, sedangkan Backtest dan basis broker masih memakai rasio
+lama. Belum pernah terjadi: saat ini tidak ada proses yang mengedit tabel itu langsung.
+
+**Kelas masalah:** sidik perubahan yang dibaca dari metadata baris (waktu muat, jumlah, tanggal terakhir), bukan dari
+isi yang dibaca pembaca. Tempat lain dengan mekanisme sama yang perlu diperiksa saat eksekusi: sidik harga per tahun
+(`PRICE_STAMPS_SQL`: jumlah baris, tanggal terakhir, ingestion terakhir, jumlah close) dan sidik hari broker.
+
+**Rencana (lapisan publisher, sumber kebenaran untuk Screener dan Backtest):**
+1. Sidik events per saham ditambah ringkasan isi kolom yang dibaca pembaca untuk aksi korporasi (tipe, tanggal ex,
+   rasio lama/baru, harga pelaksanaan, status hapus), misalnya `md5` dari baris-baris itu diurutkan per `event_key`,
+   dihitung di SQL dalam satu query per run.
+2. Saham yang ringkasannya berubah: berkas events terbit ulang dan basis broker diukur ulang (sama seperti kini bila
+   jumlah baris berubah).
+3. Tes: (a) mengubah rasio satu baris tanpa mengubah `ingestion_time` menerbitkan ulang berkas saham itu saja; (b) run
+   tanpa perubahan tidak menerbitkan apa pun; (c) kasus yang tidak tercakup: kolom yang tidak dibaca pembaca (misalnya
+   `source_payload` saja berubah) tidak memicu terbit ulang, sengaja.
+4. Biaya: satu agregasi per run atas sekitar 19 ribu baris aksi korporasi (diukur dengan EXPLAIN sebelum dipakai).
+5. Deploy dengan konfirmasi user (publisher: upload CLI). Perubahan sidik membuat run pertama menerbitkan ulang semua
+   berkas events sekali (update besar: restart Postgres sesudahnya); waktunya diminta ke user.
+
+**Pemicu:** go user untuk eksekusi.
+
 ## EXEC-SCREENER-QUICK-UI — format tanggal close, badge remark di ticker, kolom Sector opsional (user 2026-11-25)
 
 Kata-kata user 2026-11-25 (dua screenshot halaman Market Screener: A, judul screen dengan "close 2026-11-24" dilingkari;
