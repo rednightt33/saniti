@@ -18149,3 +18149,26 @@ klik di setiap tab, maka efeknya sama seperti dia mengklik overview."
 **Jawaban user 2026-11-26: "1A 2A 3 go".** (1) "Open in Terminal" membuka indeks sektor yang dipilih (IHSG bila belum ada),
 baris atau titik saham membuka saham itu; (2) nama netral: "Rotation map", "Relative strength", "Momentum"; (3) go untuk
 S0-S4 di branch dan S1 di database dev. Deploy layanan tetap ditanyakan satu per satu.
+
+**Progres 2026-11-26 (branch `claude/keen-turing-56vw7y`; belum ada layanan yang di-deploy):**
+- **S0:** kontrak `verification/sector_analysis/CONTRACT.md` (nama file `sector-stocks-<index>` huruf kecil, ERRORS M572);
+  `SECTOR_FORMULAS.md` dengan `scripts/sector_formulas_doc.py` dan tesnya; aturan AGENTS.md "Sector formulas"; cek
+  hariannya di `database-schema-docs.yml`.
+- **S1 (di dev):** migrasi `20261126_001` diterapkan (DRYRUN, APPLY); Feature 08 diisi 1.407 tanggal sejak 2021-01-25
+  (98.490 baris, 0 selisih pada 8 tanggal yang divalidasi, breadth pasar sama dengan Overview pada 14 tanggal); Postgres
+  di-restart sesudahnya (DATABASE_CHANGELOG.md, RAILWAY_CHANGELOG.md). Pembaruan harian: `feature-04-worker` memanggil
+  `refresh_feature_08_day` setelah run harian selesai (aktif sesudah worker itu di-deploy).
+- **S2:** publisher `sector.py` (family `sector`: meta, series, 20 file hari, 11 file saham per sektor), terminal-api,
+  telegram-monitor; tes publisher 292.
+- **S3:** relay edge-bff `/api/v1/sector`, kapabilitas `sector` (migrasi edge_bff `20261126_050`, belum diterapkan),
+  tab `sector` released, rail setelah Overview, mode contoh.
+- **S4:** halaman `apps/edge-bff/sector` (22 kartu, data nyata, nama netral, tanpa EMA20, periode Overview, 20 tanggal,
+  Open in Terminal; 21 + 8 cacat audit diperbaiki termasuk ponsel 390 px); vitest 35.
+- **Tafsiran pembangun yang perlu diketahui user:** "subsector" ditampilkan "Industry" (data yang ada); A/U/D tidak
+  menghitung saham tanpa return; kartu satu sektor menampilkan sektor terkuat minggu ini sampai user memilih; filter
+  Stretched Pairs menjadi "Leader still ahead/behind"; industri berbobot < 1,2% tetap digambar 1,2% di treemap; contoh
+  untuk tamu tanpa file saham per sektor; pembaruan Feature 08 me-refresh 5 sesi terakhir (koreksi harga); bila gagal
+  hanya dicatat di log (tanpa Telegram).
+- **Sisa (S5):** deploy dengan konfirmasi user per layanan (feature-04-worker, terminal-publisher + Run Now,
+  terminal-api, telegram-monitor, edge-bff lewat `main`, migrasi edge_bff `20261126_050`); cek di beta; pemeriksa
+  (model dan tingkat pilihan user).
