@@ -8957,7 +8957,7 @@ in its staleness check.
   options of 20 fields, 3 of them shown); the Screener's add window unchanged by the user's choice, its 11 shown choices
   that do not fit end in "…" (Aroon, Donchian, Alpha Price Action BUY and SELL, Alpha Divergence, the Flow Buy/Sell
   VWAP and Implied Cost rows), and Alpha Divergence's Swing Detection Mode box (34 px of room for its text) still
-  overlaps the word "within" after it, as before the change (asked as UD65). `look_check11.mjs`: PASS. The Backtest page smoke (CI) green; the Screener smoke's 11
+  overlaps the word "within" after it, as before the change (asked as UD65; the user 2026-11-26: "UD65 a", kept). `look_check11.mjs`: PASS. The Backtest page smoke (CI) green; the Screener smoke's 11
   failures are the same before and after the change (they predate it; the suite is not in CI).
 - **Not covered:** the three pages are separate bundles with no shared stylesheet, so each still holds its own copy of
   the rule (the same tokens); the design system's decision 8 is the one place that names the look for a new page. A
