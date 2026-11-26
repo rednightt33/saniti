@@ -8887,6 +8887,57 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M568 — Re-check round 3 of the price-distortion release: effective windows measured on a sample of the split sizes and positions, a repeated badge name, one stale metric text (2026-11-26; fixed in `6a7c5f5d`, on the branch)
+
+- **Symptom (re-check round 3, five Sonnet medium agents, `agents_20261126-r3-backtest`, `-history`, `-screener`,
+  `-terminal`, `-pages`; the user 2026-11-26: "Assign 5 sonnet medium to test out 9 perbaikan diatas cepat saja"):**
+  seven of the round-2 rows fixed (B2-1, B2-2, P2-2, S2-1, S2-3-S2-5, T2-1-T2-2, M561-UD52-UD55); M559-M562 fixed on the
+  Screener side and partly on the Backtest side (no defect: the agent could not sign in to the beta to reproduce it);
+  H2-1 partly. New:
+  - **H3-1 (important):** Alpha KAMA (I05) at its other price sources kept a window shorter than a reverse 10:1 or 20:1
+    split needs: source=low window 552 while GOTO's break at bar 60 (10:1) moved it 637 bars; source=open 614 against
+    651; source=hl2 197 against 255. `PROBE.effective.break_factors` (100, 20, 2, 0.5, 0.2, 1e-5) held no 0.1 or 0.05,
+    which the data holds (9 and 3 events in `stockbit_corporate_action`).
+  - **H3-2 (minor):** RSI and +DI/ADX 0-3 bars past their window at a 1:100 split on IHSG at bar 1173: the probe plants a
+    break every 97 bars and misses the worst position.
+  - **S3-1 (minor):** `screener-metrics.json:804` worded the RS rank's population as stocks with "no unadjusted price
+    break", though possible breaks and anomalies leave it too.
+  - **G3-1 (minor):** WGSH's row badge read "Price anomaly, Price anomaly" to a screen reader (two anomaly sessions).
+  - **G3-2 (the checker's side effect, not a defect of the code):** the pages agent's visits changed the account's synced
+    Terminal ticker (`ml.symbol`, sync true) from IMPC to MAPI; it set it back to IMPC.
+- **Verified root cause:** H3-1: the bound was measured on a sample of the split sizes the data holds, not on all of
+  them (the lesson of M566 applied to the sizes only partly); H3-2: the positions are a sample of every 97 bars; S3-1: a
+  text written before the possible break and the anomaly joined the population rule; G3-1: the badge joined one name per
+  remark, not per kind. **Class:** a bound measured on samples (sizes, positions) of what the data holds.
+- **Solution (`6a7c5f5d`):**
+  - `build-screener-registry.mjs`: `break_factors` are every size the data holds (1:100, 1:50, 1:25, 1:20, 1:10, 1:2,
+    2:1, 5:1, 10:1, 20:1, 25:1, 100000:1, read from `stockbit_corporate_action` on 2026-11-26); every measured window is
+    raised by `window_margin` 5 % (a cell may be marked a little past its date, never left unmarked inside it); the run
+    of the bars from the break on is made once per break position and shared by the factors, so the generator's time
+    grows less than the factors (measured 2026-11-26: 9.5 minutes of one core, 93 % of it the effective-window probe,
+    232 probes, 393 s on the real fixtures). The registry check test ran three full checks at a time and timed out at
+    600 s: the raised-class check is now the plain check's run (two full checks at a time), its timeout 25 minutes, the
+    CI jobs 30 minutes (`backtest-lookahead.yml` screener-and-backtest-page, `generated-files.yml` repository-scripts,
+    `test_registries_current.py` 1500 s). The windows grew about 5 % (RSI 14
+    193 to 203, ADX 229 to 241, KVO 557 to 585); KAMA at source=low and source=open now read the whole history, hl2 207.
+    `tests/core/reach.test.mjs` plants the same factors.
+  - S3-1: the text names "no price break, possible break or price anomaly". G3-1: `texts.ts rowRemarkLabel` names each
+    kind once, the title still every remark with its date (`tests/page/quick-ui.test.ts`).
+- **Checked after the fix:** the agent's own probe on the rebuilt registry (KAMA, ADX, RSI at every option, factors
+  10, 20, 25, 50, 100, 0.1, 0.05, 0.04, 0.01, 1e-4, 3, a break every 61 bars on the eight fixtures): 31,416 checks, three
+  past the window, all KAMA source=hl2 on GOTO. A dense sweep (a break at every third bar, 10:1 and 1:100, the eight
+  fixtures, every bounded output and option, 91 in all): 90 inside their window; KAMA source=hl2 moves 264 bars after a
+  10:1 break on GOTO at bar 411 against its window of 207.
+- **Status:** fixed in `6a7c5f5d`, on the branch, not deployed; tested by its author only (RECHECK.md
+  `agents_20261126-r3-*`). Open (EXEC-PRICE-DISTORTION, carried parts; asked as UD62): KAMA at source=hl2 on a stock near
+  its floor. Its memory depends on where the break lands, not smoothly: a 10:1 break on GOTO at bar 408 moves it 23 bars,
+  at bar 409 265 bars (measured; the mechanism is suspected, not verified: KAMA's adaptive constant near its slowest in
+  the near-flat sessions at Rp 50-54 of mid-2024 that follow); a sample
+  of positions cannot bound it and a sweep of every position costs the generator about ten times its time.
+- **Lesson:** a bound measured on samples holds only as far as the measured quantity is smooth in what was sampled; for
+  an adaptive recursion it is not, so its window is either measured where the data is (every position) or left to the
+  whole history.
+
 ### M567 — An events file was not republished when a corporate action's content changed without a new row, date or load time (2026-11-26; fixed in `930931cd`, on the branch)
 
 - **Symptom (found from the code, 2026-11-26, while answering the user):** the publisher republishes a ticker's events
@@ -8955,8 +9006,9 @@ in its staleness check.
     172 to 203, ADX 198 to 229, KVO 377 to 557); Alpha KAMA (I05) and the PVO histogram read the whole history.
     `tests/core/reach.test.mjs` measures every setting with those breaks too, and its power check is a quarter of a
     window (a third is no longer always reached on the eight stocks).
-- **Status:** fixed in `f3970f7d` and `978734ff`, on the beta (`e9a3f013`, 2026-11-26), not on the live site; tested by their author only (RECHECK.md
-  `agents_20261126-*`). Carried (EXEC-PRICE-DISTORTION, carried parts): P2-1 asked (UD60), P2-3 and S2-4 planned; S2-2
+- **Status:** fixed in `f3970f7d` and `978734ff`, on the beta (`e9a3f013`, 2026-11-26), not on the live site. Re-check
+  round 3 (`agents_20261126-r3-*`, M568): B2-1, B2-2, P2-2, S2-1, S2-3-S2-5, T2-1-T2-2 fixed; H2-1 partly (its open parts
+  H3-1 and H3-2 fixed again in `6a7c5f5d`, KAMA source=hl2 asked as UD62) (RECHECK.md `agents_20261126-*`). Carried (EXEC-PRICE-DISTORTION, carried parts): P2-1 asked (UD60), P2-3 and S2-4 planned; S2-2
   (the live page reads the new worker until `live` moves) and P2-4 (the migration's fallback removes a chip the live
   page reads as on) end with the move of `live` in this release (step 9); the legacy `flow` conditions (top5, fnet,
   broker net) read rupiah, which a share count does not change: no `flow` flag is due (judged 2026-11-26).

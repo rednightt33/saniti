@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 222 item
+## Menunggu uji ulang: 217 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -35,16 +35,8 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Perbaikan sesudah ledger langkah 8 (2026-11-22/23) | EXEC-MU-ACCOUNTS | 7 | 3 | 4 | 0 | 0 | 0 |
 | Panduan lab, lab dibuka, jendela registrasi (test-out 2026-11-23) | EXEC-MU-ACCOUNTS | 17 | 0 | 13 | 0 | 4 | 0 |
 | Tahap preview dan Flow lab (cek langkah 2-3) | EXEC-MU-ACCOUNTS | 20 | 0 | 20 | 0 | 0 | 0 |
-| Screener dan Backtest: harga terdistorsi (ERRORS M559-M562) | EXEC-PRICE-DISTORTION | 1 | 0 | 1 | 0 | 0 | 0 |
-| Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) | EXEC-PRICE-DISTORTION | 1 | 0 | 1 | 0 | 0 | 0 |
-| Screener dan Backtest: re-check ronde 2 harga terdistorsi (ERRORS M566) | EXEC-PRICE-DISTORTION | 6 | 0 | 6 | 0 | 0 | 0 |
-| Terminal: kotak warna (ERRORS M566) | EXEC-PRICE-DISTORTION | 1 | 0 | 1 | 0 | 0 | 0 |
 | Publisher: berkas events terbit ulang bila isi aksi korporasi berubah (ERRORS M567) | EXEC-EVENTS-STAMP | 1 | 0 | 0 | 1 | 0 | 0 |
-
-1 item sudah dua ronde diuji ulang. Aturan 8 membolehkan paling banyak dua ronde, lalu sisanya masuk
-register keputusan; uji berikutnya hanya dengan keputusan user:
-
-- `errors/M559-M562`
+| Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) | EXEC-PRICE-DISTORTION | 4 | 0 | 0 | 4 | 0 | 0 |
 
 ### Akun dan keamanan: re-check ronde 1 (R1) (40)
 
@@ -313,54 +305,34 @@ register keputusan; uji berikutnya hanya dengan keputusan user:
 | `wf_6a8c44c8-978/F9` | Guide step 1 and Part A step 9 are ambiguous or wrong for Flow: family naming, generator vocabulary, expected version changes | `61fb22c4` | beta | M552 | 0 |
 | `wf_6a8c44c8-978/F10` | A lab item named in shipped code is refused by the guard's self-test, whose message does not name the fix | `61fb22c4` | beta | M552 | 0 |
 
-### Screener dan Backtest: harga terdistorsi (ERRORS M559-M562) (1)
-
-| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
-|---|---|---|---|---|---|
-| `errors/M559-M562` | Price distortion detected by a date rule, read wrong for three stocks, and hidden instead of marked | `4799ee94`, `e9fc3ab6`, `db7bf27e`, `af806747`, `6b86cf6e`, `fa1f1f60`, `6a2473fd`, `6d254189`, `f3970f7d` | beta | M559, M560, M561, M562 | 2 |
-
-### Screener dan Backtest: kelas riwayat per pengaturan dan jendela efektif output rekursif untuk tanda sel, badge baris dan tanda trade (ERRORS M561, M558 SC-3, UD52, UD55) (1)
-
-| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
-|---|---|---|---|---|---|
-| `errors/M561-UD52-UD55` | A whole-history output was marked for every price break before it however old, and Bollinger at an EMA or RMA basis was classed window | `7d3e5b3c`, `32fdb581`, `978734ff` | beta | M561, M558 | 1 |
-
-### Screener dan Backtest: re-check ronde 2 harga terdistorsi (ERRORS M566) (6)
-
-| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
-|---|---|---|---|---|---|
-| `agents_20261126-backtest/B2-1` | A trade's distortion flags read the run calendar's bar instead of the stock's | `f3970f7d` | beta | M566 | 0 |
-| `agents_20261126-backtest/B2-2` | FLOW_BASIS_CHANGE read another note set than the trade flags | `f3970f7d` | beta | M566 | 0 |
-| `agents_20261126-screener/S2-1` | A rights issue priced at or above the market got a badge without a size | `f3970f7d` | beta | M566 | 0 |
-| `agents_20261126-screener/S2-3-S2-5` | The anomaly reason, the action names and the chip label | `f3970f7d` | beta | M566 | 0 |
-| `agents_20261126-publisher/P2-2` | The Backtest recomputed a price side from the lots' factor | `f3970f7d` | beta | M566 | 0 |
-| `agents_20261126-history/H2-1` | Effective windows measured on small breaks only: large splits left values unmarked | `978734ff` | beta | M566 | 0 |
-
-### Terminal: kotak warna (ERRORS M566) (1)
-
-| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
-|---|---|---|---|---|---|
-| `agents_20261126-terminal/T2-1-T2-2` | The colour boxes offered a hidden compare line's colour and lacked the box's own | `f3970f7d` | beta | M566 | 0 |
-
 ### Publisher: berkas events terbit ulang bila isi aksi korporasi berubah (ERRORS M567) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
 | `errors/M567` | An events file was not republished when a corporate action's content changed without a new row, date or load time | `930931cd` | branch | M567 | 0 |
 
+### Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) (4)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `agents_20261126-r3-history/H3-1` | KAMA (I05) at its other price sources: windows shorter than a 10:1 or 20:1 reverse split needs | `6a7c5f5d` | branch | M568 | 0 |
+| `agents_20261126-r3-history/H3-2` | RSI and +DI/ADX windows 0-3 bars short at a 1:100 split on some break positions | `6a7c5f5d` | branch | M568 | 0 |
+| `agents_20261126-r3-screener/S3-1` | The RS rank metric still worded its population as stocks with no unadjusted price break | `6a7c5f5d` | branch | M568 | 0 |
+| `agents_20261126-r3-pages/G3-1` | WGSH's row badge read 'Price anomaly, Price anomaly' | `6a7c5f5d` | branch | M568 | 0 |
+
 ## Hitungan per status
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 222 |
-| `fixed` | diuji ulang agen lain: beres | 123 |
-| `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 0 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 217 |
+| `fixed` | diuji ulang agen lain: beres | 130 |
+| `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 2 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
 | `cannot_tell` | diuji ulang agen lain: tidak bisa dipastikan | 0 |
 | `open` | belum diperbaiki | 90 |
 | `accepted` | diterima user apa adanya | 4 |
 | `obsolete` | tidak berlaku lagi | 5 |
-| **Total** | | **444** |
+| **Total** | | **448** |
 
 Dari 90 baris `open`, 25 punya baris pemilik di PLAN.md atau EXEC.md dan 65 belum
 (aturan 1: setiap bagian yang terbuka butuh pemilik dan pemicu).
