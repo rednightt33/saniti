@@ -82,6 +82,20 @@ COPY catalog/releases.json /build/catalog/releases.json
 COPY overview/ ./
 RUN npm run build
 
+# EXEC-SECTOR-ANALYSIS S4 (user go 2026-11-26, UD66 A-J and UD67 "1A 2A 3 go"): the Sector Analysis page (sector/,
+# TypeScript + Vite, the user's final prototype) is built here into its dist/ and copied into static/sector-app. It shares
+# no source with the other pages but shared/ and computes in the browser only what depends on the viewer's choice; its
+# files are the publisher's (sector/*.json.gz), relayed by /api/v1/sector. The build output is not kept in git.
+FROM node:22-slim AS sector
+WORKDIR /build/sector
+COPY sector/package.json sector/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY shared /build/shared
+# 3f round 2: every page build applies the release filter (shared/release-filter.mjs), which stops without this file
+COPY catalog/releases.json /build/catalog/releases.json
+COPY sector/ ./
+RUN npm run build
+
 # EXEC-WATCHLIST L5 (user go 2026-11-16): the Watchlist page (watchlist/, TypeScript + Vite, the approved light mockup
 # watchlist_light_mockup.html) is built here into its dist/ and copied into static/watchlist-app. It shares no source with
 # the other pages and computes no figure: every number is the publisher's (watchlist/watchlist-stocks.*.json.gz), relayed
@@ -129,6 +143,7 @@ COPY --from=backtest /build/backtest/dist-lab ./static/backtest-app-lab
 COPY --from=screener /build/screener/dist ./static/screener-app
 COPY --from=radar /build/radar/dist ./static/radar-app
 COPY --from=overview /build/overview/dist ./static/overview-app
+COPY --from=sector /build/sector/dist ./static/sector-app
 COPY --from=watchlist /build/watchlist/dist ./static/watchlist-app
 COPY --from=admin /build/admin/dist ./static/admin-app
 RUN useradd --uid 10001 --create-home edge && chmod -R a+rX /app/app /app/catalog /app/screener /app/static
