@@ -8887,6 +8887,27 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M569 — The step 9 registration window stayed open about 50 hours past its agreed close (2026-11-26; found by the live smoke of the release; closed 2026-11-26 05:53 UTC, on the live site since 2026-11-26 (`c4d95e8a`))
+
+- **Symptom:** the live smoke after the move of `live` to `c4d95e8a` (2026-11-26 04:41 UTC) read `/api/v1/auth/config`
+  `registration` true and a register 400 INVALID_INPUT instead of 403 REGISTRATION_CLOSED. The user opened the window on
+  2026-11-23 03:24 UTC for 24 hours ("Buka jendela sekarang, 24 jam kedepan"); `EDGE_PRELAUNCH=false` was still set on
+  edge-bff-live. The window's logs (deployment `87ef1cba`) hold one registration code mailed on 2026-11-24 14:58 UTC,
+  after the planned close, and one support mail; no failed send, no burst.
+- **Verified root cause:** the close was a variable change that redeploys edge-bff-live, a deploy that waits for the
+  user's confirmation (AGENTS.md "Deploys"); its advance confirmation was asked (EXEC UD26) and not answered, and its
+  reminder (`trig_01F9G7SLouQTm8xLJ5Kx42sD`) fired on time (2026-11-24 03:24:15 UTC) into another session
+  (`session_015yBxadqbqnpdpSwmfCDQca`), which recorded no close and no question. The release report of 2026-11-26 was
+  the first to raise it again. **Class:** an exposure opened for a set time whose close needs a second deploy and a
+  second confirmation, tracked only by a reminder to one session.
+- **Solution:** the user's "1A masukan EXEC" (2026-11-26): `EDGE_PRELAUNCH=true` on edge-bff-live, deployment `a7f4bd93`
+  of `c4d95e8a`; `registration` false, register 403 REGISTRATION_CLOSED, `railway config plan` up to date. The window's
+  accounts are the user's to keep, disable or sign out (UD63). The class fix is asked, not built (UD64: the window closes
+  itself at an end time set with its opening, or the close confirmed together with the opening).
+- **Status:** closed 2026-11-26 05:53 UTC (the live site's configuration; no code change); the class fix open (UD64).
+- **Lesson:** a time-bound opening is not done until its close is in place: confirm the close with the opening, or let
+  the system close it by itself; a reminder that fires into a session nobody reads is not a close.
+
 ### M568 — Re-check round 3 of the price-distortion release: effective windows measured on a sample of the split sizes and positions, a repeated badge name, one stale metric text (2026-11-26; fixed in `6a7c5f5d`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom (re-check round 3, five Sonnet medium agents, `agents_20261126-r3-backtest`, `-history`, `-screener`,

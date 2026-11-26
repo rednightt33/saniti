@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-11-26 — The live site's registration closed: `EDGE_PRELAUNCH=true` on `edge-bff-live` (the user: "1A masukan EXEC"; ERRORS M569)
+
+- **The user's words (2026-11-26):** "1A masukan EXEC" (UD25 and UD26, option A "Tutup sekarang").
+- **Before:** no deployment waiting or building; 0 EDGE jobs, 0 orc turns, 0 active statements (M340); the live site on
+  `c4d95e8a` with `registration` true and `prelaunch` false since the step 9 window of 2026-11-23 (`87ef1cba`).
+- **Change:** `EDGE_PRELAUNCH=true` on `edge-bff-live` (a redeploy of the running commit, no `main` or `live` move):
+  deployment `a7f4bd93` SUCCESS 05:53 UTC; `/version` `c4d95e8a`; `/ready` 200; `/api/v1/auth/config` `registration`
+  false, `prelaunch` true; `http_smoke.py`: register 403 REGISTRATION_CLOSED, `routes.unexpected` `{}`, the lab files 404.
+  `railway config plan`: up to date (`EDGE_PRELAUNCH` is `preserve()` in `.railway/railway.ts`).
+- **The window's logs** (`87ef1cba`, 2026-11-23 03:24 to 2026-11-26 04:41 UTC): two `email_sent`, a support mail
+  2026-11-24 03:34 UTC and a registration code 2026-11-24 14:58 UTC; no `email_send_failed`.
+- **Rollback (reopen, only with the user's go):** `EDGE_PRELAUNCH=false` on `edge-bff-live`.
+
 ## 2026-11-26 — The beta and the live site on `c4d95e8a`: I54-I60 released to every user, re-check round 3's fixes (ERRORS M568), EXEC-EVENTS-STAMP (M567); `live` moved from `ec739a06`
 
 - **The user's words (2026-11-26):** "Ok To do: Jalankan mitigasi 4 sekarang / Assign 5 sonnet medium to test out 9
