@@ -27,6 +27,13 @@ lagi HTML static berdasarkan roadmap yang sudah di agree. Baru setelah itu, saya
 bentuk page baru ini." Acuan yang dikirim ke user: `ROTATION_SPEC.md` dan `LEADERBOARD_SPEC.md` (enam tabel Flow asing
 dan broker). Pembangunan menunggu HTML final user; UD66 dijawab bersama HTML itu.
 
+**HTML final (user 2026-11-26: "Terlampir"; audit `verification/sector_analysis/final/`):** data dan rumus sama dengan
+versi pertama; berubah di urutan multi-kolom, seleksi dan hover, jendela (ukuran mengikuti isi, kaki "How to read"),
+teks dan sumbu. Belum memuat tabel Flow `LEADERBOARD_SPEC.md` maupun lensa Breadth/Arus asing `ROTATION_SPEC.md`. Cacat:
+4 dari 21 beres, 4 sebagian, 13 tetap (termasuk tampilan ponsel), 8 baru (antara lain kecepatan Rotation detail selalu 5
+sesi walau subjudul menyebut 10/21; nilai ilustratif tampil tanpa catatan "illustrative"). GAP G1-G14 tetap; kebutuhan
+data tidak berubah (EMA20 dan market cap tetap tidak ada).
+
 **Kata user (2026-11-26, dengan `sector-analysis (1).html`):** "Saya akan melampirkan ke kamu adalah HTML yang akan kita
 buat menjadi page baru. Kita bisa mulai untuk menambahkan page ini di beta, kemudian di bagian live. Ini adalah entirely
 new panel dengan chart yang baru juga. Jadi saya minta kamu untuk audit dengan visual ... mapping kira-kira di database
