@@ -25,6 +25,12 @@ canonical choices of `SKILL.md`, and the user's design proposals taken as patter
 1. Get the user's approval when a change alters how pages look (a token value, a canonical choice).
 2. Edit this folder (`assets/`, `reference/`, `SKILL.md`); open `assets/showcase.html` at 1440 and 390 px, light and
    `?theme=dark`: no console error, no sideways scroll.
+   A page may hold `assets/*.css` as it is (the Admin page, `apps/edge-bff/admin/src/styles/`, checked by
+   `apps/edge-bff/admin/tests/styles.test.mjs`): find every such copy by its name,
+   `find apps -path '*/node_modules' -prune -o -path '*/dist*' -prune -o \( -name spec-v1.2.css -o -name edge-canonical.css \) -print`,
+   copy the change into each in the same commit (its leading usage note stays) and run that page's tests (ERRORS M571).
+   The Overview, Watchlist and Radar carry spec v1.2 inside their own CSS (`grep -rl "Design Spec v1  (sumber" apps`):
+   a change of `spec-v1.2.css` is weighed there too, with the user's approval when it changes their look.
 3. Rebuild the claude.ai copy: `python3 .claude/skills/edge-design-system/tools/build_artifact.py <dir>`, then publish
    `<dir>/project/…` to the artifact url (Artifact tool, `root` = `<dir>`, `file_path` = `project/design-system.json`,
    the rest in `files`; `components/index.d.ts` as `text/plain`). Read the artifact first if someone edited it there.
