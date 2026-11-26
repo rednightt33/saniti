@@ -136,6 +136,12 @@ jobs:
         if: always() && steps.database.outcome == 'success'
         run: python scripts/overview_formulas_doc.py --check
 
+      # EXEC-SECTOR-ANALYSIS S0: red when SECTOR_FORMULAS.md no longer explains the Sector Analysis code, or when
+      # public.refresh_feature_08_day / public.feature_08_weight on dev differ from their newest migration
+      - name: Check that SECTOR_FORMULAS.md explains the Sector Analysis code on dev
+        if: always() && steps.database.outcome == 'success'
+        run: python scripts/sector_formulas_doc.py --check
+
       - name: Close temporary Railway database connection
         if: always() && steps.database.outputs.created == 'true'
         shell: bash

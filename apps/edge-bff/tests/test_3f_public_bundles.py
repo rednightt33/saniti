@@ -32,7 +32,7 @@ STATIC = EDGE / 'static'
 # the public builds: what each page route serves without the admin check (app/main.py page_app), as built in the
 # repository (the image copies the same folders, Dockerfile)
 PUBLIC_BUILDS = (STATIC / 'terminal-app', EDGE / 'backtest' / 'dist', EDGE / 'screener' / 'dist', EDGE / 'radar' / 'dist',
-                 EDGE / 'overview' / 'dist', EDGE / 'watchlist' / 'dist')
+                 EDGE / 'overview' / 'dist', EDGE / 'watchlist' / 'dist', EDGE / 'sector' / 'dist')
 LAB_BUILDS = (STATIC / 'terminal-app-lab', EDGE / 'backtest' / 'dist-lab', STATIC / 'backtest-app-lab')
 # (the admin page's build, admin/dist -> static/admin-app, is not public either: main.py serves it to the beta's admin
 # only, page_app admin_only, tests/test_admin_page.py; so it is outside this scan, as the lab builds are)

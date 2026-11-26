@@ -202,6 +202,13 @@ A question that only makes sense to someone who has read the earlier turns or EX
      the new fingerprints. `scripts/tests/test_watchlist_formulas_doc.py` (every push) compares the document with the
      code. The page shows only the indicators of the file's catalog: a new indicator is a publisher change, never a
      list written into the page.
+   - Sector formulas (EXEC-SECTOR-ANALYSIS, the same rule): `SECTOR_FORMULAS.md` explains every figure of the Sector
+     Analysis page in plain Indonesian with real examples. A change of `apps/terminal-publisher/sector.py`,
+     `public.refresh_feature_08_day` or `public.feature_08_weight` updates it in the same commit: run
+     `python3 scripts/sector_formulas_doc.py --write`, rewrite the explanation and set its `explained-for` line to the new
+     fingerprints. `scripts/tests/test_sector_formulas_doc.py` (every push) compares the document with the code; the daily
+     workflow (`--check`) also compares both functions on dev with their newest migration. The page's weights come only
+     from `feature_08_weight` (decision D1: market cap later is a new basis there, not a page change).
    - EDGE design system (user decision 2026-11-18, EXEC-DESIGN-SYSTEM): a new EDGE page, panel, chart or HTML mockup
      follows `.claude/skills/edge-design-system/` (spec v1.2, its canonical layer and components); a change to the
      system itself rebuilds its claude.ai copy as that folder's `README.md` says.
