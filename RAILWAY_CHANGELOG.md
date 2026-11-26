@@ -1,5 +1,24 @@
 # Railway changelog
 
+## 2026-11-26 — The beta and the live site on `53b4fafb`: the Admin page's copy of the design system follows decision 8 (ERRORS M571, Backend tests red on `450f4b46`); `live` moved from `450f4b46`
+
+- **The user's words (2026-11-26):** "2" (beta, then live), after the report of the red Backend tests on `450f4b46`
+  (job `edge-bff-pages`, the Admin page's `tests/styles.test.mjs`); "UD65 a".
+- **Before:** no deployment waiting or building; the beta and the live site on `450f4b46`.
+- **Order:**
+  1. **`main` `450f4b46` → `53b4fafb`** (fast-forward; `ff9921ff` the fix, `9544dff5`, `d9b7c679`, `53b4fafb` records):
+     `edge-bff` `a0b4577c` SUCCESS 08:03 UTC; `/version` `53b4fafb`, `/ready` 200.
+  2. **`live` `450f4b46` → `53b4fafb`** (fast-forward to the commit the beta runs; `scripts/live_diff.py --sites`: 4
+     commits, `apps/edge-bff` 1 file (the Admin copy, a page the live site answers 404), `.claude` 1, documents 6,
+     verification 2; no migration; the release file unchanged): `edge-bff-live` `444669f2` SUCCESS 08:04 UTC;
+     `/version` `53b4fafb`, `/ready` 200.
+- **Live smoke (from outside):** `http_smoke.py`: `routes.unexpected` `{}` (15 beta-only 404, 45 gated 401), register 403
+  REGISTRATION_CLOSED, a visitor's BBCA 200 and TLKM 403 with the sign-in words, the lab files 404, a foreign origin 403,
+  an unknown login 401; `browser_smoke.cjs /terminal`: the rail without Monitor, no model list asked (the two 401 of
+  `/api/v1/auth/session` are the visitor's); `example_smoke.py`: VERDICT OK.
+- **Rollback:** the live site: `git push origin 450f4b46:live --force-with-lease` with the user's go; the beta: redeploy
+  `edge-bff` `fe4662d0` (`450f4b46`).
+
 ## 2026-11-26 — The beta and the live site on `450f4b46`: VISUAL-STATES (the Backtest's and the Screener's focus and selected states follow the Terminal; selects no longer cut their choice; ERRORS M570); `live` moved from `c4d95e8a`
 
 - **The user's words (2026-11-26):** "Ok, apply it / Live dan beta", after the before/after page

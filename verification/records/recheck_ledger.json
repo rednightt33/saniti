@@ -11715,7 +11715,7 @@
     "ff9921ff"
    ],
    "fix_note": "ff9921ff (apps/edge-bff/admin/src/styles/edge-canonical.css takes the system's rules; .claude/skills/edge-design-system/README.md step 2 finds the copies by name)",
-   "runs_on": "branch",
+   "runs_on": "live",
    "author_test": "apps/edge-bff/admin: npx vitest run, 15 passed (the styles test included); find by name: only the Admin page's two copies",
    "status": "waiting",
    "open_row": "",

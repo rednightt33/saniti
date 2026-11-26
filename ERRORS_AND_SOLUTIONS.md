@@ -8887,7 +8887,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M571 — Backend tests red on `450f4b46`: the Admin page's copy of the design system kept the old decision 8 (2026-11-26; fixed in `ff9921ff`, on the branch, not deployed)
+### M571 — Backend tests red on `450f4b46`: the Admin page's copy of the design system kept the old decision 8 (2026-11-26; fixed in `ff9921ff`, on the live site since 2026-11-26 (`53b4fafb`))
 
 - **Symptom:** Backend tests on `main` (run 45775529508) and `live` (45775842126), job `edge-bff-pages`, step "Admin page":
   `tests/styles.test.mjs` "edge-canonical.css is the system's own" failed: the copy held `--focus-border:var(--text-3);
@@ -8906,8 +8906,8 @@ in its staleness check.
   there too.
 - **Checked after the fix:** `apps/edge-bff/admin`: `npx vitest run` 15 passed (the styles test included); the copies
   found by name: only the Admin page's two files.
-- **Status:** fixed in `ff9921ff`, on the branch, not deployed (the deploy waits for the user's confirmation); tested
-  by its author only (RECHECK.md `errors/M571`).
+- **Status:** fixed in `ff9921ff`, on the beta (`edge-bff` `a0b4577c`) and the live site (`edge-bff-live` `444669f2`)
+  since 2026-11-26 (`53b4fafb`; the user: "2"); tested by its author only (RECHECK.md `errors/M571`).
 - **Lesson:** before changing a file that other places copy, find the copies (by name or content) and run their tests,
   not only the tests of the pages changed.
 

@@ -18096,4 +18096,5 @@ is juga" dan "ini maksudnya sebelum samadengan sesudah"; C4 "ini leave as is jug
 - **CI merah sesudah deploy (ERRORS M571):** Backend tests `450f4b46` di main dan live merah di satu langkah: salinan
   design system di halaman Admin (khusus beta, milik pemilik) masih memakai aturan 8 lama; job lain hijau, tidak ada yang
   rusak di beta atau live. Diperbaiki di `ff9921ff` (salinan Admin disamakan, langkah update skill menemukan semua
-  salinan); user 2026-11-26: "2" (beta lalu live).
+  salinan); user 2026-11-26: "2" (beta lalu live): beta `edge-bff` `a0b4577c` dan live `edge-bff-live` `444669f2`
+  SUCCESS di `53b4fafb`.

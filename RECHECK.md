@@ -37,7 +37,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Tahap preview dan Flow lab (cek langkah 2-3) | EXEC-MU-ACCOUNTS | 20 | 20 | 0 | 0 | 0 | 0 |
 | Publisher: berkas events terbit ulang bila isi aksi korporasi berubah (ERRORS M567) | EXEC-EVENTS-STAMP | 1 | 1 | 0 | 0 | 0 | 0 |
 | Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) | EXEC-PRICE-DISTORTION | 4 | 4 | 0 | 0 | 0 | 0 |
-| Backtest, Screener dan Terminal: state fokus dan terpilih mengikuti Terminal, pilihan yang terpotong (ERRORS M570) | EXEC-VISUAL-STATES | 2 | 1 | 0 | 1 | 0 | 0 |
+| Backtest, Screener dan Terminal: state fokus dan terpilih mengikuti Terminal, pilihan yang terpotong (ERRORS M570) | EXEC-VISUAL-STATES | 2 | 2 | 0 | 0 | 0 | 0 |
 
 ### Akun dan keamanan: re-check ronde 1 (R1) (40)
 
@@ -326,7 +326,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
 | `errors/M570` | The Backtest and the Screener drew a field being filled with their own line, not the Terminal's selected state; four kinds of select cut their choice | `450f4b46` | live | M570 | 0 |
-| `errors/M571` | The Admin page's copy of the design system kept the old decision 8; Backend tests red on 450f4b46 | `ff9921ff` | branch | M571 | 0 |
+| `errors/M571` | The Admin page's copy of the design system kept the old decision 8; Backend tests red on 450f4b46 | `ff9921ff` | live | M571 | 0 |
 
 ## Hitungan per status
 
