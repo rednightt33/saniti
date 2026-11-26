@@ -36,6 +36,9 @@ definitions and the measurements of `EXPLAIN.md`.
 | Publisher (`apps/terminal-publisher/sector.py`, every statement it sends, as the role `terminal_market_reader`; a stand-in Feature 01 for the picker dates) | available; not busy; the stamp reads every input; 33 files (meta, series, 11 sector-stocks named by the lowercased index, 20 day files); the series breadth and industry levels are the Feature 08 rows; the newest day file's 1D returns and sessions in status equal a count over the rows |
 | Backfill job (`backfill/backfill_job.py`, run locally on this database) | DRYRUN: 5 dates rolled back, 0 differences; APPLY: 30 dates, 510 rows, 16 breadth dates equal to BREADTH_SQL, 3 dates validated with 0 differences, no negative level, VERDICT APPLY_OK |
 
+`scripts/audit_feature_catalog_semantics.py` on the rehearsal database after the migration: PASS (18 active, 18
+CALCULATION_VERIFIED, 0 incomplete, 18 definitions for 18 physical columns).
+
 Example values (2026-02-02): MARKET members 7, EMA50 3 of 5, EMA200 2 of 4, advancers 6, unchanged 1, decliners 0,
 weight sum 2,848,277.5, return +1.588 %, level 101.588.
 
