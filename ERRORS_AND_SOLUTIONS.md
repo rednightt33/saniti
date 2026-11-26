@@ -8886,6 +8886,11 @@ in its staleness check.
   The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
+- **Recurrence 2026-11-26 (EXEC-SECTOR-ANALYSIS, caught on the session branch by CI, before `main`):** the Sector
+  Analysis parts changed `apps/terminal-publisher/publisher.py`, `apps/terminal-api/app/main.py`, `bucket.py` and
+  `apps/edge-bff/app/main.py`; 36 pointers of SCREENER_ONBOARDING.md moved under them (look-ahead gate run 45886529248,
+  job screener-worker). Moved through each file's line diff from `53b4fafb` (none fell inside a changed hunk); the pointer
+  test passes.
 
 ### M573 — The shared pgweb login cache rewritten in another format broke the Postgres restart check (2026-11-26; fixed the same day, no code change)
 

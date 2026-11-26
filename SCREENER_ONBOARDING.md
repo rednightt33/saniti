@@ -102,9 +102,9 @@ same publication of the same data.
 | Part | Code | Status | Runs as | Holds | Never |
 |---|---|---|---|---|---|
 | Market tables | `database/migrations/`, `DATABASE_SCHEMA.md` | FACT | Railway `Postgres` (sfo) | the source rows | — |
-| terminal-publisher | `apps/terminal-publisher/publisher.py` | FACT; the xsection writer BRANCH (`publish_xsection`, `publisher.py:1716`) | Railway cron, CLI upload, sfo | read-only DB login, bucket write credentials | serves readers |
+| terminal-publisher | `apps/terminal-publisher/publisher.py` | FACT; the xsection writer BRANCH (`publish_xsection`, `publisher.py:1730`) | Railway cron, CLI upload, sfo | read-only DB login, bucket write credentials | serves readers |
 | Bucket `terminal-display` | written by the publisher | FACT | Railway bucket, sin | every published file | — |
-| terminal-api | `apps/terminal-api/app/` | FACT; `xsection` on `/state` and `POST /xsection` BRANCH (`bucket.py:51` `xsection_index`, `apps/terminal-api/app/main.py:532` `xsection`) | FastAPI, CLI upload, sfo | bucket credentials, quotas, audit and service accounts (schema `terminal`) | streams a data file |
+| terminal-api | `apps/terminal-api/app/` | FACT; `xsection` on `/state` and `POST /xsection` BRANCH (`bucket.py:51` `xsection_index`, `apps/terminal-api/app/main.py:533` `xsection`) | FastAPI, CLI upload, sfo | bucket credentials, quotas, audit and service accounts (schema `terminal`) | streams a data file |
 | Shared formulas | `apps/edge-bff/terminal/src/calc/indicators.ts`, `terminal/src/data/indRegistry.json` | FACT, unchanged by the Screener | TypeScript, imported | the 53 indicator formulas and their registry | — |
 | Backtest shared core | `apps/edge-bff/backtest/src/core/` | FACT, unchanged by the Screener | TypeScript, imported | parameter contract (`registry.ts`), `Calc`, `compare`, patterns, file decoding (`datafile.ts`) | — |
 | Screener core | `apps/edge-bff/screener/src/core/` (18 files) and its generator `apps/edge-bff/screener/scripts/build-screener-registry.mjs` | BRANCH | TypeScript imported by the worker; the page imports only `contract.ts` and `universe.ts` | contract, registry and metric catalog, validation, series path, transforms and patterns, evaluation, planner, universe and cross-section rules | defines an indicator formula |
@@ -178,7 +178,7 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
      are not on one basis with the lots after it, and `PRICE_BREAK_IN_LOOKBACK` when it reads the close or the volume and
      crosses a `PRICE_BREAK` date (`condition.ts:563` `cellOf`; the price operands of a flow transform keep their own
      lookback). The lot basis comes from the publisher: the `actions` file's additive column `basis` (R1;
-     `apps/terminal-publisher/publisher.py:963` `action_basis_column`: the events file's status, `terms`, `same`,
+     `apps/terminal-publisher/publisher.py:971` `action_basis_column`: the events file's status, `terms`, `same`,
      `pending`, `unresolved`, of a price action whose ex date is in the broker window, null elsewhere); the worker keeps
      per ticker the ex dates inside its loaded window whose status is not `same`, a file without the column included (R2;
      `apps/edge-bff/screener/src/core/universe.ts:122` `flowBasisDates`, `apps/screener-worker/src/snapshot.ts:322`). A
@@ -207,10 +207,10 @@ the read-only login `terminal_publisher_login` (member of `terminal_market_reade
 
 | Table | Read by the publisher | Used by the Screener for | Phase |
 |---|---|---|---|
-| `Price_Stock_Indonesia_IDX` (`timeframe = 'Daily' AND is_final`) | per ticker-year (`PRICE_SQL`, FACT), and for the `price` xsection file one statement without the ticker filter (`XSECTION_PRICE_SQL`, `publisher.py:498`, BRANCH): a Seq Scan of 1,331,548 rows, 49,339 buffers, 5.3 s on dev, `EXPLAIN (ANALYZE, BUFFERS)` 2026-10-28, ordered in Python because `ORDER BY` spilled 86 MB (`publisher.py:139-143`) | whole-universe bars | 1 |
-| `IDX_Stock_Universe` | the reference file `ref/tickers.json.gz` (`UNIVERSE_SQL`, `publish_refs`, `publisher.py:1943`) | name, type, sector, industry, read from the existing reference file (not copied) | 1 |
-| `Stock_List`, `Stock_List_Member` | the reference file `ref/stock_lists.json.gz` (`publisher.py:458` `STOCK_LISTS_SQL`, `stock_lists_doc`, `publisher.py:1965`; EXEC-SCREENER-STOCK-LISTS): every enabled list (33 indices, 33 Stockbit groups) with its current members; `Stock_List_Member_History` is not read | the universe filters `indices_*` and `groups_*` (current membership only) | 1 |
-| `idx_event_annotation` | per-ticker events files (FACT), and for the `actions` xsection file `XSECTION_ACTIONS_SQL` (`publisher.py:510`, BRANCH): family `CORPORATE_ACTION`, role `EX_DATE`, the five price-affecting types plus `DIVIDEND`, from the first published price year | price-break remarks (P4); cash dividends (PHASE 2 dividend metrics) | 1 |
+| `Price_Stock_Indonesia_IDX` (`timeframe = 'Daily' AND is_final`) | per ticker-year (`PRICE_SQL`, FACT), and for the `price` xsection file one statement without the ticker filter (`XSECTION_PRICE_SQL`, `publisher.py:506`, BRANCH): a Seq Scan of 1,331,548 rows, 49,339 buffers, 5.3 s on dev, `EXPLAIN (ANALYZE, BUFFERS)` 2026-10-28, ordered in Python because `ORDER BY` spilled 86 MB (`publisher.py:146-150`) | whole-universe bars | 1 |
+| `IDX_Stock_Universe` | the reference file `ref/tickers.json.gz` (`UNIVERSE_SQL`, `publish_refs`, `publisher.py:1959`) | name, type, sector, industry, read from the existing reference file (not copied) | 1 |
+| `Stock_List`, `Stock_List_Member` | the reference file `ref/stock_lists.json.gz` (`publisher.py:466` `STOCK_LISTS_SQL`, `stock_lists_doc`, `publisher.py:1981`; EXEC-SCREENER-STOCK-LISTS): every enabled list (33 indices, 33 Stockbit groups) with its current members; `Stock_List_Member_History` is not read | the universe filters `indices_*` and `groups_*` (current membership only) | 1 |
+| `idx_event_annotation` | per-ticker events files (FACT), and for the `actions` xsection file `XSECTION_ACTIONS_SQL` (`publisher.py:518`, BRANCH): family `CORPORATE_ACTION`, role `EX_DATE`, the five price-affecting types plus `DIVIDEND`, from the first published price year | price-break remarks (P4); cash dividends (PHASE 2 dividend metrics) | 1 |
 | `Feature_05_Foreign_Domestic_Broker_Detail` | per-ticker broker files (`BROKER_SQL`) | the `broker_window` file for broker-ranking metrics | PHASE 2 |
 | `Feature_06_Foreign_Domestic` or `Feature_03_Stock_Broker_Daily` | **not readable** by the publisher (live L1: no SELECT on F06 or F04) | the long all-board foreign-flow series (`flow_series`); needs a new NOLOGIN read group by forward migration (migration 2, report 7.2; the source table is decision D9 of FLOW INDICATOR PROPOSALS 16.11) | PHASE 2 |
 
@@ -248,36 +248,36 @@ Live facts every onboarding meets (FACT unless marked):
 
 The existing publisher is described in `BACKTEST_END_TO_END.md` section 4. What matters for any new file:
 
-- **Deterministic bytes (FACT).** `encode` (`publisher.py:737`) writes compact JSON with `allow_nan=False`, then gzip
+- **Deterministic bytes (FACT).** `encode` (`publisher.py:745`) writes compact JSON with `allow_nan=False`, then gzip
   level 9 with `mtime=0`; equal rows give equal bytes, and the sha256 is taken over the gzip bytes. Test:
   `apps/terminal-publisher/tests/test_publisher.py` `test_xsection_files_are_deterministic_and_never_rewritten`.
-- **Columnar documents (FACT).** `columnar` (`publisher.py:733`) turns rows into `{column: [values]}`; readers decode
+- **Columnar documents (FACT).** `columnar` (`publisher.py:741`) turns rows into `{column: [values]}`; readers decode
   with `decodeColumnar` and `inflateVerified` (`apps/edge-bff/backtest/src/core/datafile.ts:67, 91`), which require a
   `columns` list of equal-length arrays and check size and sha256.
 - **Content keys (FACT: ERRORS M250, deployed from PR #41 and integrated on the branch as `41f14b7`; the reference
   copies of EXEC-MU-RUNTIME T5 are BRANCH).** A changed data file, pack, xsection file or reference copy is a new object
   whose key carries its sha256 and is never rewritten with other bytes; `collect_garbage` (`publisher.py:11`) deletes
   what no manifest or index names any more, in a daily run, once the last finished run is `GC_GRACE_SECONDS` (3600,
-  `publisher.py:197`) old.
+  `publisher.py:205`) old.
 - **Change detection by stamps (FACT).** A `daily` run republishes only what changed: price stamps per ticker-year,
   event stamps per ticker, broker by date (`Publisher.run`, `publisher.py:10`).
 - **Write order (FACT).** Data files, packs, the xsection files, manifests, reference files and their `refs` copies,
-  then `state.json` last with `finished_at`, `xsection` and `refs`; the order is `publisher.py:1108-1149`. terminal-api
+  then `state.json` last with `finished_at`, `xsection` and `refs`; the order is `publisher.py:1116-1157`. terminal-api
   and the workers treat a new `finished_at` as a new publication.
-- **Verify mode (FACT, extended on the branch).** `verify` (`publisher.py:2672`) compares every manifest-listed file
-  with SQL (rows, first and last date, a column sum), the xsection files too (`verify_xsection`, `publisher.py:2814`),
-  and exits 1 on a mismatch (`publisher.py:1574`; test `test_verify_checks_the_xsection_files`).
+- **Verify mode (FACT, extended on the branch).** `verify` (`publisher.py:2688`) compares every manifest-listed file
+  with SQL (rows, first and last date, a column sum), the xsection files too (`verify_xsection`, `publisher.py:2830`),
+  and exits 1 on a mismatch (`publisher.py:1588`; test `test_verify_checks_the_xsection_files`).
 
 **The xsection file family (BRANCH).** Each whole-universe file:
 
 | Rule | As built |
 |---|---|
-| Key | `v1/xsection/<name>.<sha16>.json.gz` (`XSECTION_KEY = indexed_key('xsection')`, `publisher.py:167-173`): content-addressed by the first 16 hex of its sha256, never overwritten |
-| Body | one columnar document from `encode`: `schema_version`, `dataset` `xsection`, `name`, `units`, `means` (what each column and null mean), `columns`, equal-length arrays (`xsection_price_doc` `publisher.py:942`, `xsection_actions_doc` `publisher.py:1018`) |
-| Index | `state.json` `xsection: {name: {key, sha256, bytes, rows, as_of}}`, written before nothing else reads it (test `test_the_xsection_files_are_written_before_the_state_json_that_indexes_them`); `xsection_entries` (`publisher.py:1159`) keeps exactly what terminal-api's `xsection_index` serves (test `test_terminal_api_reads_the_index_as_written`) |
-| Rebuild | `XSECTION_REBUILT_BY` (`publisher.py:526`): `daily`, `backfill`, `packs` rebuild `price` and `actions`; `events` rebuilds `actions`; every other mode carries the entries forward (test `test_modes_that_do_not_rebuild_an_xsection_file_carry_its_entry_forward`). A file that fails to build keeps its previous entry, the rest of the run goes on, and the run exits 3 (`publisher.py:1616`; test `test_a_failed_xsection_file_keeps_its_entry_and_the_rest_is_published`) |
+| Key | `v1/xsection/<name>.<sha16>.json.gz` (`XSECTION_KEY = indexed_key('xsection')`, `publisher.py:175-181`): content-addressed by the first 16 hex of its sha256, never overwritten |
+| Body | one columnar document from `encode`: `schema_version`, `dataset` `xsection`, `name`, `units`, `means` (what each column and null mean), `columns`, equal-length arrays (`xsection_price_doc` `publisher.py:950`, `xsection_actions_doc` `publisher.py:1026`) |
+| Index | `state.json` `xsection: {name: {key, sha256, bytes, rows, as_of}}`, written before nothing else reads it (test `test_the_xsection_files_are_written_before_the_state_json_that_indexes_them`); `xsection_entries` (`publisher.py:1167`) keeps exactly what terminal-api's `xsection_index` serves (test `test_terminal_api_reads_the_index_as_written`) |
+| Rebuild | `XSECTION_REBUILT_BY` (`publisher.py:534`): `daily`, `backfill`, `packs` rebuild `price` and `actions`; `events` rebuilds `actions`; every other mode carries the entries forward (test `test_modes_that_do_not_rebuild_an_xsection_file_carry_its_entry_forward`). A file that fails to build keeps its previous entry, the rest of the run goes on, and the run exits 3 (`publisher.py:1630`; test `test_a_failed_xsection_file_keeps_its_entry_and_the_rest_is_published`) |
 | Cleanup | `collect_garbage` deletes an xsection object the index no longer names (tests `test_pruning_keeps_the_objects_of_the_previous_index`, `test_the_xsection_cleanup_waits_for_the_grace_so_two_runs_minutes_apart_keep_the_previous_index`, `test_the_xsection_cleanup_keeps_newer_objects_other_keys_and_everything_when_no_index_names_a_file`) |
-| Slices equal packs | each ticker's slice of `price` is encoded as its price pack and compared with the manifest's pack sha256; a pack that differs is republished from the slice (`xsection_price`, `publisher.py:1648`; tests `test_each_ticker_slice_of_the_price_file_equals_its_price_pack`, `test_a_pack_that_differs_from_the_table_is_republished_from_the_slice`) |
+| Slices equal packs | each ticker's slice of `price` is encoded as its price pack and compared with the manifest's pack sha256; a pack that differs is republished from the slice (`xsection_price`, `publisher.py:1662`; tests `test_each_ticker_slice_of_the_price_file_equals_its_price_pack`, `test_a_pack_that_differs_from_the_table_is_republished_from_the_slice`) |
 
 Phase 1 files (BRANCH): `price` (every published ticker including IHSG from its first published year, columns
 `t,d,o,h,l,c,v` ordered by ticker then date, plus `tickers: [{t, pack_sha256, first, last, rows}]` in file order;
@@ -310,8 +310,8 @@ cache and quotas.
 
 | Route | Status | Answer | Quota, audit |
 |---|---|---|---|
-| `GET /api/terminal/v1/state` | FACT on `main` (EXEC-BACKTEST-LOAD); the `xsection` and `refs` fields BRANCH (`bucket.py:11` `STATE_FIELDS`; `xsection_index` `bucket.py:51`, `refs_index` `bucket.py:78`) | `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, the `xsection` index (well-formed entries only, else null) and `refs` | none |
-| `POST /api/terminal/v1/xsection {names}` | BRANCH (`apps/terminal-api/app/main.py:1096`; caller check `xsection_caller`, `main.py:515`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:82`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:11`), dataset `xsection`; file quota = number of names; bytes counted |
+| `GET /api/terminal/v1/state` | FACT on `main` (EXEC-BACKTEST-LOAD); the `xsection` and `refs` fields BRANCH (`bucket.py:11` `STATE_FIELDS`; `xsection_index` `bucket.py:51`, `refs_index` `bucket.py:79`) | `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, the `xsection` index (well-formed entries only, else null) and `refs` | none |
+| `POST /api/terminal/v1/xsection {names}` | BRANCH (`apps/terminal-api/app/main.py:1097`; caller check `xsection_caller`, `main.py:516`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:82`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:11`), dataset `xsection`; file quota = number of names; bytes counted |
 
 Rules a new file must meet at terminal-api (`bucket.py:13` `XSECTION_NAME` and `xsection_index`): the name matches
 `^[a-z0-9][a-z0-9_-]{0,31}$`; the index entry has exactly `key`, `sha256` (64 hex), `bytes` (≥ 1), `rows` (≥ 0) and
@@ -321,7 +321,7 @@ names (`MAX_XSECTION_NAMES`, `main.py:105`). Tests: `apps/terminal-api/tests/tes
 `test_xsection_index_keeps_only_well_formed_entries`, `test_xsection_presigns_only_keys_of_the_xsection_family`,
 `test_xsection_grants_the_indexed_files_to_the_gateway_in_one_audit_row_under_ref` and the other `test_xsection_*`.
 
-Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:84`), so the browser
+Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:85`), so the browser
 can never pull a whole-universe file. **A new xsection name needs no terminal-api code change**: names are validated
 against the index, not against a list in code; only the size matters for the quota (section 1.15).
 
@@ -589,7 +589,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:723`), mounted like the Backtest module (`apps/edge-bff/app/main.py:892`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:723`), mounted like the Backtest module (`apps/edge-bff/app/main.py:901`
 `screeners.routes`):
 
 Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session and the capability named; with
@@ -631,8 +631,8 @@ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session 
   worker's `SCREENER_DEADLINE_MS` / 1000. The saved-item limits are constants (`SCREEN_LIMIT` 50, `WATCHLIST_LIMIT`
   50, `screener.py:81-82`; since EXEC-WATCHLIST 2A the star fills the first watchlist, so the limit is that list's
   `PER_LIST`, `apps/edge-bff/app/watchlist.py`).
-- **Page and frame**: `/screener` (`main.py:598`) and `/screener-app/` with its assets (`main.py:689-713`) under
-  `SCREENER_CSP` (`main.py:129-132`: `connect-src 'self'`).
+- **Page and frame**: `/screener` (`main.py:605`) and `/screener-app/` with its assets (`main.py:697-721`) under
+  `SCREENER_CSP` (`main.py:134-137`: `connect-src 'self'`).
 - **A new metric needs no edge-bff change:** the catalog is relayed as the worker built it.
 
 Tests: `apps/edge-bff/tests/test_screener.py` (35 tests, on a disposable PostgreSQL through `EDGE_TEST_POSTGRES_URL`;
@@ -1156,15 +1156,15 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 
 | Check | Evidence |
 |---|---|
-| File name matching terminal-api's `XSECTION_NAME` (`^[a-z0-9][a-z0-9_-]{0,31}$`; section 1.6) and its document: `schema_version`, `dataset` `xsection`, `name`, `units` per column, `means` (what each column and a null mean), `columns`, row order stated (the pattern: `xsection_price_doc`, `xsection_actions_doc`, `publisher.py:1018, 942`) | the document builder and its test |
-| Its row in the publisher's rebuild table (`XSECTION_REBUILT_BY`, `publisher.py:526`): which modes rebuild it; a failed build keeps the previous entry and the run exits 3 | a test per mode (pattern: `test_modes_that_do_not_rebuild_an_xsection_file_carry_its_entry_forward`) |
+| File name matching terminal-api's `XSECTION_NAME` (`^[a-z0-9][a-z0-9_-]{0,31}$`; section 1.6) and its document: `schema_version`, `dataset` `xsection`, `name`, `units` per column, `means` (what each column and a null mean), `columns`, row order stated (the pattern: `xsection_price_doc`, `xsection_actions_doc`, `publisher.py:1026, 950`) | the document builder and its test |
+| Its row in the publisher's rebuild table (`XSECTION_REBUILT_BY`, `publisher.py:534`): which modes rebuild it; a failed build keeps the previous entry and the run exits 3 | a test per mode (pattern: `test_modes_that_do_not_rebuild_an_xsection_file_carry_its_entry_forward`) |
 | One bounded SQL statement (or one per date with literal bounds) through the read-only login; measured | `EXPLAIN (ANALYZE, BUFFERS)` in `DATABASE_CHANGELOG.md` |
 | Deterministic bytes: built with `encode`; values as stored (no rounding, no adjustment); `allow_nan=False` passes | a test: the same rows give the same sha256 |
-| Content-addressed key (`indexed_key('xsection')`, `publisher.py:167-173`) and index entry `{key, sha256, bytes, rows, as_of}` in `state.json`, written before `state.json`; `collect_garbage` then covers it with no change | `test_the_xsection_files_are_written_before_the_state_json_that_indexes_them` |
+| Content-addressed key (`indexed_key('xsection')`, `publisher.py:175-181`) and index entry `{key, sha256, bytes, rows, as_of}` in `state.json`, written before `state.json`; `collect_garbage` then covers it with no change | `test_the_xsection_files_are_written_before_the_state_json_that_indexes_them` |
 | Change detection: a stamp so `daily` rebuilds the file only when its inputs changed; otherwise the index entry is carried forward | a test: an unchanged source uploads nothing |
 | Completeness gate for data written in rounds (a date is published only when it is complete for every ticker) | a fixture with a partial date |
 | `as_of` meaning stated (last complete date; for macro the last value available at the cut time) | the document and the catalog entry |
-| Verify mode extended: the file against SQL (rows, first and last date, a column sum) in `verify_xsection` (`publisher.py:2814`) | `test_verify_checks_the_xsection_files` and its new case |
+| Verify mode extended: the file against SQL (rows, first and last date, a column sum) in `verify_xsection` (`publisher.py:2830`) | `test_verify_checks_the_xsection_files` and its new case |
 | Size: gzip and inflated bytes measured at the first run; fits the worker caps and the daily quota | the `done` log line; `RAILWAY_CHANGELOG.md` |
 | Orphans (rows whose ticker is not in the reference file) counted and logged, never named in code | the log line |
 | Publisher tests green; backfill then daily uploads nothing new | `python -m pytest apps/terminal-publisher/tests` |
@@ -1394,7 +1394,7 @@ date and market cap have no source (APPENDIX C.8); market cap has its own plan, 
 
 | Rule | Detail |
 |---|---|
-| Do not add columns to `ref/tickers.json.gz` casually | FACT: every column after `type` becomes a Backtest portfolio grouping (`publish_refs`, `publisher.py:1943`; CONTRACT decision PF6) and a catalog grouping of the Screener (`apps/screener-worker/src/snapshot.ts:137` `groupingsOf`); a numeric column would appear as a grouping with every stock unclassified. A categorical attribute the Backtest should also group by may go there by decision; a numeric one goes into its own xsection file |
+| Do not add columns to `ref/tickers.json.gz` casually | FACT: every column after `type` becomes a Backtest portfolio grouping (`publish_refs`, `publisher.py:1959`; CONTRACT decision PF6) and a catalog grouping of the Screener (`apps/screener-worker/src/snapshot.ts:137` `groupingsOf`); a numeric column would appear as a grouping with every stock unclassified. A categorical attribute the Backtest should also group by may go there by decision; a numeric one goes into its own xsection file |
 | Where the value lives | a field of the worker's universe row (`contract.ts` `UniverseRow`, additive), filled at snapshot build (`snapshot.ts:258-262`) and sent in `GET universe`; a condition reads `row[attr]` (`condition.ts:162-176`); a universe metric filter on a numeric row field runs in S0 on the page and in the worker alike (`universe.ts` `rowAttr`); a categorical filter needs a `UniverseDef` field in `contract.ts` and its rule in `universe.ts`, the one function the page and the worker share. The entries `index_constituents`, `listing_board` and `special_notation` exist (`REQUIRES_DATA`) |
 | Category values are real values | no placeholder; a controlled list in a `CHECK`; instrument kind as a type column, never a list of names in code (A1.4, D30) |
 | Point in time | membership, board and notation change: keep effective-dated, bitemporal history (A2.8, migration `20260927_006`); never backdate the first capture; a screen at E uses the value valid and recorded at E |
