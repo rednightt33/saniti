@@ -137,6 +137,22 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest -q -p no:cacheprovider tests
 
+  # EXEC-SECTOR-ANALYSIS S1 (2026-11-26): the worker's Feature 08 step (Feature08Refresher, finalize_runs' poke and the
+  # main loop's order); the engine (TA-Lib) is stubbed by the test, so psycopg and pytest are enough
+  feature-04-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/feature-04-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "psycopg[binary]==3.2.13" pytest==8.4.2
+      - run: python -m pytest -q -p no:cacheprovider test_worker_feature08.py
+
   telegram-monitor:
     runs-on: ubuntu-latest
     timeout-minutes: 10
