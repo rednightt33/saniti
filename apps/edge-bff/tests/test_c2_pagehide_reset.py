@@ -25,6 +25,7 @@ WRITES_ON_PAGEHIDE = {
 PAGEHIDE_WITHOUT_STORAGE = {
     'terminal/src/app/layouts.ts': 'putOnLeave (a keepalive PUT with edge.current?.csrf, dropped after a reset)',
     'overview/src/app.ts': 'removes a listener from the shell',
+    'sector/src/app.ts': 'removes a listener from the shell (as the Overview, EXEC-SECTOR-ANALYSIS)',
 }
 
 
