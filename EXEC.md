@@ -16763,6 +16763,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD62 | (answered 2026-11-26: "Biarkan dulu as is": option (c), KAMA source=hl2 keeps its measured window of 207) ERRORS M568 (re-check round 3, 2026-11-26; latent, rule 7): Alpha KAMA (I05) at the price source hl2 keeps an effective window of 207 sessions, but a 10:1 reverse split on a stock near its floor (GOTO at Rp 50) moves its value by more than 0.1 % for up to 265 sessions when the break lands on certain sessions (a break at bar 409: 265 sessions; at bar 408: 23), so cells 207-265 sessions after such a break carry no mark. Every other output and setting with a window (90 of 91) stays inside it on a sweep of every third session. KAMA at its default source (close), low and open already reads the whole history. Options: (a) KAMA reads its whole history at every source (every later cell of a stock with a break is marked); (b) a separate pre-release check measures the adaptive outputs at every session of the eight real stocks (about 10 minutes, not in CI) and raises their windows; (c) keep 207 as built. | 2026-11-26 with context (end-of-phase report) | the marks of KAMA source=hl2 cells and trade flags | when the user answers; kept as built until then |
   | UD63 | (answered 2026-11-26: "Biarkan dulu as is": the window's accounts and sessions left as they are for now) Step 9 close, plan step 4 (2026-11-26): the accounts made while registration was open (2026-11-23 03:24 to 2026-11-26 05:53 UTC; one registration code was mailed on 2026-11-24 14:58 UTC, after the planned close) are listed on the beta's admin page (Accounts, newest first). For each: keep it (it signs in only once marked a test account), disable it, or End sessions (the pre-launch mode masks a window session without revoking it, test-out F3, ERRORS M549). No account is deleted (ERRORS M535) | 2026-11-26 with context | the window's accounts and sessions | before registration opens again |
   | UD64 | ERRORS M569 (2026-11-26; the class: an exposure opened for a set time and closed by a later deploy that needs a confirmation): a registration window could close itself at its end time (an end time set with the opening, read by edge-bff on every request), so its close needs no second deploy and no second confirmation; or keep the close a deploy, confirmed together with the opening. Proposed, not built | 2026-11-26 with context | the next registration window (the launch) | before registration opens again |
+  | UD65 | ERRORS M570, EXEC-VISUAL-STATES (2026-11-26; latent, rule 7): in the Screener's add window the row of Alpha Divergence (I60) gives its Swing Detection Mode box 34 px of room for its text, so the chosen "Original (SMI extreme)" shows as "Origina…" and the box overlaps the word "within" after it; it was the same before the change (C4, the user: "leave as is ... kalau terpotong tambahkan saja ..."). Every other shown choice that does not fit (10, the Condition column at 182 px) ends in "…" inside its own box. Options: (a) keep it; (b) let that row's settings wrap to a second line, as the Backtest window does (C3); (c) a narrower label for the choice ("Original", "Proposed"). | 2026-11-26 with context (VISUAL-STATES report) | the look of one Screener row | when the user answers; kept as is until then |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -16943,6 +16944,11 @@ dipakai accross chat sebagai referencec?"
   (Backtest dibiarkan); (8) fokus input garis abu tanpa bayangan; (9) ikon sprite `.ic` 16 px garis 1,6; (10) tombol
   utama hitam, varian hijau "siap jalan" untuk tombol yang menjalankan proses; (11) Terminal bukan acuan dan tidak
   diubah. Hanya untuk halaman baru; halaman lama tidak diubah.
+- **Perubahan 2026-11-26 (EXEC-VISUAL-STATES, user: "Acuan selected state untuk tweak customize indicator adalah seperti
+  terminal pada screenshot nomor 1"; "Ok, apply it"):** aturan (8) diganti: fokus kotak isian = state terpilih Terminal
+  (garis jadi transparan, bayangan lembut `--shadow`), bukan garis abu; aturan (11) tetap (Terminal tidak diubah oleh
+  sistem ini), dengan catatan bahwa state hover, fokus dan terpilih Terminal menjadi modelnya. Backtest dan Screener
+  ikut diubah (ERRORS M570). Salinan claude.ai diterbitkan ulang.
 
 ### Hasil (2026-11-18)
 - Repo: `.claude/skills/edge-design-system/`: `SKILL.md` (aturan), `assets/` (spec-v1.2.css, edge-canonical.css,
@@ -18061,3 +18067,29 @@ sepertinya toggle between timeline masih laggy untuk kondisi sekarang. Nanti sek
      warna diam EXEC-TERMINAL-LOOK 1.
   Diuji oleh agen sendiri (aturan 8: uji ulang hanya dengan persetujuan user). Di beta sejak 2026-11-24 (user: "Deploy ke
   beta oke"; `main` `6dee649d`, edge-bff `382cb664` SUCCESS, RAILWAY_CHANGELOG.md); live hanya atas permintaan.
+
+## EXEC-VISUAL-STATES — state hover, fokus dan terpilih Backtest dan Screener mengikuti Terminal; label pilihan tidak terpotong (user 2026-11-26; selesai, di beta dan live sejak 2026-11-26 `450f4b46`)
+
+Kata-kata user 2026-11-26 (empat screenshot: 1 dialog pengaturan Terminal, 2 Alpha Divergence terpotong, 3 Backtest
+bergaris biru, 5 preset Backtest yang sudah ditambahkan): "Sekarang kita hanya edit mengenai visual saja ... Acuan
+selected state untuk tweak customize indicator adalah seperti terminal pada screenshot nomor 1"; nomor 2: "Identify
+similar case seperti ini, di mana keterangan customizable indicator-nya terpotong. Dan benarkan agar tidak terpotong";
+nomor 5: "Saya minta hijaunya lebih di-strongin"; "propose lebih dahulu sebelum diperbaiki, mungkin dalam bentuk HTML
+saja, before dan after". Komentar di halaman usulan (https://claude.ai/artifact/8LnVv9y5zc9ZG99xgFRCUx): D3 "ini leave as
+is juga" dan "ini maksudnya sebelum samadengan sesudah"; C4 "ini leave as is juga / Tapi kalau terpotong tambahkan saja
+... / Misalkan Origin...". Go: "Ok, apply it / Live dan beta".
+
+- **Diterapkan (`450f4b46`, ERRORS M570):** A1-A4 kotak isian dan pilihan yang sedang diisi tanpa garis, dengan bayangan
+  lembut seperti Terminal (kartu, jendela kondisi dan panel Customize Backtest; kartu Screener); B1-B2 baris yang sudah
+  ditambahkan hijau 13 % dan tombol Added hijau penuh; C1-C2 pilihan pengaturan Terminal selebar pilihan terpanjangnya
+  (128-260 px; Flow mulai 176 px); C3 kolom Condition jendela Backtest sampai 330 px, parameter turun baris; C4 jendela
+  Screener tetap, pilihan yang tetap kepanjangan diakhiri "…"; D1 hover tombol Add seperti Terminal; D2 panah tipis pilihan
+  Screener. D3 dan E1-E4 dibiarkan.
+- **Design system:** aturan 8 diganti (fokus = state terpilih Terminal: garis hilang, bayangan lembut), aturan 11
+  mencatat Terminal sebagai model state; salinan claude.ai diterbitkan ulang (EXEC-DESIGN-SYSTEM).
+- **Deploy:** beta `edge-bff` `fe4662d0` dan live `edge-bff-live` `2165bcd1`, keduanya SUCCESS 2026-11-26; smoke live
+  hijau (RAILWAY_CHANGELOG.md). PLAN.md VISUAL-STATES dihapus.
+- **Bagian terbuka:** uji ulang oleh agen selain pembuatnya (AGENTS.md "Findings and fixes", aturan 8): RECHECK.md
+  `errors/M570`, status waiting; pemicu: persetujuan user dengan model dan tingkat berpikir pilihan user. Baris Alpha
+  Divergence di jendela Screener: kotak Swing Detection Mode (ruang teks 34 px) menimpa kata "within", sama seperti
+  sebelum perubahan (C4 dibiarkan); ditanyakan sebagai UD65 (register, EXEC-MU-ACCOUNTS).

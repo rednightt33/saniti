@@ -8887,6 +8887,64 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M570 — The Backtest and the Screener drew a field being filled with their own blue or grey line, not the Terminal's selected state, and four kinds of select cut their choice (2026-11-26; fixed in `450f4b46`, on the live site since 2026-11-26 (`450f4b46`))
+
+- **Symptom (the user 2026-11-26, four screenshots; EXEC-VISUAL-STATES):** the Terminal's settings dialog shows a field
+  being filled without its border line, lifted by a soft shadow (screenshot 1, the model). The Backtest drew a blue line
+  with a blue ring (screenshot 3), the Screener's cards a grey line; an added Backtest preset row was a pale green
+  (screenshot 5); the Terminal's Alpha Divergence settings cut its Swing Detection Mode choice (screenshot 2). The user
+  asked for the Terminal's look, a stronger green, every cut label found and fixed, and every button audited, proposed as
+  before/after first.
+- **Audit (2026-11-26, the rendered pages: the Backtest and Screener smoke builds, the Terminal on exported BBRI rows;
+  the tools in the session's scratchpad, not in Git):** 17 items on https://claude.ai/artifact/8LnVv9y5zc9ZG99xgFRCUx.
+  Every option of every select measured against its box (canvas text width): the Terminal, 107 of 108 indicators'
+  settings opened (Volume adds no legend row), 4 fields cut (Alpha Divergence Swing Detection Mode, Top Brokers ·
+  Imbalance Show as, Net Flow / Turnover Ratio Change line vs, Loaders Cost); the Backtest condition window's Condition
+  column cut Aroon, Donchian, Alpha Price Action and Flow VWAP choices; the Screener's add window its Swing Detection
+  Mode and Flow VWAP choices.
+- **Verified root cause (`c4d95e8a`):**
+  - States: each page wrote its own focus rule. The Backtest `design.css:653` and `:726`
+    `.inp:focus,.sel:focus{border-color:var(--blue);box-shadow:var(--ring)}`; the Screener `screener.css:151` a grey line
+    and `:589` the blue ring; the Terminal `terminal.css:656` `border-color:transparent;box-shadow:var(--sel-shadow)`. The
+    design system's decision 8 (2026-11-18, EXEC-DESIGN-SYSTEM) set the grey line for new pages, so the Terminal's look
+    was in no shared rule.
+  - Cut choices: a select of a fixed width whose choices come from the indicator registries. The Terminal
+    `terminal.css:655` `.idlg-in{width:128px}` (176 px in Flow); the Backtest Condition column 232 px (`design.css:769`,
+    `:797-798`); the Screener 224 px (`screener.css:1495`, `:1734`).
+  - **Class:** a control sized by a fixed number while its content comes from a catalog that grows (every new indicator
+    or choice), and a state's look written per page instead of one rule.
+- **Solution (`450f4b46`; the items the user confirmed with "Ok, apply it", D3 and E1-E4 left as they are by the user's
+  comments):**
+  - A1-A4: a field or select being filled loses its line and takes the soft shadow (`--shadow`, the Terminal's
+    `--sel-shadow` value) on the Backtest's cards, condition window and Customize panel and the Screener's cards.
+  - B1-B2: an added row 13 % green (18 % under the pointer), Added a filled green button (Backtest and Screener).
+  - C1-C2: the Terminal's settings selects take the width of their longest choice (`width:auto`, 128 px at least, 176 px
+    in Flow, 260 px at most), so a new indicator's choices fit without a code change up to 260 px.
+  - C3: the Backtest window's Condition column grows to 330 px and a row's parameters wrap. C4: the Screener window keeps
+    its columns and a choice still too long ends in "…" (the user's comment: "kalau terpotong tambahkan saja ...").
+  - D1: Add under the pointer as the Terminal; D2: the Screener's selects with the thin chevron of the Terminal.
+  - The design system follows: `SKILL.md` decision 8 (the Terminal's selected state) and 11, `edge-canonical.css`
+    (`--focus-border:transparent`, `--focus-shadow:var(--shadow)`), `reference/components.md`; its claude.ai copy
+    (https://claude.ai/artifact/SQwji2RLWXAf8ZKEcfcNww) republished.
+- **Checked after the fix:** the real builds' after-shots against the approved mock, 14 pairs: the same, but for C3
+  (the column is wider on every row, not only the rows that needed it) and D2 (the chevrons now drawn; four rules had
+  reset the background image with `background:`, now `background-color:`). The cut-choice scan on the builds with the fix:
+  the Terminal 0 of 107 indicators' settings (before: 4 fields); the Backtest builder and condition window 0 (before: 51
+  options of 20 fields, 3 of them shown); the Screener's add window unchanged by the user's choice, its 11 shown choices
+  that do not fit end in "…" (Aroon, Donchian, Alpha Price Action BUY and SELL, Alpha Divergence, the Flow Buy/Sell
+  VWAP and Implied Cost rows), and Alpha Divergence's Swing Detection Mode box (34 px of room for its text) still
+  overlaps the word "within" after it, as before the change (asked as UD65). `look_check11.mjs`: PASS. The Backtest page smoke (CI) green; the Screener smoke's 11
+  failures are the same before and after the change (they predate it; the suite is not in CI).
+- **Not covered:** the three pages are separate bundles with no shared stylesheet, so each still holds its own copy of
+  the rule (the same tokens); the design system's decision 8 is the one place that names the look for a new page. A
+  Terminal choice longer than 260 px and a Screener choice longer than its column are still shortened (with "…" in the
+  Screener, as the user chose).
+- **Status:** fixed in `450f4b46`, on the live site since 2026-11-26 (`450f4b46`); tested by its author only (RECHECK.md
+  `errors/M570`).
+- **Lesson:** a box that shows a catalog's text takes its width from the text (with a floor, a ceiling and "…" beyond
+  it), never from a number fitted to the items of the day; and a state's look is named once (the design system) and
+  measured on every page that copies it.
+
 ### M569 — The step 9 registration window stayed open about 50 hours past its agreed close (2026-11-26; found by the live smoke of the release; closed 2026-11-26 05:53 UTC, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom:** the live smoke after the move of `live` to `c4d95e8a` (2026-11-26 04:41 UTC) read `/api/v1/auth/config`

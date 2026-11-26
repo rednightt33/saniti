@@ -1,6 +1,6 @@
 {
   "note": "The commit each website runs, written at each deploy (AGENTS.md \"Findings and fixes\", rule 9; scripts/record_status.py reads it, and checks it against the newest RAILWAY_CHANGELOG.md entry naming the site's service). beta: edge-bff (main), its latest SUCCESS deployment; live: edge-bff-live (branch live).",
-  "beta": "c4d95e8a7abeb864a0e367491843edad2fd1cec5",
-  "live": "c4d95e8a7abeb864a0e367491843edad2fd1cec5",
+  "beta": "450f4b465b16ae3880f2617402506be521d5f08f",
+  "live": "450f4b465b16ae3880f2617402506be521d5f08f",
   "recorded": "2026-11-26"
 }

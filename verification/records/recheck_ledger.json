@@ -11674,6 +11674,31 @@
    "tested_out_by": "none",
    "evidence": "ERRORS M568 Status: 'fixed in `6a7c5f5d`, on the beta and the live site since 2026-11-26 (`c4d95e8a`); tested by its author only'",
    "from": "fix"
+  },
+  {
+   "key": "errors/M570",
+   "execution": "EXEC-VISUAL-STATES",
+   "area": "Backtest, Screener dan Terminal: state fokus dan terpilih mengikuti Terminal, pilihan yang terpotong (ERRORS M570)",
+   "run": "",
+   "finding_id": "M570",
+   "title": "The Backtest and the Screener drew a field being filled with their own line, not the Terminal's selected state; four kinds of select cut their choice",
+   "finding": "ERRORS M570 symptom (the user 2026-11-26, four screenshots): \"Acuan selected state untuk tweak customize indicator adalah seperti terminal pada screenshot nomor 1\" (the Terminal's settings dialog: a field being filled loses its line and takes a soft shadow; the Backtest drew a blue line with a blue ring, the Screener's cards a grey line); screenshot 2: \"Identify similar case seperti ini, di mana keterangan customizable indicator-nya terpotong. Dan benarkan agar tidak terpotong\" (the Terminal's Alpha Divergence Swing Detection Mode cut); screenshot 5: \"backtest preset yang sudah ditambahkan saat ini selected state berwarna hijau. Saya minta hijaunya lebih di-strongin\". The audit's items confirmed by the user (https://claude.ai/artifact/8LnVv9y5zc9ZG99xgFRCUx): A1-A4 focus, B1-B2 added rows, C1-C2 four Terminal settings fields cut (Alpha Divergence Swing Detection Mode, Top Brokers · Imbalance Show as, Net Flow / Turnover Ratio Change line vs, Loaders Cost), C3 the Backtest condition window's Condition column cut (Aroon, Donchian, Alpha Price Action, Flow VWAP), C4 the Screener window: a cut choice ends in \"…\", D1 Add hover, D2 the Screener's select chevron.",
+   "errors": [
+    "M570"
+   ],
+   "fix_commits": [
+    "450f4b46"
+   ],
+   "fix_note": "450f4b46 (backtest/src/styles/design.css, screener/src/styles/screener.css and terminal/src/styles/terminal.css: blocks at the end; the edge-design-system skill's decision 8, canonical CSS, components.md and its claude.ai copy)",
+   "runs_on": "live",
+   "author_test": "after-shots of the real builds against the approved mock (14 pairs); the cut-choice scan on the builds with the fix (Terminal 0 of 107 indicators' settings, before 4 fields; Backtest 0, before 51 options; Screener 11 shown choices end in \"…\", by the user's choice); look_check11.mjs PASS; the Backtest page smoke (CI) green; the Screener smoke's 11 failures the same before and after",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "On the beta, signed in: the Backtest builder cards, condition window and Customize panel, and the Screener's cards: a field or select being filled shows no line and the Terminal's soft shadow, in light and dark. Add presets: the added row green and Added a filled green button, in both pages. Open every Terminal indicator's settings (Inputs and Style): no chosen value cut. The Backtest condition window: no Condition choice cut, parameters wrap without overlap. The Screener add window: a choice that does not fit ends in \"…\" inside its box. Collateral: the Backtest page smoke, the Screener page tests, look_check11.mjs, the Terminal's other dialogs that use .idlg-in (symbol picker, Flow settings).",
+   "tested_out_by": "none",
+   "evidence": "ERRORS M570 Status: 'fixed in `450f4b46`, on the live site since 2026-11-26 (`450f4b46`); tested by its author only'",
+   "from": "fix"
   }
  ]
 }

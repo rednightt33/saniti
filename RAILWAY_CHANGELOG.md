@@ -1,5 +1,31 @@
 # Railway changelog
 
+## 2026-11-26 — The beta and the live site on `450f4b46`: VISUAL-STATES (the Backtest's and the Screener's focus and selected states follow the Terminal; selects no longer cut their choice; ERRORS M570); `live` moved from `c4d95e8a`
+
+- **The user's words (2026-11-26):** "Ok, apply it / Live dan beta", after the before/after page
+  (https://claude.ai/artifact/8LnVv9y5zc9ZG99xgFRCUx) and its comments (D3 and C4 "leave as is"; C4 "kalau terpotong
+  tambahkan saja ...").
+- **Before:** no deployment waiting or building (the last ones `edge-bff-live` `a7f4bd93` and terminal-publisher
+  `a8e90936`, both SUCCESS). The change is CSS and the design-system skill only: no migration, no worker, no orc file.
+- **Order:**
+  1. **`main` `c4d95e8a` → `450f4b46`** 07:28 UTC (fast-forward; `8122cb8d`, `31d5b930` and `eed98f73` are records):
+     `edge-bff`
+     `fe4662d0` SUCCESS, every other GitHub-connected service SKIPPED (no watched path changed); the beta's `/version`
+     `450f4b46`, `/ready` 200; its Backtest, Screener and Terminal bundles carry the new rules.
+  2. **`live` `c4d95e8a` → `450f4b46`** 07:30 UTC (fast-forward to the commit the beta runs; `scripts/live_diff.py --sites`:
+     4 commits, `.claude` 4 files, `apps/edge-bff` 3 files, documents 6, verification 2; no migration; the release file
+     unchanged): `edge-bff-live` `2165bcd1` SUCCESS; `/version` `450f4b46`, `/ready` 200; the three bundles carry the new
+     rules.
+- **Live smoke (from outside):** `http_smoke.py`: `/ready` 200, CSP and HSTS, `hidden_tabs` admin and monitor, a visitor's
+  BBCA 200 and TLKM 403 with the sign-in words, `routes.unexpected` `{}` (15 beta-only 404, 45 gated 401), the public
+  builds without the lab worker or probe (404), register 403 REGISTRATION_CLOSED (`EDGE_PRELAUNCH=true` kept), a foreign
+  origin 403, an unknown login 401. `browser_smoke.cjs /terminal`: the rail without Monitor, no model list asked, the
+  Terminal on BBCA with "Last 730 days of history", broker data and Events locked (the two 401 of
+  `/api/v1/auth/session` are the visitor's; `shows_bbca` reads the shell's text, the Terminal is in its frame: the
+  screenshot shows BBCA). `example_smoke.py`: VERDICT OK on the five tabs.
+- **Rollback:** the live site: `git push origin c4d95e8a:live --force-with-lease` with the user's go (LIVE_PROMOTION.md §5),
+  the registration stays closed (`EDGE_PRELAUNCH` is a variable); the beta: redeploy `edge-bff` `cbbfbc5b` (`c4d95e8a`).
+
 ## 2026-11-26 — The live site's registration closed: `EDGE_PRELAUNCH=true` on `edge-bff-live` (the user: "1A masukan EXEC"; ERRORS M569)
 
 - **The user's words (2026-11-26):** "1A masukan EXEC" (UD25 and UD26, option A "Tutup sekarang").

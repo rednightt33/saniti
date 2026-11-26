@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 217 item
+## Menunggu uji ulang: 218 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -37,6 +37,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Tahap preview dan Flow lab (cek langkah 2-3) | EXEC-MU-ACCOUNTS | 20 | 20 | 0 | 0 | 0 | 0 |
 | Publisher: berkas events terbit ulang bila isi aksi korporasi berubah (ERRORS M567) | EXEC-EVENTS-STAMP | 1 | 1 | 0 | 0 | 0 | 0 |
 | Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) | EXEC-PRICE-DISTORTION | 4 | 4 | 0 | 0 | 0 | 0 |
+| Backtest, Screener dan Terminal: state fokus dan terpilih mengikuti Terminal, pilihan yang terpotong (ERRORS M570) | EXEC-VISUAL-STATES | 1 | 1 | 0 | 0 | 0 | 0 |
 
 ### Akun dan keamanan: re-check ronde 1 (R1) (40)
 
@@ -320,11 +321,17 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | `agents_20261126-r3-screener/S3-1` | The RS rank metric still worded its population as stocks with no unadjusted price break | `6a7c5f5d` | live | M568 | 0 |
 | `agents_20261126-r3-pages/G3-1` | WGSH's row badge read 'Price anomaly, Price anomaly' | `6a7c5f5d` | live | M568 | 0 |
 
+### Backtest, Screener dan Terminal: state fokus dan terpilih mengikuti Terminal, pilihan yang terpotong (ERRORS M570) (1)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `errors/M570` | The Backtest and the Screener drew a field being filled with their own line, not the Terminal's selected state; four kinds of select cut their choice | `450f4b46` | live | M570 | 0 |
+
 ## Hitungan per status
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 217 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 218 |
 | `fixed` | diuji ulang agen lain: beres | 130 |
 | `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 2 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
@@ -332,7 +339,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | `open` | belum diperbaiki | 90 |
 | `accepted` | diterima user apa adanya | 4 |
 | `obsolete` | tidak berlaku lagi | 5 |
-| **Total** | | **448** |
+| **Total** | | **449** |
 
 Dari 90 baris `open`, 25 punya baris pemilik di PLAN.md atau EXEC.md dan 65 belum
 (aturan 1: setiap bagian yang terbuka butuh pemilik dan pemicu).
