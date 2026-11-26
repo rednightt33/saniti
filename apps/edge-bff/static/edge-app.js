@@ -248,6 +248,8 @@ const paths = {
     navScreener: element("path", { d: "M4 5h16l-6 7.5V19l-4 1.5v-8z" }),
     // EXEC-OVERVIEW O4: the Market Overview icon of the design (four tiles, the market map)
     navOverview: element(fragment, null, element("rect", { x: "4", y: "4", width: "7", height: "7", rx: "1.5" }), element("rect", { x: "13", y: "4", width: "7", height: "7", rx: "1.5" }), element("rect", { x: "4", y: "13", width: "7", height: "7", rx: "1.5" }), element("rect", { x: "13", y: "13", width: "7", height: "7", rx: "1.5" })),
+    // EXEC-SECTOR-ANALYSIS S3: the Sector Analysis icon (a pie with one slice drawn out: the market by its sectors)
+    navSector: element(fragment, null, element("path", { d: "M19.5 13.5A8 8 0 1 1 10.5 4.5" }), element("path", { d: "M13.5 3.5a7 7 0 0 1 7 7h-7z" })),
     // EXEC-WATCHLIST L5: the Watchlist icon of the design (the eye, i-watch)
     navWatchlist: element(fragment, null, element("path", { d: "M2.5 12S6.2 5.5 12 5.5 21.5 12 21.5 12 17.8 18.5 12 18.5 2.5 12 2.5 12z" }), element("circle", { cx: "12", cy: "12", r: "3" })),
     // EXEC-RADAR R7: the Radar icon of R10 (user 2026-11-14: "Untuk icon sudah oke")
@@ -347,11 +349,12 @@ function SectionTitle({ children, action }) { return element("div", { className:
     action); }
 // EXEC-TERMINAL-API T3 (user 2026-10-25: "buat tab terpisah di sebelah monitor"): the financial terminal tab
 // EDGE backtest (CONTRACT.md section 10): the Backtest tab next to Terminal; EXEC-SCREENER: the Screener tab next to Backtest
-// EXEC-OVERVIEW O4 (decision 7, 2026-11-15: "OK"): the Overview tab first in the rail; EXEC-WATCHLIST L5: Watchlist after it
-const nav = [[EdgeLabels.overview.nav, "overview"], [EdgeLabels.watchlist.nav, "watchlist"], ["Monitor", "monitor"], [EdgeLabels.terminal.nav, "terminal"], [EdgeLabels.backtest.nav, "backtest"], [EdgeLabels.screener.nav, "screener"], [EdgeLabels.radar.nav, "radar"]];
+// EXEC-OVERVIEW O4 (decision 7, 2026-11-15: "OK"): the Overview tab first in the rail; EXEC-WATCHLIST L5: Watchlist after it;
+// EXEC-SECTOR-ANALYSIS S3 (the user's go 2026-11-26): Sector Analysis right after Overview
+const nav = [[EdgeLabels.overview.nav, "overview"], [EdgeLabels.sector.nav, "sector"], [EdgeLabels.watchlist.nav, "watchlist"], ["Monitor", "monitor"], [EdgeLabels.terminal.nav, "terminal"], [EdgeLabels.backtest.nav, "backtest"], [EdgeLabels.screener.nav, "screener"], [EdgeLabels.radar.nav, "radar"]];
 // EXEC-RADAR R7, EXEC-OVERVIEW O4: an owner page shows only when the session says its data can be read
 // (/api/v1/auth/session capabilities)
-const OWNER_PAGES = ["overview", "watchlist", "radar"];
+const OWNER_PAGES = ["overview", "sector", "watchlist", "radar"];
 // live checker S1: a tab this site does not offer (the live site: the Monitor) is never in the rail (Edge.offers).
 // 3e (CONTRACT 8b, "every tab is always shown"): an owner page is left out only where the session says its data cannot be
 // read at all (capabilities[r] false: no terminal-api); a visitor sees it too, and a tab the principal cannot open shows
@@ -359,7 +362,7 @@ const OWNER_PAGES = ["overview", "watchlist", "radar"];
 const navShown = ([, r]) => Edge.offers(r) && (!OWNER_PAGES.includes(r) || Edge.auth?.capabilities?.[r] !== false);
 // the tab of a workspace path, its name in the rail, and whether the principal may open it (<tab>.view)
 const TAB_PATHS = {"/terminal":"terminal", "/backtest":"backtest", "/screener":"screener", "/radar":"radar",
-    "/overview":"overview", "/watchlist":"watchlist", "/monitor":"monitor"};
+    "/overview":"overview", "/sector":"sector", "/watchlist":"watchlist", "/monitor":"monitor"};
 const tabName = tab => (nav.find(([, r]) => r === tab) || [tab])[0];
 const homeRoute = () => Edge.offers("monitor") ? "monitor" : "terminal";
 // the tab of a page frame, from its /<tab>-app/ address (3e, the example mode: the lock box's sender)
@@ -371,7 +374,7 @@ let shellGo = null;
 addEventListener("message", e => {
     if (e.origin !== location.origin || e.data?.type !== "edge-nav" || !shellGo) return;
     const frames = [...document.querySelectorAll("iframe.terminal-frame")].map(f => f.contentWindow);
-    if (!frames.includes(e.source) || !["terminal", "backtest", "screener", "radar", "overview", "watchlist"].includes(e.data.route)) return;
+    if (!frames.includes(e.source) || !["terminal", "backtest", "screener", "radar", "overview", "sector", "watchlist"].includes(e.data.route)) return;
     shellGo(e.data.route);
 });
 function Shell({ route, go, children, chart = false, mobilePanelOpen = false, guest = false }) {
@@ -489,7 +492,7 @@ Edge.offers("monitor") && element(Button, { kind: "ghost", icon: "spark", onClic
                 element("span", { className: "side-stats-chev" }, statsOpen ? "«" : "»"), element("span", { className: "side-stats-label" }, "Statistics")),
             slim && route === "terminal" && element("span", { className: "side-sep", "aria-hidden": true }),
             nav.filter(navShown).map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r;
-            return element("button", { key: label, type: "button", "aria-current": active ? "page" : undefined, "aria-label": label, "data-tip": label, className: `nav-${label.toLowerCase()} ${active ? "active" : ""}`, onClick: () => go(r) },
+            return element("button", { key: label, type: "button", "aria-current": active ? "page" : undefined, "aria-label": label, "data-tip": label, className: `nav-${r} ${active ? "active" : ""}`, onClick: () => go(r) },
                 element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 22 })); }),
             slim && element("div", { className: "side-actions" },
                 Edge.offers("monitor") && element("button", { type: "button", "data-tip": "Research", "aria-label": "Research", onClick: () => { sessionStorage.removeItem("edge-research-context"); go("monitor"); } }, element(Icon, { name: "spark", size: 20 })),
@@ -1249,6 +1252,13 @@ function OverviewPage({ go }) {
     return element(Shell, { route: "overview", go: go, chart: true },
         element("main", { className: "terminal-page" },
             element("iframe", { className: "terminal-frame", src: "/overview-app/", title: EdgeLabels.overview.frameTitle })));
+}
+// EXEC-SECTOR-ANALYSIS S3 (the user's go 2026-11-26: "1A 2A 3 go"): Sector Analysis is its own page (/sector-app/, built
+// from apps/edge-bff/sector) in the same kind of same-origin frame; its data comes from /api/v1/sector (sector.view).
+function SectorPage({ go }) {
+    return element(Shell, { route: "sector", go: go, chart: true },
+        element("main", { className: "terminal-page" },
+            element("iframe", { className: "terminal-frame", src: "/sector-app/", title: EdgeLabels.sector.frameTitle })));
 }
 // EXEC-WATCHLIST L5 (user go 2026-11-16): the Watchlist is its own page (/watchlist-app/, built from apps/edge-bff/watchlist)
 // in the same kind of same-origin frame; its lists come from /api/v1/watchlist/lists and its figures from the publisher's
@@ -2987,6 +2997,7 @@ const ROUTES = [
     {path:"/screener", names:["screener"], auth:true, title:"screener"},
     {path:"/radar", names:["radar"], auth:true, title:"radar"},
     {path:"/overview", names:["overview"], auth:true, title:"overview"},
+    {path:"/sector", names:["sector"], auth:true, title:"sector"},
     {path:"/watchlist", names:["watchlist"], auth:true, title:"watchlist"},
     // Phase 4: the admin page of the beta (main.py /admin; the live site answers 404); opened by admin.access
     {path:"/admin", names:["admin"], auth:true, title:"admin", needs:"admin.access"},
@@ -3076,7 +3087,7 @@ function App() {
     // 3e, the example mode (ERRORS M527): its example where the server serves one (ExampleTabPage), else LockedTabPage
     if (tab && Edge.offers(tab) && Array.isArray(Edge.auth?.access?.capabilities) && !Edge.can(`${tab}.view`))
         return element(ExampleTabPage,{go,route:tab});
-    return shown === "/terminal" ? element(TerminalPage,{go}) : shown === "/backtest" ? element(BacktestPage,{go}) : shown === "/screener" ? element(ScreenerPage,{go}) : shown === "/radar" ? element(RadarPage,{go}) : shown === "/overview" ? element(OverviewPage,{go}) : shown === "/watchlist" ? element(WatchlistPage,{go}) : shown === "/admin" ? element(AdminPage,{go}) : Edge.offers("monitor") ? element(Monitor,{go}) : element(TerminalPage,{go});
+    return shown === "/terminal" ? element(TerminalPage,{go}) : shown === "/backtest" ? element(BacktestPage,{go}) : shown === "/screener" ? element(ScreenerPage,{go}) : shown === "/radar" ? element(RadarPage,{go}) : shown === "/overview" ? element(OverviewPage,{go}) : shown === "/sector" ? element(SectorPage,{go}) : shown === "/watchlist" ? element(WatchlistPage,{go}) : shown === "/admin" ? element(AdminPage,{go}) : Edge.offers("monitor") ? element(Monitor,{go}) : element(TerminalPage,{go});
 }
 
 refresh();

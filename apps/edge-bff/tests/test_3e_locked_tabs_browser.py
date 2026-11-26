@@ -19,7 +19,7 @@ from e2e_people import (CHROMIUM, PASSWORD, ROOT, Live, browser_context, registe
 from test_guest_browser import CONTACT, chromium, live  # noqa: E402,F401
 from test_principal import make_user  # noqa: E402
 
-TABS = ('Overview', 'Watchlist', 'Terminal', 'Backtest', 'Screener', 'Radar')
+TABS = ('Overview', 'Sector Analysis', 'Watchlist', 'Terminal', 'Backtest', 'Screener', 'Radar')
 
 
 def rail(page):

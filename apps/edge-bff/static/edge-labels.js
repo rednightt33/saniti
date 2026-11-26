@@ -159,7 +159,11 @@ window.EdgeLabels = {
   radar: { nav:"Radar", frameTitle:"Radar" },
   // EXEC-OVERVIEW O4 (decision 7, 2026-11-15): the Overview tab, first in the rail
   overview: { nav:"Overview", frameTitle:"Market overview" },
-  // EXEC-WATCHLIST L5 (user go 2026-11-16): the Watchlist tab, after Overview in the rail
+  // EXEC-SECTOR-ANALYSIS S3 (the user 2026-11-26: "Nama page baru ini adalah Sector Analysis"): the tab right after
+  // Overview in the rail
+  sector: { nav:"Sector Analysis", frameTitle:"Sector analysis" },
+  // EXEC-WATCHLIST L5 (user go 2026-11-16): the Watchlist tab, after Overview in the rail (after Sector Analysis since
+  // EXEC-SECTOR-ANALYSIS)
   watchlist: { nav:"Watchlist", frameTitle:"Watchlist" },
   // EXEC-MU-ACCOUNTS Phase 4: the beta's admin page (its own words are in its build, apps/edge-bff/admin)
   admin: { nav:"Admin", menu:"Admin page", frameTitle:"Admin", closed:"The admin page is for EDGE's admin." },
@@ -170,7 +174,7 @@ window.EdgeLabels = {
   // misalkan Edge, - terminal, backtest, screener"): the browser tab's title on each page
   pages: { loading:"EDGE", signIn:"EDGE — Sign In", monitor:"EDGE — Monitor", terminal:"EDGE — Terminal",
     backtest:"EDGE — Backtest", screener:"EDGE — Screener", radar:"EDGE — Radar",
-    overview:"EDGE — Overview", watchlist:"EDGE — Watchlist", admin:"EDGE — Admin",
+    overview:"EDGE — Overview", sector:"EDGE — Sector Analysis", watchlist:"EDGE — Watchlist", admin:"EDGE — Admin",
     register:"EDGE — Create Account", verify:"EDGE — Enter Code", forgot:"EDGE — Forgot Password",
     reset:"EDGE — New Password", mfa:"EDGE — Authenticator" },
   // track guest (decision 1 of 2026-11-19, the user: "ketika dia klik ticker selain bbca maka akan keluar pop up box to

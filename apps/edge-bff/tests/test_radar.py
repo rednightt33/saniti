@@ -205,7 +205,7 @@ def test_the_shell_has_the_radar_tab_and_follows_edge_nav_only_from_its_frames(s
                 page.get_by_role('button', name='Sign In', exact=True).click()
                 tabs = page.locator('.side-nav > button[class*="nav-"]')
                 tabs.first.wait_for()
-                assert [tabs.nth(k).get_attribute('aria-label') for k in range(tabs.count())] == ['Overview', 'Watchlist', 'Monitor', 'Terminal', 'Backtest', 'Screener', 'Radar']
+                assert [tabs.nth(k).get_attribute('aria-label') for k in range(tabs.count())] == ['Overview', 'Sector Analysis', 'Watchlist', 'Monitor', 'Terminal', 'Backtest', 'Screener', 'Radar']
                 page.locator('.side-nav button.nav-radar').click()
                 page.wait_for_url(local.origin + '/radar')
                 frame = page.locator('iframe.terminal-frame')
@@ -232,7 +232,7 @@ def test_the_radar_tab_is_hidden_when_its_data_cannot_be_read(settings, store):
         assert r.json()['capabilities']['radar'] is False
     page = (main.STATIC / 'index.html').read_text() + (main.STATIC / 'edge-app.js').read_text()   # the shell's app (R2-19)
     # 3e: the tab is left out only where the session says false (a visitor, who has no session, sees every tab)
-    assert 'const OWNER_PAGES = ["overview", "watchlist", "radar"];' in page and 'Edge.auth?.capabilities?.[r] !== false' in page
+    assert 'const OWNER_PAGES = ["overview", "sector", "watchlist", "radar"];' in page and 'Edge.auth?.capabilities?.[r] !== false' in page
     assert 'nav.filter(navShown)' in page
 
 

@@ -118,16 +118,19 @@ def test_the_shell_wording_and_routes_name_the_watchlist():
     page = (main.STATIC / 'index.html').read_text() + (main.STATIC / 'edge-app.js').read_text()   # the shell's app (R2-19)
     labels = (main.STATIC / 'edge-labels.js').read_text()
     assert 'watchlist: { nav:"Watchlist", frameTitle:"Watchlist" }' in labels and 'watchlist:"EDGE — Watchlist"' in labels
-    assert '[[EdgeLabels.overview.nav, "overview"], [EdgeLabels.watchlist.nav, "watchlist"], ["Monitor", "monitor"]' in page
-    assert 'const OWNER_PAGES = ["overview", "watchlist", "radar"];' in page
-    assert '"radar", "overview", "watchlist"].includes(e.data.route)' in page
+    # EXEC-SECTOR-ANALYSIS S3: Sector Analysis between Overview and the Watchlist (the user's go 2026-11-26)
+    assert ('[[EdgeLabels.overview.nav, "overview"], [EdgeLabels.sector.nav, "sector"], [EdgeLabels.watchlist.nav, '
+            '"watchlist"], ["Monitor", "monitor"]') in page
+    assert 'const OWNER_PAGES = ["overview", "sector", "watchlist", "radar"];' in page
+    assert '"radar", "overview", "sector", "watchlist"].includes(e.data.route)' in page
     assert 'src: "/watchlist-app/", title: EdgeLabels.watchlist.frameTitle' in page
     assert 'navWatchlist:' in page
 
 
 def test_the_shell_puts_watchlist_after_overview_and_opens_its_frame(settings, store, frame):
-    """The real shell in Chromium: the rail starts Overview, Watchlist; the tab opens /watchlist with the page's frame and
-    title; the page's edge-nav message (Open in Terminal) switches the shell to the Terminal."""
+    """The real shell in Chromium: the rail starts Overview, Sector Analysis (EXEC-SECTOR-ANALYSIS S3), Watchlist; the tab
+    opens /watchlist with the page's frame and title; the page's edge-nav message (Open in Terminal) switches the shell to
+    the Terminal."""
     playwright = pytest.importorskip('playwright.sync_api')
     from test_screener import serve
     local, stop = serve(configured(settings), store)
@@ -139,7 +142,7 @@ def test_the_shell_puts_watchlist_after_overview_and_opens_its_frame(settings, s
                 tabs = page.locator('.side-nav > button[class*="nav-"]')
                 tabs.first.wait_for()
                 labels = [tabs.nth(k).get_attribute('aria-label') for k in range(tabs.count())]
-                assert labels[:3] == ['Overview', 'Watchlist', 'Monitor'], labels
+                assert labels[:4] == ['Overview', 'Sector Analysis', 'Watchlist', 'Monitor'], labels
                 page.locator('.side-nav button.nav-watchlist').click()
                 page.wait_for_url(local.origin + '/watchlist')
                 frame_el = page.locator('iframe.terminal-frame')
@@ -188,7 +191,7 @@ def test_a_phone_reaches_the_watchlist_through_the_pages_menu(settings, store, f
                 button.wait_for()
                 button.tap()
                 items = page.locator('.pages-menu [role=menuitem]')
-                assert items.all_text_contents()[:3] == ['Overview', 'Watchlist', 'Monitor']
+                assert items.all_text_contents()[:4] == ['Overview', 'Sector Analysis', 'Watchlist', 'Monitor']
                 assert page.locator('.pages-menu .pages-watchlist').bounding_box()['height'] >= 44
                 page.locator('.pages-menu [role=menuitem]', has_text='Watchlist').tap()
                 page.wait_for_url(local.origin + '/watchlist')

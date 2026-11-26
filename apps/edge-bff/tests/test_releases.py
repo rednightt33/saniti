@@ -212,7 +212,8 @@ def test_an_item_no_worker_gates_by_id_is_never_lab():
 # stage, so it can never be at the lab stage. Derived from the code: an id with a digit (I07, FL51) counts where it
 # stands as a word, an id without one (a Screener metric such as 'close') only as a quoted literal; comments, tests and
 # the lab folder (terminal/src/lab, built only into the lab builds) are not code that ships to everyone.
-CODE_DIRS = tuple(BFF / d / 'src' for d in ('terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist', 'admin')) + (
+CODE_DIRS = tuple(BFF / d / 'src' for d in ('terminal', 'backtest', 'screener', 'radar', 'overview', 'sector', 'watchlist',
+                                            'admin')) + (
     BFF.parent / 'backtest-worker' / 'src', BFF.parent / 'screener-worker' / 'src')
 
 
