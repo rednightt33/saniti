@@ -213,7 +213,9 @@ def test_a_phone_reaches_every_page_through_the_pages_menu(settings, store, monk
                 assert not page.locator('.side-nav').is_visible()
                 button.tap()
                 items = page.locator('.pages-menu [role=menuitem]')
-                assert items.all_text_contents()[:4] == ['Overview', 'Watchlist', 'Monitor', 'Terminal'] and 'Radar' in items.all_text_contents()
+                # EXEC-SECTOR-ANALYSIS S3: Sector Analysis right after Overview (tests/test_sector.py)
+                assert items.all_text_contents()[:5] == ['Overview', 'Sector Analysis', 'Watchlist', 'Monitor', 'Terminal'] \
+                    and 'Radar' in items.all_text_contents()
                 assert button.get_attribute('aria-expanded') == 'true'
                 for item in items.all():                                     # every item is a 44 px touch target
                     assert item.bounding_box()['height'] >= 44

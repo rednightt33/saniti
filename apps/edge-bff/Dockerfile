@@ -82,10 +82,11 @@ COPY catalog/releases.json /build/catalog/releases.json
 COPY overview/ ./
 RUN npm run build
 
-# EXEC-SECTOR-ANALYSIS S4 (user go 2026-11-26, UD66 A-J and UD67 "1A 2A 3 go"): the Sector Analysis page (sector/,
-# TypeScript + Vite, the user's final prototype) is built here into its dist/ and copied into static/sector-app. It shares
-# no source with the other pages but shared/ and computes in the browser only what depends on the viewer's choice; its
-# files are the publisher's (sector/*.json.gz), relayed by /api/v1/sector. The build output is not kept in git.
+# EXEC-SECTOR-ANALYSIS S3/S4 (the user's go 2026-11-26: "1A 2A 3 go"): the Sector Analysis page (sector/, TypeScript +
+# Vite, the port of the user's final prototype; verification/sector_analysis/CONTRACT.md 5) is built here into its dist/
+# and copied into static/sector-app, as the Overview's. Its figures are the publisher's family sector/ relayed by
+# /api/v1/sector (app/sector.py); what depends on the user's choice it computes in the browser. The build output is not
+# kept in git.
 FROM node:22-slim AS sector
 WORKDIR /build/sector
 COPY sector/package.json sector/package-lock.json ./

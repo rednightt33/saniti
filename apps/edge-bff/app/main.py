@@ -36,6 +36,7 @@ from .passwords import PasswordWork
 from .principal import BETA_ONLY_TABS, Auth, Principal
 from .drawings import Drawings
 from .overview import Overview
+from .sector import Sector
 from .watchlist import Watchlist
 from .radar import Radar
 from .examples import Examples
@@ -119,6 +120,10 @@ RADAR_APP = STATIC / 'radar-app'
 # EXEC-OVERVIEW O4 (user go 2026-11-15): the built Market Overview page (apps/edge-bff/overview -> static/overview-app),
 # the Overview tab's frame; its data comes from /api/v1/overview on this origin, so the same policy as the Radar's
 OVERVIEW_APP = STATIC / 'overview-app'
+# EXEC-SECTOR-ANALYSIS S3 (the user's go 2026-11-26: "1A 2A 3 go"): the built Sector Analysis page (apps/edge-bff/sector ->
+# static/sector-app), the Sector Analysis tab's frame; its data comes from /api/v1/sector on this origin (app/sector.py),
+# so the Overview's policy (connect-src 'self')
+SECTOR_APP = STATIC / 'sector-app'
 # EXEC-WATCHLIST L5 (user go 2026-11-16): the built Watchlist page (apps/edge-bff/watchlist -> static/watchlist-app), the
 # Watchlist tab's frame; its lists come from /api/v1/watchlist/lists and its figures from /api/v1/watchlist (file)
 WATCHLIST_APP = STATIC / 'watchlist-app'
@@ -267,8 +272,9 @@ def create_app(settings=None, store=None, orc=None):
     drawings = Drawings(settings, store)
     radar = Radar(settings)
     overview = Overview(settings)                       # EXEC-OVERVIEW O4
+    sector = Sector(settings)                           # EXEC-SECTOR-ANALYSIS S3
     watchlist = Watchlist(settings, store)              # EXEC-WATCHLIST L3
-    examples = Examples(store, overview, watchlist.files)   # 3e, the example mode (ERRORS M527)
+    examples = Examples(store, overview, watchlist.files, sector=sector)   # 3e, the example mode (ERRORS M527)
     support = support_module.Support(settings, store)   # Phase 4, the contact-support panel (the user, 2026-11-22)
     # EXEC-MU-ACCOUNTS beta/live: the AI loop claims only the runs this site queued (config.py EDGE_SITE)
     worker.claim = functools.partial(store.claim, site=settings.site)
@@ -413,6 +419,7 @@ def create_app(settings=None, store=None, orc=None):
             await terminal_http['client'].aclose()
         await radar.aclose()                          # EXEC-RADAR R6 (QA 2026-11-14): its client too
         await overview.aclose()
+        await sector.aclose()
         await watchlist.aclose()
         await support.aclose()
         await sender.aclose()
@@ -551,7 +558,7 @@ def create_app(settings=None, store=None, orc=None):
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard). Re-check R2-19: the shell has no inline
         # script (static/edge-boot.js, static/edge-app.js), so script-src is 'self' alone, and form-action is 'self'
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/', '/admin-app/')) else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/', '/sector-app/', '/admin-app/')) else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
         return response
 
     # ERRORS R2-25: added last, so it is the outermost middleware: an exception no handler expected is answered 503
@@ -612,6 +619,7 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/screener')
     @app.get('/radar')
     @app.get('/overview')
+    @app.get('/sector')                     # EXEC-SECTOR-ANALYSIS S3: the Sector Analysis tab
     @app.get('/watchlist')
     @app.get('/login')
     @app.get('/register')                   # EXEC-MU-ACCOUNTS Phase 1: the account pages of the shell (contract 12)
@@ -759,6 +767,7 @@ def create_app(settings=None, store=None, orc=None):
     page_app('screener-app', 'SCREENER_APP', 'screener')
     page_app('radar-app', 'RADAR_APP', 'radar')
     page_app('overview-app', 'OVERVIEW_APP', 'overview')
+    page_app('sector-app', 'SECTOR_APP', 'sector')                  # EXEC-SECTOR-ANALYSIS S3
     page_app('watchlist-app', 'WATCHLIST_APP', 'watchlist')
     page_app('admin-app', 'ADMIN_APP', 'admin', admin_only=True)
 
@@ -899,6 +908,7 @@ def create_app(settings=None, store=None, orc=None):
     # EXEC-RADAR R6, EXEC-OVERVIEW O4: /api/v1/radar and /api/v1/overview (index and files), the owner's only
     radar.routes(app, auth)
     overview.routes(app, auth)
+    sector.routes(app, auth)                 # EXEC-SECTOR-ANALYSIS S3: /api/v1/sector (index and files), sector.view
     watchlist.routes(app, auth)              # EXEC-WATCHLIST L3: the lists and the daily file
     # 3e, the example mode (user 2026-11-21; ERRORS M527): /api/v1/examples/<tab>, for <tab>.example, visitors too
     examples.routes(app, auth)
@@ -1070,7 +1080,9 @@ def create_app(settings=None, store=None, orc=None):
                 'retention_days_default': 30,
                 # EXEC-RADAR R6, EXEC-OVERVIEW O4: the Radar and Overview tabs show only when their data can be read
                 'radar': bool(settings.terminal_url), 'overview': bool(settings.terminal_url),
-                'watchlist': bool(settings.terminal_url)}
+                'watchlist': bool(settings.terminal_url),
+                # EXEC-SECTOR-ANALYSIS S3: the Sector Analysis tab, as the Overview's
+                'sector': bool(settings.terminal_url)}
 
     @app.get('/api/v1/auth/session')
     async def get_session(p: Principal = Depends(auth.principal)):

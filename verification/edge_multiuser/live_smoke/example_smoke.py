@@ -5,7 +5,8 @@ For each data page (the tabs of apps/edge-bff/app/examples.py TABS), it opens /<
 - the shell shows the page's example: the page's app in its frame with ?example=1, under the note naming its date;
 - the page read only the example's routes (/api/v1/examples/<tab>/...), never its live routes (/api/v1/<tab>/...);
 - a click on the page opens the shell's sign-in box ("Sign in to open <tab>"): for the Market Overview a time control
-  (its period buttons), which is locked, while its other controls work;
+  (its period buttons), which is locked, while its other controls work; for Sector Analysis (EXEC-SECTOR-ANALYSIS
+  decision J) its second internal tab (role=tab) switches without the box, and its first other control asks for it;
 - the Watchlist shows the LQ45 list, the prices' and the broker data's date pills.
 Prints one OUT line per tab ({tab, note, files, live_reads, box}) and VERDICT OK or VERDICT FAILED with the reasons.
 
@@ -54,8 +55,20 @@ def check(page, origin, tab, label, png):
         fail.append('no example file read')
     if out['live_reads']:
         fail.append(f'live routes read: {out["live_reads"]}')
+    if tab == 'sector':
+        # decision J (the user 2026-11-26: "Dia bisa pilih tab 1, 2, 3, 4, 5"): the page's five tabs switch, no box
+        second = frame.locator('[role="tab"]').nth(1)
+        second.click()
+        page.wait_for_timeout(1500)
+        if page.locator('.locked-dialog').count():
+            fail.append('an internal tab opened the sign-in box')
+            page.keyboard.press('Escape')
+        elif second.get_attribute('aria-selected') != 'true':
+            fail.append('the second internal tab is not selected after its click')
+    clickable = 'button:visible:not([disabled]):not([aria-disabled="true"])'
     target = frame.locator('.seg button[data-v="5D"], .seg button[data-k="5D"], .seg button[data-p="5D"]').first \
-        if tab == 'overview' else frame.locator('button:visible:not([disabled]):not([aria-disabled="true"])').first
+        if tab == 'overview' else frame.locator(f'{clickable}:not([role="tab"])').first if tab == 'sector' \
+        else frame.locator(clickable).first
     target.click()
     box = page.locator('.locked-dialog')
     try:

@@ -1620,6 +1620,9 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
                  # EXEC-OVERVIEW O5: the Market Overview page, the fifth
                  'overview/node_modules/vite/package.json', 'overview/tests/fixture/data/overview-meta.json',
                  'overview/dist/index.html', 'overview/dist-fixture/index.html', 'static/overview-app/index.html',
+                 # EXEC-SECTOR-ANALYSIS: the Sector Analysis page
+                 'sector/node_modules/vite/package.json', 'sector/tests/fixture/sector-meta.json', 'sector/dist/index.html',
+                 'sector/dist-fixture/index.html', 'static/sector-app/index.html',
                  # EXEC-WATCHLIST L5: the Watchlist page, the sixth
                  'watchlist/node_modules/vite/package.json', 'watchlist/tests/fixture/watchlist-stocks.sample.json',
                  'watchlist/dist/index.html', 'watchlist/dist-fixture/index.html', 'static/watchlist-app/index.html',
@@ -1648,7 +1651,8 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
                       'radar/package.json',
                       'radar/package-lock.json', 'shared', 'catalog/releases.json', 'radar/', 'overview/package.json',
                       'overview/package-lock.json', 'shared', 'catalog/releases.json',
-                      'overview/', 'watchlist/package.json', 'watchlist/package-lock.json', 'shared', 'catalog/releases.json', 'watchlist/',
+                      'overview/', 'sector/package.json', 'sector/package-lock.json', 'shared', 'catalog/releases.json',
+                      'sector/', 'watchlist/package.json', 'watchlist/package-lock.json', 'shared', 'catalog/releases.json', 'watchlist/',
                       'admin/package.json', 'admin/package-lock.json', 'shared', 'catalog/releases.json', 'admin/',
                       'requirements.txt', 'app', 'catalog', 'screener/src/core/screener-metrics.json', 'static']
     # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's

@@ -61,8 +61,9 @@ def test_no_tab_is_at_the_lab_stage_yet():
                                                 f'{LAB_TAB_HELD_UNTIL} (FUTURE_PLAN.md)')
     released = {t for t, st in releases.CURRENT.tabs().items() if st == 'released'}
     # 'support' (Phase 4, the contact-support panel's capability support.send; a dialog of the rail, not a page): the
-    # user, 2026-11-22: "saya minta dibuatkan panel sebelah kiri di live iconnya kotak surat", "go"
-    assert released == {'terminal', 'backtest', 'screener', 'watchlist', 'radar', 'overview', 'support'}, (
+    # user, 2026-11-22: "saya minta dibuatkan panel sebelah kiri di live iconnya kotak surat", "go"; 'sector'
+    # (EXEC-SECTOR-ANALYSIS decision F, the user 2026-11-26: "f released saja dulu di main")
+    assert released == {'terminal', 'backtest', 'screener', 'watchlist', 'radar', 'overview', 'support', 'sector'}, (
         f'the released tabs are {sorted(released)}: a new tab enters "released" only with the user\'s go and with this '
         'list (LIVE_PROMOTION.md section 3; 3f round 2, TRC2-8)')
 

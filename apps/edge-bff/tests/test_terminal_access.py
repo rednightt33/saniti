@@ -497,7 +497,7 @@ def test_every_terminal_forwarding_route_passes_the_guard(switched_off, store):
     paths = {(m, r.path) for r in forwarding_routes(app) for m in r.methods}
     from app import examples
     assert paths == {('GET', '/api/terminal/v1/{path:path}'), ('POST', '/api/terminal/v1/{path:path}'),
-                     *{('GET', f'/api/v1/{f}/{p}') for f in ('radar', 'overview', 'watchlist') for p in ('index', 'file/{name}')},
+                     *{('GET', f'/api/v1/{f}/{p}') for f in ('radar', 'overview', 'watchlist', 'sector') for p in ('index', 'file/{name}')},
                      *{('GET', f'/api/v1/examples/{t}/{p}') for t in examples.LATEST for p in ('index', 'file/{name}')}}
     assert unguarded(app) == []
     # a route that forgets the guard is found

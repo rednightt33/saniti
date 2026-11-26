@@ -332,8 +332,9 @@ def test_the_runtime_role_reads_the_catalog_and_never_deletes_a_subscription(sto
 def test_every_seed_capability_has_a_plain_meaning(store):
     rows = db(store, 'SELECT capability_key, kind, means, display_name FROM edge_bff.capabilities')
     # the 41 of 20261117_003, the 7 of Phase 3a (20261117_004), less the 4 families of the 3b follow-up (20261118_001),
-    # plus the 4 Terminal quotas of Phase 3c (20261118_002) and support.send of Phase 4 (20261122_001)
-    assert len(rows) == 49
+    # plus the 4 Terminal quotas of Phase 3c (20261118_002), support.send of Phase 4 (20261122_001) and Sector Analysis's
+    # sector.view and sector.example (20261126_050)
+    assert len(rows) == 51
     for r in rows:
         assert len(r['means']) >= 20 and r['means'].endswith('.') and not re.search(r'[A-Z]{2,}_', r['means']), r
 

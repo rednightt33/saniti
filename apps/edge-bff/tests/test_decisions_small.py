@@ -239,7 +239,7 @@ def test_the_mfa_page_takes_a_fresh_code_then_starts_the_set_up_again(fixture_se
 
 PLANTED = 'planted-private-value-0123456789'
 INTERNAL = 'http://terminal-api.railway.internal:8080/api/terminal/v1/state'
-FAMILY_SAMPLE = {'radar': 'radar-days', 'overview': 'overview-meta', 'watchlist': 'watchlist-stocks'}
+FAMILY_SAMPLE = {'radar': 'radar-days', 'overview': 'overview-meta', 'watchlist': 'watchlist-stocks', 'sector': 'sector-meta'}
 
 
 class Planted(FakeApi):

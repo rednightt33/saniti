@@ -51,6 +51,20 @@
   (`verification/sector_analysis/db/backfill/`, `large_write`, Postgres restart after), `scripts/sector_formulas_doc.py
   --check` in the daily workflow, and `DATABASE_SCHEMA.md` by the scheduled schema refresh (a large read, ERRORS M350).
 
+## 2026-11-26 — EXEC-SECTOR-ANALYSIS S3: the Sector Analysis tab's two capabilities (edge_bff, migration 20261126_050; NOT APPLIED, written on the branch; data)
+
+- **Why:** the user's go of 2026-11-26 ("1A 2A 3 go") for the page of decisions UD66 A-J; decision F (the tab released
+  on `main`) and decision J ("Untuk free dan guest ... efeknya akan sama seperti overview, tapi dia bisa cross tab").
+- **Migration:** `20261126_050_edge_bff_sector_capabilities.sql`, sha256 `0903e41d…dd572d21`: the flags `sector.view`
+  ("Sector Analysis") and `sector.example` ("Sector Analysis example"), no data scope (as `overview.view`); the paid plan
+  holds `sector.view`, the free and the guest plan `sector.example`, the admin both through `*`. Expand-only: two
+  capabilities and three plan rows; an older edge-bff reads none of them, and a site whose release file does not list
+  the tab `sector` refuses both keys to everyone (`principal.beta_only`, `tests/test_sector.py`). No grant changes.
+  Rehearsed on a disposable local PostgreSQL 16 through the edge-bff suite (`tests/conftest.py` applies it after
+  `20261123_001`); its preflight refuses a second run, its verify block checks the rows above.
+- **Not applied:** dev is applied with the beta deploy of EXEC-SECTOR-ANALYSIS (S5), with the user's confirmation; then
+  its line goes into `APPLIED.sha256` and this entry records the jobs and the read-back. Not a large update.
+
 ## 2026-11-26 — EXEC-PRICE-DISTORTION F4: both hiding chips switched off once in every saved screen (edge_bff, migration 20261125_001; APPLIED on dev 2026-11-25 21:57 UTC; data)
 
 - **Why:** UD46, the user 2026-11-24: "B", "masukan exec ya"; the concept "value harus tetap ditampilkan as is dengan
