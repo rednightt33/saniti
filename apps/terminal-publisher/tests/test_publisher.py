@@ -239,7 +239,9 @@ class FakeConn:
             out = {}
             for e in self.events:
                 out.setdefault(e[0], []).append(e)
-            return [(t, len(v), max(x[1] for x in v), 'ing') for t, v in out.items()]
+            # the content digest: of every column of the ticker's rows (EXEC-EVENTS-STAMP)
+            return [(t, len(v), max(x[1] for x in v), 'ing', hashlib.md5(repr(sorted(map(repr, v))).encode()).hexdigest())
+                    for t, v in out.items()]
         if 'max(ingestion_time)' in sql and 'idx_event_annotation' in sql:
             return [('2026-10-25 17:04:28+00',)]
         if sql == pub.BEHIND_SQL:
@@ -501,6 +503,20 @@ def test_a_new_events_format_republishes_every_events_file_once():
     bucket.put('manifest/BBCA.json', json.dumps(m).encode(), 'application/json')
     p2 = pub.Publisher(conn, bucket, today=TODAY)
     assert [t for _, t, _, _ in p2.changed_events({'BBCA': 'stock'})] == ['BBCA']
+
+
+def test_an_event_row_whose_content_changes_republishes_its_ticker_only():
+    # EXEC-EVENTS-STAMP (the user 2026-11-26): an edit outside the Stockbit round's full refresh keeps the row count,
+    # the last date and the load time, so only the content digest tells it: the ticker's file is published again and
+    # its basis measured again; a run with nothing changed publishes nothing
+    _, conn, bucket = run('backfill')
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    assert p2.changed_events({'BBCA': 'stock', 'BBRI': 'stock'}) == []
+    i = next(k for k, e in enumerate(conn.events) if e[0] == 'BBCA')
+    e = list(conn.events[i]); e[-1] = (e[-1] if isinstance(e[-1], (int, float)) else 0) + 1; conn.events[i] = tuple(e)
+    p3 = pub.Publisher(conn, bucket, today=TODAY)
+    assert [t for _, t, _, _ in p3.changed_events({'BBCA': 'stock', 'BBRI': 'stock'})] == ['BBCA']
+    assert 'content=' in pub.Publisher(conn, bucket, today=TODAY).changed_events({'BBCA': 'stock'})[0][3]
 
 
 def test_broker_is_published_from_its_first_stored_year():

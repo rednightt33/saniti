@@ -210,7 +210,16 @@ EVENT_COLUMNS = ['d', 'role', 'family', 'type', 'action', 'holder', 'holder_role
 # of the ex date, so every events file is measured again and republished with it, the older actions included; a
 # large update, AGENTS.md "Postgres memory after large updates")
 EVENTS_FORMAT = 4
-EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(ingestion_time)::text '
+# EXEC-EVENTS-STAMP (the user 2026-11-26: "ok untuk celah 4 masukan exec", "Jalankan mitigasi 4 sekarang"): the stamp
+# also carries a digest of every column an events file or a broker basis reads, so a row whose content changes without
+# a new row, date or load time (an edit made outside the Stockbit round's full refresh) republishes its ticker's file and
+# measures its basis again; the load metadata (ingestion_time, source_fetched_at) is left out of the digest. Measured on
+# dev 2026-11-26: 124,380 rows, 1.26 s (the stamp without it 0.10 s)
+EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(ingestion_time)::text, '
+                    "md5(string_agg(md5(ROW(event_key, annotation_date, annotation_date_role, event_family, event_type, "
+                    'action, holder_name, holder_role, broker_code, instrument_code, shares_change, pct_after, pct_change, '
+                    'pct_quality_flag, price, is_estimated_price, value_idr, data_origin, cum_date, ex_date, ratio_old, '
+                    "ratio_new, amount_per_share, currency, source_payload)::text), '' ORDER BY event_key)) "
                     'FROM public.idx_event_annotation GROUP BY ticker')
 
 # EXEC-BACKTEST-REVAMP P9 (option A; user 2026-11-16 "A dulu", then "opsi A"; ERRORS M450, M458 item 2): the broker
@@ -2504,7 +2513,8 @@ class Publisher:
         return self.basis_cache[ticker]
 
     def changed_events(self, kind, force=False, prices=(), only=None):
-        """Tickers whose event rows changed (count, last date, last ingestion) or whose broker basis changed, or every
+        """Tickers whose event rows changed (count, last date, last ingestion, the digest of their content:
+        EXEC-EVENTS-STAMP) or whose broker basis changed, or every
         ticker with events (force); `only`: those tickers alone. The basis (P9) is measured again where its inputs may
         have changed: the ticker's events, a price year before the last one published this run (`prices`, a history
         reloaded after an action; the last year changes with every candle), an action within BASIS_RECENT_DAYS of the broker date (its sessions after the ex date are still
@@ -2514,10 +2524,10 @@ class Publisher:
         latest = dict(self.conn.execute(BASIS_TICKERS_SQL, (list(PRICE_ACTION_TYPES),)).fetchall())
         recent = ((dt.date.fromisoformat(self.basis_through) - dt.timedelta(days=BASIS_RECENT_DAYS)).isoformat()
                   if self.basis_through else None)
-        for ticker, count, last, ingested in self.conn.execute(EVENT_STAMPS_SQL).fetchall():
+        for ticker, count, last, ingested, content in self.conn.execute(EVENT_STAMPS_SQL).fetchall():
             if ticker not in kind or (only is not None and ticker not in only):
                 continue  # delisted tickers are not served by the terminal
-            base = f'format={EVENTS_FORMAT};rows={count};last={last};ing={ingested}'
+            base = f'format={EVENTS_FORMAT};rows={count};last={last};ing={ingested};content={(content or "")[:16]}'
             current = self.manifest(ticker)['datasets'].get('events', {}).get('files', {}).get('all', {})
             old = current.get('stamp') or ''
             old_base, _, old_basis = old.partition(';basis=')
