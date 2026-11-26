@@ -1,0 +1,19 @@
+{
+  "name": "edge-sector",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "EDGE Sector Analysis page (EXEC-SECTOR-ANALYSIS S4, user go 2026-11-26: UD66 A-J, UD67 \"1A 2A 3 go\"): the user's final prototype on the sector/ files edge-bff relays (/api/v1/sector, verification/sector_analysis/CONTRACT.md section 3). The page computes in the browser only what depends on the viewer's choice: returns over a period, ranks, the rotation map, pair spreads, correlations, beta, breadth of a horizon and industry aggregates of the day.",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "build:fixture": "vite build --mode fixture",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.1.9",
+    "vitest": "3.2.4"
+  }
+}

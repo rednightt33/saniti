@@ -1,0 +1,7 @@
+# build outputs (the edge-bff Dockerfile builds dist/ into static/sector-app) and the fixture build
+dist/
+dist-fixture/
+# the local look check's files made from the user's prototype (tests/fixture/from_prototype.mjs writes them; never
+# committed: they hold market data, as the prototype itself stays outside Git)
+tests/fixture/data/
+node_modules/

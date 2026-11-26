@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EDGE — Sector Analysis</title>
+<link rel="icon" href="/favicon.svg?v=20261103" type="image/svg+xml">
+<link href="/fonts/inter-400-700.css" rel="stylesheet">
+</head>
+<body>
+<!-- EXEC-SECTOR-ANALYSIS S4 (user go 2026-11-26): the user's final prototype "sector-analysis (1).html" without its inline
+     scripts (the sub-app CSP forbids them) and without its hidden cards (decision H): src/app.ts fills the page from the
+     sector files. The entry tag below must stay exactly once (vite.config.ts). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-terminal" viewBox="0 0 16 16"><path d="M4 3v10M8 2v9M12 4v10"/><rect x="3" y="5" width="2" height="5" rx=".5"/><rect x="7" y="4" width="2" height="5" rx=".5"/><rect x="11" y="6" width="2" height="6" rx=".5"/></symbol>
+<symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="i-chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="i-chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+<symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="i-cal" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/></symbol>
+<symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.2V11M8 5v.1"/></symbol>
+<symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+<symbol id="i-expand" viewBox="0 0 16 16"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3.5 8h9M9 4.5L12.5 8 9 11.5"/></symbol>
+</defs></svg>
+<div class="app">
+  <section class="main">
+    <div class="page" id="view" tabindex="-1">
+      <div class="head">
+        <div>
+          <h1 id="ptitle">Sector Analysis</h1>
+          <p class="muted" id="ppurpose"></p>
+        </div>
+        <div class="actions"><span id="pills" class="pills"></span>
+          <span class="dd"><button class="btn" id="datebtn" type="button" aria-haspopup="menu" aria-expanded="false"><svg class="ic ic-sm"><use href="#i-cal"/></svg><span id="dlab">Loading</span><svg class="ic ic-sm"><use href="#i-chev"/></svg></button><div class="pop ddpop" id="datepop" role="menu" hidden></div></span>
+          <button class="btn primary" id="termbtn" type="button"><svg class="ic ic-sm"><use href="#i-terminal"/></svg><span id="termlab">Open in Terminal</span></button>
+        </div>
+      </div>
+      <div class="bar1">
+        <div class="tabs sx-tabs" id="tabs" role="tablist" aria-label="Sector Analysis views"></div>
+        <span class="sp"></span>
+        <span class="meta" id="tabmeta"></span>
+      </div>
+      <div id="boot" class="boot"><span class="ml-loading" role="status"><span class="ml-spin" aria-hidden="true"></span><span id="bootmsg">Loading</span></span></div>
+      <div id="body" hidden>
+        <div class="kpis sx-k" id="kpis"></div>
+        <div class="tabp" data-tab="ov" id="tab-ov"></div>
+        <div class="tabp" data-tab="rs" id="tab-rs" hidden></div>
+        <div class="tabp" data-tab="rot" id="tab-rot" hidden></div>
+        <div class="tabp" data-tab="pm" id="tab-pm" hidden></div>
+        <div class="tabp" data-tab="br" id="tab-br" hidden></div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
