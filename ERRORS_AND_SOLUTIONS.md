@@ -8887,7 +8887,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M568 — Re-check round 3 of the price-distortion release: effective windows measured on a sample of the split sizes and positions, a repeated badge name, one stale metric text (2026-11-26; fixed in `6a7c5f5d`, on the branch)
+### M568 — Re-check round 3 of the price-distortion release: effective windows measured on a sample of the split sizes and positions, a repeated badge name, one stale metric text (2026-11-26; fixed in `6a7c5f5d`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom (re-check round 3, five Sonnet medium agents, `agents_20261126-r3-backtest`, `-history`, `-screener`,
   `-terminal`, `-pages`; the user 2026-11-26: "Assign 5 sonnet medium to test out 9 perbaikan diatas cepat saja"):**
@@ -8928,7 +8928,7 @@ in its staleness check.
   past the window, all KAMA source=hl2 on GOTO. A dense sweep (a break at every third bar, 10:1 and 1:100, the eight
   fixtures, every bounded output and option, 91 in all): 90 inside their window; KAMA source=hl2 moves 264 bars after a
   10:1 break on GOTO at bar 411 against its window of 207.
-- **Status:** fixed in `6a7c5f5d`, on the branch, not deployed; tested by its author only (RECHECK.md
+- **Status:** fixed in `6a7c5f5d`, on the beta and the live site since 2026-11-26 (`c4d95e8a`); tested by its author only (RECHECK.md
   `agents_20261126-r3-*`). Open (EXEC-PRICE-DISTORTION, carried parts; asked as UD62): KAMA at source=hl2 on a stock near
   its floor. Its memory depends on where the break lands, not smoothly: a 10:1 break on GOTO at bar 408 moves it 23 bars,
   at bar 409 265 bars (measured; the mechanism is suspected, not verified: KAMA's adaptive constant near its slowest in
@@ -8938,7 +8938,7 @@ in its staleness check.
   an adaptive recursion it is not, so its window is either measured where the data is (every position) or left to the
   whole history.
 
-### M567 — An events file was not republished when a corporate action's content changed without a new row, date or load time (2026-11-26; fixed in `930931cd`, on the branch)
+### M567 — An events file was not republished when a corporate action's content changed without a new row, date or load time (2026-11-26; fixed in `930931cd`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom (found from the code, 2026-11-26, while answering the user):** the publisher republishes a ticker's events
   file only when its stamp changes: row count, last event date and last `ingestion_time` (`publisher.py` EVENT_STAMPS_SQL,
@@ -8953,11 +8953,12 @@ in its staleness check.
   sekarang"):** the stamp also carries an md5 of every column the events file and the broker basis read (load metadata
   left out); 1.26 s on dev for 124,380 rows. Test: an edited row republishes its ticker only; nothing changed, nothing
   published (fails without the digest).
-- **Status:** fixed in `930931cd`, on the branch, not deployed (a publisher upload; its first run republishes every events
-  file once); tested by its author only (RECHECK.md `errors/M567`).
+- **Status:** fixed in `930931cd`, deployed 2026-11-26: terminal-publisher `a8e90936` (CLI upload of `c4d95e8a`), its Run
+  Now planned all 864 events files once (the new stamp) and wrote none (the contents unchanged), as expected; on the beta
+  and the live site (`c4d95e8a`); tested by its author only (RECHECK.md `errors/M567`).
 - **Lesson:** a change stamp is a digest of what the reader reads, not of when it was loaded.
 
-### M566 — Re-check round 2 of the price-distortion release: a trade's flags on the run calendar's bar, a badge on rights issues above the market, effective windows measured on small breaks only (2026-11-26; fixed in `f3970f7d` and `978734ff`, on the beta)
+### M566 — Re-check round 2 of the price-distortion release: a trade's flags on the run calendar's bar, a badge on rights issues above the market, effective windows measured on small breaks only (2026-11-26; fixed in `f3970f7d` and `978734ff`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom (re-check round 2, five Opus medium agents, `agents_20261126-terminal`, `-screener`, `-backtest`,
   `-publisher`, `-history`, the user's go 2026-11-25; and the beta check of 2026-11-26):**
@@ -9006,7 +9007,8 @@ in its staleness check.
     172 to 203, ADX 198 to 229, KVO 377 to 557); Alpha KAMA (I05) and the PVO histogram read the whole history.
     `tests/core/reach.test.mjs` measures every setting with those breaks too, and its power check is a quarter of a
     window (a third is no longer always reached on the eight stocks).
-- **Status:** fixed in `f3970f7d` and `978734ff`, on the beta (`e9a3f013`, 2026-11-26), not on the live site. Re-check
+- **Status:** fixed in `f3970f7d` and `978734ff`, on the beta (`e9a3f013`, 2026-11-26) and the live site since 2026-11-26
+  (`c4d95e8a`). Re-check
   round 3 (`agents_20261126-r3-*`, M568): B2-1, B2-2, P2-2, S2-1, S2-3-S2-5, T2-1-T2-2 fixed; H2-1 partly (its open parts
   H3-1 and H3-2 fixed again in `6a7c5f5d`, KAMA source=hl2 asked as UD62) (RECHECK.md `agents_20261126-*`). Carried (EXEC-PRICE-DISTORTION, carried parts): P2-1 asked (UD60), P2-3 and S2-4 planned; S2-2
   (the live page reads the new worker until `live` moves) and P2-4 (the migration's fallback removes a chip the live
@@ -9015,7 +9017,7 @@ in its staleness check.
 - **Lesson:** a bound is measured on the largest perturbation the data holds, derived from the data (the corporate
   actions' sizes), not on a convenient one; an index is named by its numbering where it crosses a function boundary.
 
-### M565 — Statistics: "<polyline> attribute points: Expected number, "0.0,NaN …"" when IHSG has no close on the chart (2026-11-25; fixed in `8530a75e`, on the beta)
+### M565 — Statistics: "<polyline> attribute points: Expected number, "0.0,NaN …"" when IHSG has no close on the chart (2026-11-25; fixed in `8530a75e`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom (found in passing by the re-check agents_20261125-terminal, 2026-11-25):** with the Statistics panel open
   the console said `Error: <line> attribute y1: Expected length, "NaN".`, the same for `y2`, and
@@ -9046,7 +9048,7 @@ in its staleness check.
   not data and reaches the drawing as one.
 - **Status:** fixed in `8530a75e`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site; tested by its author only (RECHECK.md `errors/M565`).
 
-### M564 — The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch (2026-11-25; fixed in `8530a75e`, on the beta)
+### M564 — The Terminal's EMA lost its saved colour, width and offset on every load and every timeframe switch (2026-11-25; fixed in `8530a75e`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom (found in passing by the re-check agents_20261125-terminal, 2026-11-25, probe `ema.mjs`):** an EMA saved
   as `{"ema":{"on":true,"width":2,"color":"#171717"}}` (its `style.out`) came back as `{"ema":{"on":true}}` after a
@@ -9077,7 +9079,7 @@ in its staleness check.
 - **Lesson:** a saved form is told by its shape (what only that form has), never by an id a later definition may take.
 - **Status:** fixed in `8530a75e`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site; tested by its author only (RECHECK.md `errors/M564`).
 
-### M563 — A timeframe switch reloaded the whole Terminal page (2026-11-24; fixed in `cb688250`, on the beta since 2026-11-24)
+### M563 — A timeframe switch reloaded the whole Terminal page (2026-11-24; fixed in `cb688250`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom (the user, 2026-11-24):** "sepertinya toggle between timeline masih laggy untuk kondisi sekarang".
 - **Root cause (verified from code):** every section of the Terminal took the candles once when it started, so a
@@ -9109,7 +9111,7 @@ in its staleness check.
   registered globally is owned by that build; owning it centrally (one signal, one list) needs no change in the sections.
 - **Status:** fixed in `cb688250`, on the beta since 2026-11-24 (`6dee649d`, RAILWAY_CHANGELOG.md); tested by its author only; the live site does not run it.
 
-### M562 — WGSH 2026-03-31: a daily bar at half the price between two normal days (2026-11-24; marked by `4799ee94`, `e9fc3ab6`, `db7bf27e`, on the beta)
+### M562 — WGSH 2026-03-31: a daily bar at half the price between two normal days (2026-11-24; marked by `4799ee94`, `e9fc3ab6`, `db7bf27e`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom:** `Price_Stock_Indonesia_IDX` WGSH daily: 2026-03-30 close 125, 2026-03-31 close 65 (-48.0 %), 2026-04-01
   close 128 (+96.9 %); no corporate action on those dates. Both moves are beyond any IDX daily limit of the time.
@@ -9130,7 +9132,7 @@ in its staleness check.
 - **Status:** marked by `4799ee94`, `e9fc3ab6` and `db7bf27e`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site; tested by its author only
   (RECHECK.md `errors/M559-M562`). The source bar stays wrong (UD45 A).
 
-### M561 — A detected price distortion hides values (Screener rows, Backtest Flow values) instead of marking them (2026-11-24; fixed in `e9fc3ab6`, `db7bf27e` and `61def35d`, on the beta)
+### M561 — A detected price distortion hides values (Screener rows, Backtest Flow values) instead of marking them (2026-11-24; fixed in `e9fc3ab6`, `db7bf27e` and `61def35d`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom (the user, 2026-11-24):** "Tadi ada saham yang meskipun price distort, kita hide kan untuk screener. Dan untuk
   backtest ada lagi ternyata nilai indikator flow yang di hide karena price detected as distort ... Ini aneh dan ini
@@ -9186,7 +9188,7 @@ in its staleness check.
   `errors/M559-M562`, `errors/M561-D5`); the whole-history part asked (UD55, built on the branch by an agent).
 - **Lesson:** a quality flag marks a value; hiding it is a separate choice the user makes explicitly, per reader.
 
-### M560 — The publisher reads three stocks pulled again as "close not reloaded" (broker basis `price`) (2026-11-24; fixed in `4799ee94`, on the beta)
+### M560 — The publisher reads three stocks pulled again as "close not reloaded" (broker basis `price`) (2026-11-24; fixed in `4799ee94`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom:** the broker basis rows (`apps/terminal-publisher/publisher.py` `broker_basis`), recomputed with the
   publisher's own function on dev's rows (read-only role, 2026-11-24, broker data through 2026-11-09), give `price`
@@ -9219,7 +9221,7 @@ in its staleness check.
 - **Lesson:** a measured flag is checked against a case whose answer is known (here the six stocks pulled again) before
   it is used to hide or show data.
 
-### M559 — The Screener hides and labels "history not adjusted" stocks whose price history was already pulled again (2026-11-24; fixed in `e9fc3ab6`, on the beta)
+### M559 — The Screener hides and labels "history not adjusted" stocks whose price history was already pulled again (2026-11-24; fixed in `e9fc3ab6`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Symptom:** FORU (rights issue, ex 2026-09-22) and PBSA (split 1:2, ex 2026-10-14) are left out of every default
   screen by the chip "No unadjusted price break", and when the chip is off their row reads "Price break: ... history
@@ -9262,7 +9264,7 @@ in its staleness check.
 - **Lesson:** a TEMPORARY rule that stands in for missing data is tied to that data: when the data arrives (here the
   pull and the measured basis), every rule that stood in for it is revisited in the same task.
 
-### M558 — Checker round of the lab Pine indicators before their beta release: 60 findings, two fix rounds (2026-11-23; fixed in `12863820`, `9afa833f` and `c91e2809`, on the beta since 2026-11-23, parts open below)
+### M558 — Checker round of the lab Pine indicators before their beta release: 60 findings, two fix rounds (2026-11-23; fixed in `12863820`, `9afa833f` and `c91e2809`, on the live site since 2026-11-26 (`c4d95e8a`), parts open below)
 
 - **Found by:** the user's "All at once ... jalankan pengecekan visual, accuracy angka, kecepatan (smoothness), loading
   time, dll dengan 10 agent subsonnet high. Bereskan temuan. Deploy." Ten Sonnet checkers at effort high, one per area
@@ -9342,7 +9344,7 @@ in its staleness check.
 - **Status:** on the beta since 2026-11-23 (`c91e2809`, RAILWAY_CHANGELOG.md); the re-check round 1 found 31 fixed and
   the rest open or kept as above, its new defects fixed in round 2 and tested out; the live site does not run it.
 
-### M557 — The Terminal broke a Pine line at a bar without a value, where TradingView runs it on (2026-11-23; fixed in `2ebbf6b5`, on the beta since 2026-11-23)
+### M557 — The Terminal broke a Pine line at a bar without a value, where TradingView runs it on (2026-11-23; fixed in `2ebbf6b5`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Found by:** the user, comparing the Alpha Price Action BUY / SELL screenshots with TradingView (2026-11-23: "untuk
   candle A, buy dan sell, sepertinya ada line chart yang putus-putus").
@@ -9358,7 +9360,7 @@ in its staleness check.
 - **Lesson for new data:** read each Pine `plot`'s style when translating: a joining style is `join: true`.
 - **Status:** on the beta since 2026-11-23 (`c91e2809`); look_check11 PASS; the live site does not run it.
 
-### M556 — A plan catalog test assumed one lab indicator, so the branch's Backend tests turned red with I55-I58 (2026-11-23; fixed in `a52b07bf`, on the beta since 2026-11-23)
+### M556 — A plan catalog test assumed one lab indicator, so the branch's Backend tests turned red with I55-I58 (2026-11-23; fixed in `a52b07bf`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Found by:** CI "Backend tests", job edge-bff, on the session branch at `0613006c` and `4111a5c3`:
   `tests/test_plan_catalog.py::test_the_catalog_route_filters_by_the_resolved_plan` (1 failed, 1256 passed).
@@ -9372,7 +9374,7 @@ in its staleness check.
   indicator at `lab` is in the answer.
 - **Status:** on the beta since 2026-11-23 (`c91e2809`); local run 16 passed (the file) and 52 passed (the tests that read the release file).
 
-### M555 — The Screener's unit probe judged a series by its start, so a Pine recursion from 0 was not a price level (2026-11-23; fixed in `7f193584`, on the beta since 2026-11-23)
+### M555 — The Screener's unit probe judged a series by its start, so a Pine recursion from 0 was not a price level (2026-11-23; fixed in `7f193584`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Found by:** the lab indicator Alpha KAMA (I58, EXEC-PINE-INDICATORS): `npm run registry` in `apps/edge-bff/screener`
   stopped with "overlay I58.kama: state_level needs a level comparable with a bar field (the scaling probe finds
@@ -9399,7 +9401,7 @@ in its staleness check.
   definition (here: after the start); a new probe states the part of the fixture it reads.
 - **Status:** on the beta since 2026-11-23 (`7f193584` in `c91e2809`); the live site does not run it.
 
-### M554 — The Backtest read "a price line" and "the other output" by a name rule, not by what the outputs are (2026-11-23; fixed in `afcf2841` and `ce188bbb`, on the beta since 2026-11-23)
+### M554 — The Backtest read "a price line" and "the other output" by a name rule, not by what the outputs are (2026-11-23; fixed in `afcf2841` and `ce188bbb`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Found by:** the lab indicators Inside Bar Detection (I55) and Alpha Price Action BUY/SELL (I56, I57)
   (EXEC-PINE-INDICATORS, group 1): `apps/backtest-worker` `tests/engine.test.ts` "price lines are the outputs of the
@@ -9437,7 +9439,7 @@ in its staleness check.
   screener-worker suite's pointer test, red at `afcf2841`); the pointer moved in `7f193584`.
 - **Status:** on the beta since 2026-11-23 (`afcf2841`, `ce188bbb`, `7f193584` in `c91e2809`); the live site does not run it.
 
-### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23; fixed in `0c2d14d7`, records `99adf57d` (agent commits 3609d50c, 60651af6), on the beta)
+### M553 — INDICATOR_BETA_TO_LIVE.md Part A: the tripwire record it asks for is refused for every lab indicator (2026-11-23; fixed in `0c2d14d7`, records `99adf57d` (agent commits 3609d50c, 60651af6), on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Found by:** the pilot lab indicator Alpha Volatile (EXEC-PINE-INDICATORS, id I54), Part A "The tripwire in Part A".
 - **Symptom:** `npm run tripwire -- --record-core --exec EXEC-PINE-INDICATORS ...` (and `--record`) in `apps/edge-bff/screener`
@@ -9475,7 +9477,7 @@ in its staleness check.
 - **Status:** fixed in `0c2d14d7` and `99adf57d`, on the beta (`cb9bdfb6`, 2026-11-26), not on the live site; tested by its author only (RECHECK.md, `errors/M553`).
   The Screener core changes after it (EXEC-PRICE-DISTORTION, UD36, UD33 B) need a core record before `main`.
 
-### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed in `61fb22c4`, on the beta since 2026-11-23 (`fb4a5c3c`))
+### M552 — The check of steps 2-3 (preview, lab Flow): 20 findings, 18 fixed, 2 asked or carried (2026-11-23; found by `wf_6a8c44c8-978`; fixed in `61fb22c4`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **The check (the user 2026-11-23: "2 dan 3 ajukan workflow opus 5.5 xhigh 3 agent tuk cek seperti biasa. Ada error =
   betulkan. Yang di benerin di remark untuk step 8 nanti. Setelah itu deploy."):** three fresh agents at xhigh (preview
@@ -9526,7 +9528,7 @@ in its staleness check.
 - **Lesson:** a stage rule must be planted on disk, not only by replacing the module's file in memory; a workflow's
   worktrees must start at the commit being checked.
 
-### M551 — The lab Flow indicator's registration point, and what its dry run found (2026-11-23; built in `521c5048`, on the beta since 2026-11-23 (`fb4a5c3c`))
+### M551 — The lab Flow indicator's registration point, and what its dry run found (2026-11-23; built in `521c5048`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Request (the user 2026-11-23, step 3 of the sequence):** "Satu batasan yang masih ada: indikator Flow (FL) baru belum
   bisa dijadikan lab, karena titik pendaftaran rumusnya belum dibangun. Kalau Anda mau menambah FL khusus beta, bagian
@@ -9572,7 +9574,7 @@ in its staleness check.
 - **Lesson:** a file that names items by id is part of the release filter from its first commit; a gate that may skip a
   missing formula must first prove each one exists.
 
-### M550 — The preview release stage: an item on the live site for the admin only (2026-11-23; built in `1894adfc`, on the beta since 2026-11-23 (`fb4a5c3c`))
+### M550 — The preview release stage: an item on the live site for the admin only (2026-11-23; built in `1894adfc`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Request (the user 2026-11-23):** "apakah versi indikator yang released dari main ke live bisa dibedakan antara user
   paid dan admin? misalkan ada indikator baru di main --> promote ke live, tapi saya mau promote ke live hanya admin
@@ -9605,7 +9607,7 @@ in its staleness check.
 - **Lesson:** a stage rule written as `== 'lab'` in more than one place reads every new stage as released; the rule is
   one predicate (`releases.held_back`) and `beta_only` alone keeps `== lab`.
 
-### M549 — The test-out of items 1-3 of 2026-11-23: the guide, the lab lift and the registration window (2026-11-23; found by the test-out `wf_4181198a-09f`; FIXED in `083dbc23`, on the beta since 2026-11-23 (`59712547`))
+### M549 — The test-out of items 1-3 of 2026-11-23: the guide, the lab lift and the registration window (2026-11-23; found by the test-out `wf_4181198a-09f`; FIXED in `083dbc23`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **The test-out (three fresh agents at xhigh, the user's "Untuk workflow, pengecekan menggunakan Opus 5,5 xhigh"):**
   19 findings, 6 medium. The guide was followed cold from lab to released (CI's full edge-bff suite 1228 passed in the
@@ -9640,7 +9642,7 @@ in its staleness check.
   'Resend code' while the live site is closed; a lab candle pattern.
 - **Status:** FIXED on the branch, `083dbc23`; its test-out joins step 8 (EXEC UD23).
 
-### M548 — The lab item guard lifted; its dry run found the look-ahead gate passing a lab indicator without computing it (2026-11-23; found by the dry run; FIXED in `6ab63c15`, on the beta since 2026-11-23 (`59712547`))
+### M548 — The lab item guard lifted; its dry run found the look-ahead gate passing a lab indicator without computing it (2026-11-23; found by the dry run; FIXED in `6ab63c15`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **The user (2026-11-23):** "Cabut tes penjaga lab".
 - **Lifted per kind** (`apps/edge-bff/tests/test_releases.py`, `LAB_ITEM_HELD_UNTIL` replaced by `LAB_KIND_HELD`): an
@@ -9800,7 +9802,7 @@ in its staleness check.
   runs pass (ERRORS M546). It reaches `main` with that branch, which needs the user's confirmation (AGENTS.md
   "Deploys").
 
-### M540 — Terminal: judul Loaders (FL51) menulis "Sell" saat pilihan Show = Loaders (2026-11-22; FIXED on the beta, `44cdf484`)
+### M540 — Terminal: judul Loaders (FL51) menulis "Sell" saat pilihan Show = Loaders (2026-11-22; FIXED in `44cdf484`, on the live site since 2026-11-26 (`c4d95e8a`))
 
 - **Ditemukan oleh:** verifikasi ronde 2 M538 di beta (pengaturan pemilik: FL51 `side: 'load'`, `top: '3'`).
 - **Gejala:** judul legenda "Loaders (Top 3, Sell, Domestic · Regular, from …)" padahal yang ditampilkan adalah pembeli

@@ -9624,7 +9624,7 @@
     "6ab63c15"
    ],
    "fix_note": "6ab63c15",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9650,7 +9650,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9676,7 +9676,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9702,7 +9702,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9728,7 +9728,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9754,7 +9754,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9780,7 +9780,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9806,7 +9806,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9832,7 +9832,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9858,7 +9858,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9884,7 +9884,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9910,7 +9910,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9936,7 +9936,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9962,7 +9962,7 @@
     "083dbc23"
    ],
    "fix_note": "083dbc23",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -9986,7 +9986,7 @@
     "d6f5b18a"
    ],
    "fix_note": "d6f5b18a",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10012,7 +10012,7 @@
     "1894adfc"
    ],
    "fix_note": "1894adfc",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10040,7 +10040,7 @@
     "b24361fd"
    ],
    "fix_note": "521c5048 (with f1436829, b24361fd)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10218,7 +10218,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10244,7 +10244,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10270,7 +10270,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10296,7 +10296,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "EXEC Carried open parts: items named by value in covered files",
@@ -10322,7 +10322,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10348,7 +10348,7 @@
     "bb638e12"
    ],
    "fix_note": "bb638e12 (ERRORS M552 PV-2)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10374,7 +10374,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10400,7 +10400,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10426,7 +10426,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "EXEC Carried open parts: the stored examples match by kind (the guard is in, the real fix carried)",
@@ -10452,7 +10452,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10478,7 +10478,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10504,7 +10504,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10530,7 +10530,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10556,7 +10556,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10582,7 +10582,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10608,7 +10608,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10634,7 +10634,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10660,7 +10660,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10686,7 +10686,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10712,7 +10712,7 @@
     "61fb22c4"
    ],
    "fix_note": "61fb22c4 (ERRORS M552)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "",
    "status": "waiting",
    "open_row": "",
@@ -10739,7 +10739,7 @@
     "2f8b012c"
    ],
    "fix_note": "c91e2809 (the close of the rule 8 round 2); round-3 fix: 2f8b012c (agent commit 1901dcaf: cuts on each series' change bars in both gates and the real-data check, screener/tests/core/cuts.ts; a self-test of 44 planted reads)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "A planted read of 20 bars ahead (inCategories) fails both gates, the worker tests/lookahead.test.ts and the Screener tests/core/asof.test.ts (1 failed each), then restored; the Screener (1363) and Backtest (104) suites and the worker look-ahead, grammar and lab tests (22) passed (c91e2809)",
    "status": "fixed",
    "open_row": "",
@@ -10793,7 +10793,7 @@
     "c91e2809"
    ],
    "fix_note": "c91e2809 (the close of the rule 8 round 2)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "No test of its own; the Screener suite (1363) passed (c91e2809: one syncMetric in forms.ts for the builder and the Customize panel)",
    "status": "fixed",
    "open_row": "",
@@ -10827,7 +10827,7 @@
     "8530a75e"
    ],
    "fix_note": "c91e2809 (the close of the rule 8 round 2); round-1 fix: 8530a75e (agent commit ab64b8cf)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "No test of its own; the Terminal suite (1154) and look_check11 passed (c91e2809: ctx.indicatorColors and ctx.assetColors)",
    "status": "fixed",
    "open_row": "",
@@ -10882,7 +10882,7 @@
     "8530a75e"
    ],
    "fix_note": "c91e2809 (the close of the rule 8 round 2); round-1 fix: 8530a75e (agent commit ab64b8cf)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "No test of its own; the Terminal suite (1154) and look_check11 passed (c91e2809: x and y snapped each on its own pixel ratio)",
    "status": "fixed",
    "open_row": "",
@@ -10937,7 +10937,7 @@
     "8530a75e"
    ],
    "fix_note": "cb688250 (switchTimeframe, src/app/life.ts); round-1 fix: 8530a75e (agent commit ab64b8cf)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "tf_switch_parity.mjs (public build with EMA and FL03, lab build with EMA, Alpha KAMA and FL03: six switches in place, canvases, charts, legend rows and document listeners equal to a fresh load, no page error); tf_switch_compare.mjs (verification/terminal_api/terminal_look/tf_switch_2026-11-24.json: 1,337 to 375 ms with 150 ms delay); tests/data/life.test.ts; the Terminal suite (1,156); look_check11.mjs; edge-bff test_3f_public_bundles, test_releases, test_3f_lab_pages, test_storage_registry (ERRORS M563 \"Checked\")",
    "status": "fixed",
    "open_row": "",
@@ -10979,7 +10979,7 @@
     "99adf57d"
    ],
    "fix_note": "0c2d14d7 (--record-release, its tests, the guide; agent commit 3609d50c), 99adf57d (the records of I54-I60, M554, M555; agent commit 60651af6)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "node --test scripts/screener/check_backtest_untouched.test.mjs 9/9 (4 new, a mutation with the formula comparison off turns red); scripts/tests/test_generated_files.py 6/6; npm run tripwire OK against 5a722475, e4e3583e and origin/main on the agent commit",
    "status": "fixed",
    "open_row": "",
@@ -11012,7 +11012,7 @@
     "e926355d"
    ],
    "fix_note": "e926355d (reach probe on four price shapes in build-screener-registry.mjs, registry rebuilt, tests/core/reach.test.mjs; agent commit f1914745)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "screener vitest 1368 pass; reach.test.mjs fails on the previous registry on exactly the 16 lab outputs; look-ahead gate 10/10; screener-worker 147/149 (the two heap tests of this machine); onboarding pointers 2/2; test_generated_files 6/6",
    "status": "fixed",
    "open_row": "",
@@ -11045,7 +11045,7 @@
     "3f05a220"
    ],
    "fix_note": "3f05a220 (terminal/src/calc/settle.ts, SETTLE.alpha_kama in the lab module, legend note; agent commit b6d28f69)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "Terminal vitest 1165/1165 (settle.test.ts 9 new); tsc clean; npm run build; look_check11.mjs PASS (public build); the lab build in a browser draws KAMA first at D 238, W 318, M none, 15m 278, 1h 296 with no markers before and no page errors; registry:check current; the public bundle holds no alpha_kama",
    "status": "fixed",
    "open_row": "",
@@ -11089,7 +11089,7 @@
     "f3970f7d"
    ],
    "fix_note": "4799ee94 (pricecheck.ts, publisher price_check_side), e9fc3ab6 (Screener row badges, chips off), db7bf27e (Backtest: Flow values kept and noted, trade flags, PRICE_DISTORTIONS), af806747 (docs), 6b86cf6e (migration 20261125_001, not applied); round-1 fixes: fa1f1f60 (Screener 1D note by kind, the anomaly check on every stock, the CSV kind), 6a2473fd (Backtest R3 point-in-time Flow values, flags reach the result, entry-only flags, legacy reach), 6d254189 (publisher side from the closes either side, no side above the market, EVENTS_FORMAT 4, verify of the basis column, the migration safe on odd rows)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "screener pricecheck.test.ts on real cases (VKTR, AHAP, BUVA, FORU, PBSA, PSSI, WGSH); publisher tests 261 and tests/test_price_check.py; Screener vitest 1370; screener-worker 146/149 (two heap tests of this machine, one queue test passes alone); backtest-worker 288/289 (M463 heap test of this machine); look-ahead gate 24/24; Backtest page 107/107; the migration rehearsed on a local scratch database (apply, refused rerun, rollback)",
    "status": "partly",
    "open_row": "EXEC-PRICE-DISTORTION, carried parts: M559-M562 Backtest on the beta (a checker signed in reproduces the trade flags)",
@@ -11144,7 +11144,7 @@
     "ff6228c1"
    ],
    "fix_note": "185c0dd5 (robustness.ts codedSide, the setting axis, grid_accepts; agent commit 2d954707); round-1 fix: ff6228c1 (agent commit c0f0bf4c: the axis is the first setting whose columns change the condition on the run's data, engine.ts columnMoves, grid_moves; the Deflated Sharpe counts distinct results)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "backtest-worker 288/289 (4 new; M463 heap test of this machine); look-ahead gate 31/31; registry:check current; Backtest page vitest 106/106, smoke 57/57 (two loading-ring timing steps failed in 3 of 5 early runs, then passed); Screener vitest 1363; screener-worker 147/149",
    "status": "fixed",
    "open_row": "",
@@ -11185,7 +11185,7 @@
     "6d254189"
    ],
    "fix_note": "61def35d (agent commit a4c8a6aa) (publisher.py action_basis_column and published_basis; build-screener-registry.mjs basisReads, registry rebuilt; condition.ts cellOf, flowStart, bindWindow; evaluate.ts crossedDates, cellRemarkOf; screen.ts shownRemarks; universe.ts flowBasisDates; screener-worker snapshot.ts flowBasis, run.ts flowBasisDates, catalog.ts; texts.ts cellRemarkText); round-1 fix: 6d254189 (verify compares the basis column with the events files)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "screener: tsc, vitest 1394 pass (tests/core/flow-basis.test.ts 19: the probe on the real entries and a planted self-test, rupiah not marked, lots across terms marked, same not, old file marks, a window test, D-1, the words; oracle.test.ts compares remark_dates on 240 random screens), registry:check current; screener-worker 148/150 (the two heap tests of this machine fail, as on the base commit; tests/flow.test.ts \"EXEC-PRICE-DISTORTION D-5\" end to end through the fake terminal with and without the basis column; onboarding pointers 2/2); publisher pytest 265 (action_basis_column, the actions file equals the events file's status, packs mode reads the events file and runs no basis SQL); look-ahead gate 10/10, pit, flow-grammar, grammar 21/21; test_generated_files, test_recheck_ledger, test_recheck_doc",
    "status": "fixed",
    "open_row": "",
@@ -11225,7 +11225,7 @@
     "8530a75e"
    ],
    "fix_note": "8530a75e (agent commit ab64b8cf; src/data/migrateSaved.ts: the old form told by its shape; indicators.ts migrate)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "tests/data/migrate_saved.test.ts (3); the Terminal suite (1,181); the re-check's ema.mjs (the saved style kept after a switch and a reload); ema2.mjs (an EMA saved #d6409f, width 3, dashed, offset 2 and an old {def:ma, type:WMA} entry: after the load, a switch to W in place and a reload the saved list, the export and the legend keep both); look_check11.mjs PASS (ERRORS M564 \"Checked\")",
    "status": "fixed",
    "open_row": "",
@@ -11258,7 +11258,7 @@
     "8530a75e"
    ],
    "fix_note": "8530a75e (agent commit ab64b8cf; src/data/live.ts ihsgOnCandles: no series without an IHSG close; stats.ts ihsgNone)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "tests/data/ihsg_candles.test.ts (3); the Terminal suite (1,181); nan.mjs on the harness without IHSG, the panel open, daily and 15m: 0 NaN attributes and no SVG error at load and after zooming in (before 9 and 96), the panel reads \"No IHSG data for this chart\"; with an IHSG file both lines drawn, no error (ERRORS M565 \"Checked\")",
    "status": "fixed",
    "open_row": "",
@@ -11294,7 +11294,7 @@
     "978734ff"
    ],
    "fix_note": "7d3e5b3c (agent 42e2d99e) (build-screener-registry.mjs effectiveProbe, effectiveCut, effectiveDecay, effectiveScaling, historyByOption, PROBE.effective and its five new shapes, registry rebuilt; new src/core/effective.ts movingBars, effectiveStarts, effectiveStartAt; registry.ts historyOf and the EffectiveWindow types; metrics.ts resolveIndicator historyClass and effectiveWindow; evaluate.ts seriesLookbackStart and seriesLookbackStarts; condition.ts startOf; backtest-worker grammar.ts noteReach; docs SCREENER_ONBOARDING.md, BACKTEST_END_TO_END.md, backtest/CONTRACT.md, contract.ts); 32fdb581 (agent 5edf87b3) (reach.test.mjs: the real-price checks share one measurement and yield to the event loop)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "screener: tsc, vitest 1402 pass and 1 skipped (54 files, two full runs clean; tests/core/reach.test.mjs 10: the eight real-price fixtures cut at 0.1 % at 208 settings, start, x1.5, x2, x3 and every option with a window, none exceeds its window; every window at a third fails; planted unadjusted splits x5, x2, x0.5 every 97 bars end inside the window, at most 0.78 of it; the RSI rule; Bollinger I27-I29 recursive at EMA and RMA; tests/core/lookback.test.ts: RSI unmarked on its window's first bar and marked one bar later, a break far older not, its row badge with it, Stochastic RSI and RSI 100 always, Bollinger basis at EMA marked 40 bars after, at SMA not; oracle.test.ts reads the window on its own on 240 random screens), registry:check current; backtest-worker 289/290 (the M463 heap test of this machine), look-ahead gate files 32/32 (lookahead, pit, flow-grammar, grammar with the new reach test: Calc.reach equals the Screener cell mark, the trade flag follows); Backtest page tsc, vitest 107/107; screener-worker 148/150 (the two heap tests of this machine; onboarding pointers 2/2); test_generated_files, test_recheck_ledger, test_recheck_doc",
    "status": "fixed",
    "open_row": "",
@@ -11334,7 +11334,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (engine.ts tradeDistortions(q.r.p, q.j, i))",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "flow-grammar.test.ts (a period from 2021-03: flagged exactly the signals whose FL17 window reads across the action; fails on the old line) and grammar.test.ts (a spike two months before every signal flags none from bar 150; from bar 1 the trades whose window holds it; fails on the old line); worker suites lookahead, pit, flow-grammar, grammar, engine, run, result green",
    "status": "fixed",
    "open_row": "",
@@ -11367,7 +11367,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (engine.ts: the warning reads FlowNotes.entry too)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "flow-grammar.test.ts: a vs_average over FL01 flags trades and warns FLOW_BASIS_CHANGE (fails without the fix)",
    "status": "fixed",
    "open_row": "",
@@ -11400,7 +11400,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (pricecheck.ts verdict none, universe.ts no remark; engine.ts priceDistortions no distortion for a terms factor below 1)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "universe.test.ts (BAJA 2:1 at Rp500 against 334 and 316: no remark; in the money still unadjusted), pricecheck.test.ts, engine.test.ts (above the market no flag whatever the session does; fails without the fix); Screener core 205 and worker suites green",
    "status": "fixed",
    "open_row": "",
@@ -11433,7 +11433,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (texts.ts ACTION keys RIGHT_ISSUE and BONUS_SHARE, the anomaly reason, chipNoBreak \"No price break or anomaly\"; smoke.mjs, universe-ui.ts, contract.ts)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "Screener core and page suites green; the smoke test reads the new chip label",
    "status": "fixed",
    "open_row": "",
@@ -11466,7 +11466,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (engine.ts priceDistortions reads the publisher's side as written)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "engine.test.ts (side raw unadjusted, null uncertain from the boundary, CMNP 2020-11-10 none)",
    "status": "fixed",
    "open_row": "",
@@ -11499,7 +11499,7 @@
     "f3970f7d"
    ],
    "fix_note": "f3970f7d (colorPicker.ts usedRow: the box's own colour first; assets.ts assetColors only the compare lines shown)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "color_picker.test.ts usedRow (3 cases); the Terminal suite 1,182 green; typecheck and build",
    "status": "fixed",
    "open_row": "",
@@ -11532,7 +11532,7 @@
     "978734ff"
    ],
    "fix_note": "978734ff (build-screener-registry.mjs effectiveProbe: breaks of every size the data holds on the shapes and the real fixtures; the registry rebuilt)",
-   "runs_on": "beta",
+   "runs_on": "live",
    "author_test": "tests/core/reach.test.mjs at every measured setting with breaks 100, 20, 2, 0.5, 0.2, 1e-5 on the eight real fixtures (10 of 10 green); npm run registry:check current",
    "status": "partly",
    "open_row": "EXEC-PRICE-DISTORTION, carried parts: H3-1 KAMA source=hl2 (UD62); H3-1 and H3-2 fixed again (agents_20261126-r3-history rows)",
@@ -11565,7 +11565,7 @@
     "930931cd"
    ],
    "fix_note": "930931cd (EVENT_STAMPS_SQL content digest; changed_events stamp content=)",
-   "runs_on": "branch",
+   "runs_on": "live",
    "author_test": "tests/test_publisher.py test_an_event_row_whose_content_changes_republishes_its_ticker_only (fails without the digest); publisher 269 passed; EXPLAIN ANALYZE on dev 1.26 s",
    "status": "waiting",
    "open_row": "",
@@ -11590,14 +11590,14 @@
     "6a7c5f5d"
    ],
    "fix_note": "6a7c5f5d (build-screener-registry.mjs: break_factors every size the data holds, 0.1, 0.05, 0.04, 10, 25, 50 added; the registry rebuilt; KAMA source=low and open read the whole history)",
-   "runs_on": "branch",
+   "runs_on": "live",
    "author_test": "the agent's probe on the rebuilt registry (KAMA, ADX, RSI at every option, eleven factors, a break every 61 bars on the eight fixtures): 31,416 checks, 3 past the window, all KAMA source=hl2 (open part, UD62); a dense sweep of every bounded output and option (a break every third bar, 10:1 and 1:100): 90 of 91 inside; npm run registry:check current",
    "status": "waiting",
    "open_row": "",
    "recheck": [],
    "recheck_action": "Plant reverse splits 10:1, 20:1, 25:1 and splits 1:10 to 1:100 at every option of KAMA (I05) and the other recursive outputs on the eight real fixtures at several strides: no output with a window moves by more than 0.1 % past it, except the open KAMA source=hl2 part (UD62). Collateral: the cell marks and row badges on the beta, the Backtest trade flags (grammar.ts noteReach), tests/core/reach.test.mjs.",
    "tested_out_by": "none",
-   "evidence": "ERRORS M568 Status: 'fixed in `6a7c5f5d`, on the branch, not deployed; tested by its author only'",
+   "evidence": "ERRORS M568 Status: 'fixed in `6a7c5f5d`, on the beta and the live site since 2026-11-26 (`c4d95e8a`); tested by its author only'",
    "from": "fix"
   },
   {
@@ -11615,14 +11615,14 @@
     "6a7c5f5d"
    ],
    "fix_note": "6a7c5f5d (build-screener-registry.mjs: every window raised by window_margin 5 %; the registry rebuilt: RSI 14 193 to 203, ADX 229 to 241)",
-   "runs_on": "branch",
+   "runs_on": "live",
    "author_test": "the agent's probe and a dense sweep (a break every third bar, 1:100 and 10:1, eight fixtures): RSI, +DI, ADX inside their windows at every option",
    "status": "waiting",
    "open_row": "",
    "recheck": [],
    "recheck_action": "Plant a 1:100 split at every bar of IHSG and the other fixtures: RSI, +DI and ADX at every option move by no more than 0.1 % past their windows.",
    "tested_out_by": "none",
-   "evidence": "ERRORS M568 Status: 'fixed in `6a7c5f5d`, on the branch, not deployed; tested by its author only'",
+   "evidence": "ERRORS M568 Status: 'fixed in `6a7c5f5d`, on the beta and the live site since 2026-11-26 (`c4d95e8a`); tested by its author only'",
    "from": "fix"
   },
   {
@@ -11640,14 +11640,14 @@
     "6a7c5f5d"
    ],
    "fix_note": "6a7c5f5d (screener-metrics.json rs_rank interpretation: no price break, possible break or price anomaly)",
-   "runs_on": "branch",
+   "runs_on": "live",
    "author_test": "read back the catalog text; tests/core/metrics.test.ts green",
    "status": "waiting",
    "open_row": "",
    "recheck": [],
    "recheck_action": "Read every metric text that names the price-break population against the rule in universe.ts (excluded: unadjusted, uncertain, anomaly).",
    "tested_out_by": "none",
-   "evidence": "ERRORS M568 Status: 'fixed in `6a7c5f5d`, on the branch, not deployed; tested by its author only'",
+   "evidence": "ERRORS M568 Status: 'fixed in `6a7c5f5d`, on the beta and the live site since 2026-11-26 (`c4d95e8a`); tested by its author only'",
    "from": "fix"
   },
   {
@@ -11665,14 +11665,14 @@
     "6a7c5f5d"
    ],
    "fix_note": "6a7c5f5d (texts.ts rowRemarkLabel names each kind once; results.ts reads it)",
-   "runs_on": "branch",
+   "runs_on": "live",
    "author_test": "tests/page/quick-ui.test.ts: two anomalies give one name, the title both dates",
    "status": "waiting",
    "open_row": "",
    "recheck": [],
    "recheck_action": "Open the beta Screener on a stock with two remarks of one kind (WGSH): the badge is read once, its title lists both dates.",
    "tested_out_by": "none",
-   "evidence": "ERRORS M568 Status: 'fixed in `6a7c5f5d`, on the branch, not deployed; tested by its author only'",
+   "evidence": "ERRORS M568 Status: 'fixed in `6a7c5f5d`, on the beta and the live site since 2026-11-26 (`c4d95e8a`); tested by its author only'",
    "from": "fix"
   }
  ]

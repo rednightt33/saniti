@@ -32,11 +32,11 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Mode contoh untuk pengunjung dan paket gratis | EXEC-MU-ACCOUNTS | 11 | 11 | 0 | 0 | 0 | 0 |
 | Halaman admin dan support (Fase 4) | EXEC-MU-ACCOUNTS | 3 | 3 | 0 | 0 | 0 | 0 |
 | Test-out fix round 1 (2026-11-22) | EXEC-MU-ACCOUNTS | 19 | 14 | 0 | 0 | 4 | 1 |
-| Perbaikan sesudah ledger langkah 8 (2026-11-22/23) | EXEC-MU-ACCOUNTS | 7 | 3 | 4 | 0 | 0 | 0 |
-| Panduan lab, lab dibuka, jendela registrasi (test-out 2026-11-23) | EXEC-MU-ACCOUNTS | 17 | 0 | 13 | 0 | 4 | 0 |
-| Tahap preview dan Flow lab (cek langkah 2-3) | EXEC-MU-ACCOUNTS | 20 | 0 | 20 | 0 | 0 | 0 |
-| Publisher: berkas events terbit ulang bila isi aksi korporasi berubah (ERRORS M567) | EXEC-EVENTS-STAMP | 1 | 0 | 0 | 1 | 0 | 0 |
-| Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) | EXEC-PRICE-DISTORTION | 4 | 0 | 0 | 4 | 0 | 0 |
+| Perbaikan sesudah ledger langkah 8 (2026-11-22/23) | EXEC-MU-ACCOUNTS | 7 | 7 | 0 | 0 | 0 | 0 |
+| Panduan lab, lab dibuka, jendela registrasi (test-out 2026-11-23) | EXEC-MU-ACCOUNTS | 17 | 13 | 0 | 0 | 4 | 0 |
+| Tahap preview dan Flow lab (cek langkah 2-3) | EXEC-MU-ACCOUNTS | 20 | 20 | 0 | 0 | 0 | 0 |
+| Publisher: berkas events terbit ulang bila isi aksi korporasi berubah (ERRORS M567) | EXEC-EVENTS-STAMP | 1 | 1 | 0 | 0 | 0 | 0 |
+| Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) | EXEC-PRICE-DISTORTION | 4 | 4 | 0 | 0 | 0 | 0 |
 
 ### Akun dan keamanan: re-check ronde 1 (R1) (40)
 
@@ -253,28 +253,28 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | `after-ledger/M539` | CI "too many clients": the store fixture leaked a pool per test | `4f1e6d3e` | live | M539 | 0 |
 | `after-ledger/M546` | The admin-page browser test counted /backtest-app/ 404 (built_pages fixture) | `6b3edc6c` | live | M541, M546 | 0 |
 | `after-ledger/M547` | The AI page's Sources fold closed again when the panel was drawn anew | `4f1e6d3e` | live | M547 | 0 |
-| `after-ledger/M548` | The lab item guard lifted; the look-ahead gate passed a lab indicator without computing it | `6ab63c15` | beta | M548 | 0 |
-| `after-ledger/step7` | The payment shell (adapters, order state machine, hook routes off unless EDGE_PAYMENTS_PROVIDER, migration 20261123_001) | `d6f5b18a` | beta | - | 0 |
-| `after-ledger/M550` | The preview release stage (admin only on the live site) | `1894adfc` | beta | M550 | 0 |
-| `after-ledger/M551` | The lab Flow indicator's registration point and its dry-run fixes D1-D6 | `521c5048`, `f1436829`, `b24361fd` | beta | M551 | 0 |
+| `after-ledger/M548` | The lab item guard lifted; the look-ahead gate passed a lab indicator without computing it | `6ab63c15` | live | M548 | 0 |
+| `after-ledger/step7` | The payment shell (adapters, order state machine, hook routes off unless EDGE_PAYMENTS_PROVIDER, migration 20261123_001) | `d6f5b18a` | live | - | 0 |
+| `after-ledger/M550` | The preview release stage (admin only on the live site) | `1894adfc` | live | M550 | 0 |
+| `after-ledger/M551` | The lab Flow indicator's registration point and its dry-run fixes D1-D6 | `521c5048`, `f1436829`, `b24361fd` | live | M551 | 0 |
 
 ### Panduan lab, lab dibuka, jendela registrasi (test-out 2026-11-23) (17)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `wf_4181198a-09f/GC-1` | the guide said the beta and the screener-worker wait for CI (off since 2026-11-23) | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/LLA-F1` | the look-ahead gate passed a lab indicator whose formula throws on every call (`safely`) | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/LLA-F2` | a lab candle pattern was opened without a dry run and would turn the gate red: candle patterns are held (`LAB_KIND_HELD`), with a carried part. | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/LLA-F3` | the released-text guard read only `name`; it reads `label` and `short` too (`tests/test_releases.py` `NAME_FIELDS`, a self-test per field | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/LLA-F4` | the Backtest worker checked a stop line against the full registry before the plan's allow, so a lab id answered INVALID_LINE and an unknown one UNKNOWN_INDICATOR; the allow is checked first (`src/vali | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/LLA-F5` | `http_smoke.py` reads `LAB_PROBE` from `shared/release-filter.mjs`; the filter's comment names the .svg. | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/LLA-F6` | the CRIT-1 browser test's docstring. | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/GC-2` | stale "no lab item" texts (LIVE_PROMOTION section 3, FUTURE_PLAN, a test docstring). | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/GC-3` | the Backtest tripwire was red against `main`: its worker baseline recorded under EXEC-MU-ACCOUNTS with the user's words (`scripts/screener/backtest_worker_baseline.json`; the tripwire OK) | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/GC-4` | the guide cites symbols, not line numbers | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/GC-5` | the guide cites symbols, not line numbers | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/GC-6` | the guide cites symbols, not line numbers | `083dbc23` | beta | M549 | 0 |
-| `wf_4181198a-09f/F6` | the window's other paths are tests (`apps/edge-bff/tests/test_step9_window_paths.py`, P1-P9; P1 and P7 hold today's residuals for UD7 and UD22). | `083dbc23` | beta | M549 | 0 |
+| `wf_4181198a-09f/GC-1` | the guide said the beta and the screener-worker wait for CI (off since 2026-11-23) | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/LLA-F1` | the look-ahead gate passed a lab indicator whose formula throws on every call (`safely`) | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/LLA-F2` | a lab candle pattern was opened without a dry run and would turn the gate red: candle patterns are held (`LAB_KIND_HELD`), with a carried part. | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/LLA-F3` | the released-text guard read only `name`; it reads `label` and `short` too (`tests/test_releases.py` `NAME_FIELDS`, a self-test per field | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/LLA-F4` | the Backtest worker checked a stop line against the full registry before the plan's allow, so a lab id answered INVALID_LINE and an unknown one UNKNOWN_INDICATOR; the allow is checked first (`src/vali | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/LLA-F5` | `http_smoke.py` reads `LAB_PROBE` from `shared/release-filter.mjs`; the filter's comment names the .svg. | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/LLA-F6` | the CRIT-1 browser test's docstring. | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/GC-2` | stale "no lab item" texts (LIVE_PROMOTION section 3, FUTURE_PLAN, a test docstring). | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/GC-3` | the Backtest tripwire was red against `main`: its worker baseline recorded under EXEC-MU-ACCOUNTS with the user's words (`scripts/screener/backtest_worker_baseline.json`; the tripwire OK) | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/GC-4` | the guide cites symbols, not line numbers | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/GC-5` | the guide cites symbols, not line numbers | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/GC-6` | the guide cites symbols, not line numbers | `083dbc23` | live | M549 | 0 |
+| `wf_4181198a-09f/F6` | the window's other paths are tests (`apps/edge-bff/tests/test_step9_window_paths.py`, P1-P9; P1 and P7 hold today's residuals for UD7 and UD22). | `083dbc23` | live | M549 | 0 |
 | `wf_4181198a-09f/F1` | the step-9 plan did not name UD7's exposure while the window is open, nor the watch on the live logs | `083dbc23` | bukan kode | M549 | 0 |
 | `wf_4181198a-09f/F2` | the step-9 plan did not name the close's confirmation and its exact value | `083dbc23` | bukan kode | M549 | 0 |
 | `wf_4181198a-09f/F4` | the step-9 plan held the residuals as facts, not as open questions to the user | `083dbc23` | bukan kode | M549 | 0 |
@@ -284,41 +284,41 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `wf_6a8c44c8-978/P1` | No test covers the one line that keeps a preview indicator out of the live Terminal menu (indMenu.ts:120) | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/P2` | Count and contiguity pins fail as soon as a Flow indicator goes preview or released, and the guide does not name them | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/P3` | Two comments say the lab build marks lab entries with `release`; only preview entries are marked | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/P4` | The coverage guard does not see an item named by value (`{"indicator": "I55"}`); latent, because screener-overlay.json is not in a public bundle | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/PV-1` | No indicator or Flow indicator can be put at preview: the shipped-code guard counts preview as lab, and Part C puts the formula exactly where that guard looks | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/PV-2` | A family value {"all": true} makes a paid account hold every preview item on the live site; the database and the reader accept it, and the only guard reads the migrations' seeded plans | `bb638e12` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/PV-3` | The stored examples' preset line (examples.py:333) has no test: reading it as lab-only passes every suite, and a preview preset then withholds the whole Screener example | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/PV-4` | The 'never preview either' rules have self-tests that plant lab only | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/PV-5` | Stored examples match bare ids across kinds: a preset at preview (or lab) withholds examples that name the released metric of the same id | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/PV-6` | INDICATOR_BETA_TO_LIVE.md Notes contradicts itself on Flow indicators and overstates preview | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/F1` | Guide step 1 tells the agent to edit a generated file (FLOW_INDICATORS_SPEC.xlsx) instead of its source, build_spec_workbook.py | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/F2` | Nothing checks a lab Flow formula's values, and the new 'has a formula' gate passes an all-null formula | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/F3` | The Flow look-ahead gate never varies numeric parameters, so a leak that appears only at a non-default window passes | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/F4` | Step 8 (release) names one test, but a released Flow indicator breaks three page tests; the guide never says which FL id to take | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/F5` | Part C (preview) cannot pass two edge-bff tests: they treat every stage other than released as lab | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/F6` | flowKit hands lab code the memoized cohort arrays; a lab formula that changes one changes a released output that another principal is served | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/F7` | A lab Flow indicator turns the Backtest tripwire red, and neither the Flow section nor Part A has the step that records it | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/F8` | Stale records still say a Flow indicator cannot be lab | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/F9` | Guide step 1 and Part A step 9 are ambiguous or wrong for Flow: family naming, generator vocabulary, expected version changes | `61fb22c4` | beta | M552 | 0 |
-| `wf_6a8c44c8-978/F10` | A lab item named in shipped code is refused by the guard's self-test, whose message does not name the fix | `61fb22c4` | beta | M552 | 0 |
+| `wf_6a8c44c8-978/P1` | No test covers the one line that keeps a preview indicator out of the live Terminal menu (indMenu.ts:120) | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/P2` | Count and contiguity pins fail as soon as a Flow indicator goes preview or released, and the guide does not name them | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/P3` | Two comments say the lab build marks lab entries with `release`; only preview entries are marked | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/P4` | The coverage guard does not see an item named by value (`{"indicator": "I55"}`); latent, because screener-overlay.json is not in a public bundle | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/PV-1` | No indicator or Flow indicator can be put at preview: the shipped-code guard counts preview as lab, and Part C puts the formula exactly where that guard looks | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/PV-2` | A family value {"all": true} makes a paid account hold every preview item on the live site; the database and the reader accept it, and the only guard reads the migrations' seeded plans | `bb638e12` | live | M552 | 0 |
+| `wf_6a8c44c8-978/PV-3` | The stored examples' preset line (examples.py:333) has no test: reading it as lab-only passes every suite, and a preview preset then withholds the whole Screener example | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/PV-4` | The 'never preview either' rules have self-tests that plant lab only | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/PV-5` | Stored examples match bare ids across kinds: a preset at preview (or lab) withholds examples that name the released metric of the same id | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/PV-6` | INDICATOR_BETA_TO_LIVE.md Notes contradicts itself on Flow indicators and overstates preview | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/F1` | Guide step 1 tells the agent to edit a generated file (FLOW_INDICATORS_SPEC.xlsx) instead of its source, build_spec_workbook.py | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/F2` | Nothing checks a lab Flow formula's values, and the new 'has a formula' gate passes an all-null formula | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/F3` | The Flow look-ahead gate never varies numeric parameters, so a leak that appears only at a non-default window passes | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/F4` | Step 8 (release) names one test, but a released Flow indicator breaks three page tests; the guide never says which FL id to take | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/F5` | Part C (preview) cannot pass two edge-bff tests: they treat every stage other than released as lab | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/F6` | flowKit hands lab code the memoized cohort arrays; a lab formula that changes one changes a released output that another principal is served | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/F7` | A lab Flow indicator turns the Backtest tripwire red, and neither the Flow section nor Part A has the step that records it | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/F8` | Stale records still say a Flow indicator cannot be lab | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/F9` | Guide step 1 and Part A step 9 are ambiguous or wrong for Flow: family naming, generator vocabulary, expected version changes | `61fb22c4` | live | M552 | 0 |
+| `wf_6a8c44c8-978/F10` | A lab item named in shipped code is refused by the guard's self-test, whose message does not name the fix | `61fb22c4` | live | M552 | 0 |
 
 ### Publisher: berkas events terbit ulang bila isi aksi korporasi berubah (ERRORS M567) (1)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `errors/M567` | An events file was not republished when a corporate action's content changed without a new row, date or load time | `930931cd` | branch | M567 | 0 |
+| `errors/M567` | An events file was not republished when a corporate action's content changed without a new row, date or load time | `930931cd` | live | M567 | 0 |
 
 ### Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) (4)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `agents_20261126-r3-history/H3-1` | KAMA (I05) at its other price sources: windows shorter than a 10:1 or 20:1 reverse split needs | `6a7c5f5d` | branch | M568 | 0 |
-| `agents_20261126-r3-history/H3-2` | RSI and +DI/ADX windows 0-3 bars short at a 1:100 split on some break positions | `6a7c5f5d` | branch | M568 | 0 |
-| `agents_20261126-r3-screener/S3-1` | The RS rank metric still worded its population as stocks with no unadjusted price break | `6a7c5f5d` | branch | M568 | 0 |
-| `agents_20261126-r3-pages/G3-1` | WGSH's row badge read 'Price anomaly, Price anomaly' | `6a7c5f5d` | branch | M568 | 0 |
+| `agents_20261126-r3-history/H3-1` | KAMA (I05) at its other price sources: windows shorter than a 10:1 or 20:1 reverse split needs | `6a7c5f5d` | live | M568 | 0 |
+| `agents_20261126-r3-history/H3-2` | RSI and +DI/ADX windows 0-3 bars short at a 1:100 split on some break positions | `6a7c5f5d` | live | M568 | 0 |
+| `agents_20261126-r3-screener/S3-1` | The RS rank metric still worded its population as stocks with no unadjusted price break | `6a7c5f5d` | live | M568 | 0 |
+| `agents_20261126-r3-pages/G3-1` | WGSH's row badge read 'Price anomaly, Price anomaly' | `6a7c5f5d` | live | M568 | 0 |
 
 ## Hitungan per status
 

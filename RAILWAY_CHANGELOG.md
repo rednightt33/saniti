@@ -1,5 +1,47 @@
 # Railway changelog
 
+## 2026-11-26 — The beta and the live site on `c4d95e8a`: I54-I60 released to every user, re-check round 3's fixes (ERRORS M568), EXEC-EVENTS-STAMP (M567); `live` moved from `ec739a06`
+
+- **The user's words (2026-11-26):** "Ok To do: Jalankan mitigasi 4 sekarang / Assign 5 sonnet medium to test out 9
+  perbaikan diatas cepat saja / Jika ada temuan perbaiki / Push to main push to live beserta indikator baru"; on released
+  or preview: "A" (released, every paid user).
+- **Before:** no deployment waiting or building (04:11 UTC); 0 EDGE jobs, 0 orc turns, 0 active statements (M340).
+- **CI of `c4d95e8a`, every run green before the pushes:** Backtest look-ahead gate 45753523874, Backend tests
+  45753523885, Generated files 45753523926, page smoke 45753523876, image builds 45753523872, record statuses
+  45753523911.
+- **Order (worker first):**
+  1. **backtest-worker `2bc8bc9a`** SUCCESS 04:22 UTC: CLI upload of `git archive c4d95e8a` of its Dockerfile's COPY
+     paths with the Dockerfile; start line `engine_version="6a95b8e51bb9d7ce"` (the tripwire's),
+     `registry_version="91ef7941e9731f97"`.
+  2. **`main` `e9a3f013` → `c4d95e8a`** 04:23 UTC (fast-forward): `edge-bff` `cbbfbc5b` and `screener-worker` `66e716cc`
+     SUCCESS, the other GitHub-connected services SKIPPED (no watched path changed); the beta's `/version` names
+     `c4d95e8a`, `/ready` 200.
+  3. **terminal-publisher `a8e90936`** SUCCESS 04:23 UTC: CLI upload of `git archive c4d95e8a` `apps/terminal-publisher`
+     (EXEC-EVENTS-STAMP, `930931cd`); Run Now 04:25 UTC (mode `daily`): 864 events files planned once by the new stamp,
+     0 written (contents unchanged), overview unchanged, `done` after 255 s.
+  4. **Postgres restart** (`scripts/restart_postgres.py --apply`, a manual publisher run is a large update): 1.98 GB,
+     deployment `387a3c04`, started 04:30:38 UTC, 11 s; both sites `/ready` 200.
+  5. **`live` `ec739a06` → `c4d95e8a`** 04:41 UTC (fast-forward to the commit the beta runs; `scripts/live_diff.py
+     --sites`: 146 commits, the release file's new items I54-I60 `released`, no tab change, migrations 20261123_001 and
+     20261125_001 already applied): `edge-bff-live` `b3a5ccaa` SUCCESS; `/version` `c4d95e8a`, `/ready` 200.
+- **Beta checks (as the owner, read-only computations):** `beta_remarks.py` (862 stocks): RDTX and WGSH anomalies, BSWD
+  and PPGL price breaks, BMAS and PSSI possible breaks with their size, 25 stale, BAJA and VKTR none; the beta's
+  `screener_registry_version` `175fef76ebf003e5` equals the committed registry's. `beta_backtest.py` (2026-07-01 to
+  2026-11-09, FL01): VKTR 6 of 19, AHAP 3 of 16, BUVA 5 of 18 trades flagged `flow`, each warning FLOW_BASIS_CHANGE.
+- **Live smoke (from outside):** `http_smoke.py`: `/ready` 200, CSP and HSTS, `hidden_tabs` admin and monitor, a visitor's
+  BBCA 200 and TLKM 403 with the sign-in words, `routes.unexpected` `{}` (15 beta-only 404, 45 gated 401), the public
+  builds without the lab worker or probe (404), a foreign origin 403, an unknown login 401; **registration open**
+  (`registration` true, a register 400 INVALID_INPUT, not 403 REGISTRATION_CLOSED): `EDGE_PRELAUNCH=false` on
+  `edge-bff-live` since the step 9 window of 2026-11-23, whose close (2026-11-24 03:24 UTC) was never run (UD25, UD26
+  unanswered); the move kept it as it was, asked again in this release's report. `browser_smoke.cjs /terminal`: the rail
+  without Monitor or a lab tab, no model list asked, the Terminal on BBCA with "Last 730 days of history" and the broker
+  data and Events locked (the 401 of `/api/v1/auth/session` is the visitor's). `example_smoke.py`: VERDICT OK on the five
+  tabs. The live public Terminal bundle holds the seven keys (alpha_volatile, inside_bar, price_action_buy,
+  price_action_sell, alpha_kama, alpha_extract, alpha_divergence).
+- **Rollback:** the live site: `git push origin ec739a06:live --force-with-lease` with the user's go (LIVE_PROMOTION.md
+  §5); the beta: redeploy `edge-bff` `2b2c9704` (`e9a3f013`) and screener-worker `3dd8ba65`; backtest-worker: a CLI
+  upload of `git archive e9a3f013`; terminal-publisher: a CLI upload of `git archive e9a3f013` `apps/terminal-publisher`.
+
 ## 2026-11-26 — The beta on `e9a3f013`: the fixes of re-check round 2 (ERRORS M566); the saved-screen migration applied; `live` held for the user's confirmation
 
 - **The user's words (2026-11-25):** "Untuk recheck ronde 2, gunakan 5 agent Opus 5,5 medium. Setelah temuan tersebut ada,
