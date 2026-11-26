@@ -188,7 +188,8 @@ class PageRequest(Strict):
 
 RadarRequest = PageRequest
 # the page's name in the messages, and where the owner opens it (edge-bff)
-PAGE_LABELS = {'radar': 'the Radar', 'overview': 'the Market Overview', 'watchlist': 'the Watchlist'}
+PAGE_LABELS = {'radar': 'the Radar', 'overview': 'the Market Overview', 'watchlist': 'the Watchlist',
+               'sector': 'the Sector Analysis'}
 
 
 class NewSubscriber(Strict):

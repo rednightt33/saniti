@@ -34,6 +34,10 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
                 them when the stamp changed, carrying what did not change (OVERVIEW_FORMULAS.md).
   watchlist     EXEC-WATCHLIST: rebuild the Watchlist's daily file (watchlist.py) whatever its stamp; daily and backfill
                 rebuild it when its content changed (WATCHLIST_FORMULAS.md). One date of each source: not a large read.
+  sector        EXEC-SECTOR-ANALYSIS: rebuild every Sector Analysis file (sector.py) whatever its stamp, reading every
+                series date's stock closes and counting every stock's sessions in status back over Feature 04 (a large
+                read); daily and backfill rebuild them when the stamp changed, carrying what did not change
+                (SECTOR_FORMULAS.md).
   verify        compare every published file with SQL (row count, sums, first and last date); prints mismatches.
 The cross-sectional files (below) are rebuilt by the modes in XSECTION_REBUILT_BY: daily, backfill and packs rebuild
 `price` and `actions`, events rebuilds `actions`; every other mode carries the previous index entries forward. The broker
@@ -117,6 +121,9 @@ Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M
                                    `overview`; `overview_carry` (publisher-private) holds what the next run reuses
   watchlist/{name}.<sha16>.json.gz EXEC-WATCHLIST (user go 2026-11-16): the Watchlist's daily file (watchlist.py:
                                    watchlist-stocks), indexed in state.json `watchlist`
+  sector/{name}.<sha16>.json.gz    EXEC-SECTOR-ANALYSIS (user go 2026-11-26): the Sector Analysis files (sector.py:
+                                   sector-meta, sector-series, sector-day-YYYY-MM-DD, sector-stocks-<index>), indexed in
+                                   state.json `sector`; `sector_carry` (publisher-private) holds what the next run reuses
 EXEC-TERMINAL-SPEED (user 2026-10-26): a ticker is five objects for the page instead of 21 (ERRORS M240: the bucket's
 cost is per object, ~0.8 s each, HTTP/1.1); the packs are listed in manifest `packs` with their sha256.
 Data files are written before the manifest that names them, and the xsection and content-keyed reference files before
@@ -154,6 +161,7 @@ import psycopg
 import overview
 import watchlist
 import radar
+import sector
 
 SCHEMA_VERSION = 1
 PREFIX = 'v1'
@@ -632,7 +640,7 @@ HEALTH_SOURCE = 'Terminal_Publisher_Health'
 # the step a failed put belongs to, by its key's first part (a failed run's alert names it)
 PUT_STEPS = {'price': 'files', 'yield': 'files', 'broker': 'files', 'events': 'files', 'pack': 'packs', 'intraday': 'intraday', 'xsection': 'xsection',
              'manifest': 'manifests', 'logo': 'refs', 'ref': 'refs', 'radar': 'radar', 'overview': 'overview',
-             'watchlist': 'watchlist'}
+             'watchlist': 'watchlist', 'sector': 'sector'}
 # cleanup_baseline gives up after this long and the run publishes without a cleanup (one hung listing page must not
 # hold the publication; the two listings take about 2 s on dev)
 BASELINE_SECONDS = 60
@@ -1200,20 +1208,26 @@ def watchlist_entries(raw):
     return page_entries(raw, 'watchlist')
 
 
+def sector_entries(raw):
+    return page_entries(raw, 'sector')
+
+
 # The EDGE pages whose files the publisher builds from the database (one mechanism, publish_page): family -> module.
 # A module gives MAINTAINED_BY, UNAVAILABLE, available(conn), busy(conn), stamp(conn) and files(conn, names, lists,
 # stream, carry, previous, present) -> (files, kept names, carry).
-PAGES = {'radar': radar, 'overview': overview, 'watchlist': watchlist}
+PAGES = {'radar': radar, 'overview': overview, 'watchlist': watchlist, 'sector': sector}
 OVERVIEW_KEY = indexed_key('overview')
 WATCHLIST_KEY = indexed_key('watchlist')
-PAGE_KEYS = {'radar': RADAR_KEY, 'overview': OVERVIEW_KEY, 'watchlist': WATCHLIST_KEY}
+SECTOR_KEY = indexed_key('sector')             # EXEC-SECTOR-ANALYSIS (user go 2026-11-26)
+PAGE_KEYS = {'radar': RADAR_KEY, 'overview': OVERVIEW_KEY, 'watchlist': WATCHLIST_KEY, 'sector': SECTOR_KEY}
 
 
 # The families whose objects a state.json index names instead of a manifest: family -> (state.json field, key pattern,
 # entries reader). collect_garbage treats every one alike (one mechanism). radar: EXEC-RADAR R5.
 INDEXED = {'xsection': ('xsection', XSECTION_KEY, xsection_entries), 'ref': ('refs', REF_KEY, ref_entries),
            'radar': ('radar', RADAR_KEY, radar_entries), 'overview': ('overview', OVERVIEW_KEY, overview_entries),
-           'watchlist': ('watchlist', WATCHLIST_KEY, watchlist_entries)}
+           'watchlist': ('watchlist', WATCHLIST_KEY, watchlist_entries),
+           'sector': ('sector', SECTOR_KEY, sector_entries)}
 # the modes that rebuild a page's files are the module's MAINTAINED_BY (radar.py, overview.py); every other mode
 # carries its index forward unchanged
 
@@ -1925,6 +1939,8 @@ class Publisher:
     overview_failed = property(lambda self: self.pages['overview']['failed'])
     watchlist = property(lambda self: self.pages['watchlist']['index'])
     watchlist_failed = property(lambda self: self.pages['watchlist']['failed'])
+    sector = property(lambda self: self.pages['sector']['index'])
+    sector_failed = property(lambda self: self.pages['sector']['failed'])
 
     def present_keys(self, family, previous):
         """The keys under `<family>/` of an indexed family (xsection, ref; one listing of that prefix; no cleanup runs

@@ -1,0 +1,3 @@
+{"mode": "APPLY", "from": "2021-01-25", "large_write": true,
+ "check_dates": ["2021-01-26", "2022-03-09", "2023-06-14", "2024-10-01", "2025-03-03"],
+ "note": "EXEC-SECTOR-ANALYSIS S1: every market date from 2021-01-25 in order, one date per statement; Postgres restart after (large read)"}

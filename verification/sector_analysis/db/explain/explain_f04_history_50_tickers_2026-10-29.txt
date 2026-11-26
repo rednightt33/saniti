@@ -1,0 +1,17 @@
+Nested Loop  (cost=0.43..114647.13 rows=15050 width=66) (actual time=9.329..48.931 rows=14610.00 loops=1)
+  Buffers: shared hit=13363 read=56
+  ->  Function Scan on unnest x  (cost=0.00..0.50 rows=50 width=32) (actual time=9.248..9.263 rows=50.00 loops=1)
+  ->  Limit  (cost=0.43..2286.91 rows=301 width=28) (actual time=0.021..0.753 rows=292.20 loops=50)
+        Buffers: shared hit=13363 read=56
+        ->  Index Scan Backward using "Feature_04_Technical_Indicator_pkey" on "Feature_04_Technical_Indicator" t  (cost=0.43..20677.52 rows=2722 width=28) (actual time=0.020..0.735 rows=292.20 loops=50)
+              Index Cond: ((ticker = x.ticker) AND (trade_date <= '2026-10-29'::date) AND (timeframe = 'Daily'::text) AND (asset_type = 'equity'::text))
+              Index Searches: 50
+              Buffers: shared hit=13363 read=56
+Planning:
+  Buffers: shared hit=5
+Planning Time: 0.244 ms
+JIT:
+  Functions: 9
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 1.395 ms (Deform 1.026 ms), Inlining 0.000 ms, Optimization 0.989 ms, Emission 8.247 ms, Total 10.632 ms
+Execution Time: 50.901 ms

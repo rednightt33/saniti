@@ -33,6 +33,20 @@ durable notification outbox waits until `telegram-monitor` has recorded the pric
 as sent, then requests the separate Feature04 Telegram result. Telegram delivery failure
 never rolls back calculated data.
 
+Sector Analysis (EXEC-SECTOR-ANALYSIS S1, migration `20261126_001`): after an equity run
+(`source_monitor_table` `Monitoring_Price_ALL`) is finalized SUCCESS or PARTIAL and its
+transaction has committed, `Feature08Refresher` calls `public.refresh_feature_08_day(date)`
+for the market's correction window ending at the run's date (`correction_lookback_sessions`,
+5) through the newest final market date, one date per statement in date order (the group
+index level is chain-linked). What is due is read from the database (a run whose date has no
+`Feature_08_Group_Daily` MARKET row written after the run finished, within 7 days), so a
+restart or a failure is caught up; a failure is logged (`feature08_refresh_failed`) and asked
+again after 60 s, doubled up to 30 minutes. It never touches Feature 04, its run or its
+Telegram result, and runs before that result is dispatched. Before the migration is applied
+it logs `feature08_refresh_unavailable` once and does nothing; while the backfill job
+(`verification/sector_analysis/db/backfill/`) holds the lock `feature_08_group_backfill` it
+waits. Tests: `test_worker_feature08.py`.
+
 For a Telegram retry, the database derives the oldest date in the latest configured five
 final sessions and invalidates checkpoints from that boundary. The worker claims the
 completion outbox only after `telegram-trigger` records the acknowledgement message ID (or

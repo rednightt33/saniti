@@ -1,0 +1,37 @@
+Hash Join  (cost=2565.03..9993.38 rows=1446 width=72) (actual time=2.071..18.426 rows=710.00 loops=1)
+  Hash Cond: ((p.ticker)::text = "IDX_Stock_Universe"."Ticker")
+  Buffers: shared hit=1569 read=36
+  ->  Hash Right Join  (cost=2455.93..9873.24 rows=1446 width=78) (actual time=1.777..17.886 rows=762.00 loops=1)
+        Hash Cond: (t.ticker = (p.ticker)::text)
+        Buffers: shared hit=1481 read=36
+        ->  Bitmap Heap Scan on "Feature_04_Technical_Indicator" t  (cost=23.65..7435.97 rows=1890 width=33) (actual time=0.772..16.755 rows=721.00 loops=1)
+              Recheck Cond: (trade_date = '2023-06-14'::date)
+              Filter: ((timeframe = 'Daily'::text) AND (asset_type = 'equity'::text))
+              Rows Removed by Filter: 24
+              Heap Blocks: exact=745
+              Buffers: shared hit=712 read=36
+              ->  Bitmap Index Scan on "Feature_04_Technical_Indicator_trade_date_idx"  (cost=0.00..23.17 rows=1966 width=0) (actual time=0.712..0.712 rows=745.00 loops=1)
+                    Index Cond: (trade_date = '2023-06-14'::date)
+                    Index Searches: 1
+                    Buffers: shared hit=1 read=2
+        ->  Hash  (cost=2424.02..2424.02 rows=661 width=58) (actual time=1.001..1.001 rows=762.00 loops=1)
+              Buckets: 1024  Batches: 1  Memory Usage: 50kB
+              Buffers: shared hit=769
+              ->  Bitmap Heap Scan on "Price_Stock_Indonesia_IDX" p  (cost=13.55..2424.02 rows=661 width=58) (actual time=0.110..0.904 rows=762.00 loops=1)
+                    Recheck Cond: (date = '2023-06-14'::date)
+                    Filter: (is_final AND ((timeframe)::text = 'Daily'::text))
+                    Heap Blocks: exact=765
+                    Buffers: shared hit=769
+                    ->  Bitmap Index Scan on "Price_Stock_Indonesia_IDX_date_idx"  (cost=0.00..13.38 rows=661 width=0) (actual time=0.050..0.050 rows=765.00 loops=1)
+                          Index Cond: (date = '2023-06-14'::date)
+                          Index Searches: 1
+                          Buffers: shared hit=4
+  ->  Hash  (cost=98.55..98.55 rows=844 width=5) (actual time=0.284..0.285 rows=862.00 loops=1)
+        Buckets: 1024  Batches: 1  Memory Usage: 40kB
+        Buffers: shared hit=88
+        ->  Seq Scan on "IDX_Stock_Universe"  (cost=0.00..98.55 rows=844 width=5) (actual time=0.014..0.227 rows=862.00 loops=1)
+              Filter: ("Security Type" = 'stock'::text)
+              Rows Removed by Filter: 89
+              Buffers: shared hit=88
+Planning Time: 0.280 ms
+Execution Time: 18.508 ms

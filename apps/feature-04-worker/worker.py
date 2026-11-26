@@ -39,6 +39,17 @@ LEASE_MINUTES = 15
 POLL_SECONDS = 5
 RETRY_BASE_SECONDS = 30
 RETRY_CAP_SECONDS = 30 * 60
+# EXEC-SECTOR-ANALYSIS S1 (user go 2026-11-26, CONTRACT.md section 2): after an equity run of Monitoring_Feature04 is
+# finalized, public.refresh_feature_08_day (migration 20261126_001) computes the Sector Analysis aggregates of its
+# dates (Feature08Refresher). A failure is logged (feature08_refresh_failed) and asked again later; it never touches
+# Feature 04, its run or its Telegram message.
+FEATURE08_HORIZON_DAYS = 7          # runs finished within this many days are checked (a worker down for days catches up)
+FEATURE08_SCAN_SECONDS = 300        # the due-check runs at least this often (and at once after a run is finalized)
+FEATURE08_RETRY_BASE_SECONDS = 60   # after a failure: 60 s, doubled per failure, at most FEATURE08_RETRY_CAP_SECONDS
+FEATURE08_RETRY_CAP_SECONDS = 30 * 60
+FEATURE08_STATEMENT_TIMEOUT = "120s"
+FEATURE08_DEFAULT_LOOKBACK = 5      # the market's correction window when Equity_Market_Schedule has no IDX row
+FEATURE08_BACKFILL_LOCK = "feature_08_group_backfill"   # verification/sector_analysis/db/backfill/backfill_job.py
 PRICE_COLUMNS = (
     "ticker", "date", "open", "high", "low", "close", "volume", "timeframe",
     "tradingview_symbol", "source", "query_date", "ingestion_time",
@@ -429,7 +440,10 @@ def current_claim(connection: psycopg.Connection, job: Job) -> bool:
     )
 
 
-def finalize_runs(connection: psycopg.Connection) -> None:
+def finalize_runs(connection: psycopg.Connection) -> list[dict]:
+    """Finalize every READY/PROCESSING run whose tickers are all terminal; returns the runs that became terminal. An
+    equity run (source Monitoring_Price_ALL) that ended SUCCESS or PARTIAL asks FEATURE08 for a due-check at once: the
+    refresh itself runs after the caller's transaction commits (Feature08Refresher.maybe_run in main)."""
     terminal = connection.execute(
         """
         WITH candidates AS (
@@ -450,9 +464,12 @@ def finalize_runs(connection: psycopg.Connection) -> None:
           finished_at=CASE WHEN c.active=0 THEN CURRENT_TIMESTAMP ELSE NULL END,
           updated_at=CURRENT_TIMESTAMP
         FROM candidates c WHERE m.execution_id=c.execution_id
-        RETURNING m.execution_id,m.status
+        RETURNING m.execution_id,m.status,m.source_monitor_table
         """
     ).fetchall()
+    if any(row["status"] in ("SUCCESS", "PARTIAL") and row["source_monitor_table"] == "Monitoring_Price_ALL"
+           for row in terminal):
+        FEATURE08.poke()
     for row in terminal:
         if row["status"] not in ("SUCCESS", "PARTIAL", "FAILED"):
             continue
@@ -471,6 +488,117 @@ def finalize_runs(connection: psycopg.Connection) -> None:
             WHERE r.child_execution_id=m.execution_id AND r.status IN ('PENDING','PROCESSING')
             """
         )
+    return terminal
+
+
+# The anchors whose Feature 08 rows are older than an equity run that finished after them: a run's update_for_date, or
+# (a Telegram retry has none) the newest final market date at its finish; due while the MARKET row of that date was
+# not written after the run finished (refresh_feature_08_day stamps calculated_at with clock_timestamp()).
+FEATURE08_DUE_SQL = """
+WITH mk AS (SELECT e.ticker FROM public."Feature_Index_Entity" e WHERE e.entity_kind='MARKET'),
+runs AS (
+  SELECT m.finished_at,
+         coalesce(m.update_for_date,
+                  (SELECT max(p.date) FROM public."Price_Stock_Indonesia_IDX" p
+                   WHERE p.ticker=(SELECT ticker FROM mk) AND p.timeframe='Daily' AND p.is_final
+                     AND p.date<=m.finished_at::date)) AS anchor
+  FROM public."Monitoring_Feature04" m
+  WHERE m.source_monitor_table='Monitoring_Price_ALL' AND m.status IN ('SUCCESS','PARTIAL')
+    AND m.finished_at>=clock_timestamp()-make_interval(days=>%s)
+)
+SELECT r.anchor,max(r.finished_at) AS finished_at FROM runs r
+WHERE r.anchor IS NOT NULL
+  AND EXISTS (SELECT 1 FROM public."Price_Stock_Indonesia_IDX" p WHERE p.ticker=(SELECT ticker FROM mk)
+              AND p.timeframe='Daily' AND p.is_final AND p.date=r.anchor)
+  AND NOT EXISTS (SELECT 1 FROM public."Feature_08_Group_Daily" g
+                  WHERE g.date=r.anchor AND g.group_kind='MARKET' AND g.calculated_at>=r.finished_at)
+GROUP BY r.anchor ORDER BY r.anchor
+"""
+# The market dates to refresh for the oldest due anchor, in order: from the oldest of the market's correction window
+# ending at it (a daily run rewrites at most correction_lookback_sessions sessions of a ticker, load_checkpoint_and_suffix)
+# to the newest final market date, so every later chain-linked level is written again too.
+FEATURE08_DATES_SQL = """
+WITH mk AS (SELECT e.ticker FROM public."Feature_Index_Entity" e WHERE e.entity_kind='MARKET'),
+cal AS (SELECT p.date FROM public."Price_Stock_Indonesia_IDX" p
+        WHERE p.ticker=(SELECT ticker FROM mk) AND p.timeframe='Daily' AND p.is_final)
+SELECT c.date FROM cal c
+WHERE c.date>=(SELECT min(w.date) FROM (SELECT date FROM cal WHERE date<=%s ORDER BY date DESC LIMIT %s) w)
+ORDER BY c.date
+"""
+FEATURE08_LOOKBACK_SQL = """SELECT correction_lookback_sessions FROM public."Equity_Market_Schedule"
+WHERE market_code='IDX' AND enabled"""
+FEATURE08_READY_SQL = """SELECT to_regprocedure('public.refresh_feature_08_day(date)') IS NOT NULL
+AND to_regclass('public."Feature_08_Group_Daily"') IS NOT NULL AS ready"""
+FEATURE08_LOCK_SQL = "SELECT pg_try_advisory_lock(hashtext(%s)) AS free"
+FEATURE08_UNLOCK_SQL = "SELECT pg_advisory_unlock(hashtext(%s))"
+FEATURE08_REFRESH_SQL = "SELECT public.refresh_feature_08_day(%s) AS rows"
+
+
+class Feature08Refresher:
+    """EXEC-SECTOR-ANALYSIS S1: refresh_feature_08_day for the market dates an equity run of Feature 04 changed, after
+    the run is finalized and committed. Durable: what is due is read from the database (FEATURE08_DUE_SQL), so a
+    restart, a failure or a run finalized elsewhere is caught up; idempotent: the function upserts one date per
+    statement. A failure is logged (feature08_refresh_failed) and asked again after a backoff; nothing of Feature 04
+    is undone. While the backfill job holds its lock the refresh waits (the backfill writes every date in order)."""
+
+    def __init__(self, clock=time.monotonic, connector=None):
+        self.clock = clock
+        self.connector = connector
+        self.next_at = 0.0
+        self.failures = 0
+        self.unavailable_said = False
+
+    def poke(self) -> None:
+        """A run was finalized: check at once (a pending backoff stays)."""
+        if self.failures == 0:
+            self.next_at = 0.0
+
+    def maybe_run(self) -> str | None:
+        """Run the due-check when it is time; returns what happened (for the log and the tests), None when not time."""
+        if self.clock() < self.next_at:
+            return None
+        try:
+            outcome = self.run()
+        except Exception as error:  # noqa: BLE001 - logged and asked again; never undoes Feature 04
+            self.failures += 1
+            delay = min(FEATURE08_RETRY_CAP_SECONDS, FEATURE08_RETRY_BASE_SECONDS * 2 ** (self.failures - 1))
+            self.next_at = self.clock() + delay
+            emit("feature08_refresh_failed", error=error_detail(error), attempt=self.failures, retry_in_seconds=delay)
+            return "failed"
+        self.failures = 0
+        self.next_at = self.clock() + FEATURE08_SCAN_SECONDS
+        return outcome
+
+    def run(self) -> str:
+        with (self.connector or connect)() as connection:
+            if not connection.execute(FEATURE08_READY_SQL).fetchone()["ready"]:
+                if not self.unavailable_said:
+                    emit("feature08_refresh_unavailable", reason="migration 20261126_001 not applied")
+                    self.unavailable_said = True
+                return "unavailable"
+            due = connection.execute(FEATURE08_DUE_SQL, (FEATURE08_HORIZON_DAYS,)).fetchall()
+            if not due:
+                return "nothing_due"
+            if not connection.execute(FEATURE08_LOCK_SQL, (FEATURE08_BACKFILL_LOCK,)).fetchone()["free"]:
+                emit("feature08_refresh_waiting", reason="the Feature 08 backfill is running", due=len(due))
+                return "waiting"
+            connection.execute(FEATURE08_UNLOCK_SQL, (FEATURE08_BACKFILL_LOCK,))
+            lookback = connection.execute(FEATURE08_LOOKBACK_SQL).fetchall()
+            sessions = (int(lookback[0]["correction_lookback_sessions"]) if len(lookback) == 1
+                        else FEATURE08_DEFAULT_LOOKBACK)
+            anchor = due[0]["anchor"]
+            dates = [row["date"] for row in connection.execute(FEATURE08_DATES_SQL, (anchor, sessions)).fetchall()]
+            connection.execute(sql.SQL("SET statement_timeout = {}").format(sql.Literal(FEATURE08_STATEMENT_TIMEOUT)))
+            started = time.monotonic()
+            rows = 0
+            for day in dates:        # one date per statement, in date order (the level is chain-linked)
+                rows += connection.execute(FEATURE08_REFRESH_SQL, (day,)).fetchone()["rows"]
+            emit("feature08_refreshed", anchors=[str(row["anchor"]) for row in due], dates=[str(d) for d in dates],
+                 rows=rows, seconds=round(time.monotonic() - started, 1))
+            return "refreshed"
+
+
+FEATURE08 = Feature08Refresher()
 
 
 def write_attempt(
@@ -820,7 +948,9 @@ def main() -> None:
             job = claim_one()
             if isinstance(job, Job):
                 process_one(job)
+                FEATURE08.maybe_run()        # after the job's transaction committed (a finalized run pokes it)
                 continue
+            FEATURE08.maybe_run()            # before the Telegram result of a run just finalized is dispatched
             if dispatch_one():
                 continue
         except Exception as error:

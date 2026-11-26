@@ -7,7 +7,11 @@ shape the page reads from its live route, and refuses any file that names a late
 (verification/edge_multiuser/example_mode/capture_job.py) writes them to edge_bff.example_files (migration
 20261121_001), which edge-bff serves (apps/edge-bff/app/examples.py). No publication runs this module. The Market
 Overview and the Watchlist show the latest data instead (the user, 2026-11-21: "Untuk table watchlist nggak apa-apa
-pakai data latest saja"): edge-bff trims the live publication itself, so nothing here builds them.
+pakai data latest saja"): edge-bff trims the live publication itself, so nothing here builds them. The Sector Analysis
+is made as the Overview's (EXEC-SECTOR-ANALYSIS decision J, verification/sector_analysis/CONTRACT.md 3.5): the latest
+publication's sector-meta, sector-series and newest sector-day, trimmed by edge-bff to the page's opening view; the
+older day files and the sector-stocks files stay with the paid view. Nothing here builds it either; the shapes come
+from sector.py's own builders (meta_doc, series_doc, day_doc, stocks_doc), which an example test can call.
 
   radar      radar-meta, radar-days, radar-board-<as_of>: what the page reads when it opens (src/app.ts boot); the date
              picker and a filter's page are clicks, so the older boards and radar-f-<filter> are not part of the example;

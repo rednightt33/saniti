@@ -1,0 +1,31 @@
+GroupAggregate  (cost=36982.97..37396.75 rows=2318 width=64) (actual time=9.692..10.779 rows=3.00 loops=1)
+  Group Key: (("Feature_04_Technical_Indicator".trade_date)::text)
+  Buffers: shared hit=967 read=49
+  ->  Sort  (cost=36982.97..37007.46 rows=9798 width=61) (actual time=9.215..9.334 rows=2495.00 loops=1)
+        Sort Key: (("Feature_04_Technical_Indicator".trade_date)::text), "Feature_04_Technical_Indicator".ticker
+        Sort Method: quicksort  Memory: 233kB
+        Buffers: shared hit=967 read=49
+        ->  Hash Join  (cost=234.23..36333.45 rows=9798 width=61) (actual time=1.526..5.836 rows=2495.00 loops=1)
+              Hash Cond: ("Feature_04_Technical_Indicator".ticker = "IDX_Stock_Universe"."Ticker")
+              Buffers: shared hit=967 read=49
+              ->  Bitmap Heap Scan on "Feature_04_Technical_Indicator"  (cost=125.13..36148.89 rows=10030 width=33) (actual time=1.144..4.691 rows=2580.00 loops=1)
+                    Recheck Cond: (trade_date = ANY (('{2026-10-29,2026-10-28,2026-10-27}'::text[])::date[]))
+                    Filter: ((timeframe = 'Daily'::text) AND (asset_type = 'equity'::text))
+                    Rows Removed by Filter: 72
+                    Heap Blocks: exact=923
+                    Buffers: shared hit=879 read=49
+                    ->  Bitmap Index Scan on "Feature_04_Technical_Indicator_trade_date_idx"  (cost=0.00..122.62 rows=10435 width=0) (actual time=1.039..1.040 rows=2652.00 loops=1)
+                          Index Cond: (trade_date = ANY (('{2026-10-29,2026-10-28,2026-10-27}'::text[])::date[]))
+                          Index Searches: 1
+                          Buffers: shared hit=3 read=2
+              ->  Hash  (cost=98.55..98.55 rows=844 width=5) (actual time=0.363..0.364 rows=862.00 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 40kB
+                    Buffers: shared hit=88
+                    ->  Seq Scan on "IDX_Stock_Universe"  (cost=0.00..98.55 rows=844 width=5) (actual time=0.011..0.275 rows=862.00 loops=1)
+                          Filter: ("Security Type" = 'stock'::text)
+                          Rows Removed by Filter: 89
+                          Buffers: shared hit=88
+Planning:
+  Buffers: shared hit=18
+Planning Time: 0.386 ms
+Execution Time: 10.843 ms

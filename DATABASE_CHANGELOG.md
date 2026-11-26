@@ -1,5 +1,37 @@
 # Database changelog
 
+## 2026-11-26 — EXEC-SECTOR-ANALYSIS S1: Feature_08_Group_Daily, feature_08_weight, refresh_feature_08_day (migration 20261126_001; written and rehearsed, NOT APPLIED)
+
+- **Why:** the Sector Analysis page (UD66 A-J, UD67 "1A 2A 3 go", 2026-11-26; `verification/sector_analysis/CONTRACT.md`
+  section 2) needs per-sector breadth history and industry indexes that cannot be computed in the browser (Feature 04 is
+  2.5 GB and EMA200 needs its warm-up).
+- **Migration (not applied):** `20261126_001_feature_08_group_daily.sql`, sha256 `ec5288b6…` at the commit that adds this
+  entry (`sha256sum` it again before applying):
+  - table `Feature_08_Group_Daily` (`date`, `group_kind` MARKET/SECTOR/INDUSTRY, `group_name`; `sector`, `members`,
+    `n_ema50`, `above_ema50`, `n_ema200`, `above_ema200`, `adv_1d`, `unch_1d`, `dec_1d`, `weight_basis`, `weight_sum`,
+    `ret_1d_w`, `index_level`, `calculation_version`, `calculated_at`); primary key only (every reader filters by date);
+    about 98,500 rows (70 groups x 1,407 dates), about 20 MB with its key;
+  - `public.feature_08_weight(date) -> (ticker, weight, weight_basis)`: the one pluggable weight basis, today
+    `overview_stock_size` (`adv20_value`);
+  - `public.refresh_feature_08_day(date) -> integer`: one market date, idempotent upsert, rows of a group outside the
+    current classification deleted for that date, chain-linked level (first date 100), refused off the calendar or after
+    a missing date; MARKET breadth equals the Overview's `BREADTH_SQL`;
+  - Table_Catalog (Feature, VERIFIED, `related_functions` both functions), Column_Catalog 18 rows, Feature_Catalog 18 v1
+    rows (CALCULATION_VERIFIED on the evidence below); SELECT to `terminal_market_reader` and `pgweb_reader`, EXECUTE of
+    `feature_08_weight` to both, EXECUTE of the refresh revoked from PUBLIC and granted to the applying role (the owner of
+    Feature 04, the role feature-04-worker connects as).
+- **Source:** `Price_Stock_Indonesia_IDX` (final daily closes and volumes), `Feature_04_Technical_Indicator` (Daily,
+  equity: close, ema_50, ema_200), `IDX_Stock_Universe` (current Sector and Industry), `Feature_Index_Entity` (MARKET and
+  SECTOR entities). Membership is current-state (point_in_time_status PARTIAL).
+- **Verified (no dev write):** local PostgreSQL 16 rehearsal, 39 checks PASS (`verification/sector_analysis/db/REHEARSAL.md`);
+  on dev read-only the refresh's SELECT equals an independent recount from raw rows on 7 dates from 2021-01-26 to
+  2026-11-25, 70 groups each, 0 differences (`crosscheck_dev_20261126.txt`); EXPLAIN (ANALYZE, BUFFERS) 37-66 ms warm,
+  0.3-1.3 s cold per date (`EXPLAIN.md`).
+- **Not yet done (with the user's go):** DRYRUN and APPLY of the migration (`scripts/onboarding/migration_job.py`), then
+  `APPLIED.sha256`, `scripts/audit_feature_catalog_semantics.py`, the backfill job
+  (`verification/sector_analysis/db/backfill/`, `large_write`, Postgres restart after), `scripts/sector_formulas_doc.py
+  --check` in the daily workflow, and `DATABASE_SCHEMA.md` by the scheduled schema refresh (a large read, ERRORS M350).
+
 ## 2026-11-26 — EXEC-PRICE-DISTORTION F4: both hiding chips switched off once in every saved screen (edge_bff, migration 20261125_001; APPLIED on dev 2026-11-25 21:57 UTC; data)
 
 - **Why:** UD46, the user 2026-11-24: "B", "masukan exec ya"; the concept "value harus tetap ditampilkan as is dengan
