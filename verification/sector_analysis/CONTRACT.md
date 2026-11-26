@@ -94,7 +94,9 @@ Rows aligned by `i` (the index in `meta.stocks`); every common stock with a fina
 ```
 Returns use the Overview's sessions (1D 1, 1W 5, 1M 20, 3M 60) from final closes. Days in status are counted back over
 Feature 04 rows (capped at 300 sessions, then shown as "300+").
-### 3.4 `sector-stocks-<INDEX>` (schema 1), one per sector (e.g. `sector-stocks-IDXFINANCE`)
+### 3.4 `sector-stocks-<index>` (schema 1), one per sector, the index ticker lowercased (e.g. `sector-stocks-idxfinance`)
+File names follow terminal-api's rule `^[a-z0-9][a-z0-9_-]{0,31}$` (`apps/terminal-api/app/bucket.py` XSECTION_NAME; the
+publisher's key rule is the same): lowercase, at most 32 characters (amended 2026-11-26 on the S3 part's finding).
 Read by the page only when that sector's stock lines or stock β/correlation are opened.
 ```
 { "schema": 1, "sector": "Financials", "dates": [...300, as sector-series], "ticker": [...], "close": [[300 closes], ...] }
@@ -119,5 +121,5 @@ The example files for visitors are made as the Overview's (`apps/terminal-publis
 - The page computes in the browser what depends on the user's choice (returns over a period, ranks, the rotation map,
   pair spreads, correlations, β from closes, A/U/D of a horizon, industry aggregates of the day); it never queries the
   database.
-- Downloads: index, meta, series and the chosen day on open; `sector-stocks-<INDEX>` only when a sector's stock lines
+- Downloads: index, meta, series and the chosen day on open; `sector-stocks-<index>` only when a sector's stock lines
   or stock β window is opened; every file cached by its sha.
