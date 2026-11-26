@@ -26,6 +26,10 @@ overview/node_modules
 overview/tests
 overview/dist*
 static/overview-app
+sector/node_modules
+sector/tests
+sector/dist*
+static/sector-app
 watchlist/node_modules
 watchlist/tests
 watchlist/dist*
