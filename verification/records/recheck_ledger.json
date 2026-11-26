@@ -11699,6 +11699,31 @@
    "tested_out_by": "none",
    "evidence": "ERRORS M570 Status: 'fixed in `450f4b46`, on the live site since 2026-11-26 (`450f4b46`); tested by its author only'",
    "from": "fix"
+  },
+  {
+   "key": "errors/M571",
+   "execution": "EXEC-VISUAL-STATES",
+   "area": "Backtest, Screener dan Terminal: state fokus dan terpilih mengikuti Terminal, pilihan yang terpotong (ERRORS M570)",
+   "run": "",
+   "finding_id": "M571",
+   "title": "The Admin page's copy of the design system kept the old decision 8; Backend tests red on 450f4b46",
+   "finding": "ERRORS M571 symptom: Backend tests on main (run 45775529508) and live (45775842126), job edge-bff-pages, step \"Admin page\": tests/styles.test.mjs \"edge-canonical.css is the system's own\" failed: the copy held --focus-border:var(--text-3); --focus-shadow:none, the system --focus-border:transparent; --focus-shadow:var(--shadow).",
+   "errors": [
+    "M571"
+   ],
+   "fix_commits": [
+    "ff9921ff"
+   ],
+   "fix_note": "ff9921ff (apps/edge-bff/admin/src/styles/edge-canonical.css takes the system's rules; .claude/skills/edge-design-system/README.md step 2 finds the copies by name)",
+   "runs_on": "branch",
+   "author_test": "apps/edge-bff/admin: npx vitest run, 15 passed (the styles test included); find by name: only the Admin page's two copies",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Run the Admin page's suite (apps/edge-bff/admin: npm ci, npm run build, npx vitest run) and Backend tests' edge-bff-pages job on the fix's commit: green. Search for any other file that copies .claude/skills/edge-design-system/assets (by name or content) and check it against the system. On the beta, the Admin page's fields take the Terminal's selected state.",
+   "tested_out_by": "none",
+   "evidence": "ERRORS M571 Status: 'fixed in `ff9921ff`, on the branch, not deployed; tested by its author only'",
+   "from": "fix"
   }
  ]
 }

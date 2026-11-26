@@ -18093,3 +18093,7 @@ is juga" dan "ini maksudnya sebelum samadengan sesudah"; C4 "ini leave as is jug
   `errors/M570`, status waiting; pemicu: persetujuan user dengan model dan tingkat berpikir pilihan user. Baris Alpha
   Divergence di jendela Screener: kotak Swing Detection Mode (ruang teks 34 px) menimpa kata "within", sama seperti
   sebelum perubahan (C4 dibiarkan); ditanyakan sebagai UD65 (register, EXEC-MU-ACCOUNTS).
+- **CI merah sesudah deploy (ERRORS M571):** Backend tests `450f4b46` di main dan live merah di satu langkah: salinan
+  design system di halaman Admin (khusus beta, milik pemilik) masih memakai aturan 8 lama; job lain hijau, tidak ada yang
+  rusak di beta atau live. Diperbaiki di `ff9921ff` (salinan Admin disamakan, langkah update skill menemukan semua
+  salinan), di branch; deploy ke `main` menunggu konfirmasi user.

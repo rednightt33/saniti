@@ -8887,6 +8887,30 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M571 — Backend tests red on `450f4b46`: the Admin page's copy of the design system kept the old decision 8 (2026-11-26; fixed in `ff9921ff`, on the branch, not deployed)
+
+- **Symptom:** Backend tests on `main` (run 45775529508) and `live` (45775842126), job `edge-bff-pages`, step "Admin page":
+  `tests/styles.test.mjs` "edge-canonical.css is the system's own" failed: the copy held `--focus-border:var(--text-3);
+  --focus-shadow:none` (the old decision 8), the system `--focus-border:transparent; --focus-shadow:var(--shadow)`. The
+  steps before it (Terminal, Overview, Radar, Watchlist) passed. The beta and the live site run `450f4b46` (Wait for CI
+  off): nothing broke, the Admin page (beta only, the owner's) kept its grey focus line.
+- **Verified root cause:** `450f4b46` changed `.claude/skills/edge-design-system/assets/edge-canonical.css` (M570) but
+  not `apps/edge-bff/admin/src/styles/edge-canonical.css`, the page's copy that its test requires equal to the system's
+  (`apps/edge-bff/admin/tests/styles.test.mjs:18`). The author ran the suites of the three pages changed (Backtest,
+  Screener, Terminal), not the Admin page's, and the skill's update steps (README "Changing it") did not name the copy.
+  **Class:** a source with a copy elsewhere whose equality test lives in another app's suite (the class of M467: a
+  document's pointer test in another app's suite).
+- **Solution (`ff9921ff`):** the Admin copy takes the system's rules (its usage note kept): the Admin page's fields
+  take the Terminal's selected state, as decision 8 now says. The skill's README step 2 finds every copy by its file name
+  and names the Admin test; the Overview, Watchlist and Radar, which carry spec v1.2 inside their own CSS, are named
+  there too.
+- **Checked after the fix:** `apps/edge-bff/admin`: `npx vitest run` 15 passed (the styles test included); the copies
+  found by name: only the Admin page's two files.
+- **Status:** fixed in `ff9921ff`, on the branch, not deployed (the deploy waits for the user's confirmation); tested
+  by its author only (RECHECK.md `errors/M571`).
+- **Lesson:** before changing a file that other places copy, find the copies (by name or content) and run their tests,
+  not only the tests of the pages changed.
+
 ### M570 — The Backtest and the Screener drew a field being filled with their own blue or grey line, not the Terminal's selected state, and four kinds of select cut their choice (2026-11-26; fixed in `450f4b46`, on the live site since 2026-11-26 (`450f4b46`))
 
 - **Symptom (the user 2026-11-26, four screenshots; EXEC-VISUAL-STATES):** the Terminal's settings dialog shows a field
