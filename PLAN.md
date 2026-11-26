@@ -20,6 +20,32 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
+## VISUAL-STATES — state hover, fokus dan terpilih di Backtest dan Screener mengikuti Terminal (disetujui untuk diusulkan 2026-11-26; usulan dulu, perbaikan sesudah konfirmasi user)
+
+**Kata user (2026-11-26):** "Sekarang kita hanya edit mengenai visual saja ... Ini adalah selected state, hover state, dari
+sisi visual yang harus kita aplikasikan untuk backtest dan screener"; "Acuan selected state untuk tweak customize
+indicator adalah seperti terminal pada screenshot nomor 1"; nomor 2 (Terminal, Alpha Divergence): "Identify similar case
+seperti ini, di mana keterangan customizable indicator-nya terpotong. Dan benarkan agar tidak terpotong"; nomor 5:
+"backtest preset yang sudah ditambahkan saat ini selected state berwarna hijau. Saya minta hijaunya lebih di-strongin";
+"lakukan audit secara visual. Setiap button feel free untuk dicek mana-mana yang tidak sesuai dengan terminal. Kemudian
+propose ke saya ... Ada beberapa yang mungkin di bagian screen dan backtest meskipun berbeda dengan terminal, tapi itu
+sudah sesuai dengan design wise. Jadi saya mau kamu propose lebih dahulu sebelum diperbaiki, mungkin dalam bentuk HTML
+saja, before dan after."
+
+- **Langkah:** audit dari halaman yang dirender (build smoke Backtest dan Screener, Terminal dengan data contoh): gaya
+  normal, hover dan fokus setiap jenis kontrol, dan pemindaian label pilihan yang tidak muat di kotaknya; lalu usulan HTML
+  before/after per butir; perbaikan hanya butir yang dikonfirmasi user.
+- **Audit 2026-11-26 (usulan dikirim, menunggu pilihan user):** halaman before/after https://claude.ai/artifact/8LnVv9y5zc9ZG99xgFRCUx,
+  17 butir. A1-A4 fokus (Backtest: garis biru + cincin biru di kartu, jendela dan popover Customize; Screener: garis abu di
+  kartu; jendela Screener sudah sama dengan Terminal); B1-B2 baris yang sudah ditambahkan hijau 13% dan tombol Added hijau
+  penuh (Backtest dan Screener); C1-C2 Terminal, 4 kolom terpotong dari 107 indikator (Alpha Divergence Swing Detection
+  Mode, Top Brokers · Imbalance Show as, Net Flow / Turnover Ratio Change line vs, Loaders Cost); C3-C4 kolom Condition
+  jendela 232/224 px terlalu sempit (Aroon, Donchian, Alpha Price Action, Flow VWAP) dan Swing Detection Mode; D1 hover
+  tombol Add; D2 panah dropdown Screener bawaan browser; D3 (opsional) kotak cari Backtest biru; E1 (opsional) hover
+  tombol umum; E2-E4 dibiarkan. Alat: `scratchpad/vis` (inventory, trunc_scan, shots), tidak di Git.
+- **Catatan desain:** skill `edge-design-system` aturan 8 (fokus input = garis abu 1 px, tanpa ring) dan 11 (Terminal bukan
+  model halaman baru) bertentangan dengan acuan baru ini; bila user mengonfirmasi, aturan itu ikut diperbarui.
+
 ## RADAR — halaman Radar untuk library screener S1-S8 (desain disetujui 2026-11-12 s.d. 2026-11-14; rancangan, belum "go")
 
 **Kata user:** "saya mau screener ini dijadikan page baru" (2026-11-12); "Sekarang kita akan fokus ke S1 sampai S7 tadi.
