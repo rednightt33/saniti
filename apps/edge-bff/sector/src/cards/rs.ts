@@ -169,7 +169,7 @@ export const rsW: Card = {
 
 /* ===================== Sector Drill-down with its industries (logic.js L270-310; the industry rows shown, defect D03) ===================== */
 interface DRow { nm: string; sn: string; ind?: boolean; sector?: string; r3d: M.N; r1: M.N; rM: M.N; r3: M.N; ry: M.N; e1: M.N; eM: M.N; e3: M.N; eM4: M.N; quad: M.Quad | null; ema: M.N; rt?: M.N; rt4?: M.N; d4?: M.N; qo?: number; mg?: M.N; k?: number }
-function drillRows(c: Ctx): { SEC: DRow[]; IND: DRow[] } {
+export function drillRows(c: Ctx): { SEC: DRow[]; IND: DRow[] } {
   const D = c.D, K = calc(D), E = D.E, w = D.P('1W'), mo = D.P('1M'), q3 = D.P('3M'), yb = D.ytd();
   const ih1 = M.ret(D.IH, E, w), ihM = M.ret(D.IH, E, mo), ih3 = M.ret(D.IH, E, q3);
   const one = (a: M.N[], nm: string, sn: string): DRow => {
