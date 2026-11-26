@@ -137,7 +137,7 @@ function strip(c: Ctx, box: HTMLElement, K: number, TW: number, tl: boolean) {
     const wk = weekly(D.E), v = wk.map(i => IH[i] as number), known = v.filter(x => x != null), lo = Math.min(...known), hi = Math.max(...known), pd = (hi - lo) * 0.08 || 1, y0 = lo - pd, y1 = hi + pd, n = wk.length;
     const cwT = (Wd - 124) / n, L = tl ? 84 + cwT / 2 : 44, R = tl ? Wd - 40 - cwT / 2 : Wd - 10, T = 4, B = H - 18, X = (j: number) => L + (j / (n - 1)) * (R - L), Y = (x: number) => T + ((y1 - x) / (y1 - y0)) * (B - T), jx = (i: number) => (i - wk[0]) / 5;
     const k = jx(K), k0 = Math.max(0, jx(K - 5 * TW)), chg = M.retAt(IH, K - 5 * TW, K);
-    const picks = [0, Math.round((n - 1) / 4), Math.round((n - 1) / 2), Math.round((3 * (n - 1)) / 4), n - 1].filter((x, i, a) => a.indexOf(x) === i), labs = M.axisDates(wk.map(i => D.dates[i]), picks);
+    const picks = (Wd < 420 ? [0, Math.round((n - 1) / 2), n - 1] : [0, Math.round((n - 1) / 4), Math.round((n - 1) / 2), Math.round((3 * (n - 1)) / 4), n - 1]).filter((x, i, a) => a.indexOf(x) === i), labs = M.axisDates(wk.map(i => D.dates[i]), picks);
     let o = `<rect x="${X(k0)}" y="${T}" width="${Math.max(0, X(k) - X(k0))}" height="${B - T}" fill="color-mix(in srgb,var(--text) 6%,transparent)"/>`
       + [hi, (hi + lo) / 2, lo].map(x => `<line x1="${L}" x2="${R}" y1="${Y(x)}" y2="${Y(x)}" stroke="var(--chart-grid)"/><text x="${L - 6}" y="${Y(x) + 3.5}" text-anchor="end" class="ax">${Math.round(x).toLocaleString('en-US')}</text>`).join('')
       + `<path d="M${X(0)} ${B}${v.map((x, j) => (x == null ? '' : 'L' + X(j).toFixed(1) + ' ' + Y(x).toFixed(1))).join('')}L${X(n - 1)} ${B}Z" fill="color-mix(in srgb,var(--navy) 6%,transparent)"/><path d="${v.map((x, j) => (x == null ? '' : (j ? 'L' : 'M') + X(j).toFixed(1) + ' ' + Y(x).toFixed(1))).join('')}" fill="none" stroke="var(--text)" stroke-width="1.5" stroke-linejoin="round"/>`
@@ -177,8 +177,8 @@ function timeline(c: Ctx, box: HTMLElement, K: number) {
     o += `</g><text class="tw" x="${Wd - 2}" y="${y + rh / 2 + 4}" text-anchor="end" fill="${QT[q] || 'var(--text-3)'}" data-tip="${esc(W.rot.inPhase(D.short(nm), k > jK ? k + '+' : String(k), W.quad[q] || '—', M.dateLabel(D.dates[K])))}">${k > jK ? k + '+' : k}w</text>`;
   });
   o += `<rect x="${(pl + jK * cw).toFixed(1)}" y="${pt}" width="${cw.toFixed(1)}" height="${(rows.length * rh).toFixed(1)}" fill="none" stroke="var(--text)" stroke-width="1.5" rx="2" pointer-events="none"/>`;
-  const yb = pt + rows.length * rh + 14, picks = [0, Math.round((n - 1) / 4), Math.round((n - 1) / 2), Math.round((3 * (n - 1)) / 4), n - 1], labs = M.axisDates(wk.map(i => D.dates[i]), picks);
-  picks.forEach((j, q) => (o += `<text class="ax" x="${pl + j * cw + cw / 2}" y="${yb}" text-anchor="${q ? (q === 4 ? 'end' : 'middle') : 'start'}">${esc(labs[q])}</text>`));
+  const yb = pt + rows.length * rh + 14, picks = Wd < 420 ? [0, Math.round((n - 1) / 2), n - 1] : [0, Math.round((n - 1) / 4), Math.round((n - 1) / 2), Math.round((3 * (n - 1)) / 4), n - 1], labs = M.axisDates(wk.map(i => D.dates[i]), picks);
+  picks.forEach((j, q) => (o += `<text class="ax" x="${pl + j * cw + cw / 2}" y="${yb}" text-anchor="${q ? (q === picks.length - 1 ? 'end' : 'middle') : 'start'}">${esc(labs[q])}</text>`));
   o += `<text class="ax" x="${Wd - 2}" y="${yb}" text-anchor="end">${esc(W.rot.phase)}</text>`;
   box.innerHTML = `<svg width="${Wd}" height="${Math.min(H, yb + 6)}" role="img" aria-label="${esc(W.rot.tlAria)}">${o}</svg>`;
   box.classList.toggle('lk', !!S.pin && !sel.length); box.classList.toggle('sl', sel.length > 0);

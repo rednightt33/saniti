@@ -178,9 +178,9 @@ export const hxCard: Card = {
     rows.forEach(r => r.v.forEach((v: M.N, i: number) => (r['h' + i] = v)));
     M.msSort(rows, SK, { sn: 1 }, DEF);
     el.innerHTML = H3(W.hx.title, W.hx.sub, '', c.win ? null : 'hxCard')
-      + `<div class="ovx-hm${S.pin ? ' pk' : ''}" data-hm>${msTh(SK, 'sn', esc(W.col.sector), 'hd l', W.sort.byName, { tag: 'div', def: DEF, txt: true })}${HZ.map((h, i) => msTh(SK, 'h' + i, h, 'hd', W.sort.byCol(h), { tag: 'div', def: DEF })).join('')}`
+      + `<div class="hm-s" data-scroll="x"><div class="ovx-hm${S.pin ? ' pk' : ''}" data-hm>${msTh(SK, 'sn', esc(W.col.sector), 'hd l', W.sort.byName, { tag: 'div', def: DEF, txt: true })}${HZ.map((h, i) => msTh(SK, 'h' + i, h, 'hd', W.sort.byCol(h), { tag: 'div', def: DEF })).join('')}`
       + rows.map(r => `<div class="nm${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" role="button" tabindex="0" aria-pressed="${r.n === S.pin}" title="${esc(r.n)}">${esc(r.sn)}</div>` + r.v.map((v: M.N, i: number) => (v == null ? '<div>—</div>' : `<div class="c${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" data-tip="${esc(`<b>${esc(r.sn)}</b><br>${HZ[i]} ${M.pct(v)}`)}" style="${heat(v, cap[i])}">${M.pct(v, 1)}</div>`)).join('')).join('')
-      + `<div class="nm ih">${esc(D.market)}</div>` + ih.map(v => `<div class="ih">${M.pct(v, 1)}</div>`).join('') + `</div>`
+      + `<div class="nm ih">${esc(D.market)}</div>` + ih.map(v => `<div class="ih">${M.pct(v, 1)}</div>`).join('') + `</div></div>`
       + `<div class="lgd">${msNote(SK, LAB, { sn: 1 })}<span>${esc(W.hx.foot(D.market))}</span></div>`;
     msWire(el, SK, () => c.redraw(), DEF, '.hd[data-k]');
     $$('[data-hm] [data-n]', el).forEach(x => {

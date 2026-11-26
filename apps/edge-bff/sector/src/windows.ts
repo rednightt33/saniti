@@ -78,6 +78,14 @@ export function openWindow(card: Card, page: Ctx, host: WindowHost, from: HTMLEl
   let last = '', t = 0;
   const ro = new ResizeObserver(() => { const k = `${left.clientWidth}x${left.clientHeight}`; if (k === last) return; const first = !last; last = k; if (!first) { clearTimeout(t); t = window.setTimeout(draw, 100) } });
   draw();
+  // the detail table gets its natural width beside the card; when that leaves the card too little room, the window shows
+  // the card above its detail (defect D15: no column cut off, no sideways scroll)
+  if (right && !stacked) {
+    const tb = $('.fw-tb', right) as HTMLElement | null, need = tb ? tb.scrollWidth + 56 : 0, room = el.clientWidth;
+    const cardTable = Math.max(0, ...$$('table', left).map(x => x.scrollWidth + 40));       // the card's own table, if any
+    if (need > room * 0.58 || cardTable + need > room) { el.classList.add('stk'); el.style.width = Math.min(vw - 48, Math.max(Wd * 0.82, need + 2)) + 'px'; el.style.left = Math.max(0, (vw - el.offsetWidth) / 2) + 'px'; draw() }
+    else if (need) $('.fw-c', el).style.gridTemplateColumns = `minmax(0,1fr) ${Math.max(need, 340)}px`;
+  }
   ro.observe(left);
   el.focus();
 }
