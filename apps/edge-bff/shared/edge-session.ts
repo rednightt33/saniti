@@ -70,7 +70,7 @@ export const STORAGE: readonly StorageEntry[] = Object.freeze([
   { key:'edge-active-run', match:'exact', area:'local', kind:'user', cache:true, where:'shell (legacy)', what:'an older running question; removed on load' },
   { key:'edge-active-run', match:'exact', area:'session', kind:'user', cache:true, where:'shell (legacy)', what:'an older running question; removed on load' },
   // the Terminal (terminal/src): a chart's content and the account's saved things are the user's; panel sizes are the browser's
-  { key:'ml.symbol', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal, Backtest, Screener, Radar, Overview, Watchlist', what:'the ticker the Terminal opens on' },
+  { key:'ml.symbol', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal, Backtest, Screener, Radar, Overview, Watchlist, Sector Analysis', what:'the ticker the Terminal opens on' },
   { key:'ml.tf', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'timeframe' },
   { key:'ml.tfs', match:'exact', area:'local', kind:'browser', where:'Terminal', what:'timeframes the data offered' },
   { key:'ml.fi.metric', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'bond yield or price' },

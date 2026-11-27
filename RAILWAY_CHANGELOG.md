@@ -1,5 +1,39 @@
 # Railway changelog
 
+## 2026-11-27 — The beta on `aabb6530`: Sector Analysis (EXEC-SECTOR-ANALYSIS) — capabilities migration, terminal-api, terminal-publisher and its first `sector` publication, `main` (edge-bff, feature-04-worker, telegram-monitor); the live site unchanged on `53b4fafb`
+
+- **The user's words (2026-11-27):** "Gas." (steps 1-4 of the beta deploy as asked with context: the capabilities
+  migration, terminal-api, terminal-publisher with Run Now, the push of `main`).
+- **Before:** no deployment waiting or building; 0 EDGE jobs, 0 orc turns; CI of `aabb6530` green (Backend tests
+  45891730528, look-ahead gate 45891730542, generated files 45891730610, image builds 45891730627, record statuses
+  45891730584).
+- **Order:**
+  1. **Migration `20261126_050_edge_bff_sector_capabilities.sql`** (orc-test-runner, DRYRUN then APPLY, sha256
+     `0903e41d…`): `sector.view` (paid), `sector.example` (free, guest), as the Overview's; read back (DATABASE_CHANGELOG).
+  2. **terminal-api `37035bf8`** SUCCESS 01:41 UTC: CLI upload of `git archive aabb6530 apps/terminal-api` (family
+     `sector` for the gateway key); both sites `/ready` 200.
+  3. **terminal-publisher `c1a5dc18`** SUCCESS 01:42 UTC: CLI upload of `git archive aabb6530 apps/terminal-publisher`.
+     Run Now at 01:43 UTC only checked (13 minutes after the 01:30 tick, ERRORS M229 addendum: a run within 20 minutes of
+     a tick counts as that tick); Run Now again at 01:53:50 UTC: `sector` built, 33 files written (meta, series, 20
+     days, 11 stock files), 1.13 MB, 44.8 s; `done` after 196.5 s (no other family changed).
+  4. **`main` `53b4fafb` → `aabb6530`** 01:58 UTC (fast-forward): `edge-bff` `1d926660`, `feature-04-worker` `e5ca97ef`,
+     `telegram-monitor` `46b183c1` SUCCESS, 15 services SKIPPED; the beta's `/version` `aabb6530`, `/ready` 200; the live
+     site `/version` `53b4fafb`, `/ready` 200.
+- **Beta checks (as the owner, read-only):** `GET /api/v1/sector/index` 200 (165 ms, 33 files), every file 200; meta:
+  weight `adv20_value`, 11 sectors, 58 industries, 862 stocks, 20 dates 2026-10-30 to 2026-11-26; series 300 dates
+  2025-09-02 to 2026-11-26. Equal to the source tables on 2026-11-26: MARKET breadth 838 members, EMA50 147 of 838, EMA200
+  139 of 830, up/flat/down 311/204/323 (Feature 08); Financials 98, 21 above EMA50; IDXFINANCE 1258.59, IHSG 5242.17,
+  LQ45 548.25 (price table); BBCA close 5900, r1d 1.2876, r5d 4.4248, volume 217,638,500 (Feature 01), distance from
+  EMA50 +4.5109 % and EMA200 −6.9291 % (Feature 04). Browser (owner, 1440 and 390 px): the 5 tabs, no console error, no
+  failed request, no sideways scroll; Open in Terminal on the locked Financials opens the Terminal on IDXFINANCE.
+  Side effect of that check: the owner's synced Terminal ticker (`ml.symbol`) is now IDXFINANCE (the button writes it;
+  the earlier value is not kept, IMPC on 2026-11-26).
+- **Postgres:** 1.99 GB after the run; the restart was refused for the crons' margin (the publisher tick 01:30 UTC, the
+  scheduled restart 02:45 UTC); the scheduled restart at 02:45 UTC covers it (read back below).
+- **Rollback:** the beta: redeploy `edge-bff` `a0b4577c` (`53b4fafb`), feature-04-worker and telegram-monitor their
+  previous SUCCESS deployments; terminal-api `git archive 53b4fafb apps/terminal-api` upload; terminal-publisher the
+  same for `apps/terminal-publisher` (the `sector/` files stay in the bucket, unread). The migrations are expand-only.
+
 ## 2026-11-26 — EXEC-SECTOR-ANALYSIS S1 on dev: migration 20261126_001 and the Feature 08 fill on orc-test-runner; Postgres restarted
 
 - **The user's words (2026-11-26):** "1A 2A 3 go" (the go for S0-S4 on the branch and S1 on the dev database).

@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=798c906d0f1f24c0d41c2d97763ba8ac05f79a2fba6cdd08b8fb63fbe22c48ca by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=869192580ed828e9839006d1eb6c06b5f9212463ef147b17800df0eea0c8db5f by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -84,7 +84,7 @@ var EdgeSession = (() => {
     { key: "edge-active-run", match: "exact", area: "local", kind: "user", cache: true, where: "shell (legacy)", what: "an older running question; removed on load" },
     { key: "edge-active-run", match: "exact", area: "session", kind: "user", cache: true, where: "shell (legacy)", what: "an older running question; removed on load" },
     // the Terminal (terminal/src): a chart's content and the account's saved things are the user's; panel sizes are the browser's
-    { key: "ml.symbol", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal, Backtest, Screener, Radar, Overview, Watchlist", what: "the ticker the Terminal opens on" },
+    { key: "ml.symbol", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal, Backtest, Screener, Radar, Overview, Watchlist, Sector Analysis", what: "the ticker the Terminal opens on" },
     { key: "ml.tf", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "timeframe" },
     { key: "ml.tfs", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "timeframes the data offered" },
     { key: "ml.fi.metric", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "bond yield or price" },

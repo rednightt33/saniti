@@ -18172,3 +18172,11 @@ S0-S4 di branch dan S1 di database dev. Deploy layanan tetap ditanyakan satu per
 - **Sisa (S5):** deploy dengan konfirmasi user per layanan (feature-04-worker, terminal-publisher + Run Now,
   terminal-api, telegram-monitor, edge-bff lewat `main`, migrasi edge_bff `20261126_050`); cek di beta; pemeriksa
   (model dan tingkat pilihan user).
+
+**Beta 2026-11-27 (user: "Gas."):** migrasi kapabilitas `20261126_050` diterapkan; terminal-api `37035bf8`, terminal-publisher
+`c1a5dc18` (publikasi `sector` pertama: 33 file, 1,13 MB), `main` `aabb6530` (edge-bff `1d926660`, feature-04-worker
+`e5ca97ef`, telegram-monitor `46b183c1`) SUCCESS; live tetap `53b4fafb`. Cek beta sebagai pemilik: angka sama dengan tabel
+sumber, 5 tab tanpa error di 1440/390 px, Open in Terminal membuka IDXFINANCE (RAILWAY_CHANGELOG.md 2026-11-27).
+- **Terbuka:** (1) pemeriksa halaman (S5): jumlah agen, model dan tingkat berpikir dipilih user; (2) live: setelah user
+  mengecek butir J di beta, atas permintaan user (pemindahan `live` berikutnya untuk alasan apa pun membawa tab ini, F);
+  (3) restart Postgres sesudah publikasi pertama: restart terjadwal 02:45 UTC.

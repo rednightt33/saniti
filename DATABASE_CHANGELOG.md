@@ -51,7 +51,11 @@
   (`verification/sector_analysis/db/backfill/`, `large_write`, Postgres restart after), `scripts/sector_formulas_doc.py
   --check` in the daily workflow, and `DATABASE_SCHEMA.md` by the scheduled schema refresh (a large read, ERRORS M350).
 
-## 2026-11-26 — EXEC-SECTOR-ANALYSIS S3: the Sector Analysis tab's two capabilities (edge_bff, migration 20261126_050; NOT APPLIED, written on the branch; data)
+## 2026-11-26 — EXEC-SECTOR-ANALYSIS S3: the Sector Analysis tab's two capabilities (edge_bff, migration 20261126_050; applied on dev 2026-11-27 01:40 UTC; data)
+
+- **Applied on dev (2026-11-27, the user's "Gas." for the beta deploy):** DRYRUN then APPLY on orc-test-runner, sha256
+  `0903e41dee2a2b95e1a29873e544ae5fe2873bd70c559d35011a4321dd572d21`; read back: capabilities `sector.example` and
+  `sector.view`; plan rows free and guest `sector.example`, paid `sector.view` (the same three as `overview.*`).
 
 - **Why:** the user's go of 2026-11-26 ("1A 2A 3 go") for the page of decisions UD66 A-J; decision F (the tab released
   on `main`) and decision J ("Untuk free dan guest ... efeknya akan sama seperti overview, tapi dia bisa cross tab").
