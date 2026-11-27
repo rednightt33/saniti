@@ -22,6 +22,7 @@ export const DEFAULT_STATE = {
   rsS: [] as M.Level[], rsOpen: [] as string[], rsLw: '3M' as Pk, rsLr: null as M.Range | null, rsLh: null as string | null,
   // Rotation
   rotV: 'map', rotT: 4, rotK: null as string | null, rotIh: true, cmpW: 1, cmpS: 'ang', rotSel: [] as string[], rotP: 5,
+  rbV: 'ch',                                                // Rotation detail's window: its quadrant changes ('ch') or all its columns ('all')
   rotS: [] as M.Level[], rotBm: 'ih', rqT: null as string | null,
   // Pair Matrix
   pmA: null as string | null, pmB: null as string | null, pqM: 'sp', pqP: '1M' as Pk, pqR: null as M.Range | null, pqW: 60, pqS: [] as M.Level[],
@@ -55,19 +56,32 @@ export interface Col { k: string; l: string; f?: (v: any, r: any) => string; num
 /** a floating window's detail table (logic.js fwd*), with its "How to read" footer */
 export interface Detail {
   title: string; sub: string; cols: Col[]; rows: any[]; sort: M.Level;
-  onRow?(r: any): void; isSel?(r: any): boolean;
+  onRow?(r: any, e?: MouseEvent | KeyboardEvent): void; isSel?(r: any): boolean;
   ctl?: string; onSel?(v: string): void;
   search?: string;                                           // the search box's placeholder (a table of stocks or pairs)
   center?: boolean;
   read: string;                                              // How to read
   ex?(r: any): string;                                       // the example sentence, built from the first row shown
   note?: string;
+  limit?: number;                                            // show that many rows of the order (Stretched pairs' Show)
+  limitNone?(q: string): string;                             // the search's no-match line while rows are limited
+  empty?: string;                                            // the line of a table without rows
+  wire?(box: HTMLElement): void;                             // binds the detail's own controls (its ctl) after a draw
 }
 export interface Card {
   id: string; tab: TabKey; cls: string;
   render(el: HTMLElement, c: Ctx): void;
   detail?(c: Ctx): Detail;
   stack?: boolean;                                           // the window shows the card above its detail
+  /* visual round 2 (windows.ts): the side-by-side window as tall as its detail table, the element `fit[0]` of the card
+     taking the height (its least: the natural height of `fit[1]`, else its CSS min-height or its rows); the card's table
+     and the detail's on one column grid (`align`); the Rotation detail's list and detail (`layout: 'c1'`); the detail
+     hidden for a view (`hideDetail`, the Rotation map's Timeline); a window up to the screen's width (`wide`) */
+  fit?: [grow: string, least?: string, plus?: number];
+  align?: boolean;
+  layout?: 'c1';
+  hideDetail?(c: Ctx): boolean;
+  wide?: boolean;
 }
 
 /* ===================== the measures several cards read, computed once per date ===================== */
