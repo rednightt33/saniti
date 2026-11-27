@@ -8973,6 +8973,13 @@ in its staleness check.
   then open: the Sector page's own dense controls and the Radar's stacked segment buttons, fixed with measured limits in
   check 2 (ERRORS M576: MX2-4, MX2-5, EW2-5, `90bf33f0`, `3a597e76`); MX-9 kept as the user chose ("5B"). Every EDGE page
   but the Terminal ("Terminal jangan disentuh").
+- **CI red on the session branch, before `main` (2026-11-27, workflow "Generated files are current", runs 45995191797 and
+  45998442679, job repository-scripts):** `b99bce73` put the name rule into `apps/edge-bff/overview/src/model.ts` without
+  rewriting `OVERVIEW_FORMULAS.md` (AGENTS.md "Overview formulas": the fingerprint of `model.ts` changed). The two reds
+  were not read at the time they ran; they were found before the deploy. Fixed: `--write`, a sentence on the name rule in
+  section 11, the `explained-for` line set (no figure changed). Lesson: a shared display helper wired into a page whose
+  code has a formula document changes that document's fingerprint; run every `*_formulas_doc.py --repo` before pushing
+  such a change, and read every run of each push to its end.
 - **Lesson:** a page's look check covers a chart whose box changes after its first draw and every scroller's cue, at
   each frame width of the shell; a page's count of a figure another page shows reads the same series.
 

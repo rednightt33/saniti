@@ -1,6 +1,6 @@
 # Rumus Market Overview (dev)
 
-<!-- explained-for: overview.py=28cfa7546645534fc8d6b9bba399d5ac, model.ts=05c9ed848905b7b6e2733dddf012d312, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
+<!-- explained-for: overview.py=28cfa7546645534fc8d6b9bba399d5ac, model.ts=7f3d2fb770feec50a1a7129668ad60d3, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
 
 Dokumen ini menjelaskan **setiap angka di halaman Market Overview** (tab "Overview" di EDGE) dengan bahasa sederhana
 dan contoh angka asli dev. Pakai dokumen ini saat ingin mengubah rumus, atau saat bertanya dari mana sebuah angka
@@ -263,6 +263,9 @@ ETF dan kode indeks tidak dihitung.
 - Panjang batang = return ÷ return absolut terbesar di daftar itu.
 - Baris bawah = jumlah saham, berapa naik, berapa turun.
 - Contoh 13 Nov, semua saham, 1D: ESIP +34,72% teratas, FLMC −9,88% turun terdalam; 836 saham, 564 naik, 143 turun.
+- Nama perusahaan (keterangan kotak peta pasar dan daftar saham): nama dari `IDX_Stock_Universe` yang diawali "Pt "
+  tampil "PT " (`shared/company-name.ts`, aturan tampilan yang sama di semua halaman EDGE kecuali Terminal; keputusan
+  user 2026-11-27, UD71). Hanya tampilan: tidak ada angka atau urutan yang berubah, dan basis data tetap apa adanya.
 
 ## 12. Foreign Flow
 
@@ -409,7 +412,7 @@ Ditulis oleh `scripts/overview_formulas_doc.py --write` dari kode di repo; janga
 | Kode | Sumber | Sidik jari (md5) |
 |---|---|---|
 | `overview.py` | `apps/terminal-publisher/overview.py` (= `CODE` publisher) | `28cfa7546645534fc8d6b9bba399d5ac` |
-| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `05c9ed848905b7b6e2733dddf012d312` |
+| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `7f3d2fb770feec50a1a7129668ad60d3` |
 | `overview_stock_size` | isi fungsi di `database/migrations/20261115_020_overview_stock_size.sql` | `f451fc552b78a6174bc47b4e2a217293` |
 
 <!-- overview-live:end -->
