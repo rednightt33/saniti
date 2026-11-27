@@ -18,7 +18,7 @@ const stockCols = (c: Ctx) => ({
 
 /* ===================== Relative Return (logic.js L188-198) ===================== */
 export const rsA: Card = {
-  id: 'rsA', tab: 'rs', cls: 'rs-a',
+  id: 'rsA', tab: 'rs', cls: 'rs-a', fit: ['.tb'],
   render(el, c) {
     const D = c.D, S = c.S, K = calc(D), n = S.rsN, rel = S.rsB === 'rel';
     const rows = D.names.map(nm => ({ nm, v: rel ? K.rr(nm, n) : M.ret(D.sec(nm), D.E, n) })).filter(r => r.v != null).sort((a, b) => (b.v as number) - (a.v as number)) as { nm: string; v: number }[];
@@ -67,7 +67,7 @@ export function compare(c: Ctx): { i: number; custom: boolean; note: string | nu
 }
 const compareIndex = (c: Ctx) => compare(c).i;
 export const rsB: Card = {
-  id: 'rsB', tab: 'rs', cls: 'rs-b',
+  id: 'rsB', tab: 'rs', cls: 'rs-b', fit: ['.slope'],
   render(el, c) {
     const D = c.D, S = c.S, K = calc(D), n = S.rsN, P0 = compareIndex(c), a = K.rankAt(n, P0), b = K.rankAt(n, D.E), mo = D.P('1M'), dl = (i: number) => M.dateIn(D.dates[i], D.ref);
     const cp = compare(c), on = cp.custom ? 'C' : S.rbK === 'C' ? '5' : S.rbK;
@@ -145,7 +145,7 @@ function fitWeeks(t: HTMLElement, grid: HTMLElement, n: number) {
   grid.style.gridTemplateColumns = `${NAME_W}px repeat(${n},${w}px)`; grid.classList.remove('tight');
 }
 export const rsW: Card = {
-  id: 'rsW', tab: 'rs', cls: 'rs-w',
+  id: 'rsW', tab: 'rs', cls: 'rs-w', fit: ['.rsw-s'],
   render(el, c) {
     const D = c.D, S = c.S, Kc = calc(D), { K, e1, custom, note } = weeks(c), mo = D.P('1M');
     const val = (nm: string, e: number) => Kc.rr(nm, 5, e), DEF: M.Level = ['r20', 1];
@@ -159,7 +159,7 @@ export const rsW: Card = {
     };
     const on = custom ? 'C' : S.rsWn === 'C' ? '8' : S.rsWn;
     el.innerHTML = H3(W.rsW.title, W.rsW.sub(D.market), SEG('w', '', [['4', '4W'], ['8', '8W'], ['C', W.range.custom]], on), c.win ? null : 'rsW')
-      + `<div class="tb rsw-s" data-scroll="x" data-sticky="1" data-scroll-key="${K[0]}-${K.length}"><div class="ovx-hm rsw${S.pin ? ' has' : ''}" style="grid-template-columns:${NAME_W}px repeat(${K.length},minmax(${MIN_W}px,1fr))">${msTh(SK, 'sn', esc(W.col.sector), 'hd l', W.sort.byName, { tag: 'div', txt: true })}${K.map((e, j) => {
+      + `<div class="tb rsw-s" data-scroll="x" data-sticky="1" data-scroll-key="${K[0]}-${K.length}"><div class="ovx-hm rsw" style="grid-template-columns:${NAME_W}px repeat(${K.length},minmax(${MIN_W}px,1fr))">${msTh(SK, 'sn', esc(W.col.sector), 'hd l', W.sort.byName, { tag: 'div', txt: true })}${K.map((e, j) => {
         const mo2 = M.MON[+D.dates[e].slice(5, 7) - 1], nw = j === 0 || mo2 !== M.MON[+D.dates[K[j - 1]].slice(5, 7) - 1];
         return msTh(SK, 'w' + e, `<i>${nw ? mo2 : ''}</i><b>${+D.dates[e].slice(8, 10)}</b>`, 'hd', W.rsW.headTip(M.dateLabel(D.dates[e], false, true)), { tag: 'div' });
       }).join('')}`
@@ -223,7 +223,7 @@ export function drillRows(c: Ctx): { SEC: DRow[]; IND: DRow[] } {
   return { SEC, IND };
 }
 export const rsD: Card = {
-  id: 'rsD', tab: 'rs', cls: 'rs-d', stack: true,
+  id: 'rsD', tab: 'rs', cls: 'rs-d', stack: true, align: true,
   render(el, c) {
     const D = c.D, S = c.S, { SEC, IND } = drillRows(c), mo = D.P('1M'), open = new Set(S.rsOpen);
     const DEF: M.Level = ['rt', 1], SK = M.msKeep(S.rsS, k => COLS.some(x => x[0] === k));
@@ -266,7 +266,7 @@ const COLS: string[][] = [['sn', 'l'], ['r3d'], ['r1'], ['rM'], ['r3'], ['ry'], 
 
 /* ===================== a sector's stock lines (logic.js L313-356; the real closes of sector-stocks-<index>, G1) ===================== */
 export const rsL: Card = {
-  id: 'rsL', tab: 'rs', cls: 'rs-l',
+  id: 'rsL', tab: 'rs', cls: 'rs-l', fit: ['.rlc'],
   render(el, c) {
     const D = c.D, S = c.S, nm = shown(c), K = calc(D), sp = K.span(S.rsLw, S.rsLr), b0 = sp.b, e1 = sp.e, dates = D.dates.slice(b0, e1 + 1);
     const locked = !!S.pin && D.names.includes(S.pin);

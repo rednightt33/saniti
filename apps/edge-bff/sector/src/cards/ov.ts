@@ -3,7 +3,7 @@
 import * as M from '../model.ts';
 import { calc, shown, type Card, type Ctx, type Detail } from '../ctx.ts';
 import { cumChart, cumHover, type Geo, type Line } from '../charts.ts';
-import { $, $$, DOT, H3, SEG, esc, footNow, footSet, heat, msNote, msTh, msWire, na, onSeg, openRange, stockPop, textW } from '../ui.ts';
+import { $, $$, DOT, H3, SEG, STEPS, esc, footNow, footSet, heat, msNote, msTh, msWire, na, onSeg, openRange, stockPop, textW } from '../ui.ts';
 import { W } from '../words.ts';
 
 const PAL = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)'];
@@ -37,7 +37,7 @@ function rcSel(c: Ctx): string[] {
   return [...new Set([s[0], s[1], s[s.length - 2], s[s.length - 1]].filter(Boolean))];
 }
 export const rcCard: Card = {
-  id: 'rcCard', tab: 'ov', cls: 'ov-wide',
+  id: 'rcCard', tab: 'ov', cls: 'ov-wide', fit: ['.ovx-cr', '.ovx-bl'],
   render(el, c) {
     const D = c.D, S = c.S, K = calc(D), sp = K.span(S.rcW, S.rcR), sel = rcSel(c), dates = D.dates.slice(sp.b, sp.e + 1);
     const col: Record<string, string> = {}, dashed = new Set<string>(); let ci = 0;
@@ -47,7 +47,7 @@ export const rcCard: Card = {
     el.innerHTML = H3(W.rc.title, W.rc.sub, SEG('w', '', periodOpts(['1M', '3M', 'YTD', 'C']), sp.key), c.win ? null : 'rcCard')
       + `<div class="ovx-b"><div class="ovx-lg">${D.names.map(n => `<button type="button" class="ovx-tog${sel.includes(n) ? ' on' : ''}${dashed.has(n) ? ' dsh' : ''}" data-tg="${esc(n)}" aria-pressed="${sel.includes(n)}"${col[n] ? ` style="--c:${col[n]}"` : ''} title="${esc(W.rc.togTip(sel.includes(n)))}"><i></i>${esc(D.short(n))}</button>`).join('')}`
       + `<button type="button" class="ovx-tog ihx${S.rcIh ? ' on' : ''}" data-tg="__ih" aria-pressed="${S.rcIh}" title="${esc(W.rc.ihTip(S.rcIh, D.market))}"><i></i>${esc(D.market)}</button></div>`
-      + `<div class="ovx-cr"><div class="ovx-cv" data-chart></div><div class="ovx-bl">${rows.map(r => `<div class="r${r.n === S.pin ? ' on' : ''}" data-n="${esc(r.n)}" role="button" tabindex="0" aria-pressed="${r.n === S.pin}"><span title="${esc(r.n)}">${esc(D.short(r.n))}</span><div class="tr"><i style="${(r.v as number) >= 0 ? 'left:50%' : 'right:50%'};width:${(Math.abs(r.v as number) / mx) * 50}%;background:${(r.v as number) >= 0 ? 'var(--up)' : 'var(--down)'}"></i></div><b class="${M.cls(r.v)}">${M.pct(r.v, 1)}</b></div>`).join('')}</div></div></div>`
+      + `<div class="ovx-cr" style="--n:${rows.length}"><div class="ovx-cv" data-chart></div><div class="ovx-bl">${rows.map(r => `<div class="r${r.n === S.pin ? ' on' : ''}" data-n="${esc(r.n)}" role="button" tabindex="0" aria-pressed="${r.n === S.pin}"><span title="${esc(r.n)}">${esc(D.short(r.n))}</span><div class="tr"><i style="${(r.v as number) >= 0 ? 'left:50%' : 'right:50%'};width:${(Math.abs(r.v as number) / mx) * 50}%;background:${(r.v as number) >= 0 ? 'var(--up)' : 'var(--down)'}"></i></div><b class="${M.cls(r.v)}">${M.pct(r.v, 1)}</b></div>`).join('')}</div></div></div>`
       + `<div class="lgd"><span>${esc(M.rangeLabel(dates[0], dates[dates.length - 1], D.ref))}${DOT}${esc(W.sessions(sp.e - sp.b))}${DOT}${esc(W.rc.sectors(D.names.length))}</span>${rangeNote(sp.note)}<span class="sp"></span><span>${esc(dashed.size ? W.rc.many : W.rc.hint)}</span></div>`;
     onSeg(el, 'w', (v, b) => {
       if (v === 'C') { customRange(c, b, S.rcR, r => { S.rcW = 'C'; S.rcR = r; S.rcSel = null }); return }
@@ -102,7 +102,7 @@ export const rcCard: Card = {
 
 /* ===================== Momentum: horizon vs horizon (logic.js L1081-1105) ===================== */
 export const mmCard: Card = {
-  id: 'mmCard', tab: 'ov', cls: 'ov-narrow',
+  id: 'mmCard', tab: 'ov', cls: 'ov-narrow', fit: ['.ovx-cv'],
   render(el, c) {
     const D = c.D, S = c.S, K = calc(D);
     const opts = (v: string, other: string) => `${AXES.map(h => `<option value="${h}"${h === v ? ' selected' : ''}${h === other ? ` disabled` : ''}>${h}</option>`).join('')}`;
@@ -176,7 +176,7 @@ export const mmCard: Card = {
 
 /* ===================== Sector x Horizon (logic.js L1106-1118) ===================== */
 export const hxCard: Card = {
-  id: 'hxCard', tab: 'ov', cls: 'ov-narrow',
+  id: 'hxCard', tab: 'ov', cls: 'ov-narrow', fit: ['.hm-s'],
   render(el, c) {
     const D = c.D, S = c.S, K = calc(D), rows = D.names.map(n => ({ n, sn: D.short(n), v: HZ.map(h => K.retP(D.sec(n), h, null)) } as any)), ih = HZ.map(h => K.retP(D.IH, h, null));
     const cap = HZ.map((_, i) => Math.max(...rows.map(r => Math.abs(r.v[i] ?? 0))) || 1);
@@ -184,7 +184,7 @@ export const hxCard: Card = {
     rows.forEach(r => r.v.forEach((v: M.N, i: number) => (r['h' + i] = v)));
     M.msSort(rows, SK, { sn: 1 }, DEF);
     el.innerHTML = H3(W.hx.title, W.hx.sub, '', c.win ? null : 'hxCard')
-      + `<div class="hm-s" data-scroll="x"><div class="ovx-hm${S.pin ? ' pk' : ''}" data-hm>${msTh(SK, 'sn', esc(W.col.sector), 'hd l', W.sort.byName, { tag: 'div', def: DEF, txt: true })}${HZ.map((h, i) => msTh(SK, 'h' + i, h, 'hd', W.sort.byCol(h), { tag: 'div', def: DEF })).join('')}`
+      + `<div class="hm-s" data-scroll="x"><div class="ovx-hm" data-hm>${msTh(SK, 'sn', esc(W.col.sector), 'hd l', W.sort.byName, { tag: 'div', def: DEF, txt: true })}${HZ.map((h, i) => msTh(SK, 'h' + i, h, 'hd', W.sort.byCol(h), { tag: 'div', def: DEF })).join('')}`
       + rows.map(r => `<div class="nm${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" role="button" tabindex="0" aria-pressed="${r.n === S.pin}" title="${esc(r.n)}">${esc(r.sn)}</div>` + r.v.map((v: M.N, i: number) => (v == null ? `<div>${na(W.hx.na(HZ[i]))}</div>` : `<div class="c${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" data-tip="${esc(`<b>${esc(r.sn)}</b><br>${HZ[i]} ${M.pct(v)}`)}" style="${heat(v, cap[i])}">${M.pct(v, 1)}</div>`)).join('')).join('')
       + `<div class="nm ih">${esc(D.market)}</div>` + ih.map((v, i) => `<div class="ih">${v == null ? na(W.hx.na(HZ[i])) : M.pct(v, 1)}</div>`).join('') + `</div></div>`
       + `<div class="lgd">${msNote(SK, LAB, { sn: 1 })}<span>${esc(W.hx.foot(D.market))}</span></div>`;
@@ -223,7 +223,7 @@ export const mkCard: Card = {
     if (S.mkSub && !g.has(S.mkSub)) S.mkSub = null;
     el.innerHTML = H3(W.mk.title(D.short(n)), W.mk.sub(D.weightLabel, D.market, locked), '', c.win ? null : 'mkCard')
       + `<div class="ovx-b"><div class="ovx-mk${S.mkSub ? ' sub' : ''}" data-map></div></div>`
-      + `<div class="lgd"><span>${esc(W.mk.foot(ms.length, subs.length, floored))}</span><span class="sp"></span><span class="ovx-scl" aria-hidden="true"><span>−</span><i style="${heat(-1, 1)}"></i><i style="${heat(-0.45, 1)}"></i><i style="background:var(--sel)"></i><i style="${heat(0.45, 1)}"></i><i style="${heat(1, 1)}"></i><span>+</span></span></div>`;
+      + `<div class="lgd"><span>${esc(W.mk.foot(ms.length, subs.length, floored))}</span><span class="sp"></span><span class="ovx-scl" aria-hidden="true"><span>−</span>${STEPS.map(([bg]) => `<i style="background:${bg}"></i>`).join('')}<span>+</span></span></div>`;
     const box = $('[data-map]', el);
     requestAnimationFrame(() => {
       const Wd = box.clientWidth, H = box.clientHeight; if (!Wd || !H) return;

@@ -64,12 +64,42 @@ export function scrollCues(root: ParentNode) {
   for (const x of all) { cue(x); if (!x.dataset.cueOn) { x.dataset.cueOn = '1'; x.addEventListener('scroll', () => cue(x), { passive: true }) } }
 }
 
-/* ---------- colour scales (logic.js: alpha = min(1, |v| / cap) x 0.72 + 0.06; white text over 0.5) ---------- */
+/* ---------- colour scales: the Overview's seven solid steps (user decision UD77 2A, visual round 2 V6) ----------
+   The steps of apps/edge-bff/overview/src/model.ts colorOf, signed: a value on the scale c (c ≥ 3 the strongest step,
+   ≥ 1.5 the middle, > 0 the light one; the same below 0 in red) takes at least the light step whenever it is off the
+   centre, and only the centre itself is the flat grey. The steps are the same in the light and the dark theme, as the
+   Overview's; the flat cell is a token (--sx-flat, sector.css). */
+export type Step = readonly [bg: string, fg: string];
+const UP: Step[] = [['var(--green-300)', 'var(--gray-900)'], ['var(--green-500)', '#fff'], ['var(--green-600)', '#fff']];
+const DOWN: Step[] = [['var(--red-300)', 'var(--gray-900)'], ['var(--red-500)', '#fff'], ['var(--red-600)', '#fff']];
+const NAVY: Step[] = [['var(--navy-300)', 'var(--gray-900)'], ['var(--navy-500)', '#fff'], ['var(--navy-600)', '#fff']];
+export const FLAT: Step = ['var(--sx-flat)', 'var(--sx-flat-fg)'];
+/** the step of c on the Overview's thresholds (0.5 / 1.5 / 3, signed); `up` and `down` are the two hues */
+export function step(c: number, up: Step[] = UP, down: Step[] = DOWN): Step {
+  if (!Number.isFinite(c) || c === 0) return FLAT;
+  const k = Math.abs(c) >= 3 ? 2 : Math.abs(c) >= 1.5 ? 1 : 0;
+  return (c > 0 ? up : down)[k];
+}
+/** a heat cell: the column's cap maps onto the Overview's scale, c = (v − centre) / cap × 3, so the strongest step is
+    reached at the cap, the middle one from half of it and the light one below (the Overview divides a return by its
+    period's scale the same way: 1D ±0.5 / 1.5 / 3%) */
 export function heat(v: number | null | undefined, cap: number, centre = 0): string {
   if (v == null || !Number.isFinite(v)) return '';
-  const k = Math.min(1, Math.abs(v - centre) / (cap || 1)) * 0.72 + 0.06;
-  return `background:color-mix(in srgb,var(${v >= centre ? '--up' : '--down'}) ${(k * 100).toFixed(1)}%,transparent);color:${k > 0.5 ? 'var(--sx-hot)' : 'var(--text)'}`;
+  const [bg, fg] = step(((v - centre) / (cap || 1)) * 3);
+  return `background:${bg};color:${fg}`;
 }
+/** the Pair matrix's correlation: the same steps in its own two hues, navy for moving together and red for opposite moves,
+    on a fixed scale (a correlation is not relative to the other cells): the strongest step from ±0.8 (the usual "moves
+    closely" line), the middle one from ±0.4, the light one below. The sectors' 60-session correlations of 26 Nov 2026 ran
+    0.64 to 0.94, so the two upper steps split them where a fixed 1.0 would have coloured all of them the middle step */
+export const CORR_CAP = 0.8;
+export function corrHeat(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '';
+  const [bg, fg] = step((v / CORR_CAP) * 3, NAVY, DOWN);
+  return `background:${bg};color:${fg}`;
+}
+/** the legend of a heat scale: its seven steps, strongest red to strongest green */
+export const STEPS: Step[] = [DOWN[2], DOWN[1], DOWN[0], FLAT, UP[0], UP[1], UP[2]];
 
 /* ---------- the shared multi-column sort (logic.js L563-576) ---------- */
 export function msTh(SK: M.Level[], key: string, lab: string, cl = '', tip = '', o: { def?: M.Level | null; txt?: boolean; tag?: string } = {}) {

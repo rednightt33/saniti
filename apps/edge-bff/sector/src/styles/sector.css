@@ -8,10 +8,13 @@
 
 /* ---------- the frame (the Overview's: the page scrolls inside the shell's frame) ---------- */
 html,body{width:auto;height:100%;overflow:hidden;background:var(--bg)}
-:root{--sx-dim:#dcdcdc;--sx-hot:var(--text);--sx-navy-ink:#fff}
-/* the ink on a strong fill reads 4.5:1 in each theme (check 1 MX-5): dark text on a light theme's heat, white on a dark
-   theme's heat, dark on the dark theme's light navy */
-:root.dark,:root[data-theme="dark"]{--sx-dim:#333;--sx-hot:#fff;--sx-navy-ink:var(--gray-900)}
+:root{--sx-dim:#dcdcdc}
+:root.dark,:root[data-theme="dark"]{--sx-dim:#333}
+/* the heat cells' flat step (value exactly at the centre): the Overview's --ov-flat (overview.css), so the seven steps
+   read the same on both pages in each theme (visual round 2, UD77 2A; the six coloured steps are the palette's own,
+   ui.ts step) */
+:root{--sx-flat:var(--gray-200);--sx-flat-fg:var(--gray-900)}
+:root.dark,:root[data-theme="dark"]{--sx-flat:#2b2b2b;--sx-flat-fg:var(--text)}
 svg{display:block;flex:none}
 .app{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);height:100vh;overflow:hidden}
 .main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
@@ -159,13 +162,16 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .ovx-cv.mm{min-height:250px;cursor:default}
 .ovx-cv svg{overflow:visible}
 .ovx-cv .qd{font-size:10px;font-weight:600;fill:var(--text-3);letter-spacing:.05em;text-transform:uppercase;paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
-.ovx-cr{flex:1 1 auto;display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:var(--s-6);min-height:0}
-.ovx-bl{display:grid;grid-auto-rows:minmax(22px,1fr);align-content:stretch;padding-bottom:24px}
-.ovx-bl .r{display:grid;grid-template-columns:minmax(0,1fr) 92px 56px;align-items:center;gap:6px;font-size:var(--fs-xs);border-radius:var(--r-xs);padding:0 6px;cursor:pointer;outline:none}
+/* Cumulative return (user 2026-11-27, V2 and answer 3A): the sector list's rows stay close (at most the 36 px of a table
+   row), its bars take the list's width, and the chart is as tall as the list (one grid row, --n = the list's rows; the
+   24 px under the rows are the chart's date axis) */
+.ovx-cr{flex:1 1 auto;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:var(--s-6);min-height:0;max-height:calc(var(--n, 11) * 36px + 24px)}
+.ovx-bl{display:grid;grid-auto-rows:minmax(22px,1fr);align-content:stretch;padding-bottom:24px;min-height:0}
+.ovx-bl .r{display:grid;grid-template-columns:76px minmax(0,1fr) 50px;align-items:center;gap:8px;font-size:var(--fs-xs);border-radius:var(--r-xs);padding:0 6px;cursor:pointer;outline:none}
 .ovx-bl .r:hover,.ovx-bl .r.on{background:var(--hover)}
 .ovx-bl .r span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-2)}
 .ovx-bl .r b{text-align:right;font-weight:var(--fw-medium)}
-.ovx-bl .tr{position:relative;height:6px}
+.ovx-bl .tr{position:relative;height:8px}
 .ovx-bl .tr i{position:absolute;top:0;bottom:0;border-radius:2px}
 .ovx-bl .tr::after{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--border-2)}
 .ovx-lg{display:flex;flex-wrap:wrap;gap:2px 4px;margin:2px 0 8px;align-items:center}
@@ -188,15 +194,16 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .ovx-hm .nm{justify-content:flex-start;font-weight:var(--fw-semibold);font-size:11.5px;padding-left:2px;color:var(--text);cursor:pointer;overflow:hidden;white-space:nowrap}
 .ovx-hm .c{cursor:pointer}
 .ovx-hm .ih{font-weight:var(--fw-semibold);color:var(--text)}.ovx-hm .nm.ih{color:var(--text-2);cursor:default}
-.ovx-hm.pk>.c:not(.hl){opacity:.32}.ovx-hm.pk>.nm:not(.hl):not(.ih){color:var(--text-3)}.ovx-hm .nm.hl{font-weight:var(--fw-bold);background:var(--sel)}
+/* a locked sector is marked by its name cell; the other rows keep their colours (UD77: no dimming of the heat cells) */
+.ovx-hm .nm.hl{font-weight:var(--fw-bold);background:var(--sel);box-shadow:inset 3px 0 0 var(--text)}
 .ovx-mk{position:relative;flex:1 1 auto;min-height:260px;margin-bottom:var(--s-2)}
 .mk-g{position:absolute}
-.ovx-mk.sub .mk-g:not(.on){opacity:.32}
+.mk-g.on{box-shadow:0 0 0 2px var(--text);border-radius:3px;z-index:1}.mk-g.on>.mk-gl{color:var(--text);font-weight:var(--fw-bold)}
 .mk-gl{position:absolute;left:2px;top:0;max-width:calc(100% - 4px);height:14px;line-height:14px;font-size:10px;font-weight:var(--fw-semibold);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mk-t{position:absolute;border-radius:3px;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;font-size:var(--fs-xs);line-height:1.2;text-align:center;cursor:pointer;outline:none}
 .mk-t b{font-weight:var(--fw-semibold)}.mk-t span{font-size:10px}
 .ovx-scl{display:inline-flex;align-items:center;gap:2px;color:var(--text-3)}
-.ovx-scl i{display:block;width:22px;height:8px}
+.ovx-scl i{display:block;width:16px;height:8px;border-radius:1px}
 .ovx-scl span{padding:0 4px}
 .sx-spop{width:max-content;min-width:200px;max-width:min(320px,calc(100% - 8px));padding:var(--s-5) var(--s-6);z-index:5}
 .sx-spop .kv b{white-space:nowrap}                                        /* a value never breaks (check 1 OR-5) */
@@ -235,7 +242,7 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .rsw .nm{position:sticky;left:0;z-index:1;background:var(--surface);border:0;font-family:inherit;color:var(--text);text-align:left;padding:0 0 0 2px;display:flex;align-items:center;justify-content:flex-start;font-weight:var(--fw-semibold);font-size:12px;border-radius:3px;height:auto;align-self:stretch;box-shadow:none;white-space:nowrap;overflow:hidden}
 .rsw>.hd:first-child{position:sticky;left:0;z-index:1;background:var(--surface)}
 .rsw .nm:hover,.rsw .nm.pk{background:var(--sel)}
-.rsw.has .c:not(.pk){opacity:.32}.rsw.has .nm:not(.pk){color:var(--text-3)}.rsw .nm.pk{font-weight:var(--fw-bold)}
+.rsw .nm.pk{font-weight:var(--fw-bold);box-shadow:inset 3px 0 0 var(--text)}
 .tc .tbl-wrap .tbl td,.tc .tbl-wrap .tbl th{font-size:12px}
 .rs-d .tbl th,.rs-d .tbl td{padding-left:4px;padding-right:4px;text-align:center}
 .rsd-note{flex:none;margin:0 var(--s-8) var(--s-4);padding:var(--s-3) var(--s-5);border-radius:var(--r-sm);background:var(--surface-2);font-size:var(--fs-12);line-height:16px;color:var(--text-2)}
@@ -290,8 +297,7 @@ circle.dt{cursor:pointer;outline:none}
 .pmg .hd{font-size:10.5px;color:var(--text-3);font-weight:var(--fw-semibold);background:none}
 .pmg .hd.on{color:var(--text)}
 .pmg .nm{position:sticky;left:0;z-index:1;justify-content:flex-start;font-weight:var(--fw-semibold);font-size:12px;padding-left:2px;color:var(--text);background:var(--surface);white-space:nowrap;overflow:hidden}
-.pmg .nm.on{background:var(--sel)}.pmg .nm.nb{cursor:default;color:var(--text-3)}
-.pmg.has .nm:not(.on){color:var(--text-3)}.pmg.has .c:not(.pk){opacity:.32}.pmg.has .c:not(.pk):hover{opacity:.7}
+.pmg .nm.on{background:var(--sel);font-weight:var(--fw-bold);box-shadow:inset 3px 0 0 var(--text)}.pmg .nm.nb{cursor:default;color:var(--text-2)}
 .pmg .c.sel{box-shadow:inset 0 0 0 1.5px var(--text)}
 .pmg .dg{background:var(--surface-2);color:var(--text-3)}
 .pmbar{display:flex;align-items:center;gap:6px;padding:0 var(--s-8) 6px;flex-wrap:wrap}
@@ -346,8 +352,7 @@ circle.dt{cursor:pointer;outline:none}
 .br-t .tbl td.hc{text-align:center;font-variant-numeric:tabular-nums}
 .br-t .hc small{color:inherit;opacity:.72;font-size:10.5px}
 .br-t .tbl tr.all td{font-weight:var(--fw-semibold)}.br-t .tbl tr.all>td:not(.hc){background:var(--surface-2)}
-.br-t tbody tr.cur:not(.all)>td:not(.hc){background:var(--sel);font-weight:var(--fw-semibold)}
-.br-t .tbl.has tbody tr:not(.cur):not(.all)>td.hc{opacity:.32}.br-t .tbl.has tbody tr:not(.cur):not(.all)>td:not(.hc){color:var(--text-3)}
+.br-t tbody tr.cur:not(.all)>td:not(.hc){background:var(--sel);font-weight:var(--fw-semibold)}.br-t tbody tr.cur:not(.all)>td:first-child{box-shadow:inset 3px 0 0 var(--text)}
 .btx{position:relative;display:inline-flex}
 .btxp{position:absolute;left:0;top:calc(100% + 6px);z-index:30;display:grid;gap:6px;min-width:228px;padding:10px 12px}
 .btxp[hidden]{display:none}.btxh{font-size:11px;color:var(--text-3)}
@@ -448,6 +453,46 @@ circle.dt{cursor:pointer;outline:none}
 .fw [data-card] .tbl-wrap{flex:1 1 auto}
 @media (max-width:640px){.fw{border-radius:0;resize:none;overflow-y:auto}.fw-h{cursor:default;padding-left:16px;position:sticky;top:0;z-index:3;background:var(--surface)}.fw-ti{flex-wrap:wrap;white-space:normal}.fw-st{white-space:normal}
   .fw-c,.fw.stk .fw-c{flex:none;overflow:visible}.fw-r{padding:12px 16px 0}.fw-f{padding:8px 16px}.fw-q input{width:110px}}
+/* ---------- visual round 2 windows (user 2026-11-27, EXEC.md EXEC-SECTOR-ANALYSIS V1-V10; windows.ts) ---------- */
+/* a card that is only controls over its detail (Stretched pairs: the window shows only "Spread across horizons") */
+.fw.stk .fw-l.ctlo{min-height:0;padding-bottom:var(--s-4)}
+.fw.stk.stk-t .fw-l.ctlo{flex:none;max-height:none}
+/* the drill-down and Beta windows: both tables on one column grid. Both scrollers start at the same x, are as wide and keep
+   the same scrollbar gutter, so a column edge of one falls on a column edge of the other (alignTables) */
+.fw.al .fw-r{padding-left:8px;padding-right:8px}
+.fw.al .fw-r .fw-dh{padding:0 var(--s-6)}
+.fw.al .fw-tw,.fw.al .fw-l .tbl-wrap{scrollbar-gutter:stable;scrollbar-width:thin;overflow-x:auto}
+.fw.al .fw-tb td.l{max-width:none}
+.fw.al .fw-tb th:first-child,.fw.al .fw-tb td:first-child{padding-left:var(--s-8)!important}
+.fw.al .fw-tb .al-fill{padding:0!important}
+/* Rotation detail (C1): the card's controls in one row over both sides; the list (left) and the detail (right) on one
+   52 px title band, one header line and 36 px rows with the same row lines */
+.fw.c1 .fw-c{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+.fw.c1 .fw-l{display:contents}
+.fw.c1 .fw-l>.card-h{grid-column:1/-1;grid-row:1;padding:var(--s-5) var(--s-8);border-bottom:1px solid var(--border);margin:0}
+.fw.c1 .fw-l>.card-h .pctl{flex:1 1 auto;justify-content:flex-start}
+.fw.c1 .c1-hint{margin:0 0 0 auto;padding:0;border:0;display:inline-flex;align-items:center;gap:var(--s-4);flex-wrap:nowrap;white-space:nowrap}
+.fw.c1 .c1-chips{display:none}
+.fw.c1 .c1-l{grid-column:1;grid-row:2;display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--border)}
+.fw.c1 .c1-l .tbl-wrap{flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden}
+.fw.c1 .fw-r{grid-column:2;grid-row:2;padding:0;min-height:0}
+.c1-band,.fw.c1 .fw-dh{height:52px;flex:none;display:flex;align-items:center;gap:var(--s-5);padding:0 var(--s-8);margin:0;border-bottom:1px solid var(--border);flex-wrap:nowrap}
+.c1-band b{font-size:var(--fs-base);font-weight:var(--fw-semibold)}.c1-band span{font-size:var(--fs-12);color:var(--text-3)}
+.fw.c1 .fw-dt{flex:1 1 auto;min-width:0}.fw.c1 .fw-dt span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fw.c1 .tbl th,.fw.c1 .tbl td{height:36px}
+.fw.c1 .fw-tw{overflow:auto}
+.fw.c1 .fw-tb td.l{max-width:none}
+.c1-chip{flex:none;display:inline-flex;align-items:center;height:32px;padding:0 var(--s-6);border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface);color:var(--text-2);font:inherit;font-size:var(--fs-12);white-space:nowrap;box-shadow:none}
+.c1-chip.on{background:var(--text);border-color:var(--text);color:var(--surface)}
+@media (max-width:640px){
+  .fw.c1 .fw-c{display:flex;flex-direction:column}
+  .fw.c1 .c1-l{display:none}
+  .fw.c1 .c1-chips{display:flex;gap:var(--s-3);overflow-x:auto;padding:var(--s-4) var(--s-6);border-bottom:1px solid var(--border);flex:none}
+  .fw.c1 .fw-l>.card-h{flex-wrap:wrap}.fw.c1 .c1-hint{white-space:normal;margin-left:0}
+  .fw.c1 .fw-r{flex:none}
+}
+/* the Rotation map in a window: its Timeline takes the whole window (the readings hidden, V8) */
+.fw.nod .fw-r[hidden],.fw .fw-f[hidden]{display:none}
 /* touch: the small single controls get a 44 px hit area without changing their look (check 1 MX-4, in part) */
 @media (pointer:coarse){.fwx,.rs-d .car,.fw-x{position:relative}.fwx::after,.rs-d .car::after,.fw-x::after{content:"";position:absolute;inset:-11px}.fw-x::after{inset:-9px}}
 
@@ -459,7 +504,7 @@ circle.dt{cursor:pointer;outline:none}
   .g-ov>[data-slot],.g-rs>[data-slot],.g-br>[data-slot]{grid-area:auto!important;grid-column:auto!important}
   .g-ov>[data-slot],.g-rs>[data-slot],.g-br>[data-slot],.g-pm>[data-slot],.g-rot>[data-slot],.rotL>[data-slot]{height:auto!important;min-height:0;flex:none!important}
   .tc .tb,.tc .tbl-wrap,.ovx-b,.tc .tb>*{flex:none}
-  .ovx-cr{grid-template-columns:minmax(0,1fr)}.ovx-cv{height:260px;min-height:0}.ovx-cv.mm{height:300px}.ovx-bl{padding-bottom:var(--s-4)}
+  .ovx-cr{grid-template-columns:minmax(0,1fr);max-height:none}.ovx-cv{height:260px;min-height:0}.ovx-cv.mm{height:300px}.ovx-bl{padding-bottom:var(--s-4)}
   .ovx-mk{height:330px;min-height:0}
   .hm-s{overflow-x:auto}.hm-s .ovx-hm{min-width:470px}
   .rs-d .tbl-wrap,.rot-b .tbl-wrap,.pm-t .tbl-wrap,.pm-s .tbl-wrap,.br-d .tbl-wrap{max-height:420px}

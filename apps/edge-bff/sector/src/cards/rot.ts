@@ -3,7 +3,7 @@
    timeline and IHSG strip, direction and speed, rotation detail and the stock momentum quadrant of one sector. */
 import * as M from '../model.ts';
 import { calc, shown, type Card, type Ctx, type Detail } from '../ctx.ts';
-import { $, $$, DOT, H3, SEG, esc, footNow, footSet, msNote, msTh, msWire, onSeg, stockPop, textW, tipHide, tipShow, xHide, xShow, xTag } from '../ui.ts';
+import { $, $$, H3, SEG, esc, footNow, footSet, msNote, msTh, msWire, onSeg, stockPop, textW, tipHide, tipShow, xHide, xShow, xTag } from '../ui.ts';
 import { SEL_SECTOR } from './ov.ts';
 import { TOUCH, W } from '../words.ts';
 
@@ -53,7 +53,9 @@ const smooth = (P: number[][]) => {
 
 /* ===================== the rotation map (logic.js L378-421, timeline L443-462, IHSG strip L466-485) ===================== */
 export const rotA: Card = {
-  id: 'rotA', tab: 'rot', cls: 'rot-a',
+  // visual round 2 (V8): in a window the Timeline takes the whole width (no readings table, as the prototype); the Map
+  // keeps its readings on the right, the window as tall as they are so the plot keeps the prototype's wide proportions
+  id: 'rotA', tab: 'rot', cls: 'rot-a', wide: true, fit: ['.rrg'], hideDetail: c => c.S.rotV === 'tl',
   render(el, c) {
     const D = c.D, S = c.S, Kc = calc(D), V = S.rotV, TW = S.rotT, K = mapDate(c), wk = weekly(D.E), sel = S.rotSel, dl = (i: number) => M.dateIn(D.dates[i], D.ref);
     el.classList.toggle('noih', !S.rotIh);
@@ -68,7 +70,7 @@ export const rotA: Card = {
     if (S.rotIh) strip(c, $('[data-strip]', el), K, V === 'tl' ? (K - wk[0]) / 5 : TW, V === 'tl');
     // the formula reads by hover, tap, or the keyboard (check 1 RP-10: it was a title only)
     const chip = $('.dchip', el); chip.onfocus = chip.onclick = () => { const r = chip.getBoundingClientRect(); tipShow(chip.dataset.tip as string, { clientX: r.left, clientY: r.top - 10 }) }; chip.onblur = tipHide;
-    if (V === 'tl') { requestAnimationFrame(() => timeline(c, box, K, S.rotIh)); return }
+    if (V === 'tl') { requestAnimationFrame(() => timeline(c, box, K)); return }
     requestAnimationFrame(() => {
       const Wd = box.clientWidth, Hh = box.clientHeight; if (!Wd || !Hh) return;
       const T = D.names.map(nm => ({ nm, p: Array.from({ length: TW + 1 }, (_, k) => K - 5 * (TW - k)).filter(i => i >= 0 && Kc.rot[nm].mom[i] != null && Kc.rot[nm].rs[i] != null).map(i => [Kc.rot[nm].rs[i] as number, Kc.rot[nm].mom[i] as number, i]), q: Kc.q[nm][K] })).filter(t => t.p.length);
@@ -132,20 +134,23 @@ export const rotA: Card = {
     };
   },
 };
+/** the timeline's side margins: the sector names on the left, "in phase" on the right; the IHSG strip above the timeline
+    puts its weeks on the centres of the timeline's columns with them (visual round 2, V8: the strip aligned to the weeks) */
+export const tlPad = (Wd: number, names: string[] = []) => ({ pl: Math.max(Wd < 420 ? 64 : 84, Math.ceil(Math.max(0, ...names.map(n => textW(n, '600 12px Inter, sans-serif')))) + 10), pr: Math.ceil(textW(W.rot.phase, '400 10.5px Inter, sans-serif')) + 12 });
 /** the IHSG strip: the weekly closes, the tail period shaded, the map's date marked; a click sets the map's date */
 function strip(c: Ctx, box: HTMLElement, K: number, TW: number, tl: boolean) {
   const D = c.D, S = c.S, IH = D.IH;
   requestAnimationFrame(() => {
     const Wd = box.clientWidth, H = box.clientHeight; if (!Wd || !H) return;
     const wk = weekly(D.E), v = wk.map(i => IH[i] as number), known = v.filter(x => x != null), lo = Math.min(...known), hi = Math.max(...known), pd = (hi - lo) * 0.08 || 1, y0 = lo - pd, y1 = hi + pd, n = wk.length;
-    const cwT = (Wd - 124) / n, L = tl ? 84 + cwT / 2 : 44, R = tl ? Wd - 40 - cwT / 2 : Wd - 10, T = 4, B = H - 18, X = (j: number) => L + (j / (n - 1)) * (R - L), Y = (x: number) => T + ((y1 - x) / (y1 - y0)) * (B - T), jx = (i: number) => (i - wk[0]) / 5;
+    const { pl, pr } = tlPad(Wd, D.names.map(n => D.short(n))), cwT = (Wd - pl - pr) / n, L = tl ? pl + cwT / 2 : 44, R = tl ? Wd - pr - cwT / 2 : Wd - 10, T = 4, B = H - 18, X = (j: number) => L + (j / (n - 1)) * (R - L), Y = (x: number) => T + ((y1 - x) / (y1 - y0)) * (B - T), jx = (i: number) => (i - wk[0]) / 5;
     const k = jx(K), k0 = Math.max(0, jx(K - 5 * TW)), chg = M.retAt(IH, K - 5 * TW, K);
     const picks = (Wd < 420 ? [0, Math.round((n - 1) / 2), n - 1] : [0, Math.round((n - 1) / 4), Math.round((n - 1) / 2), Math.round((3 * (n - 1)) / 4), n - 1]).filter((x, i, a) => a.indexOf(x) === i), labs = M.axisDates(wk.map(i => D.dates[i]), picks);
     let o = `<rect x="${X(k0)}" y="${T}" width="${Math.max(0, X(k) - X(k0))}" height="${B - T}" fill="color-mix(in srgb,var(--text) 6%,transparent)"/>`
       + [hi, (hi + lo) / 2, lo].map(x => `<line x1="${L}" x2="${R}" y1="${Y(x)}" y2="${Y(x)}" stroke="var(--chart-grid)"/><text x="${L - 6}" y="${Y(x) + 3.5}" text-anchor="end" class="ax">${Math.round(x).toLocaleString('en-US')}</text>`).join('')
       + `<path d="M${X(0)} ${B}${v.map((x, j) => (x == null ? '' : 'L' + X(j).toFixed(1) + ' ' + Y(x).toFixed(1))).join('')}L${X(n - 1)} ${B}Z" fill="color-mix(in srgb,var(--navy) 6%,transparent)"/><path d="${v.map((x, j) => (x == null ? '' : (j ? 'L' : 'M') + X(j).toFixed(1) + ' ' + Y(x).toFixed(1))).join('')}" fill="none" stroke="var(--text)" stroke-width="1.5" stroke-linejoin="round"/>`
       + `<line x1="${X(k)}" x2="${X(k)}" y1="${T}" y2="${B}" stroke="var(--text)" stroke-width="1.5"/>${IH[K] != null ? `<circle cx="${X(k)}" cy="${Y(IH[K] as number)}" r="3.5" fill="var(--text)"/>` : ''}`
-      + `<text x="${X(k) + (k > n * 0.7 ? -6 : 6)}" y="${T + 11}" text-anchor="${k > n * 0.7 ? 'end' : 'start'}" class="dl">${esc(W.rot.stripLabel(M.dateIn(D.dates[K], D.ref), M.level(IH[K], 0), M.pct(chg, 1), tl))}</text>`
+      + `<text x="${X(k) + (k > n * 0.7 ? -6 : 6)}" y="${T + 11}" text-anchor="${k > n * 0.7 ? 'end' : 'start'}" class="dl">${esc(W.rot.stripLabel(M.dateIn(D.dates[K], D.ref), M.level(IH[K], 0), M.pct(chg, 1), tl, Wd < 420))}</text>`
       + picks.map((j, q) => `<text x="${X(j)}" y="${H - 3}" text-anchor="${q === 0 ? 'start' : q === picks.length - 1 ? 'end' : 'middle'}" class="ax">${esc(labs[q])}</text>`).join('')
       + `<line class="hv" y1="${T}" y2="${B}" stroke="var(--text-3)" stroke-dasharray="3 3" display="none"/>`;
     box.innerHTML = `<svg width="${Wd}" height="${H}" role="img" aria-label="${esc(W.rot.stripAria(D.market))}">${o}</svg>`;
@@ -162,31 +167,38 @@ function strip(c: Ctx, box: HTMLElement, K: number, TW: number, tl: boolean) {
     box.onclick = e => { const j = at(e); if (j < 0 || j > n - 1) return; const i = target(j); S.rotK = i >= D.E ? null : D.dates[i]; tipHide(); c.redraw() };
   });
 }
-/** the timeline: rows = sectors, columns = the 52 weeks, colour = the quadrant; weeks after the map's date faded. The rows
-    share the card's height (at least 16 px, the 12 px names never overlap); the dates are the IHSG strip's above when it
-    shows, else the timeline's own axis; "in phase" heads its column (check 1 RP-2) */
-function timeline(c: Ctx, box: HTMLElement, K: number, strip: boolean) {
+/** the timeline (the user's prototype, V8): rows = sectors, columns = the 52 weeks, colour = the quadrant; weeks after the
+    map's date faded. Cells are square with a gap and round corners, as wide as the column; a row is never under 16 px, so
+    the 12 px names never overlap (check 1 RP-2: in a narrow card the cells are then taller than wide). The dates are under
+    the grid and "in phase", each sector's weeks in its current quadrant in that quadrant's colour, closes the rows */
+export function tlGeom(Wd: number, H: number, names: string[], n = 52) {
+  const rows = names.length;
+  const { pl, pr } = tlPad(Wd, names), pt = 2, pb = 22, cw = (Wd - pl - pr) / n, rh = Math.max(16, Math.min(cw, (H - pt - pb) / rows));
+  return { pl, pr, pt, pb, cw, rh, gap: cw >= 12 ? 3 : 2 };
+}
+function timeline(c: Ctx, box: HTMLElement, K: number) {
   const D = c.D, S = c.S, Kc = calc(D), Wd = box.clientWidth, H = box.clientHeight; if (!Wd || !H) return;
   const wk = weekly(D.E), n = wk.length, jK = Math.max(0, wk.indexOf(K)), QO = M.QUADS;
   const run = (nm: string) => { let k = 0; for (let j = jK; j >= 0 && Kc.q[nm][wk[j]] === Kc.q[nm][K]; j--) k++; return k };
   const rows = [...D.names].sort((p, q) => QO.indexOf(Kc.q[p][K] as M.Quad) - QO.indexOf(Kc.q[q][K] as M.Quad) || (Kc.rot[q].rs[K] ?? 0) - (Kc.rot[p].rs[K] ?? 0));
-  const pl = Wd < 420 ? 64 : 84, pr = 44, pt = 16, pb = strip ? 4 : 20, cw = (Wd - pl - pr) / n, rh = Math.max(16, Math.min(28, (H - pt - pb) / rows.length)), sel = S.rotSel;
+  // a wide timeline (a window) has square cells; a narrow one (a card) fills its 16 px rows, so its cells do not shrink to dots
+  const { pl, pt, cw, rh, gap } = tlGeom(Wd, H, rows.map(n => D.short(n)), n), ch = (cw >= 12 ? Math.min(rh, cw) : rh) - gap, sel = S.rotSel;
   let o = '';
   rows.forEach((nm, r) => {
     const y = pt + r * rh, q = Kc.q[nm][K] as M.Quad, k = run(nm), pk = nm === S.pin;
     o += `<text class="tn${pk ? ' b' : ''}${sel.includes(nm) ? ' on2' : ''}" data-n="${esc(nm)}" x="${pl - 8}" y="${y + rh / 2 + 4}" text-anchor="end">${esc(D.short(nm))}</text><g class="tlr${pk ? ' pk' : ''}${sel.includes(nm) ? ' on2' : ''}" data-n="${esc(nm)}">`;
     wk.forEach((i, j) => {
       const qq = Kc.q[nm][i] as M.Quad | null, g = Kc.rot[nm];
-      o += `<rect x="${(pl + j * cw + 0.5).toFixed(1)}" y="${(y + 0.5).toFixed(1)}" width="${Math.max(0, cw - 1).toFixed(1)}" height="${Math.max(0, rh - 1).toFixed(1)}" rx="2" fill="${qq ? QC[qq] : 'var(--sel)'}"${j > jK ? ' fill-opacity=".35"' : ''} data-tip="${esc(`<b>${esc(D.short(nm))}</b> · ${esc(W.rot.weekEnding(M.dateIn(D.dates[i], D.ref)))}<br>${esc(qq ? W.quad[qq] : '—')}${g.mom[i] != null ? `<br>${esc(W.rot.reading(g.rs[i] as number, g.mom[i] as number))}` : ''}`)}"/>`;
+      o += `<rect x="${(pl + j * cw + gap / 2).toFixed(1)}" y="${(y + (rh - ch) / 2).toFixed(1)}" width="${Math.max(0, cw - gap).toFixed(1)}" height="${Math.max(0, ch).toFixed(1)}" rx="${cw >= 12 ? 3 : 2}" fill="${qq ? QC[qq] : 'var(--sel)'}"${j > jK ? ' fill-opacity=".35"' : ''} data-tip="${esc(`<b>${esc(D.short(nm))}</b> · ${esc(W.rot.weekEnding(M.dateIn(D.dates[i], D.ref)))}<br>${esc(qq ? W.quad[qq] : '—')}${g.mom[i] != null ? `<br>${esc(W.rot.reading(g.rs[i] as number, g.mom[i] as number))}` : ''}`)}"/>`;
     });
     o += `</g><text class="tw" x="${Wd - 2}" y="${y + rh / 2 + 4}" text-anchor="end" fill="${QT[q] || 'var(--text-3)'}" data-tip="${esc(W.rot.inPhase(D.short(nm), k > jK ? k + '+' : String(k), W.quad[q] || '—', M.dateIn(D.dates[K], D.ref)))}">${k > jK ? k + '+' : k}w</text>`;
   });
-  o += `<rect x="${(pl + jK * cw).toFixed(1)}" y="${pt}" width="${cw.toFixed(1)}" height="${(rows.length * rh).toFixed(1)}" fill="none" stroke="var(--text)" stroke-width="1.5" rx="2" pointer-events="none"/>`;
+  o += `<rect x="${(pl + jK * cw + gap / 4).toFixed(1)}" y="${pt}" width="${(cw - gap / 2).toFixed(1)}" height="${(rows.length * rh).toFixed(1)}" fill="none" stroke="var(--text)" stroke-width="1.5" rx="3" pointer-events="none"/>`;
   const yb = pt + rows.length * rh + 14, picks = Wd < 420 ? [0, Math.round((n - 1) / 2), n - 1] : [0, Math.round((n - 1) / 4), Math.round((n - 1) / 2), Math.round((3 * (n - 1)) / 4), n - 1], labs = M.axisDates(wk.map(i => D.dates[i]), picks);
-  // the last date ends at the grid's right edge, never under "in phase" (which sits over its own column)
-  if (!strip) picks.forEach((j, q) => (o += `<text class="ax" x="${q === picks.length - 1 ? pl + n * cw : pl + j * cw + (q ? cw / 2 : 0)}" y="${yb}" text-anchor="${q ? (q === picks.length - 1 ? 'end' : 'middle') : 'start'}">${esc(labs[q])}</text>`));
-  o += `<text class="ax" x="${Wd - 2}" y="11" text-anchor="end">${esc(W.rot.phase)}</text>`;
-  box.innerHTML = `<svg width="${Wd}" height="${Math.min(H, strip ? pt + rows.length * rh + 4 : yb + 6)}" role="img" aria-label="${esc(W.rot.tlAria)}">${o}</svg>`;
+  // the dates under the grid (the prototype's), the last one ending at the grid's right edge; "in phase" under its column
+  picks.forEach((j, q) => (o += `<text class="ax" x="${q === picks.length - 1 ? pl + n * cw : pl + j * cw + (q ? cw / 2 : 0)}" y="${yb}" text-anchor="${q ? (q === picks.length - 1 ? 'end' : 'middle') : 'start'}">${esc(labs[q])}</text>`));
+  o += `<text class="ax" x="${Wd - 2}" y="${yb}" text-anchor="end">${esc(W.rot.phase)}</text>`;
+  box.innerHTML = `<svg width="${Wd}" height="${Math.min(H, yb + 6)}" role="img" aria-label="${esc(W.rot.tlAria)}">${o}</svg>`;
   box.classList.toggle('lk', !!S.pin && !sel.length); box.classList.toggle('sl', sel.length > 0);
   $$('.tn,.tlr', box).forEach(t => (t.onclick = () => pick(c, t.dataset.n as string)));
 }
@@ -231,25 +243,50 @@ function clearButton(el: HTMLElement, c: Ctx) {
 }
 
 /* ===================== rotation detail (logic.js L487-515; the speed over the chosen window, defect N01) ===================== */
+/** the sectors' rows: quadrant now and the chosen sessions before, speed, last change; ordered by the card's sort */
+function rbRows(c: Ctx) {
+  const D = c.D, S = c.S, Kc = calc(D), E = mapDate(c), pk = S.rotP, mo = D.P('1M'), pl = pk === mo ? '1M' : pk + 'D';
+  const QO: Record<string, number> = { Leading: 4, Improving: 3, Weakening: 2, Lagging: 1 };
+  const rows = D.names.map(nm => {
+    const q = Kc.q[nm]; let li: number | null = null;
+    for (let i = E; i > 0; i--) if (q[i] && q[i - 1] && q[i] !== q[i - 1]) { li = i; break }
+    const mv = M.move(Kc.rot[nm], E, pk), m3 = M.minus(Kc.rot[nm].mom[E], Kc.rot[nm].mom[E - 3]), pq = q[E - pk] ?? null;
+    return { nm, sn: D.short(nm), name: D.short(nm), q: q[E], qo: q[E] ? QO[q[E] as string] : 0, pq, po: pq ? QO[pq] : 0, dm: m3, sp: mv ? mv.sp : null, li, from: li ? q[li - 1] : null };
+  });
+  const SK = M.msKeep(S.rotS, k => ['sn', 'qo', 'po', 'sp', 'li'].includes(k)), DEF: M.Level = ['dm', 1];
+  M.msSort(rows, SK, { sn: 1 }, DEF);
+  return { rows, SK, DEF, E, pk, pl, mo };
+}
+type RbRow = ReturnType<typeof rbRows>['rows'][number];
+const prevCell = (r: RbRow) => (r.pq ? `${rotQ(r.pq)}${r.pq !== r.q ? '' : ` <span class="muted" title="${esc(W.rotB.same)}">=</span>`}` : '—');
+const lastCell = (c: Ctx, r: RbRow) => (r.li ? `<span class="muted">${esc(W.rotB.from)}</span> ${esc(W.quad[r.from as M.Quad] || '—')} <span class="muted">· ${esc(M.dateIn(c.D.dates[r.li], c.D.ref))}</span>` : '—');
+/** the window's sectors (C1, user 2026-11-27): the ones chosen, else the locked sector, else the first of the list, so the
+    right side always shows the changes of at least one */
+function rbSel(c: Ctx, rows: RbRow[]): string[] {
+  const s = c.S.rotSel.filter(n => c.D.names.includes(n));
+  if (s.length) return s;
+  return [c.S.pin && c.D.names.includes(c.S.pin) ? c.S.pin : rows[0]?.nm].filter(Boolean) as string[];
+}
+/** a click in the window's list: that sector alone; Ctrl or Cmd: add it, or remove it while another stays */
+function c1Pick(c: Ctx, nm: string, add: boolean, cur: string[]) {
+  const s = new Set(cur);
+  if (!add) { s.clear(); s.add(nm) } else if (!s.has(nm)) s.add(nm); else if (s.size > 1) s.delete(nm);
+  c.S.rotSel = c.D.names.filter(n => s.has(n));
+  c.S.pin = s.has(nm) ? nm : c.S.rotSel[0] ?? null;
+  c.redraw();
+}
 export const rotB: Card = {
-  id: 'rotB', tab: 'rot', cls: 'rot-b',
+  id: 'rotB', tab: 'rot', cls: 'rot-b', layout: 'c1',
   render(el, c) {
-    const D = c.D, S = c.S, Kc = calc(D), E = mapDate(c), pk = S.rotP, mo = D.P('1M'), pl = pk === mo ? '1M' : pk + 'D', sel = S.rotSel;
-    const QO: Record<string, number> = { Leading: 4, Improving: 3, Weakening: 2, Lagging: 1 };
-    const rows = D.names.map(nm => {
-      const q = Kc.q[nm]; let li: number | null = null;
-      for (let i = E; i > 0; i--) if (q[i] && q[i - 1] && q[i] !== q[i - 1]) { li = i; break }
-      const mv = M.move(Kc.rot[nm], E, pk), m3 = M.minus(Kc.rot[nm].mom[E], Kc.rot[nm].mom[E - 3]), pq = q[E - pk] ?? null;
-      return { nm, sn: D.short(nm), q: q[E], qo: q[E] ? QO[q[E] as string] : 0, pq, po: pq ? QO[pq] : 0, dm: m3, sp: mv ? mv.sp : null, li, from: li ? q[li - 1] : null };
-    });
-    const SK = M.msKeep(S.rotS, k => ['sn', 'qo', 'po', 'sp', 'li'].includes(k)), DEF: M.Level = ['dm', 1];
-    M.msSort(rows, SK, { sn: 1 }, DEF);
+    const D = c.D, S = c.S, { rows, SK, DEF, E, pk, pl, mo } = rbRows(c), sel = S.rotSel;
     const LAB = { sn: W.col.sector, qo: W.rotB.now, po: W.rotB.prev(pl), sp: W.rotD.speed, li: W.rotB.last };
     const th = (k: string, l: string, cl = '', tip = '') => msTh(SK, k, esc(l), cl, tip, { def: DEF, txt: k === 'sn' });
-    el.innerHTML = H3(W.rotB.title, W.rotB.sub(pl, pk, E === D.E ? null : M.dateIn(D.dates[E], D.ref)), SEG('p', W.rotB.previous, [[5, W.rotB.ago('5D')], [10, W.rotB.ago('10D')], [mo, W.rotB.ago('1M')]], pk), c.win ? null : 'rotB')
+    const prev = SEG('p', W.rotB.previous, [[5, W.rotB.ago('5D')], [10, W.rotB.ago('10D')], [mo, W.rotB.ago('1M')]], pk);
+    if (c.win) { rbWindow(el, c, rows, prev); return }
+    el.innerHTML = H3(W.rotB.title, W.rotB.sub(pl, pk, E === D.E ? null : M.dateIn(D.dates[E], D.ref)), prev, 'rotB')
       + `<div class="tbl-wrap" data-scroll="y"><table class="tbl padat"><thead><tr>${th('sn', LAB.sn, 'l')}${th('qo', LAB.qo, 'l', W.rotB.qoTip)}${th('po', LAB.po, 'l', W.rotB.poTip(M.dateLabel(D.dates[E - pk], false, true)))}${th('sp', LAB.sp, '', W.rotB.spTip(pk))}${th('li', LAB.li, 'l', W.rotB.liTip)}</tr></thead><tbody>`
-      + rows.map(r => `<tr class="${sel.includes(r.nm) ? 'on' : ''}" data-n="${esc(r.nm)}" role="button" tabindex="0" aria-pressed="${sel.includes(r.nm)}" title="${esc(c.win ? W.rotB.rowTipWin : W.rotB.rowTip)}"><td class="l"><span class="sym">${esc(r.sn)}</span></td><td class="l">${rotQ(r.q)}</td><td class="l">${r.pq ? `${rotQ(r.pq)}${r.pq !== r.q ? '' : ` <span class="muted" title="${esc(W.rotB.same)}">=</span>`}` : '—'}</td><td>${r.sp == null ? '—' : r.sp.toFixed(2)}</td><td class="l">${r.li ? `<span class="muted">${esc(W.rotB.from)}</span> ${esc(W.quad[r.from as M.Quad] || '—')} <span class="muted">· ${esc(M.dateIn(D.dates[r.li], D.ref))}</span>` : '—'}</td></tr>`).join('')
-      + `</tbody></table></div><div class="lgd">${msNote(SK, LAB, { sn: 1 }, W.rotB.defOrder)}<span>${sel.length ? `${esc(c.win ? W.rotB.selected(sel.length) : W.rotB.highlighted(sel.length))} · <button class="clr" type="button" data-clear>${esc(W.rotB.clear)}</button> · ` : esc(c.win ? W.rotB.hintWin : W.rotB.hint) + ' · '}${esc(W.rotB.speedFoot(pk))}</span></div>`;
+      + rows.map(r => `<tr class="${sel.includes(r.nm) ? 'on' : ''}" data-n="${esc(r.nm)}" role="button" tabindex="0" aria-pressed="${sel.includes(r.nm)}" title="${esc(W.rotB.rowTip)}"><td class="l"><span class="sym">${esc(r.sn)}</span></td><td class="l">${rotQ(r.q)}</td><td class="l">${prevCell(r)}</td><td>${r.sp == null ? '—' : r.sp.toFixed(2)}</td><td class="l">${lastCell(c, r)}</td></tr>`).join('')
+      + `</tbody></table></div><div class="lgd">${msNote(SK, LAB, { sn: 1 }, W.rotB.defOrder)}<span>${sel.length ? `${esc(W.rotB.highlighted(sel.length))} · <button class="clr" type="button" data-clear>${esc(W.rotB.clear)}</button> · ` : esc(W.rotB.hint) + ' · '}${esc(W.rotB.speedFoot(pk))}</span></div>`;
     onSeg(el, 'p', v => { S.rotP = +v; c.redraw() });
     msWire(el, SK, () => c.redraw(), DEF, 'th[data-k]');
     $$('tbody tr', el).forEach(r => {
@@ -258,17 +295,46 @@ export const rotB: Card = {
     });
     clearButton(el, c);
   },
+  /** C1: "Changes" = the quadrant changes of the chosen sector(s); "All columns" = the card's own table, every column */
   detail(c): Detail {
-    const D = c.D, Kc = calc(D), wk = weekly(D.E), rows: any[] = [];
-    D.names.forEach(nm => { for (let j = 1; j < wk.length; j++) { const a = Kc.q[nm][wk[j - 1]], b = Kc.q[nm][wk[j]]; if (a && b && a !== b) rows.push({ nm, name: D.short(nm), i: wk[j], d: M.dateLabel(D.dates[wk[j]], false, true), f: a, fh: rotQ(a), t: b, th: rotQ(b), dir: M.clockwise(a, b) ? W.rotB.cw : W.rotB.skip }) } });
+    const D = c.D, S = c.S, Kc = calc(D), wk = weekly(D.E), { rows: secs, pl, pk } = rbRows(c), sel = rbSel(c, secs);
+    const seg = SEG('rv', '', [['ch', W.rotB.changes], ['all', W.rotB.allCols]], S.rbV === 'all' ? 'all' : 'ch');
+    const wire = (box: HTMLElement) => onSeg(box, 'rv', v => { S.rbV = v; S.dS = []; c.redraw() });
+    if (S.rbV === 'all') return {
+      title: W.rotB.allTitle, sub: W.rotB.allSub(pl, pk), ctl: seg, wire,
+      cols: [{ k: 'sn', l: W.col.sector, b: true }, { k: 'qo', l: W.rotB.now, html: 'qh' }, { k: 'po', l: W.rotB.prev(pl), html: 'ph' }, { k: 'sp', l: W.rotD.speed, num: true, f: v => v.toFixed(2) }, { k: 'li', l: W.rotB.last, html: 'lh' }],
+      rows: secs.map(r => ({ ...r, qh: rotQ(r.q), ph: prevCell(r), lh: lastCell(c, r) })), sort: ['dm', 1],
+      onRow: (r, e) => { const add = !!(e && (e.ctrlKey || e.metaKey)); if (!add) S.rbV = 'ch'; c1Pick(c, r.nm, add, sel) }, isSel: r => sel.includes(r.nm),
+      read: W.rotB.readAll(pk), ex: r => W.rotB.exAll(r.sn, W.quad[r.q as M.Quad] || '—', r.sp),
+    };
+    const rows: any[] = [];
+    sel.forEach(nm => { for (let j = 1; j < wk.length; j++) { const a = Kc.q[nm][wk[j - 1]], b = Kc.q[nm][wk[j]]; if (a && b && a !== b) rows.push({ nm, name: D.short(nm), i: wk[j], d: M.dateLabel(D.dates[wk[j]], false, true), f: a, fh: rotQ(a), t: b, th: rotQ(b), dir: M.clockwise(a, b) ? W.rotB.cw : W.rotB.skip }) } });
     return {
-      title: W.rotB.dTitle, sub: W.rotB.dSub(rows.length, wk.length),
+      title: W.rotB.dTitle, sub: W.rotB.dSubC1(rows.length, wk.length, sel.map(n => D.short(n))), ctl: seg, wire, empty: W.rotB.noChange(wk.length),
       cols: [{ k: 'i', l: W.col.weekEnding, num: true, f: (_v, r) => r.d }, { k: 'name', l: W.col.sector }, { k: 'f', l: W.col.from, html: 'fh' }, { k: 't', l: W.col.to, html: 'th' }, { k: 'dir', l: W.col.path }],
-      rows, sort: ['i', 1], center: true, onRow: r => pick(c, r.nm), isSel: r => r.nm === c.S.pin,
+      rows, sort: ['i', 1],
       read: W.rotB.read, ex: r => W.rotB.ex(r.d, r.name, W.quad[r.f as M.Quad], W.quad[r.t as M.Quad], r.dir === W.rotB.cw),
     };
   },
 };
+/** Rotation detail in a window (C1, user 2026-11-27): the card's control row above both sides; on the left a compact list
+    (sector, quadrant now, speed) on the same 52 px band and 36 px rows as the detail on the right; sector chips on a phone */
+function rbWindow(el: HTMLElement, c: Ctx, rows: RbRow[], prev: string) {
+  const D = c.D, S = c.S, sel = rbSel(c, rows), E = mapDate(c), { pl, pk } = rbRows(c);
+  el.innerHTML = H3(W.rotB.title, W.rotB.sub(pl, pk, E === D.E ? null : M.dateIn(D.dates[E], D.ref)), prev
+      + `<span class="lgd c1-hint">${esc(W.rotB.hintC1)}${sel.length > 1 ? ` · ${esc(W.rotB.selected(sel.length))} <button class="btn sm" type="button" data-clear>${esc(W.rotB.clear)}</button>` : ''}</span>`, null)
+    + `<div class="c1-chips" role="group" aria-label="${esc(W.rotB.sectors)}">${rows.map(r => `<button type="button" class="c1-chip${sel.includes(r.nm) ? ' on' : ''}" data-n="${esc(r.nm)}" aria-pressed="${sel.includes(r.nm)}">${esc(r.sn)}</button>`).join('')}</div>`
+    + `<div class="c1-l"><div class="c1-band"><b>${esc(W.rotB.sectors)}</b><span>${rows.length}</span></div><div class="tbl-wrap c1-list" data-scroll="y"><table class="tbl padat"><thead><tr><th class="l">${esc(W.col.sector)}</th><th class="l">${esc(W.rotB.nowShort)}</th><th>${esc(W.rotD.speed)}</th></tr></thead><tbody>`
+    + rows.map(r => `<tr class="${sel.includes(r.nm) ? 'on' : ''}" data-n="${esc(r.nm)}" role="button" tabindex="0" aria-pressed="${sel.includes(r.nm)}" title="${esc(W.rotB.rowTipWin)}"><td class="l"><span class="sym">${esc(r.sn)}</span></td><td class="l">${rotQ(r.q)}</td><td>${r.sp == null ? '—' : r.sp.toFixed(2)}</td></tr>`).join('')
+    + `</tbody></table></div></div>`;
+  onSeg(el, 'p', v => { S.rotP = +v; c.redraw() });
+  $$('.c1-list tbody tr, .c1-chip', el).forEach(r => {
+    r.onclick = e => c1Pick(c, r.dataset.n as string, e.ctrlKey || e.metaKey, sel);
+    r.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === r && r.tagName === 'TR') { e.preventDefault(); c1Pick(c, r.dataset.n as string, e.ctrlKey || e.metaKey, sel) } };
+  });
+  const b = $('[data-clear]', el) as HTMLElement | null;
+  if (b) b.onclick = e => { e.stopPropagation(); c.S.rotSel = [sel[0]]; c.S.pin = sel[0]; c.redraw() };
+}
 
 /* ===================== the stock momentum quadrant of one sector (logic.js L520-551) ===================== */
 function quadStocks(c: Ctx) {
@@ -283,10 +349,11 @@ function quadStocks(c: Ctx) {
 export const rotC: Card = {
   id: 'rotC', tab: 'rot', cls: 'rot-c',
   render(el, c) {
-    const D = c.D, S = c.S, { nm, st, bn } = quadStocks(c), cnt: Record<string, number> = { Leading: 0, Improving: 0, Weakening: 0, Lagging: 0 };
-    st.forEach(s => cnt[s.q]++);
+    const D = c.D, S = c.S, { nm, st, bn } = quadStocks(c);
     el.innerHTML = H3(W.rotC.title(D.short(nm)), W.rotC.sub(bn, mapDate(c) === D.E ? null : M.dateIn(D.dates[D.E], D.ref)), SEG('b', W.rotC.rel, [['ih', D.market], ['sec', W.rotC.secIndex]], S.rotBm), c.win ? null : 'rotC')
-      + `<div class="tb"><div class="qdp" data-chart></div></div><div class="lgd"><span>${(['Leading', 'Improving', 'Weakening', 'Lagging'] as M.Quad[]).map(k => `${esc(W.quad[k])} <b>${cnt[k]}</b>`).join(DOT)}</span><span class="sp"></span><span data-foot>${footNow(el, W.rotC.foot(D.weightLabel, bn, false, 0))}</span></div>`;
+      // user 2026-11-27 (V9): the two legend lines under the chart are gone; the counts are in the window's table, the dot's
+      // size and colour in the subtitle and each dot's hint
+      + `<div class="tb"><div class="qdp" data-chart></div></div>`;
     onSeg(el, 'b', v => { S.rotBm = v; c.redraw() });
     const box = $('[data-chart]', el);
     requestAnimationFrame(() => {
@@ -307,16 +374,15 @@ export const rotC: Card = {
         + `<text class="ax t" x="${(L + R) / 2}" y="${B + 36}" text-anchor="middle">${esc(W.rotC.xAxis(bn))} →</text><text class="ax t" transform="translate(13,${(T + B) / 2}) rotate(-90)" text-anchor="middle">${esc(W.rotC.yAxis(bn))} →</text>`;
       const gw = Math.max(...st.map(s => s.w ?? 0)) || 1, rr = (s: typeof st[0]) => 2.5 + 7 * Math.sqrt(Math.max(0, s.w ?? 0) / gw);
       const out = (s: typeof st[0]) => s.x < x0 || s.x > x1 || s.y < y0 || s.y > y1;
-      let clamped = 0;
       [...st].sort((p, q) => (q.w ?? 0) - (p.w ?? 0)).forEach(s => {
-        const ob = out(s); if (ob) clamped++;
+        const ob = out(s);
         const tip = `<b>${esc(s.t)}</b> · ${esc(W.quad[s.q])}<br>${esc(s.n || '')}<br>1M ${M.pct(s.r1m)} · ${esc(W.vs(bn))} ${M.pp(s.x)}<br>5D ${M.pct(s.r5d)} · ${esc(W.vs(bn))} ${M.pp(s.y)}<br>${esc(W.cap(D.weightLabel))} ${esc(M.weightText(D.weightBasis, s.w))}${ob ? `<br><span class="muted">${esc(W.rotC.beyond)}</span>` : ''}`;
         // a dot beyond the axis range is drawn hollow at the edge (defect: outliers clamped without a marker)
         o += `<circle cx="${X(s.x).toFixed(1)}" cy="${Y(s.y).toFixed(1)}" r="${rr(s).toFixed(1)}" class="dt${s.t === S.rqT ? ' on' : ''}" data-t="${esc(s.t)}" role="button" tabindex="0" aria-label="${esc(s.t)}" ${ob ? `fill="var(--surface)" stroke="${s.y >= 0 ? 'var(--up)' : 'var(--down)'}" stroke-width="1.6"` : `fill="${s.y >= 0 ? 'var(--up)' : 'var(--down)'}" fill-opacity=".88" stroke="var(--surface)" stroke-width="1"`} data-tip="${esc(tip)}"/>`;
       });
       // the quadrant names are drawn over the dots with a halo, and the stock names keep clear of them
       o += QN.map(q => `<text class="qn" x="${q.x}" y="${q.y}" text-anchor="${q.an}">${esc(W.quad[q.t].toUpperCase())}</text>`).join('');
-      const boxes: any[] = QN.map(q => q.box), hid: string[] = [];
+      const boxes: any[] = QN.map(q => q.box);
       [...st].sort((p, q) => (q.w ?? 0) - (p.w ?? 0)).slice(0, 8).filter(s => s.t !== S.rqT).forEach(s => {
         const x = X(s.x), y = Y(s.y), r = rr(s), w = textW(s.t, '600 11px Inter, sans-serif') + 4, h = 13;
         for (const [dx, dy] of [[r + 3, -h / 2], [-r - 3 - w, -h / 2], [-w / 2, -r - 2 - h], [-w / 2, r + 2], [r + 2, -r - h], [r + 2, r], [-r - 2 - w, -r - h], [-r - 2 - w, r]]) {
@@ -324,7 +390,6 @@ export const rotC: Card = {
           if (b.l < L || b.r > R || b.t < T || b.b > B || boxes.some(o2 => b.l < o2.r && o2.l < b.r && b.t < o2.b && o2.t < b.b)) continue;
           boxes.push(b); o += `<text class="lb" x="${(b.l + 2).toFixed(1)}" y="${(b.t + 10).toFixed(1)}">${esc(s.t)}</text>`; return;
         }
-        hid.push(s.t);
       });
       const hs = S.rqT ? st.find(s => s.t === S.rqT) : null;
       if (hs) {
@@ -332,7 +397,6 @@ export const rotC: Card = {
         o += `<circle cx="${x}" cy="${y}" r="${r + 7}" fill="${col}" fill-opacity=".18" pointer-events="none"/><circle class="dt sel" data-t="${esc(hs.t)}" cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="var(--surface)" stroke-width="1.2"/><text class="lb b" pointer-events="none" text-anchor="${lft ? 'end' : 'start'}" x="${lft ? x - r - 10 : x + r + 10}" y="${y + 4}">${esc(hs.t)}</text>`;
       }
       box.innerHTML = `<svg width="${Wd}" height="${H}" role="img" aria-label="${esc(W.rotC.aria(D.short(nm)))}">${o}</svg>`;
-      footSet(el, W.rotC.foot(D.weightLabel, bn, hid.length > 0, clamped));
       const choose = (t: string) => {
         S.rqT = S.rqT === t ? null : t; c.redraw();
       };
