@@ -18374,3 +18374,9 @@ yang ada di page sector, yang sifatnya top and bottom."
   jendela memakai seluruh lebar (tabel readings disembunyikan), sel persegi berjarak dengan sudut bulat, garis IHSG di
   atas sejajar dengan kolom minggu, tanggal di bawah grid, "in phase" berwarna kuadran sekarang, legenda di bawah; mode
   Map: garis IHSG di atas plot dan proporsi plot seperti prototipe, tabel readings tetap di kanan.
+- User 2026-11-27 (verbatim): "A, go kerjakan semuanya di branch - then assign 5 sonnets 5.5 medium to check again. Fix
+  apabila temuan, deploy ke main afterwards."
+  Go untuk putaran visual 2 di branch: semua butir V1-V10 dan UD71-UD79 yang dijawab di atas, ditambah kolom Sector
+  drill-down dan Beta and correlation disejajarkan (A, susunan tetap). Sesudahnya pemeriksaan oleh 5 agen Sonnet, tingkat
+  berpikir medium (pilihan user, aturan 8; mencakup uji ulang 50 perbaikan cek 1), perbaikan temuannya, lalu push `main`
+  (deploy beta edge-bff; live tidak bergerak, AGENTS.md "Deploys" dan "The live site").
