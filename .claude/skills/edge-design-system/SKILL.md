@@ -15,7 +15,7 @@ this folder is the source, the artifact follows it.
 | file | what |
 |---|---|
 | `assets/spec-v1.2.css` | EDGE Design Spec v1.2, verbatim (tokens, base, components, colour scales, button catalog) |
-| `assets/edge-canonical.css` | the canonical layer: the 11 decisions + the components a new page reuses |
+| `assets/edge-canonical.css` | the canonical layer: the 14 decisions + the components a new page reuses |
 | `assets/icons.svg` | the 16 px icon sprite (`<svg class="ic"><use href="#i-NAME"/></svg>`) |
 | `assets/edge-ds.js` | number formats and hand-made SVG charts (`window.EdgeDS`), the reference implementation |
 | `assets/showcase.html` | every component on made-up data; open it, it is the visual check (`?theme=dark`) |
@@ -41,23 +41,40 @@ this folder is the source, the artifact follows it.
    with thousands commas (`edge-ds.js`: `pct`, `rp`, `amount`, `price`). Up = `.up` (green), down = `.down` (red).
    (The Backtest's Indonesian format is an existing exception; do not copy it.)
 8. **Inputs:** focus is the Terminal's selected state: the border line goes and the soft shadow `--shadow` takes its place,
-   no ring (changed by the user 2026-11-26, VISUAL-STATES: "Acuan selected state untuk tweak customize indicator adalah seperti
-   terminal"; it was a grey 1 px border). A select is as wide as its longest choice where the row has room, and a choice
-   that still does not fit ends in "…".
+   no ring, whether the field was clicked, tapped or reached with Tab, a select opened with the mouse included (changed by
+   the user 2026-11-26, VISUAL-STATES: "Acuan selected state untuk tweak customize indicator adalah seperti terminal"; it
+   was a grey 1 px border; the ring kept off fields by decision 13). A select is as wide as its longest choice where the
+   row has room, and a choice that still does not fit ends in "…".
 9. **Icons:** the sprite in `assets/icons.svg`, 16 px, stroke 1.6, `currentColor`. A new icon is a new `<symbol>` in
    the same style.
 10. **Primary button:** ink (`.btn.primary`); a button that runs something may turn green when it can run
     (`.btn.primary.ready`). Shortcuts show as `<kbd>` inside the button (hidden on phones) with `aria-keyshortcuts`.
 11. **Terminal** (`apps/edge-bff/terminal`) has its own older look and the user's rule "Terminal jangan disentuh": it is
     not a model for new pages and is not restyled, except its states: since 2026-11-26 its selected (focus) state and
-    its Add-button hover are the model the Backtest and the Screener follow (VISUAL-STATES).
+    its Add-button hover are the model the Backtest and the Screener follow (VISUAL-STATES). Decisions 12-14 do not
+    reach it either.
+12. **Contrast** (the user 2026-11-27, UD73 "4A"): text reads at least 4.5:1. `--text-3` is `#6b6b6b` light (`--gray-600`)
+    and `#8a8a8a` dark, 4.5:1 or more on every surface token; a tag's text on its tint takes the tag ink (`--green-tag`,
+    `--red-tag`, `--blue-tag`, `--amber-tag`), never `--green`/`--red`, which stay the colours of up and down figures.
+13. **Focus ring** (the user 2026-11-27, UD75 "1a", scope "1A"): a focus reached with a mouse, a pen or a finger shows no
+    ring; a focus reached with the keyboard shows one neutral grey ring, 2 px `--focus-ring` (`--text-3`), never blue. The
+    page entry imports `apps/edge-bff/shared/focus-modality.ts` (it writes `data-modality` on `<html>`; the design system
+    turns `--focus-ring` transparent under `"pointer"`), and a page's own focus mark draws with `var(--focus-ring)`, an
+    outline or an inset box-shadow, so a button given the focus back after a window closed with the mouse shows nothing.
+    Fields never take the ring (rule 8).
+14. **Touch** (the user 2026-11-27, UD72 "3A"): on a touch screen (`pointer: coarse`) the small shared controls (`.seg`
+    buttons, `.tog`, `.iconbtn`, `.btn.sm`/`.xs`, a pill that is a button, `.switch`) take a 44 × 44 px hit area, an
+    invisible box around them, with no change of look or layout; where controls stand closer than 44 px the row sets
+    `--hit-x`/`--hit-y` to half its gaps; a page's own small control takes the class `.hit`. And one display rule for names:
+    a company name the source writes "Pt …" shows as "PT …" (`apps/edge-bff/shared/company-name.ts`, UD71).
 
 Also, from the pages and the spec (not up for choice):
 - Language of the UI: **English** labels (wording in `static/edge-labels.js` for the shell). Plain words; a refusal or
   an empty state says what happened and what to do.
 - Light and dark: every page follows the shell's theme key `edge-auth-monitor-theme` (`html.dark` /
   `[data-theme="dark"]`); check both.
-- Widths: 1440, 1152, 390 and 360 px with no sideways scroll; touch targets ≥ 32 px; the page scrolls, the shell does not.
+- Widths: 1440, 1152, 390 and 360 px with no sideways scroll; touch targets ≥ 32 px drawn, 44 px to a tap (rule 14); the
+  page scrolls, the shell does not.
 - Charts: up/down colour from the first vs last point; series colours `--c1`…`--c6` in that order; ticks in steps of
   1/2/2.5/5/10; hover = a 1 px `--text-3` line + a `.ctip` card; tile/badge hints = `.ttip`.
 

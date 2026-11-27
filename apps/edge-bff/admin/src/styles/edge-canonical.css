@@ -21,6 +21,45 @@
 }
 :root.dark,:root[data-theme="dark"]{--shadow-sm:0 1px 2px rgba(0,0,0,.45),0 2px 8px -2px rgba(0,0,0,.55)}
 
+/* ---- decision 12 (the user 2026-11-27, UD73 "4A": every EDGE page): text reads at least 4.5:1 ----
+   --text-3, the grey of labels, table heads and notes, reads 4.5:1 or more on every surface token it sits on (--surface,
+   --bg, --surface-2, --hover, --sel): light #8f8f8f (3.23:1 on white) → #6b6b6b (--gray-600, 5.33 on white, 4.63 on
+   --sel); dark #7c7c7c (3.77:1 on --sel) → #8a8a8a (5.47 on --surface, 4.55 on --sel). A tag's text on its own tint
+   (.pill.pos/.neg/.warn/.info, the signal matrix) takes the tag ink, a shade of its hue that reads 4.5:1 on the tint over
+   --surface, --bg and --surface-2; --green and --red stay the colours of every up and down figure. Dark tags already
+   read 4.6:1 or more, so their ink is the hue itself. */
+:root{--text-3:#6b6b6b;--green-tag:#087855;--red-tag:#c92535;--blue-tag:#0064d8;--amber-tag:#ad5009}
+:root.dark,:root[data-theme="dark"]{--text-3:#8a8a8a;--green-tag:var(--green);--red-tag:var(--red);--blue-tag:var(--blue);--amber-tag:var(--amber)}
+:root[data-market]{--green-tag:var(--green);--red-tag:var(--red)}   /* an opt-in up/down pair keeps its own hue */
+.pill.pos{color:var(--green-tag)} .pill.neg{color:var(--red-tag)} .pill.warn{color:var(--amber-tag)} .pill.info{color:var(--blue-tag)}
+
+/* ---- decision 13 (the user 2026-11-27, UD75 "1a", scope "1A": every EDGE page): the focus ring ----
+   A focus reached with a mouse, a pen or a finger shows no ring; a focus reached with the keyboard shows one neutral
+   grey ring, 2 px, never blue. --focus-ring is its colour: transparent while the last input was a pointer
+   (data-modality="pointer" on <html>, written by apps/edge-bff/shared/focus-modality.ts, the shell's static/edge-boot.js),
+   --text-3 otherwise; a page's own focus mark draws with var(--focus-ring) too (an outline or an inset box-shadow), so a
+   button given the focus back after a window closed with the mouse shows nothing. A field (a text input, a select, a
+   textarea) never takes the ring, opened with the mouse or reached with Tab: it keeps decision 8's selected state. */
+:root{--focus-ring:var(--text-3)}
+:root[data-modality="pointer"]{--focus-ring:transparent}
+:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+:is(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=button],[type=submit],[type=reset],[type=image]),select,textarea):focus-visible{outline:none}
+.btn.is-focus{outline:2px solid var(--text-3);outline-offset:2px}   /* the drawn state of the showcase */
+
+/* ---- decision 14 (the user 2026-11-27, UD72 "3A": every EDGE page): touch hit areas ----
+   On a touch screen the small shared controls take at least 44 × 44 px to tap, an invisible box around them (::after;
+   ::before on the switch, whose ::after is its knob), so nothing moves and nothing changes look. The box grows from the
+   control's middle to 44 px; --hit-x and --hit-y cap how far it reaches past each side, so that where two controls stand
+   closer than 44 px each stops halfway (a segmented control's buttons grow up and down only). A page's own small
+   control takes the class .hit, and a row of them sets --hit-x / --hit-y to half its gaps. */
+@media (pointer:coarse){
+  :is(.seg button,.tog,.iconbtn,.btn.sm,.btn.xs,button.pill,.hit){position:relative}
+  :is(.seg button,.tog,.iconbtn,.btn.sm,.btn.xs,button.pill,.hit)::after,.switch::before{content:"";position:absolute;
+    top:max(calc(-1 * var(--hit-y,22px)),min(0px,calc(50% - 22px)));bottom:max(calc(-1 * var(--hit-y,22px)),min(0px,calc(50% - 22px)));
+    left:max(calc(-1 * var(--hit-x,22px)),min(0px,calc(50% - 22px)));right:max(calc(-1 * var(--hit-x,22px)),min(0px,calc(50% - 22px)))}
+  .seg{--hit-x:0px}
+}
+
 /* ---- decision 3: segmented control — the selected button is raised white on a grey track ---- */
 .seg{background:var(--surface-2)}
 .seg button.on,.seg button[aria-pressed="true"],.seg button[aria-selected="true"],.seg button[aria-checked="true"]{
@@ -82,7 +121,7 @@ input:focus,select:focus,textarea:focus,.inp:focus,.sel:focus{border-color:var(-
 .ktile{position:relative;min-height:84px;padding:var(--s-5) var(--s-7);display:flex;flex-direction:column;justify-content:space-between;
   transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease);outline:none}
 .ktile:is(:hover,:focus-visible){background:var(--surface-2);border-color:var(--border-2)}
-.ktile:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.ktile:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 .ktile .lb{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);font-size:var(--fs-xs);color:var(--text-3);font-weight:var(--fw-medium);line-height:20px}
 .ktile .ksub{font-size:var(--fs-xs);color:var(--text-3);line-height:16px}
 .ktile .v{font-size:var(--fs-2xl);font-weight:var(--fw-semibold);line-height:22px}
@@ -150,7 +189,7 @@ input:focus,select:focus,textarea:focus,.inp:focus,.sel:focus{border-color:var(-
 .mx{display:grid;grid-template-columns:72px repeat(var(--mx-cols,5),minmax(0,1fr));gap:var(--s-2);font-size:var(--fs-xs);align-items:center}
 .mx .h{color:var(--text-3);text-align:center;font-weight:var(--fw-medium)}
 .mx .c{height:22px;border-radius:var(--r-xs);display:grid;place-items:center;font-weight:var(--fw-semibold)}
-.mx .c.s{background:var(--green-bg);color:var(--green)} .mx .c.w{background:var(--red-bg);color:var(--red)} .mx .c.n{background:var(--sel);color:var(--text-3)}
+.mx .c.s{background:var(--green-bg);color:var(--green-tag)} .mx .c.w{background:var(--red-bg);color:var(--red-tag)} .mx .c.n{background:var(--sel);color:var(--text-3)}
 
 /* ---- event timeline (dot on a rule, title, small grey meta) ---- */
 .tl{position:relative;padding-left:var(--s-8)}

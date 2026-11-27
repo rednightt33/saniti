@@ -108,6 +108,12 @@ body{padding:var(--s-9) var(--s-10) 64px}
   <div class="g3"><label class="field"><span>List name</span><input class="inp" value="Core" aria-label="List name"></label><label class="field"><span>Search</span><input class="inp" placeholder="Search code or name, e.g. AD"></label><label class="field"><span>Custom value</span><input class="inp custom" value="25"></label></div>
 </div></div></section>
 
+<section class="sec"><h2>Focus, contrast, touch (decisions 12-14, 2026-11-27)</h2><p class="note">Click a control: no ring. Press Tab: one grey 2px ring (--focus-ring), never blue; a field shows its selected state only, a select opened with the mouse too. Grey labels (--text-3) and the tag ink on its tint read 4.5:1 or more. On a touch screen the small controls take a 44 × 44 px area to tap, with no change of layout. A name the source writes "Pt …" shows "PT …".</p>
+<div class="card"><div class="card-b" style="padding-top:var(--s-8);display:grid;gap:var(--s-8)">
+  <div class="demo-row"><button class="btn" type="button">Tab or click me</button><button class="iconbtn sm" type="button" aria-label="More"><svg class="ic ic-sm"><use href="#i-more"/></svg></button><div class="seg sm" role="group" aria-label="Period"><button type="button" class="on" aria-pressed="true">1W</button><button type="button">1M</button><button type="button">3M</button></div><select class="sel" style="width:auto" aria-label="Sector"><option>All sectors</option><option>Energy</option></select><input class="inp" style="width:160px" placeholder="Field: no ring" aria-label="Field"></div>
+  <div class="demo-row"><span class="pill pos">Gaining</span><span class="pill neg">Fading</span><span class="pill info">RUPS 17 Nov</span><span class="pill warn">9 Nov</span><span class="muted">--text-3 label</span><span id="ptName"></span></div>
+</div></div></section>
+
 <section class="sec"><h2>Table</h2><p class="note">Dense 36px rows (the standard), sticky 36px header, numbers right-aligned, the symbol bold with a grey name under it, the selected row marked with .on.</p>
 <div class="card"><div class="tbl-wrap"><table class="tbl" id="tbl"></table></div></div></section>
 
@@ -144,6 +150,8 @@ body{padding:var(--s-9) var(--s-10) 64px}
 <script>
 (function () {
   var D = EdgeDS, $ = function (s) { return document.querySelector(s); };
+  D.trackFocusModality(window);   // decision 13: the ring follows the last input
+  $('#ptName').textContent = D.companyName('Pt Adaro Andalan Indonesia Tbk');   // UD71: shows "PT Adaro Andalan Indonesia Tbk"
   var seed = 7; function rnd() { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }
   function walk(n, drift, vol) { var v = 100, a = []; for (var i = 0; i < n; i++) { a.push(v); v *= 1 + drift / 100 / n + (rnd() - .5) * (vol || .012); } return a; }
   /* tokens */
