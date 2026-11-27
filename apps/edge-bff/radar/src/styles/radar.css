@@ -950,3 +950,11 @@ html,body{width:auto;height:100%;overflow:hidden}
   .seg{--hit-x:0px}
 }
 }
+/* check 2 EW2-5 (the user's "3A": no area over another): on a phone the filter bar stacks its three segmented rows at a
+   36 px pitch (buttons 22 px, 14 px apart), so each row's areas reach 7 px, half the gap; the first row reaches up to the
+   universe button (11 px) and the last down to the search field (9 px: the field stands 2 px out of its box): 40, 36 and
+   38 px tall, never overlapping */
+@media (pointer:coarse) and (max-width:720px){
+  .bar-t .f .seg button{--hit-y:7px}
+  .bar-t [data-seg="gate"] button::after{top:-11px}.bar-t [data-seg="show"] button::after{bottom:-9px}
+}

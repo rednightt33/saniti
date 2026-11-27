@@ -811,7 +811,7 @@ html,body{font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);font-
 /* builder search box: make it read as clickable */
 .searchbox.adder-open{cursor:pointer;border-color:color-mix(in srgb,var(--blue) 35%,var(--border));background:color-mix(in srgb,var(--blue-bg) 55%,var(--surface));color:var(--text-2);font-weight:500}
 .searchbox.adder-open>svg,.searchbox.adder-open>.ico{color:var(--blue);stroke:var(--blue)}
-.searchbox.adder-open .sb-go{margin-left:auto;display:inline-flex;align-items:center;gap:2px;font-size:12px;font-weight:600;color:var(--blue);white-space:nowrap}
+.searchbox.adder-open .sb-go{margin-left:auto;display:inline-flex;align-items:center;gap:2px;font-size:12px;font-weight:600;color:var(--blue-tag);white-space:nowrap}   /* text on the blue tint: the tag ink (check 2 EW2-4: 4.08:1 with --blue) */
 .searchbox.adder-open .sb-go svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.2}
 .searchbox.adder-open:hover{border-color:var(--blue);background:var(--blue-bg);box-shadow:0 2px 10px #00000014}
 .searchbox.adder-open:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}

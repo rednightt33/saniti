@@ -613,3 +613,6 @@ tr.enter td{animation:wlfade .3s ease;background:var(--surface-2)}
   .seg{--hit-x:0px}
 }
 }
+/* check 2 (the extended touch check: no area over another target): the list menu button sits 6 px right of its list's tab
+   (margin-left −8 px), so its area reaches 6 px to that side and the canonical 9 px elsewhere (41 × 44 px) */
+@media (pointer:coarse){.bar1 .lmenu{--hit-l:6px}.bar1 .lmenu::after{left:-6px}}

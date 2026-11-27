@@ -362,13 +362,17 @@ button:focus-visible, a:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
-input:focus-visible, textarea:focus-visible {
+/* a field's focus (check 2 EW2-1; the design system's decisions 8 and 13, UD75): the field state the rest of EDGE uses,
+   its line goes and the soft shadow takes its place, never a ring; a checkbox, a radio or a range takes the keyboard's
+   grey ring as a button does */
+input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=button],[type=submit],[type=reset],[type=image]):focus-visible, textarea:focus-visible {
   outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring);
-  @supports (color: color-mix(in lab, red, red)) {
-    box-shadow: 0 0 0 3px color-mix(in oklch,var(--ring) 50%,transparent);
-  }
+  border-color: transparent;
+  box-shadow: var(--shadow, 0 1px 2px rgba(0,0,0,.06), 0 8px 20px -8px rgba(0,0,0,.22));
+}
+input:is([type=checkbox],[type=radio],[type=range],[type=color],[type=file]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 button:disabled {
   opacity: .5;
@@ -554,11 +558,12 @@ button:disabled {
   color: var(--muted-foreground);
 }
 .search:focus-within {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring);
-  @supports (color: color-mix(in lab, red, red)) {
-    box-shadow: 0 0 0 3px color-mix(in oklch,var(--ring) 50%,transparent);
-  }
+  border-color: transparent;
+  box-shadow: var(--shadow, 0 1px 2px rgba(0,0,0,.06), 0 8px 20px -8px rgba(0,0,0,.22));
+}
+.search input:focus-visible, .compare-search input:focus-visible {
+  border-color: transparent;
+  box-shadow: none;
 }
 .search input {
   border: 0;
@@ -2142,12 +2147,9 @@ h1 {
 .settings-select select:hover,.settings-input:hover {
   border-color: var(--border);
 }
-.settings-select select:focus-visible,.settings-input:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring);
-  @supports (color: color-mix(in lab, red, red)) {
-    box-shadow: 0 0 0 3px color-mix(in oklch,var(--ring) 50%,transparent);
-  }
+.settings-select select:focus,.settings-input:focus {
+  border-color: transparent;
+  box-shadow: var(--shadow, 0 1px 2px rgba(0,0,0,.06), 0 8px 20px -8px rgba(0,0,0,.22));
 }
 .settings-select>.icon {
   position: absolute;
@@ -3499,11 +3501,8 @@ h1 {
   color: var(--muted-foreground);
 }
 .compare-search>div:focus-within {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring);
-  @supports (color: color-mix(in lab, red, red)) {
-    box-shadow: 0 0 0 3px color-mix(in oklch,var(--ring) 50%,transparent);
-  }
+  border-color: transparent;
+  box-shadow: var(--shadow, 0 1px 2px rgba(0,0,0,.06), 0 8px 20px -8px rgba(0,0,0,.22));
 }
 .compare-search input {
   width: 100%;

@@ -1836,3 +1836,7 @@ span.qpl>.lab{align-self:start;padding-top:2px}
   .seg{--hit-x:0px}
 }
 }
+/* check 2 EW2-6 and the extended touch check (no area over another target): the results footer's Previous page button
+   sits 6 px right of the Rows-per-page select, so its area reaches 6 px to that side (41 × 44 px). The preset segments
+   keep the area their own scroller leaves them (the track's inner 30 px): a larger area would need a larger track */
+@media (pointer:coarse){.tbl-foot .acts>label+.iconbtn{--hit-l:6px}.tbl-foot .acts>label+.iconbtn::after{left:-6px}}

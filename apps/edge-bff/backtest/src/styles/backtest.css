@@ -416,7 +416,8 @@ html,body{font-size:var(--fs-3)}
 
 /* dashed = "add / optional"; emphasised so it reads as an action */
 .addc{border:1.5px dashed color-mix(in srgb,var(--blue) 55%,transparent);background:var(--blue-bg);color:var(--blue-tag);font-weight:600}
-.addc:hover{border-style:dashed;border-color:var(--blue);background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue)}
+/* text on the blue hover tint takes the tag ink, 4.5:1 (check 2 EW2-4; the design system's decision 12: --blue was 3.75:1) */
+.addc:hover{border-style:dashed;border-color:var(--blue);background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue-tag)}
 
 /* B: footer sits inside the pane column, same width as the content above */
 .pane{min-height:0}

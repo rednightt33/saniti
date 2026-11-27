@@ -20,6 +20,11 @@
      the cap its row sets (--hit-x / --hit-y: halfway to its neighbour), measured with elementFromPoint; and no control's
      own centre is taken by another control's enlarged area;
    - names (UD71): a made-up name rewritten "Pt …" in the served fixture script shows as "PT …" and never as "Pt …".
+   Check 2 (2026-11-27, verification/sector_analysis/check2/FIXES.md): no two enlarged areas overlap and no area covers
+   another target (MX2-4, EW2-5); the Sector page, whose areas are measured from their neighbours, is read on every tab
+   and in two windows, each area must take the room around it, and its chart dots' circles must not overlap; its tinted
+   text and its keyboard rings on every tab, painted (BD2-1, BD2-2); the logged-in shell's fields take the field state,
+   never a ring (EW2-1); the Backtest's text on a blue hover tint reads 4.5:1 (EW2-4); a colour in oklch() is read too.
 
    Usage: build each page's fixture (npm run build:fixture in apps/edge-bff/<page>), then
           node verification/edge_states/round2_focus_contrast.mjs        (CHECK_ONLY=<regex> runs the steps whose name matches;
@@ -94,7 +99,12 @@ async function open(app, theme, opts = {}) {
 /* ---------- the page side: colours, rings, contrast ---------- */
 const LIB = () => {
   const W = window;
-  W.__rgba = s => { const m = String(s).match(/rgba?\(([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)(?:[ ,/]+([\d.]+%?))?\)/); if (!m) return null; let a = m[4] === undefined ? 1 : m[4].endsWith('%') ? parseFloat(m[4]) / 100 : +m[4]; return [+m[1], +m[2], +m[3], a] };
+  // a colour as rgba: rgb()/rgba() as written; any other function (oklch(), lab(), color(): the shell's tokens) through a
+  // canvas, so a ring drawn in oklch is seen too (check 2 EW2-1: the shell's 3 px oklch ring was invisible to this check)
+  const FN = /(?:rgba?|oklch|oklab|lab|lch|color|hsla?)\([^)]*\)/;
+  W.__cv = W.__cv || document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  W.__rgba = s => { const m = String(s).match(/rgba?\(([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)(?:[ ,/]+([\d.]+%?))?\)/); if (m) { let a = m[4] === undefined ? 1 : m[4].endsWith('%') ? parseFloat(m[4]) / 100 : +m[4]; return [+m[1], +m[2], +m[3], a] }
+    const f = String(s).match(FN); if (!f) return null; const x = W.__cv; x.clearRect(0, 0, 1, 1); x.fillStyle = '#000'; x.fillStyle = f[0]; x.fillRect(0, 0, 1, 1); const d = x.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], +(d[3] / 255).toFixed(3)] };
   W.__lum = c => { const f = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]) };
   W.__ratio = (a, b) => { const x = W.__lum(a), y = W.__lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) };
   W.__over = (top, base) => [0, 1, 2].map(i => top[3] * top[i] + (1 - top[3]) * base[i]);
@@ -109,7 +119,7 @@ const LIB = () => {
   W.__ring = el => { const cs = getComputedStyle(el); const o = cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0 ? W.__rgba(cs.outlineColor) : null;
     if (o && o[3] > 0) return { kind: 'outline', c: o, w: cs.outlineWidth };
     const sh = cs.boxShadow === 'none' ? [] : cs.boxShadow.split(/,(?![^(]*\))/);
-    for (const s of sh) { const c = W.__rgba(s), nums = s.replace(/rgba?\([^)]*\)/, '').trim().split(/\s+/).filter(x => x !== 'inset').map(parseFloat);
+    for (const s of sh) { const c = W.__rgba(s), nums = s.replace(FN, '').trim().split(/\s+/).filter(x => x !== 'inset').map(parseFloat);
       if (c && c[3] > 0 && nums.length >= 4 && nums[2] === 0 && nums[3] >= 2) return { kind: 'shadow', c, w: nums[3] + 'px' } }
     return null };
   W.__isField = el => el.matches('input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=button],[type=submit],[type=reset],[type=image]),select,textarea');
@@ -221,6 +231,114 @@ for (const app of [...PAGES, 'shell']) for (const theme of ['light', 'dark']) {
   });
 }
 
+/* ---------- the Sector page's tabs: its tinted text and its keyboard rings on every tab (check 2 BD2-1, BD2-2) ----------
+   The contrast step above reads the page as it opens (the Overview tab); the quadrant pills of Relative strength
+   (Lagging 4.39:1, Improving 4.08:1 with --red / --blue) and the slope rows' and map dots' missing ring were on the other
+   tabs. Every tab, light and dark: each element drawn on one of the four tints reads 4.5:1 or more against it, and every
+   control Tab reaches draws the grey ring (a field none), painted: the pixels under it change when it takes the focus. */
+if (PAGES.includes('sector')) for (const theme of ['light', 'dark']) await step(`sector ${theme}: every tab's tinted text reads 4.5:1 and every Tab stop draws the grey ring`, async () => {
+  const { ctx, page } = await open('sector', theme);
+  try {
+    await page.evaluate(LIB);
+    const g = await grey(page), bad = [], seen = [];
+    for (const t of ['ov', 'rs', 'rot', 'pm', 'br']) {
+      await page.click(`#tabs [data-t="${t}"]`); await page.waitForTimeout(900);
+      const tint = await page.evaluate(() => {
+        const W = window, probe = v => { const s = document.createElement('span'); s.style.backgroundColor = v; document.body.appendChild(s); const c = W.__rgba(getComputedStyle(s).backgroundColor); s.remove(); return c };
+        const tints = ['green', 'red', 'blue', 'amber'].map(h => probe(`var(--${h}-bg)`)).filter(Boolean).map(c => c.join(','));
+        const out = [];
+        for (const el of document.querySelectorAll('.tabp:not([hidden]) *')) {
+          const cs = getComputedStyle(el), bg = W.__rgba(cs.backgroundColor); if (!bg || !tints.includes(bg.join(','))) continue;
+          const own = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()), b = el.getBoundingClientRect(); if (!own || !b.width) continue;
+          out.push({ el: W.__name(el) + ' "' + el.textContent.trim().slice(0, 12) + '"', r: +W.__ratio(W.__rgba(cs.color), W.__behind(el)).toFixed(2) });
+        }
+        return out;
+      });
+      for (const x of tint) if (x.r < 4.5) bad.push(`${t}: ${x.el} reads ${x.r}:1`);
+      // Tab through the tab's panel: every stop that is not a field draws a ring, grey, and painted
+      await page.keyboard.press('Shift');
+      const stops = await page.evaluate(() => [...document.querySelectorAll('.tabp:not([hidden]) :is(button,[tabindex="0"],select,input,[role=button])')].filter(e => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(e).visibility !== 'hidden' && !e.closest('[hidden]') }).length);
+      const kinds = new Set();
+      for (let i = 0; i < stops; i++) {
+        const tag = await page.evaluate(i => { const e = [...document.querySelectorAll('.tabp:not([hidden]) :is(button,[tabindex="0"],select,input,[role=button])')].filter(e => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(e).visibility !== 'hidden' && !e.closest('[hidden]') })[i]; e.setAttribute('data-ck', '1'); return e.tagName.toLowerCase() + '.' + [...e.classList].filter(c => !['on', 'pk', 'hl', 'df', 'on2', 'b'].includes(c)).slice(0, 2).join('.') }, i);
+        const el = await page.$('[data-ck="1"]');
+        if (kinds.has(tag)) { await el.evaluate(e => e.removeAttribute('data-ck')); continue }
+        kinds.add(tag);
+        await el.evaluate(e => e.scrollIntoView({ block: 'center', inline: 'nearest' })); await page.waitForTimeout(60);
+        const box = await el.boundingBox();
+        const clip = box && { x: Math.max(0, box.x - 4), y: Math.max(0, box.y - 4), width: Math.min(box.width + 8, 1384 - Math.max(0, box.x - 4)), height: Math.min(box.height + 8, 900 - Math.max(0, box.y - 4)) };
+        const before = clip && clip.width > 0 && clip.height > 0 ? await page.screenshot({ clip }) : null;
+        await el.evaluate(e => { document.activeElement?.blur(); e.focus() }); await page.waitForTimeout(60);
+        const r = await page.evaluate(() => { const e = document.activeElement; return { field: window.__isField(e), ring: window.__ring(e) || (() => { const s = getComputedStyle(e); const m = s.boxShadow.match(/rgba?\([^)]*\)[^,]*inset|inset[^,]*rgba?\([^)]*\)/); return m ? { kind: 'inset', c: window.__rgba(m[0]) } : null })() } });
+        const after = before ? await page.screenshot({ clip }) : null;
+        seen.push(tag);
+        if (r.field) { if (r.ring && r.ring.kind === 'outline') bad.push(`${t}: field ${tag} draws an outline`) }
+        else if (!r.ring) bad.push(`${t}: ${tag} draws no ring`);
+        else if (!r.ring.c.slice(0, 3).every((v, k) => Math.abs(v - g[k]) <= 2)) bad.push(`${t}: ${tag} ring ${r.ring.c} not the grey ${g}`);
+        else if (before && after && before.equals(after)) bad.push(`${t}: ${tag} ring not painted (no pixel changed)`);
+        await el.evaluate(e => { e.removeAttribute('data-ck'); e.blur() });
+      }
+    }
+    must(!bad.length, bad.slice(0, 6).join(' | '));
+    done.push(`     sector ${theme}: ${seen.length} kinds of Tab stop across the five tabs, each with the grey ring`);
+  } finally { await ctx.close() }
+});
+
+/* ---------- the shell's fields (check 2 EW2-1): the logged-in shell cannot be drawn without a sign-in, so its field
+   components are drawn with their real class names inside its .app on the sign-in page, and focused after a key press:
+   no ring (no outline, no spread shadow of 2 px or more), the field state instead (the line gone, the soft shadow) ---------- */
+for (const theme of ['light', 'dark']) await step(`shell ${theme}: the logged-in shell's fields take the field state, never a ring`, async () => {
+  const { ctx, page } = await open('shell', theme);
+  try {
+    await page.evaluate(LIB);
+    await page.evaluate(() => {
+      const app = document.createElement('div'); app.className = 'app'; app.id = 'ew21';
+      app.innerHTML = '<div class="settings-select"><select id="f1"><option>One</option><option>Two</option></select></div>'
+        + '<input class="settings-input" id="f2" value="x"><div class="compare-search"><div><input id="f3" placeholder="Compare"></div></div>'
+        + '<label class="search"><input id="f4" placeholder="Search"></label><input id="f5" placeholder="Plain field"><textarea id="f6"></textarea>'
+        + '<input type="checkbox" id="f7">';
+      document.body.appendChild(app);
+    });
+    const bad = [], rows = [];
+    for (const id of ['f1', 'f2', 'f3', 'f4', 'f5', 'f6']) {
+      await page.keyboard.press('Shift');
+      await page.focus('#' + id); await page.waitForTimeout(220);
+      const r = await page.evaluate(id => {
+        const el = document.getElementById(id), boxes = [el, el.closest('.compare-search>div'), el.closest('label.search')].filter(Boolean);
+        return boxes.map(b => { const cs = getComputedStyle(b); return { el: window.__name(b), ring: window.__ring(b), outline: cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0 && window.__rgba(cs.outlineColor)[3] > 0, line: window.__rgba(cs.borderTopColor), shadow: cs.boxShadow } });
+      }, id);
+      for (const b of r) { if (b.ring || b.outline) bad.push(`${b.el}: ${JSON.stringify(b.ring || 'outline')}`) }
+      const outer = r[r.length - 1]; rows.push(`${outer.el} line ${outer.line ? outer.line[3] : '?'} shadow ${outer.shadow === 'none' ? 'none' : 'soft'}`);
+      if (outer.line && outer.line[3] > 0.01 && /^(select|input)/.test(outer.el) && !/checkbox/.test(outer.el)) bad.push(`${outer.el}: its line stays (${outer.line})`);
+      if (outer.shadow === 'none') bad.push(`${outer.el}: no soft shadow`);
+    }
+    // a checkbox reached with the keyboard: the grey ring as a button
+    await page.keyboard.press('Shift'); await page.focus('#f7');
+    const cb = await page.evaluate(() => window.__ring(document.getElementById('f7')));
+    if (!cb) bad.push('checkbox: no keyboard ring');
+    must(!bad.length, bad.join(' | '));
+    done.push(`     shell ${theme}: ${rows.join('; ')}; checkbox ring ${cb && cb.w}`);
+  } finally { await ctx.close() }
+});
+
+/* ---------- the Backtest's blue hover states (check 2 EW2-4): the text drawn on a blue hover tint reads 4.5:1, light and
+   dark. The add-condition tile (.addc) lives in the builder, so a tile with its class is drawn on the page to hover. ---------- */
+if (PAGES.includes('backtest')) for (const theme of ['light', 'dark']) await step(`backtest ${theme}: text on a blue hover tint reads 4.5:1`, async () => {
+  const { ctx, page } = await open('backtest', theme);
+  try {
+    await page.evaluate(LIB);
+    await page.evaluate(() => { const t = document.createElement('div'); t.className = 'addc'; t.id = 'ew24'; t.textContent = 'Add a condition'; t.style.cssText = 'position:fixed;left:20px;bottom:20px;padding:8px 12px'; document.body.appendChild(t) });
+    const out = [];
+    for (const [hover, text] of [['.searchbox.adder-open', '.searchbox.adder-open .sb-go'], ['#ew24', '#ew24']]) {
+      const h = await page.$(hover); if (!h) { out.push(`${hover}: not on the page`); continue }
+      const b = await h.boundingBox(); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(250);
+      out.push(await page.evaluate(sel => { const e = document.querySelector(sel), cs = getComputedStyle(e); return { el: sel, r: +window.__ratio(window.__rgba(cs.color), window.__behind(e)).toFixed(2) } }, text));
+    }
+    for (const x of out) must(typeof x === 'object' && x.r >= 4.5, `${JSON.stringify(x)}`);
+    done.push(`     backtest ${theme}: ${out.map(x => `${x.el} ${x.r}:1`).join(', ')}`);
+  } finally { await ctx.close() }
+});
+
 /* ---------- the real case: the Sector page's window, closed with the mouse and with Esc ---------- */
 for (const theme of ['light', 'dark']) await step(`sector ${theme}: the expand button after its window closes`, async () => {
   const { ctx, page } = await open('sector', theme);
@@ -242,9 +360,131 @@ for (const theme of ['light', 'dark']) await step(`sector ${theme}: the expand b
   } finally { await ctx.close() }
 });
 
-/* ---------- touch hit areas ---------- */
+/* ---------- touch hit areas ----------
+   Check 2 (2026-11-27, MX2-4, MX2-5, EW2-5, EW2-6): besides a 44 px area (or the cap its row sets), no two enlarged areas
+   overlap and no area covers another tap target (an overlap fails, it was only caught when it took a control's centre);
+   the Sector page measures each side from its neighbours (--hit-t/-r/-b/-l, sector touch.ts), so there the test computes
+   the room on each side itself and the area must take it (the most the layout allows), on every tab and in its windows,
+   and its chart dots' transparent circles must not overlap either. */
 const SMALL = '.seg button, .tog, .iconbtn, .btn.sm, .btn.xs, button.pill, .switch, .hit';
-for (const app of [...PAGES, 'shell']) await step(`${app}: touch hit areas, no layout change`, async () => {
+const TAPS = 'button,a[href],input,select,textarea,label,[role=button],[role=tab],[role=menuitemradio],[tabindex="0"],[data-tip],[data-chart],[data-map],[data-strip]';
+/** one pass over the page at its current state: every small control in view, its measured area, the overlaps */
+const scanTouch = (page, o) => page.evaluate(({ SMALL, TAPS, measured }) => {
+  const own = (el, x, y) => { const h = document.elementFromPoint(x, y); return !!h && (h === el || el.contains(h)) };
+  const who = (x, y) => { const h = document.elementFromPoint(x, y); return h ? `${h.tagName.toLowerCase()}.${[...h.classList].slice(0, 2).join('.')}` : 'none' };
+  const span = (el, axis) => { const b = el.getBoundingClientRect(), cx = b.x + b.width / 2, cy = b.y + b.height / 2; let lo = 0, hi = 0;
+    if (axis === 'y') { while (lo < 40 && own(el, cx, b.y - lo - 1)) lo++; while (hi < 40 && own(el, cx, b.bottom + hi)) hi++; return [b.height + lo + hi, `above ${who(cx, b.y - lo - 1)}, below ${who(cx, b.bottom + hi)}`] }
+    while (lo < 40 && own(el, b.x - lo - 1, cy)) lo++; while (hi < 40 && own(el, b.right + hi, cy)) hi++; return [b.width + lo + hi, `left ${who(b.x - lo - 1, cy)}, right ${who(b.right + hi, cy)}`] };
+  const name = el => `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`;
+  const inView = b => b.width > 0 && b.height > 0 && b.top >= 0 && b.left >= 0 && b.bottom <= innerHeight && b.right <= innerWidth;
+  const visible = el => { for (let e = el; e && e !== document.body; e = e.parentElement) { const s = getComputedStyle(e); if (s.visibility === 'hidden' || s.display === 'none' || +s.opacity === 0) return false } return true };
+  const out = { small: [], short: [], stolen: [], clipped: [], overlap: [], covers: [], less: [] };
+  // the area an element draws (its ::after, a .switch its ::before), cut by the ancestors that clip it
+  const clipOf = el => { let c = { l: -1e9, t: -1e9, r: 1e9, b: 1e9 }; for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) { const s = getComputedStyle(a); if ((s.overflowX === 'visible' && s.overflowY === 'visible') || s.display === 'contents') continue; const r = a.getBoundingClientRect(), t = r.top + a.clientTop, l = r.left + a.clientLeft; c = { l: Math.max(c.l, l), t: Math.max(c.t, t), r: Math.min(c.r, l + a.clientWidth), b: Math.min(c.b, t + a.clientHeight) } } return c };
+  const areaOf = el => {
+    const b = el.getBoundingClientRect(), cs = getComputedStyle(el), p = getComputedStyle(el, el.matches('.switch') ? '::before' : '::after');
+    let a = { l: b.left, t: b.top, r: b.right, b: b.bottom };
+    if (p.content !== 'none' && p.position === 'absolute') {
+      const n = k => parseFloat(p[k]), bl = parseFloat(cs.borderLeftWidth) || 0, bt = parseFloat(cs.borderTopWidth) || 0, br = parseFloat(cs.borderRightWidth) || 0, bb = parseFloat(cs.borderBottomWidth) || 0;
+      if (![n('top'), n('left'), n('right'), n('bottom')].some(isNaN)) a = { l: Math.min(a.l, b.left + bl + n('left')), t: Math.min(a.t, b.top + bt + n('top')), r: Math.max(a.r, b.right - br - n('right')), b: Math.max(a.b, b.bottom - bb - n('bottom')) };
+    }
+    const c = clipOf(el); return { l: Math.max(a.l, c.l), t: Math.max(a.t, c.t), r: Math.min(a.r, c.r), b: Math.min(a.b, c.b) };
+  };
+  // with a window open (the Sector page's), the window: the page behind it is covered by its backdrop
+  const scope = document.querySelector('.fw') || document;
+  const smalls = [...scope.querySelectorAll(SMALL)].filter(el => { const b = el.getBoundingClientRect(); return inView(b) && visible(el) && own(el, b.x + b.width / 2, b.y + b.height / 2) });
+  const allSmall = [...scope.querySelectorAll(SMALL)].filter(el => { const b = el.getBoundingClientRect(); return b.width > 0.5 && b.height > 0.5 && visible(el) });
+  const sset = new Set(allSmall), areas = smalls.map(el => ({ el, a: areaOf(el) }));
+  const taps = [...scope.querySelectorAll(TAPS)].filter(e => visible(e) && !sset.has(e)).map(e => ({ e, b: e.getBoundingClientRect() })).filter(x => x.b.width > 0.5 && x.b.height > 0.5);
+  const cross = (p, q) => [Math.min(p.r, q.r) - Math.max(p.l, q.l), Math.min(p.b, q.b) - Math.max(p.t, q.t)];
+  for (let i = 0; i < areas.length; i++) for (let j = 0; j < i; j++) {
+    const A = areas[i], B = areas[j]; if (A.el.contains(B.el) || B.el.contains(A.el)) continue;
+    const [w, h] = cross(A.a, B.a); if (w > 0.5 && h > 0.5) out.overlap.push(`${name(A.el)} × ${name(B.el)}: ${w.toFixed(1)}x${h.toFixed(1)}`);
+  }
+  for (const A of areas) for (const T of taps) {
+    if (A.el.contains(T.e) || T.e.contains(A.el)) continue;
+    const ob = A.el.getBoundingClientRect(), tb = { l: T.b.left, t: T.b.top, r: T.b.right, b: T.b.bottom };
+    if (cross({ l: ob.left, t: ob.top, r: ob.right, b: ob.bottom }, tb).every(v => v > 0.5)) continue;     // overlapping already as drawn
+    const [w, h] = cross(A.a, tb); if (w > 0.5 && h > 0.5) out.covers.push(`${name(A.el)} over ${name(T.e)}: ${w.toFixed(1)}x${h.toFixed(1)}`);
+  }
+  for (const el of smalls) {
+    const b = el.getBoundingClientRect(), cs = getComputedStyle(el), v = k => { const x = parseFloat(cs.getPropertyValue(k)); return isNaN(x) ? null : x };
+    const capX = v('--hit-x') ?? 22, capY = v('--hit-y') ?? 22, cap = { l: v('--hit-l') ?? capX, r: v('--hit-r') ?? capX, t: v('--hit-t') ?? capY, b: v('--hit-b') ?? capY };
+    // the canonical area: each side up to half of what 44 px leaves, and up to its cap (--hit-x/-y, or a side's --hit-l/-r/-t/-b)
+    const hx = Math.max(0, (44 - b.width) / 2), hy = Math.max(0, (44 - b.height) / 2);
+    let needW = b.width + Math.min(cap.l, hx) + Math.min(cap.r, hx), needH = b.height + Math.min(cap.t, hy) + Math.min(cap.b, hy);
+    // measured pages: the room on each side, found here from the targets around (the whole room to a plain target, half to
+    // another area), at least what the control declares
+    if (measured) {
+      // a measured page (the Sector page): the room on each side, found here from the targets around (the whole room to a
+      // plain target, half to another area), inside what is pinned over the page (not a window's frame) and inside what
+      // clips the control; each axis's 44 px shared between its two sides as the page shares them. The area it declares
+      // (its ::after, clipped) must take that room ("less"), and a tap must reach all of its declared area ("short")
+      const room = { t: 22, b: 22, l: 22, r: 22 }, me = { l: b.left, t: b.top, r: b.right, b: b.bottom };
+      // every target of the page or window counts, in view or not; on the page its pinned tab bar too
+      const bars = scope === document ? [...document.querySelectorAll('.bar1')].map(e => ({ e, b: e.getBoundingClientRect() })) : [];
+      for (const T of [...[...taps, ...bars].map(x => ({ e: x.e, b: { l: x.b.left, t: x.b.top, r: x.b.right, b: x.b.bottom }, half: false })), ...allSmall.filter(s => s !== el).map(s => { const r = s.getBoundingClientRect(); return { e: s, b: { l: r.left, t: r.top, r: r.right, b: r.bottom }, half: true } })]) {
+        if (T.e === el || T.e.contains(el) || el.contains(T.e)) continue;
+        const k = T.half ? 0.5 : 1, xb = T.b.l < me.r + 44 && T.b.r > me.l - 44, yb = T.b.t < me.b + 44 && T.b.b > me.t - 44;
+        if (T.b.l < me.r - 0.5 && T.b.r > me.l + 0.5 && T.b.t < me.b - 0.5 && T.b.b > me.t + 0.5) { room.t = room.b = room.l = room.r = 0; continue }
+        if (xb && T.b.b <= me.t + 0.5) room.t = Math.min(room.t, Math.max(0, (me.t - T.b.b) * k));
+        if (xb && T.b.t >= me.b - 0.5) room.b = Math.min(room.b, Math.max(0, (T.b.t - me.b) * k));
+        if (yb && T.b.r <= me.l + 0.5) room.l = Math.min(room.l, Math.max(0, (me.l - T.b.r) * k));
+        if (yb && T.b.l >= me.r - 0.5) room.r = Math.min(room.r, Math.max(0, (T.b.l - me.r) * k));
+      }
+      let pin = null;
+      for (let a = el; a && a !== document.body; a = a.parentElement) { if (a.classList.contains('fw')) break; if (/sticky|fixed/.test(getComputedStyle(a).position)) { const k = a.getBoundingClientRect(); pin = { l: k.left, t: k.top, r: k.right, b: k.bottom }; break } }
+      const c = clipOf(el), k = pin ? { l: Math.max(pin.l, c.l), t: Math.max(pin.t, c.t), r: Math.min(pin.r, c.r), b: Math.min(pin.b, c.b) } : c;
+      room.t = Math.min(room.t, Math.max(0, me.t - k.t)); room.b = Math.min(room.b, Math.max(0, k.b - me.b)); room.l = Math.min(room.l, Math.max(0, me.l - k.l)); room.r = Math.min(room.r, Math.max(0, k.r - me.r));
+      const share = (x, y, need) => { const h = need / 2, p = Math.min(x, h), q = Math.min(y, h); return Math.min(x, need - q) + Math.min(y, need - p) };
+      const wantW = b.width + share(room.l, room.r, Math.max(0, 44 - b.width)), wantH = b.height + share(room.t, room.b, Math.max(0, 44 - b.height));
+      const A = areaOf(el), haveW = A.r - A.l, haveH = A.b - A.t, whole = me.l >= c.l - 0.5 && me.r <= c.r + 0.5 && me.t >= c.t - 0.5 && me.b <= c.b + 0.5;
+      // (a control its scroller cuts, scrolled partly out, is not judged)
+      if (whole && (haveW < wantW - 1.5 || haveH < wantH - 1.5)) out.less.push(`${name(el)} ${Math.round(b.width)}x${Math.round(b.height)} declares ${Math.round(haveW)}x${Math.round(haveH)}, room for ${Math.round(wantW)}x${Math.round(wantH)}`);
+      if (haveW > Math.max(44, b.width) + 0.5 || haveH > Math.max(44, b.height) + 0.5) out.less.push(`${name(el)} declares ${Math.round(haveW)}x${Math.round(haveH)}, more than 44 px`);
+      // a tap reaches all of the declared area (cut by the view: the page scrolls a control near an edge into it first)
+      if (A.t < 0 || A.l < 0 || A.b > innerHeight || A.r > innerWidth) continue;
+      const [w, wBy] = span(el, 'x'), [h, hBy] = span(el, 'y');
+      out.small.push(`${name(el)} ${Math.round(b.width)}x${Math.round(b.height)} → ${Math.round(w)}x${Math.round(h)}`);
+      if (w < haveW - 1.5 || h < haveH - 1.5) out.short.push({ el: name(el), size: `${Math.round(b.width)}x${Math.round(b.height)}`, hit: `${Math.round(w)}x${Math.round(h)}`, need: `${Math.round(haveW)}x${Math.round(haveH)}`, by: h < haveH - 1.5 ? hBy : wBy });
+      continue;
+    }
+    // the box a tap needs, inside the view (the page scrolls a control near an edge into it first)
+    if (b.top - (needH - b.height) / 2 < 0 || b.bottom + (needH - b.height) / 2 > innerHeight || b.left - (needW - b.width) / 2 < 0 || b.right + (needW - b.width) / 2 > innerWidth) continue;
+    // an ancestor that scrolls (or clips) its content cuts the area at its edge: the control's own scroller, never a
+    // neighbour; such a control is listed apart, its size there the most its scroller allows
+    let clip = null;
+    for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+      const s = getComputedStyle(a); if (s.overflowX === 'visible' && s.overflowY === 'visible') continue;
+      const r = a.getBoundingClientRect(), top = r.top + a.clientTop, left = r.left + a.clientLeft;
+      const h0 = Math.min(b.bottom + (needH - b.height) / 2, top + a.clientHeight) - Math.max(b.top - (needH - b.height) / 2, top);
+      const w0 = Math.min(b.right + (needW - b.width) / 2, left + a.clientWidth) - Math.max(b.left - (needW - b.width) / 2, left);
+      if (h0 < needH - 0.5 || w0 < needW - 0.5) { clip = `${a.tagName.toLowerCase()}.${[...a.classList].slice(0, 2).join('.')}`; needH = Math.min(needH, h0); needW = Math.min(needW, w0) }
+    }
+    if (clip) out.clipped.push(`${name(el)} ${Math.round(b.width)}x${Math.round(b.height)} in ${clip}: ${Math.round(needW)}x${Math.round(needH)}`);
+    const [w, wBy] = span(el, 'x'), [h, hBy] = span(el, 'y');
+    out.small.push(`${name(el)} ${Math.round(b.width)}x${Math.round(b.height)} → ${Math.round(w)}x${Math.round(h)}`);
+    // the area may stop short where another element lies over it (a neighbour, a sticky head, the frame's edge)
+    if (w < needW - 1.5 || h < needH - 1.5) out.short.push({ el: name(el), size: `${Math.round(b.width)}x${Math.round(b.height)}`, hit: `${Math.round(w)}x${Math.round(h)}`, need: `${Math.round(needW)}x${Math.round(needH)}`, by: h < needH - 1.5 ? hBy : wBy });
+  }
+  for (const el of scope.querySelectorAll('button, a[href], input, select, textarea, [role=button], [role=tab], [tabindex]:not([tabindex="-1"])')) {
+    const b = el.getBoundingClientRect(); if (!inView(b) || !visible(el)) continue;
+    const h = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
+    const hs = h && h.closest(SMALL), hb = hs && hs.getBoundingClientRect(), cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    // taken by an area: the point lies in the other control's enlarged area, not in its own box (a sticky bar drawn over
+    // the content covers it as drawn, on a mouse too)
+    if (h && h !== el && !el.contains(h) && !h.contains(el) && hs && hs !== el.closest(SMALL) && !(cx >= hb.left && cx <= hb.right && cy >= hb.top && cy <= hb.bottom)) out.stolen.push(`${el.tagName.toLowerCase()}.${[...el.classList].slice(0, 2).join('.')} ← ${hs.tagName.toLowerCase()}.${[...hs.classList].slice(0, 3).join('.')}${hs.dataset.n || hs.dataset.t ? ' ' + (hs.dataset.n || hs.dataset.t) : ''}`);
+  }
+  // a chart's dots: their transparent circles (.hc) do not overlap, nor cover another target of the same chart
+  for (const svg of scope.querySelectorAll('svg')) {
+    const hs = [...svg.querySelectorAll('circle.hc')].map(c => { const r = c.getBoundingClientRect(); return { c, x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 } }).filter(p => p.r > 0 && p.x >= 0 && p.y >= 0 && p.x <= innerWidth && p.y <= innerHeight);
+    for (let i = 0; i < hs.length; i++) for (let j = 0; j < i; j++) { const d = Math.hypot(hs[i].x - hs[j].x, hs[i].y - hs[j].y), vis = k => hs[k].c.parentElement.querySelector('circle.v, circle.dot').getBoundingClientRect().width / 2; if (hs[i].r + hs[j].r > d + 0.5 && (hs[i].r > vis(i) + 0.5 || hs[j].r > vis(j) + 0.5)) out.overlap.push(`dot circles ${hs[i].c.parentElement.dataset.n || hs[i].c.parentElement.dataset.t} × ${hs[j].c.parentElement.dataset.n || hs[j].c.parentElement.dataset.t}: ${(hs[i].r + hs[j].r - d).toFixed(1)} px`) }
+    if (hs.length) out.small.push(`svg dots: ${hs.length}, circles ${Math.round(Math.min(...hs.map(p => p.r * 2)))}-${Math.round(Math.max(...hs.map(p => p.r * 2)))} px`);
+  }
+  return out;
+}, { SMALL, TAPS, measured: !!o.measured });
+
+for (const app of [...PAGES, 'shell']) await step(`${app}: touch hit areas, no layout change, no overlap`, async () => {
   const { ctx, page } = await open(app, 'light', { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   try {
     const cdp = await ctx.newCDPSession(page);
@@ -256,60 +496,40 @@ for (const app of [...PAGES, 'shell']) await step(`${app}: touch hit areas, no l
     let moved = 0; fine.forEach((r, i) => { if (r.some((v, k) => Math.abs(v - coarse[i][k]) > 0.5)) moved++ });
     must(!moved, `${moved} elements moved or resized between pointer fine and coarse`);
     // the page's main scroller (the window or the page's own box), read at up to 8 positions down the page
-    const scrollTo = k => page.evaluate(k => { const all = [document.scrollingElement, ...document.querySelectorAll('*')].filter(e => e && e.scrollHeight - e.clientHeight > 40 && (e === document.scrollingElement || /auto|scroll/.test(getComputedStyle(e).overflowY)));
+    const scrollTo = k => page.evaluate(k => { const all = [document.scrollingElement, ...document.querySelectorAll('*')].filter(e => e && e.scrollHeight - e.clientHeight > 40 && (e === document.scrollingElement || /auto|scroll/.test(getComputedStyle(e).overflowY)) && !e.closest('.fw'));
       const s = all.sort((a, b) => (b.clientHeight * b.clientWidth) - (a.clientHeight * a.clientWidth))[0]; if (!s) return k === 0;
       const top = Math.round(k * s.clientHeight * 0.8); if (k && top >= s.scrollHeight - s.clientHeight + s.clientHeight * 0.8) return false; s.scrollTop = top; return true }, k);
-    const res = { small: [], short: [], stolen: [], clipped: [] };
-    for (let k = 0; k < 8 && await scrollTo(k); k++) {
-    await page.waitForTimeout(120);
-    const part = await page.evaluate((SMALL) => {
-      const own = (el, x, y) => { const h = document.elementFromPoint(x, y); return !!h && (h === el || el.contains(h)) };
-      const who = (x, y) => { const h = document.elementFromPoint(x, y); return h ? `${h.tagName.toLowerCase()}.${[...h.classList].slice(0, 2).join('.')}` : 'none' };
-      const span = (el, axis) => { const b = el.getBoundingClientRect(), cx = b.x + b.width / 2, cy = b.y + b.height / 2; let lo = 0, hi = 0;
-        if (axis === 'y') { while (lo < 40 && own(el, cx, b.y - lo - 1)) lo++; while (hi < 40 && own(el, cx, b.bottom + hi)) hi++; return [b.height + lo + hi, `above ${who(cx, b.y - lo - 1)}, below ${who(cx, b.bottom + hi)}`] }
-        while (lo < 40 && own(el, b.x - lo - 1, cy)) lo++; while (hi < 40 && own(el, b.right + hi, cy)) hi++; return [b.width + lo + hi, `left ${who(b.x - lo - 1, cy)}, right ${who(b.right + hi, cy)}`] };
-      const out = { small: [], short: [], stolen: [], clipped: [] };
-      const inView = b => b.width > 0 && b.height > 0 && b.top >= 0 && b.left >= 0 && b.bottom <= innerHeight && b.right <= innerWidth;
-      for (const el of document.querySelectorAll(SMALL)) {
-        const b = el.getBoundingClientRect(), cs = getComputedStyle(el); if (!inView(b) || cs.visibility === 'hidden' || !own(el, b.x + b.width / 2, b.y + b.height / 2)) continue;
-        const capX = parseFloat(cs.getPropertyValue('--hit-x')), capY = parseFloat(cs.getPropertyValue('--hit-y'));
-        let needW = Math.min(44, b.width + 2 * (isNaN(capX) ? 22 : capX)), needH = Math.min(44, b.height + 2 * (isNaN(capY) ? 22 : capY));
-        // the box a tap needs, inside the view (the page scrolls a control near an edge into it first)
-        if (b.top - (needH - b.height) / 2 < 0 || b.bottom + (needH - b.height) / 2 > innerHeight || b.left - (needW - b.width) / 2 < 0 || b.right + (needW - b.width) / 2 > innerWidth) continue;
-        // an ancestor that scrolls (or clips) its content cuts the area at its edge: the control's own scroller, never
-        // a neighbour; such a control is listed apart, its size there the most its scroller allows
-        let clip = null;
-        for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
-          const s = getComputedStyle(a); if (s.overflowX === 'visible' && s.overflowY === 'visible') continue;
-          const r = a.getBoundingClientRect(), top = r.top + a.clientTop, left = r.left + a.clientLeft;
-          const h0 = Math.min(b.bottom + (needH - b.height) / 2, top + a.clientHeight) - Math.max(b.top - (needH - b.height) / 2, top);
-          const w0 = Math.min(b.right + (needW - b.width) / 2, left + a.clientWidth) - Math.max(b.left - (needW - b.width) / 2, left);
-          if (h0 < needH - 0.5 || w0 < needW - 0.5) { clip = `${a.tagName.toLowerCase()}.${[...a.classList].slice(0, 2).join('.')}`; needH = Math.min(needH, h0); needW = Math.min(needW, w0) }
-        }
-        if (clip) out.clipped.push(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')} ${Math.round(b.width)}x${Math.round(b.height)} in ${clip}: ${Math.round(needW)}x${Math.round(needH)}`);
-        const [w, wBy] = span(el, 'x'), [h, hBy] = span(el, 'y');
-        out.small.push(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')} ${Math.round(b.width)}x${Math.round(b.height)} → ${Math.round(w)}x${Math.round(h)}`);
-        // the area may stop short where another element lies over it (a neighbour, a sticky head, the frame's edge)
-        if (w < needW - 1.5 || h < needH - 1.5) out.short.push({ el: `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`, size: `${Math.round(b.width)}x${Math.round(b.height)}`, hit: `${Math.round(w)}x${Math.round(h)}`, need: `${Math.round(needW)}x${Math.round(needH)}`, by: h < needH - 1.5 ? hBy : wBy });
+    const res = { small: [], short: [], stolen: [], clipped: [], overlap: [], covers: [], less: [] };
+    const add = part => { for (const key of Object.keys(res)) res[key].push(...part[key].map(x => (typeof x === 'string' && views.length > 1 ? `[${views[views.length - 1]}] ${x}` : x))) };
+    // the views: the page as it opens; the Sector page each of its tabs and two of its windows (the drill-down's tickers,
+    // the Rotation detail's sector chips), measured as a viewer meets them
+    const views = [];
+    const walk = async label => { views.push(label); for (let k = 0; k < 8 && await scrollTo(k); k++) { await page.waitForTimeout(200); add(await scanTouch(page, { measured: app === 'sector' })) } await scrollTo(0) };
+    if (app !== 'sector') await walk('page');
+    else for (const t of ['ov', 'rs', 'rot', 'pm', 'br']) {
+      await page.click(`#tabs [data-t="${t}"]`); await page.waitForTimeout(900);
+      await walk(t);
+      const win = { rs: 'rsD', rot: 'rotB' }[t];
+      if (win) {
+        await page.locator(`[data-card=${win}] .fwx`).first().click(); await page.waitForTimeout(900);
+        views.push(`${win} window`); add(await scanTouch(page, { measured: true }));
+        // the window scrolls on a phone: its lower part too
+        await page.evaluate(() => { const f = document.querySelector('.fw'); f.scrollTop = f.clientHeight * 0.8 }); await page.waitForTimeout(300); add(await scanTouch(page, { measured: true }));
+        await page.keyboard.press('Escape'); await page.waitForTimeout(300);
       }
-      for (const el of document.querySelectorAll('button, a[href], input, select, textarea, [role=button], [role=tab], [tabindex]:not([tabindex="-1"])')) {
-        const b = el.getBoundingClientRect(); if (!inView(b) || getComputedStyle(el).visibility === 'hidden') continue;
-        const h = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
-        if (h && h !== el && !el.contains(h) && !h.contains(el) && h.closest(SMALL) && h.closest(SMALL) !== el.closest(SMALL)) out.stolen.push(`${el.tagName.toLowerCase()}.${[...el.classList].slice(0, 2).join('.')} ← ${h.tagName.toLowerCase()}.${[...h.classList].slice(0, 2).join('.')}`);
-      }
-      return out;
-    }, SMALL);
-    for (const key of Object.keys(res)) res[key].push(...part[key]);
     }
-    for (const key of ['small', 'clipped', 'stolen']) res[key] = [...new Set(res[key])];
+    for (const key of ['small', 'clipped', 'stolen', 'overlap', 'covers', 'less']) res[key] = [...new Set(res[key])];
     res.short = [...new Map(res.short.map(x => [JSON.stringify(x), x])).values()];
-    await scrollTo(0);
     // a stolen centre is the enlarged area's fault only when it is not stolen at pointer fine too
     await media('fine');
     const fineStolen = await page.evaluate((SMALL) => [...document.querySelectorAll('button, a[href], input, select, textarea, [role=button], [role=tab]')].filter(el => { const b = el.getBoundingClientRect(); if (!b.width) return false; const h = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2); return h && h !== el && !el.contains(h) && !h.contains(el) && h.closest(SMALL) }).length, SMALL);
     must(!res.stolen.length || fineStolen >= res.stolen.length, `a control's centre is taken by an enlarged area: ${res.stolen.slice(0, 4).join('; ')}`);
+    must(!res.overlap.length, `${res.overlap.length} enlarged areas overlap: ${res.overlap.slice(0, 4).join('; ')}`);
+    must(!res.covers.length, `${res.covers.length} enlarged areas cover another target: ${res.covers.slice(0, 4).join('; ')}`);
+    must(!res.less.length, `${res.less.length} areas take less than the room around them: ${res.less.slice(0, 4).join('; ')}`);
     must(!res.short.length, `below 44 px to a tap: ${res.short.slice(0, 4).map(x => `${x.el} ${x.size} hit ${x.hit} (need ${x.need}; stopped by ${x.by})`).join('; ')}`);
-    done.push(`     ${app}: ${res.small.length} kinds of small control down the page${res.small.length ? ': ' + [...new Set(res.small)].slice(0, 6).join('; ') : ''}${res.clipped.length ? `; cut by their own scroller: ${[...new Set(res.clipped)].slice(0, 3).join('; ')}` : ''}`);
+    done.push(`     ${app}: ${views.length} views, ${res.small.length} kinds of small control${res.small.length ? ': ' + [...new Set(res.small)].slice(0, 6).join('; ') : ''}${res.clipped.length ? `; cut by their own scroller: ${[...new Set(res.clipped)].slice(0, 3).join('; ')}` : ''}`);
+    if (process.env.TOUCH_LIST) console.log(`${app} small controls:\n  ${res.small.join('\n  ')}\n  clipped:\n  ${res.clipped.join('\n  ')}`);
   } finally { await ctx.close() }
 });
 

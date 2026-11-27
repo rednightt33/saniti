@@ -104,6 +104,24 @@ def test_fields_never_take_the_ring():
         assert field in (EDGE / rel).read_text(), rel
 
 
+def test_the_shells_fields_take_the_field_state_never_a_ring():
+    """Check 2 EW2-1 (decisions 8 and 13, UD75): the logged-in shell's fields (a settings select or input, the compare
+    search, a search box, any text field) take the field state the rest of EDGE uses, their line gone and the soft shadow
+    in its place, never the old 3 px grey ring; a checkbox, radio or range takes the keyboard's grey ring. The browser
+    check: round2_focus_contrast.mjs, "the logged-in shell's fields take the field state"."""
+    css = (EDGE / 'static/index.html').read_text()
+    for sel in ('.search:focus-within', '.settings-select select:focus,.settings-input:focus', '.compare-search>div:focus-within',
+                'input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=button],[type=submit],[type=reset],[type=image]):focus-visible, textarea:focus-visible'):
+        m = re.search(re.escape(sel) + r'\s*\{([^{}]*)\}', css)
+        assert m, sel
+        assert 'border-color: transparent' in m.group(1) and 'box-shadow: var(--shadow' in m.group(1), sel
+        assert not re.search(r'0 0 0 [2-9]px', m.group(1)), sel
+    # the inner field of a field box draws nothing of its own
+    assert re.search(r'\.search input:focus-visible, \.compare-search input:focus-visible \{\s*border-color: transparent;\s*box-shadow: none;', css)
+    assert re.search(r'input:is\(\[type=checkbox\],\[type=radio\],\[type=range\],\[type=color\],\[type=file\]\):focus-visible \{\s*outline: 2px solid var\(--focus-ring\);', css)
+    assert '.settings-select select:focus-visible,.settings-input:focus-visible' not in css
+
+
 def test_the_grey_reads_four_and_a_half_to_one_everywhere():
     def values(css):
         return set(re.findall(r'--text-3:\s*(#[0-9a-f]{6})', css, re.I))
