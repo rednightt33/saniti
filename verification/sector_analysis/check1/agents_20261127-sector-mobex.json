@@ -1,0 +1,111 @@
+{
+ "run": "agents_20261127-sector-mobex",
+ "area": "phone-dark-example-terminal-keyboard-load",
+ "model": "sonnet",
+ "checked": [
+  "Phone 390x844, 360x740, landscape 844x390 (shell rail leaves 788): all 5 tabs, light and dark: document scrollWidth equals the viewport everywhere, no element past the right edge outside its own scroller, no console errors, no failed request; cards fit, floating windows fill the phone screen (w=390 h=792 / 360x688), landscape window 740x342 inside the screen, Esc closes, focus returns to the Expand button, tab key stays trapped inside the window.",
+  "Dark theme on all 5 tabs at 390 and 360 (screenshots reviewed for 0,1,2,3 and a window): no invisible text/lines; contrast figures in MX-5.",
+  "Example mode (decision J) as the owner through a same-origin host page that frames /sector-app/?example=1 (the beta has multi-user off; no local EDGE_TEST_POSTGRES_URL so tests/test_3e_*_browser.py were not run): example reads only /api/v1/examples/sector (index + sector-meta + sector-series + sector-day-2026-11-26; 4 requests), 5 tabs switch with 0 further requests, every other control I tried (date button, Open in Terminal, period buttons, Expand, sector rows, legend toggles, drill-down chevron, sector name, rotation Timeline switch, rotation dot, Pair matrix switch and heads, Breadth rows) gave exactly one lock message to the shell and changed nothing, at 1440 and 390; Enter and Space on a locked row prompt too; hover and KPI tiles stay free (a hover highlight class appears on rows, by design). The shell's box text seen once: 'Sector Analysis is not in your plan ... Upgrading is coming soon'. Example routes refuse sector-stocks-*, other days and unknown names with 404 EXAMPLE_FILE_NOT_FOUND. Visitor on the beta: /sector shows the sign-in; /api/v1/examples/sector/index and /api/v1/sector/index answer 401. The example's day is the newest publication (as_of 2026-11-26), cut like the Overview's. Not testable here: a real free account/visitor principal on the beta (multi-user off).",
+  "Open in Terminal (G): header button with no sector locked opens IHSG (title and Terminal frame 'IHSG'), with Financials locked opens IDXFINANCE (title 'Open IDXFINANCE', Terminal 'IDXFINANCE'), a stock in the Sector drill-down window opens it (KLBF), a Breadth row tapped on a 390 phone opens it (IDEA); ml.symbol in the account preferences followed each step (IHSG v31, IDXFINANCE v32, KLBF v33, IDEA v35).",
+  "Keyboard: tab order is date, Open in Terminal, active tab (roving tabindex), then cards in reading order; 34 consecutive stops all had a visible focus ring; arrow keys, Home, End and wrap work in the tab bar; Enter and Space on role=button rows work; Esc closes the date menu (focus back to the button), the Custom range popover and windows; focus trap in windows works. Gap: MX-6.",
+  "Load cost, beta owner, cold: /sector page = 23 requests, 487 KiB (sector-series 125 KiB, edge-app.js 82 KiB, sector-app JS 68 KiB immutable, shell html 66 KiB, font 49 KiB, day 32 KiB, meta 16 KiB, CSS 14 KiB); first chart 1.16 s cold, 0.84 s on reload; a reload fetches the 3 data files with If-None-Match (68-89 bytes each, private no-cache + etag, same as the Overview's files) and the immutable sector-app assets come from cache; tab switches cost 2 requests / 33 KiB (one sector-stocks-idxhealth 15 KB, one font); opening windows costs 0 requests.",
+  "Direct open signed out: the page shows the session-ended message with no console error (MX-7)."
+ ],
+ "ml_symbol": {
+  "before": "IDXFINANCE",
+  "after_restore": "IDXFINANCE",
+  "note": "read first from GET /api/v1/preferences (key ml.symbol, v30, as updated 2026-11-27T02:04Z). An aborted first run of my own had already moved it to IHSG before my later 'before' reads; restored through the page itself (lock Financials, Open in Terminal) and read back: IDXFINANCE, version 36."
+ },
+ "findings": [
+  {
+   "id": "MX-1",
+   "severity": "major",
+   "title": "Breadth 'Stock detail': numbers cut to '+104....' on phones",
+   "where": "Breadth tab, card brD (Stock detail), 390 and 360 wide",
+   "steps": "Open /sector on the beta as the owner at 390x844 (or 360x740), tab Breadth, scroll to Stock detail, look at the 50 and 200 distance columns.",
+   "expected": "Every figure readable (the table may scroll sideways, but a cell must not cut its value).",
+   "actual": "Cells with 4 digits before the point show an ellipsis: '+104.7%' shown as '+104....', '+256.7%' as '+256....', '+114.4%' as '+114....'; the Since date '11 Nov 2025' also cut. td scrollWidth 66 > clientWidth 61 (value) and 94 > 68 (date), text-overflow ellipsis.",
+   "evidence": "DOM probe on brD td (390 and 360, same numbers); screenshot /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/p390_brD.png; the largest rows are the top of the list (IDEA, VOKS...), i.e. the first thing the viewer sees."
+  },
+  {
+   "id": "MX-2",
+   "severity": "minor",
+   "title": "Wide tables scroll sideways inside their card with no cue; most columns are hidden on a phone",
+   "where": "rsD (Sector drill-down), rotB, pmT, pmS, brT, brD, hxCard heatmap, pmM matrix; 390 and 360",
+   "steps": "Phone width, open each tab, inspect the card scrollers.",
+   "expected": "A visible cue that more columns exist (edge fade, scrollbar, or a narrower column set).",
+   "actual": "rsD needs 836 px in a 356 px card (RS, Δ 4W, > EMA50, Rotation, Momentum are all off screen); rotB 548, pmT 636, brT 560, pmM 625, heatmap 494. The scrollers' scrollbar is not shown (touch, overlay), nothing hints at the hidden columns. No page-wide sideways scroll (document scrollWidth = viewport at 390, 360, 844x390 on all 5 tabs, light and dark).",
+   "evidence": "overflow inventory in the frame (script run t16): 'rsD DIV.tbl-wrap sw836 cw356'; screenshot /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/p390_rsD.png"
+  },
+  {
+   "id": "MX-3",
+   "severity": "minor",
+   "title": "Fifth tab 'Breadth' is invisible on a 390 phone (no scroll cue on the tab bar)",
+   "where": "tab bar #tabs, 390x844",
+   "steps": "Open /sector at 390 wide; look at the tab bar.",
+   "expected": "All five tabs visible or a visible hint that the bar scrolls.",
+   "actual": "Tabs end at x=356 for 'Pair matrix'; 'Breadth' starts at x=370 beyond the 344 px bar, so on first view it is not on screen at all (at 360 'Pair ma' is cut, which hints a little). scrollbar-width none, no fade. It is reachable by swiping or by the arrow keys.",
+   "evidence": "tab rects [Breadth 370..423] vs bar clientWidth 344 (scrollWidth 407); screenshot /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/p390_light_0.png"
+  },
+  {
+   "id": "MX-4",
+   "severity": "minor",
+   "title": "Touch targets well below 32-44 px",
+   "where": "all tabs on a phone",
+   "steps": "390 wide, measure buttons.",
+   "expected": "Touch-sized controls (>= 32 px, ideally 44).",
+   "actual": "Expand button 22x22, period/segmented buttons 30-59 x 22, sector toggles 24 high, drill-down chevrons 20x20, matrix column heads 45x20, sector name buttons 78x20, window close button 26x26, rotation dots 12x12 (the quadrant map's sector dots are the only way to pick a sector there by touch). No overlapping hit area was found. (Not compared with the Overview's own sizes.)",
+   "evidence": "bounding boxes from the probe (390 and 360), 12x12 for g.pt from t18"
+  },
+  {
+   "id": "MX-5",
+   "severity": "minor",
+   "title": "Contrast below 4.5:1 for small texts (light: whole page; dark: chart end labels and Breadth counts)",
+   "where": "light theme: secondary grey labels on every tab; dark theme: rcCard end labels, brN counts",
+   "steps": "Compute text colour vs effective background on each tab at 390.",
+   "expected": "WCAG AA 4.5:1 for 11-13 px text.",
+   "actual": "Light: the page subtitle 3.10:1 (13 px) and the grey 11-12 px labels, axis ticks, card subtitles and headers 3.23:1 (97 text nodes on Overview, 936 on Breadth). Dark: chart end labels 'Financials -11.3%' 2.67:1 and 'Non-Cyc -15.6%' 4.15:1, 'DKHH +26.5%' 4.15:1, Breadth sector counts 3.57-3.90:1 (24 on Breadth, 11 on Pair matrix). The light value looks like the shared text-3 token, so it may be EDGE-wide and not specific to this page.",
+   "evidence": "luminance probe over all text nodes (t19); no invisible text or lines found in dark mode, screenshots /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/p390_dark_*.png"
+  },
+  {
+   "id": "MX-6",
+   "severity": "nit",
+   "title": "Date menu has no arrow-key navigation",
+   "where": "#datepop (role=menuitemradio items), src/app.ts dateMenu()",
+   "steps": "Focus the date button, Enter, press ArrowDown.",
+   "expected": "Arrow keys move between the items (menu pattern); Esc closes.",
+   "actual": "Focus lands on the selected item; ArrowDown does nothing (only Tab moves); Esc closes and returns focus to the button (works).",
+   "evidence": "keyboard probe t15; no ArrowDown/ArrowUp handler in app.ts"
+  },
+  {
+   "id": "MX-7",
+   "severity": "nit",
+   "title": "When the data cannot load, header controls look live but do nothing",
+   "where": "/sector-app/ opened signed out (not through the shell), also with ?example=1",
+   "steps": "Open https://edge-bff-dev.up.railway.app/sector-app/ with no session.",
+   "expected": "Date and Open in Terminal disabled or hidden while only the error shows.",
+   "actual": "Shows date button 'Loading' and a black 'Open in Terminal' above the message 'Your EDGE session ended'; clicking them does nothing (listeners bound after the first load, src/app.ts boot_/bind). No page error.",
+   "evidence": "screenshot /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/visitor_sector-app_.png; click probe t21 (no errors)"
+  },
+  {
+   "id": "MX-8",
+   "severity": "nit",
+   "title": "Phone window text refers to things not present on a phone",
+   "where": "Rotation detail window (rotB) at 390",
+   "steps": "Rotation tab, Expand the detail card on a phone.",
+   "expected": "Touch wording and no reference to a hidden map.",
+   "actual": "'Click a sector to highlight it on the map (Ctrl or Cmd click to add)' while the window shows only the table. The window's How-to-read footer keeps about 100 px of the 792 px phone window; the subtitle in the title is cut ('speed ...').",
+   "evidence": "screenshot /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/p390_dark_win_rotB.png"
+  },
+  {
+   "id": "MX-9",
+   "severity": "nit",
+   "title": "Greek font subset fetched on the first tab switch",
+   "where": "font /fonts/inter-greek-wght-normal.woff2 (19 KB)",
+   "steps": "Cold open, then switch tabs.",
+   "expected": "No extra font file for two glyphs.",
+   "actual": "Δ and σ in tables and headers pull the Greek subset (19 KB) on the first tab switch, after the first chart is drawn; not blocking.",
+   "evidence": "network log t13 ('4 tab switches: 2 requests, 33 KiB')"
+  }
+ ]
+}
