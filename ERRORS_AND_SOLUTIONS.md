@@ -8892,6 +8892,30 @@ in its staleness check.
   job screener-worker). Moved through each file's line diff from `53b4fafb` (none fell inside a changed hunk); the pointer
   test passes.
 
+### M577 — The beta's build of `72c09231` fails three times on Railway's build cache: S3 GetObject 416 InvalidRange (2026-11-27; open: the way out is asked, UD82)
+
+- **Symptom:** after `main` moved `aabb6530` → `72c09231` (the user's go for this round: "deploy ke main afterwards"),
+  the `edge-bff` (beta) deployments `4293697a` (GitHub trigger, 15:57 UTC), `135d085e` (redeploy from source) and
+  `db54cdfa` (redeploy of the commit) all FAILED within a minute: "failed to solve: failed to compute cache key: failed to
+  copy: operation error S3: GetObject, https response error StatusCode: 416 … api error InvalidRange:
+  sha256:b1dd3d113aab1041fd80cc61d9db7ffbc058f756bf46fc149a0d9aa8b85935f4" on every `COPY` from the build context
+  (`shared`, `static`, `screener/src`, `backtest/src`). The beta keeps running `aabb6530` (`/version`, `/ready` 200); the
+  live site is untouched (`53b4fafb`).
+- **Root cause (verified as far as this side can see; the store itself is Railway's):** not the code. The same
+  Dockerfile and context build on GitHub ("edge-bff image builds" green on `main` `72c09231`, run 46029338114); the
+  Dockerfile and `.dockerignore` are unchanged since `aabb6530`; no file in the context is large or a link (744 files,
+  17.1 MB). All three tries fail on the same content hash, so one object in Railway's S3-backed build cache is
+  unreadable (a 416 is a byte range past the object's end, e.g. an empty or truncated blob). Railway's status page:
+  fully operational. Suspected, not confirmed: the object is a cached layer this service's builds import, so a build
+  without the cache would pass. The check that confirms it: one build with `NO_CACHE=1` on `edge-bff`.
+- **Class:** any GitHub-connected Railway service whose build imports a cached object that the store can no longer
+  serve: every app with a Dockerfile (edge-bff, edge-bff-live, screener-worker, the orc and governors); a retry of the
+  same commit does not help, the deploy holds while the old deployment keeps serving.
+- **Solution:** asked (UD82): a build without the cache (`NO_CACHE=1` on `edge-bff`, a variable change that redeploys
+  the beta, removed after one SUCCESS), waiting and retrying later, or Railway's support.
+- **Lesson:** after a push to `main`, read the deployment of each service to its end, not only CI; a deploy can fail
+  outside the code while the old version keeps serving, so `/version` is the check that the beta moved.
+
 ### M576 — Sector Analysis check 2: 27 findings of five checkers on the visual round 2 (2026-11-27; fixed on the branch in `90bf33f0`, `3a597e76`, not deployed; two parts asked, UD80-UD81)
 
 - **Symptom (runs `agents_20261127-sector-r2-{ovrs,rotpm,brdt,mobex}` and `agents_20261127-edge-r2-wide`, Sonnet medium,
