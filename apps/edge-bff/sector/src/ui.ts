@@ -30,11 +30,45 @@ export function onSeg(el: HTMLElement, key: string, fn: (v: string, b: HTMLEleme
 export const SELECT = (key: string, label: string, opts: [string, string][], on: string, dis: Record<string, string> = {}) =>
   `<select class="sx-sel" data-sel="${esc(key)}" aria-label="${esc(label)}">${opts.map(([v, l]) => `<option value="${esc(v)}"${v === on ? ' selected' : ''}${dis[v] ? ` disabled title="${esc(dis[v])}"` : ''}>${esc(l)}</option>`).join('')}</select>`;
 
+/** a legend text known only once the chart is drawn (labels hidden, dots beyond the axis): the card prints the one it
+    drew last before it draws, so the legend's height, and the chart's box with it, does not change after the draw
+    (check 1 BD-1, RP-5: a legend that wrapped after the draw pushed the axis title onto the card's border) */
+export const footNow = (el: HTMLElement, fallback: string) => esc(el.dataset.foot ?? fallback);
+export function footSet(el: HTMLElement, text: string) {
+  const f = $('[data-foot]', el); if (!f) return;
+  el.dataset.foot = text; if (f.textContent !== text) f.textContent = text;
+}
+/** a dash with its reason, read by hover, by a tap and by a screen reader (check 1 BD-11, RP-8: no "—" without a reason) */
+export const na = (why: string) => `<span class="na" data-tip="${esc(esc(why))}" role="img" aria-label="${esc(why)}">—</span>`;
+
+/* ---------- Esc closes the newest popover first (check 1 OR-4): every popover a card opens registers its closer ---------- */
+const escStack: (() => boolean)[] = [];
+/** registers a closer (it returns whether it closed something); the returned function removes it */
+export function escPush(close: () => boolean) { escStack.push(close); return () => { const i = escStack.indexOf(close); if (i >= 0) escStack.splice(i, 1) } }
+/** closes the newest open popover; false when none was open */
+export function escTop(): boolean {
+  while (escStack.length) { const f = escStack.pop() as () => boolean; if (f()) return true }
+  return false;
+}
+
+/* ---------- scroll cues (check 1 OR-2, BD-4, MX-2, MX-3): a scroller with more content past an edge fades at that edge ---------- */
+const CUED = '.tbl-wrap,.hm-s,.pmg-s,.rsw-s,.fw-tw,.sx-tabs,.bxp,.cmp';
+function cue(x: HTMLElement) {
+  const r = x.scrollLeft + x.clientWidth < x.scrollWidth - 1, l = x.scrollLeft > 1, b = x.scrollTop + x.clientHeight < x.scrollHeight - 1;
+  // a scroller with a sticky first column shows its left cue as that column's shadow (a fade would fade the column)
+  x.classList.toggle('xs-r', r); x.classList.toggle('xs-l', l && !x.dataset.sticky); x.classList.toggle('xs-sl', l && !!x.dataset.sticky); x.classList.toggle('xs-b', b);
+}
+/** marks every scroller inside `root` (and root itself) and keeps its cue as it scrolls */
+export function scrollCues(root: ParentNode) {
+  const all = [...(root instanceof HTMLElement && root.matches(CUED) ? [root] : []), ...$$<HTMLElement>(CUED, root)];
+  for (const x of all) { cue(x); if (!x.dataset.cueOn) { x.dataset.cueOn = '1'; x.addEventListener('scroll', () => cue(x), { passive: true }) } }
+}
+
 /* ---------- colour scales (logic.js: alpha = min(1, |v| / cap) x 0.72 + 0.06; white text over 0.5) ---------- */
 export function heat(v: number | null | undefined, cap: number, centre = 0): string {
   if (v == null || !Number.isFinite(v)) return '';
   const k = Math.min(1, Math.abs(v - centre) / (cap || 1)) * 0.72 + 0.06;
-  return `background:color-mix(in srgb,var(${v >= centre ? '--up' : '--down'}) ${(k * 100).toFixed(1)}%,transparent);color:${k > 0.5 ? '#fff' : 'var(--text)'}`;
+  return `background:color-mix(in srgb,var(${v >= centre ? '--up' : '--down'}) ${(k * 100).toFixed(1)}%,transparent);color:${k > 0.5 ? 'var(--sx-hot)' : 'var(--text)'}`;
 }
 
 /* ---------- the shared multi-column sort (logic.js L563-576) ---------- */
@@ -158,10 +192,17 @@ function apply() {
 }
 
 /* ---------- a small popover over a chart: a stock's figures and "Open in Terminal" (the Overview's tile popover) ---------- */
-export function stockPop(box: HTMLElement, x: number, y: number, html: string) {
+/** opens it at (x, y) inside `box`; Esc closes it (check 1 OR-4) and calls `onClose`, then the focus returns to `from` */
+export function stockPop(box: HTMLElement, x: number, y: number, html: string, o: { onClose?: () => void; from?: HTMLElement | SVGElement | null } = {}) {
   let p = $('.sx-spop', box) as HTMLElement | null;
   if (!p) { p = document.createElement('div'); p.className = 'pop sx-spop'; p.setAttribute('role', 'dialog'); box.appendChild(p) }
   p.innerHTML = html; p.hidden = false;
+  const el = p, off = escPush(() => {
+    if (!el.isConnected || el.hidden) return false;
+    el.hidden = true; off(); o.onClose?.();
+    (o.from as HTMLElement | null)?.focus?.({ preventScroll: true });
+    return true;
+  });
   const W2 = box.clientWidth, H2 = box.clientHeight, pw = p.offsetWidth, ph = p.offsetHeight, G = 4;
   let top = y + 12; if (top + ph > H2 - G) top = y - ph - 12;
   p.style.left = Math.max(G, Math.min(x - pw / 2, W2 - pw - G)) + 'px';

@@ -5,7 +5,10 @@
 import * as M from './model.ts';
 import { esc, textW, tipHide, tipShow, xHide, xShow, xTag } from './ui.ts';
 
-export interface Line { n: string; label: string; a: M.N[]; c?: string; on: boolean; dash?: boolean; strong?: boolean; mute?: boolean }
+export interface Line { n: string; label: string; a: M.N[]; c?: string; on: boolean; dash?: boolean; strong?: boolean; mute?: boolean; dot?: boolean }
+/** the text colour of a line's end label: the line's colour mixed with the text colour, so a dark navy or a light amber
+    label stays readable on its theme (check 1 MX-5: "Financials −11.3%" in navy on the dark surface read 2.67:1) */
+export const labelInk = (c: string | undefined) => (c && c !== 'var(--text)' ? `color-mix(in srgb,${c} 55%,var(--text))` : 'var(--text)');
 export interface Geo { L: number; R: number; T: number; B: number; H: number; n: number; X(i: number): number; Y(v: number): number }
 /** draws the chart into `box` (its size); `dates` are the dates of the points */
 export function cumChart(box: HTMLElement, lines: Line[], dates: string[]): Geo | null {
@@ -25,13 +28,13 @@ export function cumChart(box: HTMLElement, lines: Line[], dates: string[]): Geo 
   M.axisDates(dates, picks).forEach((t, k) => (o += `<text x="${X(picks[k])}" y="${H - 6}" text-anchor="${k === 0 ? 'start' : k === picks.length - 1 ? 'end' : 'middle'}" class="ax">${esc(t)}</text>`));
   const P = (a: M.N[]) => { let s = '', pen = false; a.forEach((v, i) => { if (v == null) { pen = false; return } s += (pen ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1); pen = true }); return s };
   lines.filter(x => !x.on).forEach(x => (o += `<path d="${P(x.a)}" fill="none" stroke="var(--sx-dim)" stroke-width="1"${x.mute ? ' stroke-opacity=".5"' : ''}/>`));
-  on.forEach(x => (o += `<path d="${P(x.a)}" fill="none" stroke="${x.c || 'var(--text)'}" stroke-width="${x.dash ? 1.4 : x.strong ? 2.6 : 1.9}"${x.mute ? ' stroke-opacity=".22"' : ''}${x.dash ? ' stroke-dasharray="4 3"' : ''} stroke-linejoin="round"/>`));
+  on.forEach(x => (o += `<path d="${P(x.a)}" fill="none" stroke="${x.c || 'var(--text)'}" stroke-width="${x.dash ? 1.4 : x.strong ? 2.6 : 1.9}"${x.mute ? ' stroke-opacity=".22"' : ''}${x.dash ? ' stroke-dasharray="4 3"' : x.dot ? ' stroke-dasharray="7 3"' : ''} stroke-linejoin="round"/>`));
   if (!narrow) {
     lab.forEach(l => (l.y = Y(last(l.x) as number))); lab.sort((p, q) => p.y - q.y);
     for (let i = 1; i < lab.length; i++) if (lab[i].y - lab[i - 1].y < 13) lab[i].y = lab[i - 1].y + 13;
     const over = lab.length ? lab[lab.length - 1].y - (H - B) : 0;
     if (over > 0) lab.forEach(l => (l.y -= over));
-    lab.forEach(l => (o += `<circle cx="${R}" cy="${Y(last(l.x) as number)}" r="2.5" fill="${l.x.c || 'var(--text)'}"${l.x.mute ? ' opacity=".3"' : ''}/><text x="${R + 6}" y="${l.y + 3.5}" class="dl" style="fill:${l.x.c || 'var(--text)'}${l.x.mute ? ';opacity:.35' : ''}">${esc(l.t)}</text>`));
+    lab.forEach(l => (o += `<circle cx="${R}" cy="${Y(last(l.x) as number)}" r="2.5" fill="${l.x.c || 'var(--text)'}"${l.x.mute ? ' opacity=".3"' : ''}/><text x="${R + 6}" y="${l.y + 3.5}" class="dl" style="fill:${labelInk(l.x.c)}${l.x.mute ? ';opacity:.35' : ''}">${esc(l.t)}</text>`));
   }
   o += `<line class="hv" y1="${T}" y2="${H - B}" stroke="var(--text-3)" stroke-dasharray="2 3" display="none"/><circle class="hd" r="4" stroke="var(--surface)" stroke-width="1.5" display="none"/>`;
   box.innerHTML = `<svg width="${W}" height="${H}" aria-hidden="true">${o}</svg>`;

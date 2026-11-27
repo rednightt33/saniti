@@ -3,11 +3,17 @@
    carries our own names: "Rotation map", "Relative strength", "Momentum". Decision D1: the weight's name comes from the
    files (meta.weight_label), never written here. Each "How to read" says what the card computes (defects W1-W4: the
    texts that no longer matched). */
-import { dateLabel, fnum, pct, pp } from './model.ts';
+import { dateLabel, fnum, pct, pctSigned, pp } from './model.ts';
 
 const up1 = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 const plural = (n: number, one: string, many = one + 's') => `${n} ${n === 1 ? one : many}`;
 const QW = { Leading: 'Leading', Weakening: 'Weakening', Lagging: 'Lagging', Improving: 'Improving' } as const;
+/** a phone or tablet: the hints say tap, not hover, point or Ctrl click (check 1 MX-8) */
+export const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+const tap = (mouse: string, touch: string) => (TOUCH ? touch : mouse);
+/** the single-sector cards' sector until one is locked */
+const AUTO = 'the strongest sector this week until you lock one';
+const turnUp = (corner: string | null) => (corner ? `${corner} = turning up: up over the shorter horizon, down over the longer.` : 'The two horizons have the same length.');
 
 export const W = {
   page: {
@@ -30,7 +36,7 @@ export const W = {
   head: {
     prices: (d: string) => `Prices to ${d}`, pricesTip: 'Daily closes and every price figure',
     breadth: (d: string) => `Breadth to ${d}`, breadthTip: 'The shares of stocks above their EMA50 and EMA200',
-    close: 'Close', latest: 'Latest', asOf: 'Data as of',
+    close: 'Close', latest: 'Latest', asOf: 'Data as of', none: 'No data',
     meta: (n: number) => `${n} IDX-IC sectors · benchmark`,
   },
   term: {
@@ -49,6 +55,7 @@ export const W = {
   win: {
     expand: (t: string) => `Expand ${t}`, expandTip: 'Expand', close: 'Close window',
     howTo: 'How to read', example: 'Example', noRows: 'No rows for this selection.',
+    na: 'No value: the files of this date do not give it for this row (a missing close, too few sessions, or no EMA yet)',
   },
   sort: {
     tip: 'Click to sort · again to reverse · a third time to remove · click other columns to add sort levels (up to 3)',
@@ -60,7 +67,15 @@ export const W = {
     none: (q: string) => `No row matches “${q}”. Clear the search to see every row.`,
     shown: (n: number, of: number) => `${n} of ${of} shown`,
   },
-  range: { title: 'Custom date range', from: 'From', to: 'To', compare: 'Compare with', cancel: 'Cancel', apply: 'Apply', custom: 'Custom' },
+  range: {
+    title: 'Custom date range', from: 'From', to: 'To', compare: 'Compare with', cancel: 'Cancel', apply: 'Apply', custom: 'Custom',
+    // check 1 OR-6, RP-1: the popover prints the card's own range, and a stored range is never replaced silently
+    returnNote: 'A return is measured from the close of the session before From, as the Overview’s Custom.',
+    none: (k: string) => `The Custom range has no session up to this date: ${k} is shown.`,
+    clampStart: (d: string) => `The Custom range starts before the data: shown from ${d}.`,
+    clampEnd: (d: string) => `The Custom range ends after the date shown: shown to ${d}.`,
+    noDate: (d: string) => `The compare date ${d} cannot be used with the date shown: 5D is shown.`,
+  },
   above: 'Above', below: 'Below', close: 'Close',
   all: (m: string) => `${m} (all stocks)`,
   allShort: (m: string) => `${m} (all)`,
@@ -89,32 +104,40 @@ export const W = {
     togTip: (on: boolean) => (on ? 'Coloured · click to set its line back to grey' : 'Grey · click to colour its line'),
     ihTip: (on: boolean, m: string) => (on ? `Click to hide the ${m} line` : `Click to show the ${m} line`),
     sectors: (n: number) => plural(n, 'sector'),
-    hint: 'Click a name to colour or grey its line · point at a sector in the list to highlight it',
+    hint: tap('Click a name to colour or grey its line · point at a sector in the list to highlight it', 'Tap a name to colour or grey its line'),
+    many: 'Lines past the sixth colour are dashed',
     dTitle: 'Period statistics',
     read: (m: string) => `Return = change over the period; vs ${m} = sector return − ${m} return; max drawdown = the deepest fall from a peak inside the period; up days = the share of sessions that closed higher.`,
-    ex: (n: string, r: number | null, x: number | null, dd: number | null, m: string) => `${n} ${(r ?? 0) < 0 ? 'fell' : 'rose'} ${pct(r, 1)}, ${pp(x)} vs ${m}, so it did ${(x ?? 0) >= 0 ? 'better' : 'worse'} than ${m}; its deepest fall inside the period was ${pct(dd, 1)}`,
+    // check 1 OR-9: "returned −11.3%", never "fell −11.3%"
+    ex: (n: string, r: number | null, x: number | null, dd: number | null, m: string) => `${n} returned ${pct(r, 1)}, ${pp(x)} vs ${m}, so it did ${(x ?? 0) >= 0 ? 'better' : 'worse'} than ${m}; its deepest fall inside the period was ${pct(dd, 1)}`,
   },
   mm: {
     title: 'Momentum: horizon vs horizon', sub: 'Return over two horizons', xAxis: 'Horizontal axis', yAxis: 'Vertical axis', vs: 'vs',
     axis: (h: string) => `Return ${h}`,
-    q: { both: 'Up on both', up: 'Turning up', down: 'Down on both', turn: 'Turning down' },
-    foot: (hid: boolean) => 'Top right = up on both horizons. Top left = turning up.' + (hid ? ' Point at a dot for names not shown.' : ''),
+    // check 1 OR-1: the corner names follow which axis holds the shorter horizon (M.hzRead)
+    q: { both: 'Up on both', up: 'Turning up', down: 'Down on both', turn: 'Turning down' } as Record<string, string>,
+    only: (h: string) => `Up on ${h} only`,
+    topLeft: 'Top left', bottomRight: 'Bottom right',
+    turnUp,
+    foot: (corner: string | null, hid: boolean) => `Top right = up on both · ${corner ? `${corner.toLowerCase()} = turning up` : 'horizons of the same length'}` + (hid ? tap(' · point at a dot for names not shown', ' · tap a dot for names not shown') : ''),
     dTitle: (x: string, y: string) => `${x} vs ${y} by sector`, dSub: (x: string, y: string) => `Horizontal ${x} · vertical ${y}`,
-    read: 'Each dot = a sector placed at its return over the horizontal horizon (across) and the vertical horizon (up). Top right = up on both; top left = turning up.',
+    read: (corner: string | null) => `Each dot = a sector placed at its return over the horizontal horizon (across) and the vertical horizon (up). Top right = up on both. ${turnUp(corner)}`,
     ex: (n: string, x: number | null, y: number | null, X: string, Y: string, q: string) => `${n} is ${pct(x, 1)} over ${X} and ${pct(y, 1)} over ${Y} (“${q}”); the ${Y} return is ${(y ?? 0) - (x ?? 0) >= 0 ? 'higher' : 'lower'} than the ${X} return`,
   },
   hx: {
     title: 'Sector × horizon', sub: 'Return per horizon · click a column header to sort',
     foot: (m: string) => `Colour scaled per column · bottom row: ${m}`,
+    na: (h: string) => `No ${h} return: the data hold no close at the start or the end of this horizon`,
     dTitle: (m: string) => `Excess return vs ${m}`, dSub: (m: string) => `Sector return − ${m} return per horizon (pp)`,
     read: (m: string) => `Each cell = sector return − ${m} return over that horizon, in percentage points; green = ahead of ${m}. Avg rank 1 = the strongest across horizons.`,
     ex: (n: string, v: number | null, ar: number | null, m: string) => `${n} 1M ${pp(v, 1)} = over one month it ${(v ?? 0) >= 0 ? 'beat' : 'trailed'} ${m} by that much; avg rank ${ar == null ? '—' : ar.toFixed(1)} = near the ${(ar ?? 6) <= 4 ? 'top' : 'bottom'} on most horizons`,
   },
   mk: {
     title: (s: string) => `${s} · market map`,
-    sub: (w: string, m: string) => `Tile size = ${w} · colour = 5D return − ${m} · grouped by industry`,
-    foot: (n: number, k: number, locked: boolean, floored: number) => `${plural(n, 'stock')} in ${plural(k, 'industry', 'industries')} · largest 10 per industry`
-      + (floored ? ` · ${plural(floored, 'small industry', 'small industries')} drawn at a minimum size` : '') + (locked ? '' : ' · the strongest sector of the week until you lock one'),
+    // check 1 OR-12: "the strongest sector ... until you lock one" moved from the legend to the subtitle (one-line legends)
+    sub: (w: string, m: string, locked: boolean) => `Tile size = ${w} · colour = 5D return − ${m} · grouped by industry` + (locked ? '' : ` · ${AUTO}`),
+    foot: (n: number, k: number, floored: number) => `${plural(n, 'stock')} in ${plural(k, 'industry', 'industries')} · largest 10 per industry`
+      + (floored ? ` · ${plural(floored, 'small industry', 'small industries')} drawn at a minimum size` : ''),
     empty: (s: string) => `No stock of ${s} has a weight and a 5D return on this date.`,
     gTip: (n: number, w: string, v: string, m: string) => `${plural(n, 'stock')} · ${w} · 5D vs ${m} (weighted) ${v}`,
     unclassified: 'Unclassified',
@@ -130,7 +153,8 @@ export const W = {
     rank: (k: number, n: number) => `Rank ${k} of ${n}`,
     foot: (rel: boolean, n: number, v: string, m: string) => (rel ? `${m} ${n}D ${v} is the zero line` : `${m} ${n}D ${v}`),
     dTitleRel: 'Relative return by window', dTitleAbs: 'Return by window', dSubRel: (m: string) => `Sector − ${m} (pp)`, dSubAbs: 'Sector index return',
-    read: (rel: boolean, m: string) => (rel ? `Each value = sector return − ${m} return over that window, in percentage points; positive = ahead of ${m}. The rank uses the window chosen in this window.` : 'Each value = the sector index return over that window. The rank uses the window chosen in this window.'),
+    // check 1 OR-9: plain wording for the rank's window
+    read: (rel: boolean, m: string, w: number) => (rel ? `Each value = sector return − ${m} return over that window, in percentage points; positive = ahead of ${m}. The rank column ranks the ${w}D window, the one picked on the card.` : `Each value = the sector index return over that window. The rank column ranks the ${w}D window, the one picked on the card.`),
     ex: (n: string, v: number | null, w: number, rk: number, rel: boolean, m: string) => (rel ? `${n} ${w}D ${pp(v)} = over the last ${w} sessions it ${(v ?? 0) >= 0 ? 'beat' : 'trailed'} ${m} by that much, rank ${rk} on ${w}D` : `${n} ${w}D ${pct(v)} = its index over the last ${w} sessions, rank ${rk} on ${w}D`),
   },
   rsB: {
@@ -138,7 +162,7 @@ export const W = {
     sub: (n: number, d: string, m: string) => `Rank by ${n}D return vs ${m} · since ${d}`,
     popTitle: 'Compare with a date', pick: 'Pick a date.', before: 'Pick a date before the date shown.',
     starts: (d: string) => `Data starts ${d}. Pick a later date.`,
-    note: (d: string, n: number) => `Rank on ${d} vs the date shown · ${plural(n, 'session')}`,
+    note: (d: string, n: number) => `Compares the ranks of ${d} with the page's date, ${plural(n, 'session')} later`,
     tip: (a: number, d: string, b: number, x: number) => `Rank ${a} on ${d} → ${b} · ${x > 0 ? 'up ' + x : x < 0 ? 'down ' + -x : 'no change'}`,
     aria: 'Rank change slope chart', dTitle: 'Rank history', dSub: (n: number, m: string) => `Rank by ${n}D return vs ${m} on each date`,
     read: (n: number, d: string, m: string) => `Rank 1 = the highest ${n}D return vs ${m} on that date. Places gained = rank on ${d} − rank on the date shown (positive = moved up); the highlighted column is ${d}.`,
@@ -147,7 +171,8 @@ export const W = {
   rsW: {
     title: 'Weekly excess return', sub: (m: string) => `Sector − ${m} return per 5-session week (pp)`,
     weekTo: (d: string) => `week to ${d}`, headTip: (d: string) => `5 sessions ending ${d}`,
-    defOrder: (m: string) => `Order: 1M return vs ${m} (default)`, foot: (n: number) => `${plural(n, 'week')} · each week ends on the date shown`,
+    defOrder: (m: string) => `Order: 1M vs ${m} (default)`, foot: (n: number) => plural(n, 'week'),
+    label: (range: string, n: number) => `${range} · ${plural(n, 'week')}`,
     maxWhy: (w: number) => `Pick at most ${w} weeks (${w * 5} trading days).`,
     dTitle: 'Weekly summary', weeks: (n: number) => plural(n, 'week'), up: (n: number) => `${n} ahead`, down: (n: number) => `${n} behind`,
     read: (m: string) => `Each week = sector return − ${m} return over 5 sessions. Weeks ahead = weeks with a positive gap; streak = the latest run of weeks ahead or behind.`,
@@ -156,25 +181,28 @@ export const W = {
   rsD: {
     title: 'Sector drill-down',
     sub: (m: string) => `Return, return vs ${m} and RS rating (1–99 rank of the 1M return vs ${m}) per sector · open a sector for its industries`,
+    // check 1 D-1, D-4: an industry row is not the official index and is rated on another scale; said where both show
+    indNote: (w: string, n: number) => `Sector rows are the official IDX sector index. Industry rows are EDGE's own index of their stocks, weighted by ${w}, so an industry can move unlike its sector. An industry's RS ranks it among all ${n} industries.`,
     openAll: 'Open all industries', closeAll: 'Close all industries',
+    na: 'No value: the data hold no close at the start or the end of this period, or too few sessions for it',
     cols: { sn: 'Sector', r3d: '3D', r1: '1W', rM: '1M', r3: '3M', ry: 'YTD', rt: 'RS', d4: 'Δ 4W', ema: '> EMA50', qo: 'Rotation', mg: 'Momentum' },
     tips: {
-      eM: 'Excess return, 1M (pp)', e3: 'Excess return, 3M (pp)', rt: 'RS rating 1–99: the rank of the 1M excess return (sectors among sectors, industries among industries)',
+      eM: 'Excess return, 1M (pp)', e3: 'Excess return, 3M (pp)', rt: 'RS rating 1–99: the rank of the 1M excess return; a sector among the 11 sectors, an industry among all industries',
       d4: 'RS rating now − RS rating 4 weeks (20 sessions) earlier', ema: 'Share of the stocks above their 50-day EMA (of the stocks that have one)',
       qo: 'Quadrant on the rotation map: Leading > Improving > Weakening > Lagging', mg: '1W excess − the average week of the 1M excess: Gaining above +0.5 pp, Fading below −0.5 pp',
     },
     momTip: (v: string) => `1W excess − the average week of the 1M excess: ${v} pp`,
-    indTip: (n: string, k: number) => `${n} · ${plural(k, 'stock')} on this date`,
+    indTip: (n: string, k: number) => `${n} · ${plural(k, 'stock')} on this date · EDGE's index of its stocks, not an IDX index`,
     openInd: (n: string, open: boolean) => (open ? `Close the industries of ${n}` : `Open the industries of ${n}`),
-    foot: (m: string) => `vs ${m} in pp · RS = rating 1–99 · an industry's returns come from the weighted index of its stocks`,
+    foot: (m: string) => `vs ${m} in pp · RS = rating 1–99`,
     dTitle: (s: string) => `${s} · stocks`,
     read: (m: string) => `Returns are the stock's own. 5D vs ${m} = stock 5D return − ${m} 5D return. EMA50 = the close above or below its 50-day average. Click a ticker to open it in the Terminal.`,
     ex: (n: string, r5: number | null, x5: number | null, e50: 0 | 1 | null, m: string) => `${n} moved ${pct(r5, 1)} in 5D, ${pp(x5)} vs ${m}; it closes ${e50 == null ? 'without an EMA50 yet' : e50 ? 'above its EMA50' : 'below its EMA50'}`,
   },
   rsL: {
     title: (s: string) => `${s} · stocks`,
-    sub: (d: string) => `Return since ${d} · the 10 largest by weight`,
-    foot: (s: string, locked: boolean) => `- - ${s} index · top 2 and bottom 2 coloured` + (locked ? '' : ' · the strongest sector of the week until you lock one'),
+    sub: (d: string, locked: boolean) => `Return since ${d} · the 10 largest by weight` + (locked ? '' : ` · ${AUTO}`),
+    foot: 'top/bottom 2 coloured',
     loading: 'Loading the stocks’ daily closes…',
     missing: (ex: boolean) => (ex ? 'The stock lines are not part of the example. Sign in or upgrade to see them.' : 'The stock lines of this sector are not published yet. They appear after the next sector update.'),
     failed: 'The stock lines could not be read. Try again in a minute.',
@@ -195,11 +223,13 @@ export const W = {
     weekEnding: (d: string) => `week ending ${d}`,
     reading: (x: number, y: number) => `Relative strength ${x.toFixed(2)} · momentum ${y.toFixed(2)}`,
     clickPin: 'Click to lock the sector', aria: 'Rotation map of the sectors', tlAria: 'Quadrant timeline of the sectors',
-    foot: (hid: boolean) => `Click a dot to lock the sector · ${hid ? 'point at a dot for names not shown' : 'point at a dot for its values'}`,
+    foot: (hid: boolean) => tap(`Click a dot to lock the sector · ${hid ? 'point at a dot for names not shown' : 'point at a dot for its values'}`, 'Tap a dot to lock the sector and read its values'),
     noData: 'Not enough sessions for the rotation map on this date. Pick a later date.',
     stripLabel: (d: string, lvl: string, chg: string, tl: boolean) => `${d} · ${lvl} · ${chg} over ${tl ? 'the period' : 'the tail'}`,
     stripAria: (m: string) => `${m} weekly close; click a week to set the map date`,
-    weekOf: (m: string, d: string) => `${m} · week to ${d}`, oneWeek: '1 week', tooEarly: 'Too early for this tail', setDate: 'Click to set the map date',
+    // check 1 RP-6: the hover names the date a click sets (a week too early for the tail sets the first possible one)
+    weekOf: (m: string, d: string) => `${m} · week to ${d}`, oneWeek: '1 week',
+    tooEarly: (d: string) => `Too early for this tail: a click sets the first map date with a full tail, ${d}`, setDate: (d: string) => tap(`Click to set the map date to ${d}`, `Tap to set the map date to ${d}`),
     inPhase: (s: string, k: string, q: string, d: string) => `${s}: ${k} weeks in ${q} as of ${d}`, phase: 'in phase',
     dTitle: (d: string) => `Rotation readings · ${d}`, dSub: 'One row per sector at the map date · Δ = change over 5 sessions',
     read: (m: string) => `Relative strength above 100 = stronger than its own recent level against ${m}; momentum above 100 = that strength is rising. Leading = both above 100, lagging = both below.`,
@@ -210,7 +240,7 @@ export const W = {
     sub: (nw: number, d: string) => `The move on the map over ${nw === 1 ? 'the week' : nw + ' weeks'} to ${d} · 0–90° = strengthening`,
     tip: (deg: string, sp: string, nw: number) => `Direction ${deg}° · speed ${sp} over ${nw}W`,
     deltas: (dx: string, dy: string) => `Δ strength ${dx} · Δ momentum ${dy}`,
-    click: 'Click to highlight · Ctrl or Cmd click to add',
+    click: tap('Click to highlight · Ctrl or Cmd click to add', 'Tap to highlight'),
     foot: 'Arrow = the move on the map; length = speed; 0° = strength rising, 90° = momentum rising',
     dTitle: 'Direction and speed', dSub: (nw: number, d: string) => `The move over ${plural(nw, 'week')} to ${d}`,
     read: '0° = relative strength rising only, 90° = momentum rising only, 180° and 270° = falling; speed = the length of the move on the map.',
@@ -218,13 +248,16 @@ export const W = {
   },
   rotB: {
     title: 'Rotation detail', previous: 'Previous', now: 'Current quadrant', last: 'Last change', from: 'from', same: 'Same quadrant', clear: 'Clear',
-    sub: (pl: string, pk: number) => `Quadrant now vs ${pl} ago · speed = distance moved on the map in ${pk} sessions`,
+    // check 1 RP-3: the card follows the map date picked on the strip and says so
+    sub: (pl: string, pk: number, on: string | null) => (on ? `Quadrant on ${on} (the map date) vs ${pl} earlier` : `Quadrant now vs ${pl} ago`) + ` · speed = distance moved on the map in ${pk} sessions`,
     ago: (h: string) => `${h} ago`, prev: (pl: string) => `Previous (${pl} ago)`,
     qoTip: 'Leading > Improving > Weakening > Lagging', poTip: (d: string) => `Quadrant on ${d}`,
     spTip: (pk: number) => `Distance moved on the map over ${pk} sessions`, liTip: 'Sorted by the date of the last quadrant change',
-    rowTip: 'Click to highlight on the map · Ctrl or Cmd click to add',
+    rowTip: tap('Click to highlight on the map · Ctrl or Cmd click to add', 'Tap to highlight on the map'), rowTipWin: tap('Click to select · Ctrl or Cmd click to add', 'Tap to select'),
     defOrder: 'Order: momentum change over 3 sessions (default)',
-    highlighted: (n: number) => `${n} highlighted on the map`, hint: 'Click a sector to highlight it on the map (Ctrl or Cmd click to add)',
+    highlighted: (n: number) => `${n} highlighted on the map`, hint: tap('Click a sector to highlight it on the map (Ctrl or Cmd click to add)', 'Tap a sector to highlight it on the map'),
+    // check 1 MX-8: a window shows no map
+    selected: (n: number) => `${n} selected`, hintWin: tap('Click a sector to select it (Ctrl or Cmd click to add)', 'Tap a sector to select it'),
     speedFoot: (pk: number) => `Speed = distance moved in ${pk} sessions`,
     cw: 'Clockwise', skip: 'Skipped or reversed',
     dTitle: 'Quadrant changes', dSub: (n: number, w: number) => `${plural(n, 'change')} in ${w} weeks`,
@@ -233,11 +266,11 @@ export const W = {
   },
   rotC: {
     title: (s: string) => `${s} · stock momentum quadrant`, rel: 'Relative to', secIndex: 'Sector index',
-    sub: (bn: string) => `Dot = stock · across = 1M − ${bn}, up = 5D − ${bn} (pp) · size = weight`,
+    sub: (bn: string, asOf: string | null) => `Dot = stock · across = 1M − ${bn}, up = 5D − ${bn} (pp) · size = weight` + (asOf ? ` · as of ${asOf}, the page's date (stock returns are the day's)` : ''),
     index: (s: string) => `${s} index`, xAxis: (bn: string) => `1M vs ${bn}`, yAxis: (bn: string) => `5D vs ${bn}`,
     beyond: 'Beyond the axis range: drawn hollow at the edge', aria: (s: string) => `Stock momentum quadrant of ${s}`,
     none: (s: string) => `No stock of ${s} has a 1M and a 5D return on this date.`,
-    foot: (w: string, bn: string, hid: boolean, cl: number) => `Size = ${w} · green = 5D above ${bn}` + (hid ? ' · point at a dot for names not shown' : '') + (cl ? ` · ${plural(cl, 'hollow dot')} = beyond the axis` : ''),
+    foot: (w: string, bn: string, hid: boolean, cl: number) => `Size = ${w} · green = 5D above ${bn}` + (hid ? tap(' · point at a dot for names not shown', ' · tap a dot for names not shown') : '') + (cl ? ` · ${plural(cl, 'hollow dot')} = beyond the axis` : ''),
     dTitle: (s: string) => `${s} · stocks by quadrant`,
     read: 'Across = 1M return − benchmark 1M, up = 5D return − benchmark 5D (pp), both over the same sessions. Leading = ahead on both; improving = behind on 1M but ahead on 5D.',
     ex: (n: string, a: number | null, b: number | null, q: string) => `${n} is ${pp(a)} vs the benchmark over 1M ${((a ?? 0) >= 0) === ((b ?? 0) >= 0) ? 'and' : 'but'} ${pp(b)} over 5D → ${q.toLowerCase()}`,
@@ -251,7 +284,8 @@ export const W = {
     sortBy: (y: string) => `Sort rows by ${y}`, isB: (s: string) => `${s} is already B in the pair ratio`, makeA: (s: string) => `Make ${s} sector A of the pair`,
     corrW: (w: number) => `Corr ${w}D`, open: 'Click to open in the pair ratio',
     footSp: 'Value = row return − column return (pp), not a ratio · rows and columns ordered by return · click column names to sort rows (each adds a level)',
-    footCo: '1.00 = identical daily moves · 0 = unrelated · click column names to sort rows (each adds a level)',
+    // check 1 RP-7: in Correlation the order follows the shown window, and a negative value has its own colour
+    footCo: '1.00 = identical daily moves · 0 = unrelated · red = opposite moves · ordered by average correlation · click column names to sort rows',
     dTitle: (n: number) => `All ${n} pairs`,
     read: 'Spread = return of the sector ahead − return of the sector behind over the matrix period (pp). Corr near 1 = the two move together.',
     ex: (a: string, ra: number | null, b: string, rb: number | null, s: number | null, c: number | null) => `${a} returned ${pct(ra, 1)} and ${b} ${pct(rb, 1)}, a spread of ${pp(s)}; corr ${fnum(c)} = they ${(c ?? 0) >= 0.6 ? 'often' : 'rarely'} move together`,
@@ -271,7 +305,9 @@ export const W = {
   pmT: {
     title: (bm: string) => `Beta and correlation to ${bm}`, window: 'Window', vs: 'vs', beta: 'Beta', dBeta: 'Δ beta', corr: 'Corr', alpha: 'Alpha',
     sub: (bm: string, l: string) => `β = sector move per 1% ${bm} move, from ${l} daily returns · corr = how closely they move`,
-    dBetaTip: 'Beta now − beta over the previous window of the same length', retTip: 'Sector return over the window',
+    dBetaTip: 'Beta now − beta over the previous window of the same length (— when the 300 sessions hold no such window)', retTip: 'Sector return over the window',
+    // check 1 RP-8: the reason of a dash
+    dBetaNa: (w: string) => `No Δ beta: the 300 sessions of data hold no previous ${w} window before this one`,
     exTip: (bm: string) => `Sector return − ${bm} return over the window (pp)`, alTip: (bm: string) => `Return not explained by ${bm}: sector return − beta × ${bm} return (pp)`,
     rowTip: (s: string) => `Click to make ${s} sector A of the pair`,
     foot: (bm: string, v: string) => `A / B = the pair in the pair ratio · click a row to make it A · dashed line = beta 1.0 · Δ beta red = more sensitive than before · ${bm} ${v} in the window`,
@@ -302,22 +338,25 @@ export const W = {
     legTip: (n: string, v: string, lab: string, d: string) => `${n}: ${v.replace('+', '')} above ${lab} on ${d}`,
     pxTip: (m: string) => `${m} index level, right axis`, hideTip: (t: string, hidden: boolean) => `${t} · click to ${hidden ? 'show' : 'hide'}`,
     price: (m: string) => `${m} price (right)`, aria: (lab: string) => `% of stocks above ${lab}; the mouse wheel or + and − zoom, the arrow keys move`,
-    foot: (hi: number, lo: number, ex: boolean) => `Green zone ≥ ${hi}% · red zone ≤ ${lo}%` + (ex ? '' : ' · scroll to zoom, drag to move'),
+    foot: (hi: number, lo: number, ex: boolean) => `Green zone ≥ ${hi}% · red zone ≤ ${lo}%` + (ex ? '' : tap(' · scroll to zoom, drag to move', ' · + and − zoom')),
     zone: (v: number | null, hi: number, lo: number) => (v == null ? '' : v >= hi ? 'Strong zone' : v <= lo ? 'Weak zone' : 'Neutral zone'),
     dTitle: (w: string) => `${w} · daily log`, dSub: (n: number, ms: number) => `Last ${plural(n, 'session')} · % above EMA${ms}`,
     read: 'The share of stocks closing above their moving average (of the stocks that have one); 70% or more = strong, 30% or less = weak. Δ = change in percentage points. Click a date to mark it on the chart.',
     ex: (d: string, b: number | null, ms: number, d5: number | null) => `on ${d}, ${b == null ? '—' : b.toFixed(1) + '%'} of the stocks closed above their EMA${ms}; Δ 5D ${pp(d5, 1)} = ${(d5 ?? 0) >= 0 ? 'more' : 'fewer'} stocks above it than 5 sessions earlier`,
   },
   brT: {
-    title: 'Breadth heatmap table', show: 'Show', count: 'Stock count', dl: 'Δ EMA50 1W', shown: 'Already shown',
+    title: 'Breadth heatmap table', show: 'Show', count: 'Stock count', dl: 'Δ EMA50 1W', shown: 'Already shown', na: 'No value: no stock of this group has this figure on this date',
     sub: '% of stocks up over 1D, 1W and 1M, and above their EMA50 and EMA200 · green ≥ 50%',
     dx: (ms: number, hz: string) => `Δ EMA${ms} ${hz}`,
-    cellTip: (n: number, N: number, v: number) => `${n} of ${N} stocks · ${v.toFixed(1)}%`,
-    colTip: (k: string) => (k.startsWith('u') ? 'Share of the stocks with a return above 0 (of the stocks with that return)' : 'Share of the stocks closing above that average (of the stocks that have one)'),
+    // check 1 D-2, BD-6: Up 1D is Feature 08's count (= the Overview); Up 1W and 1M say their denominator
+    cellTip: (n: number, N: number, v: number, of: number | null, hz: string | null) => `${n} of ${N} stocks · ${v.toFixed(1)}%` + (hz && of != null && of > N ? ` · ${of - N} of the ${of} stocks have no ${hz} return and are not counted` : ''),
+    colTip: (k: string) => (k === 'u1' ? 'Share of the stocks that closed above their own previous close (as the Overview)' : k.startsWith('u') ? 'Share of the stocks with a return above 0, of the stocks that have that return' : 'Share of the stocks closing above that average (of the stocks that have one)'),
     dlTip: 'Change in % of stocks above EMA50 over 5 sessions (pp)',
     dxTip: (ms: number, hz: string) => `Change in % of stocks above EMA${ms} over ${hz} (pp)`,
     addCol: (n: number) => `+ Column${n ? ' · ' + n : ''}`, addAria: 'Add columns', addHead: 'Change in % of stocks above',
-    foot: 'Hover a cell for the stock count · Δ = change in % above EMA50 over 1 week',
+    foot: tap('Hover a cell for the stock count', 'Tap a cell for the stock count') + ' · Δ = change in % above EMA50 over 1 week',
+    // check 1 D-7: the market row's stocks without a sector
+    other: (m: string, k: number) => `${m} (all) also counts ${plural(k, 'stock')} without an IDX-IC sector, which no sector row shows`,
     dTitle: 'Breadth change', dSub: '% of stocks above EMA50 and EMA200, now and its change',
     read: '> EMA50 / > EMA200 = the share of the stocks closing above that average; Δ = change in percentage points over 1W and 1M.',
     ex: (n: string, a: number | null, d: number | null) => `${n}: ${a == null ? '—' : a.toFixed(1) + '%'} of its stocks are above EMA50, ${pp(d, 1)} vs a week earlier`,
@@ -325,27 +364,35 @@ export const W = {
   brA: {
     title: 'Breadth by sector', measure: 'Measure',
     sub: (md: string, ih5: string, m: string, d: string) => (md === 'ema' ? `% of each sector's stocks above their EMA50 on ${d}` : md === 'ihsg' ? `% of each sector's stocks with a 5D return above ${m} (${ih5})` : `% of each sector's stocks with a positive 5D return`),
-    tip: (a: number, n: number, v: string, md: string, ih5: string, m: string) => `${a} of ${n} stocks · ${v}% · ${md === 'ema' ? 'above their EMA50' : md === 'ihsg' ? `5D return above ${m} (${ih5})` : 'a positive 5D return'}`,
-    foot: 'Green dot = more than half the stocks · hover a row for the stock count',
+    tip: (a: number, n: number, v: string, md: string, ih5: string, m: string) => `${a} of ${n} stocks ${md === 'ema' ? 'with an EMA50' : 'with a 5D return'} · ${v}% · ${md === 'ema' ? 'above their EMA50' : md === 'ihsg' ? `5D return above ${m} (${ih5})` : 'a positive 5D return'}`,
+    foot: 'Green dot = more than half the stocks · ' + tap('hover a row for the stock count', 'tap a row for the stock count'),
     dTitle: (w: string) => `${w} · stocks`, dSub: (a: number, n: number, b: number) => `${a} of ${n} above EMA50 · ${b} above EMA200`,
     read: '> EMA50 / > EMA200 = the stock closes above that average; vs EMA50 = how far the close is from it (close ÷ EMA50 − 1).',
-    ex: (n: string, d: number | null) => `${n} closes ${pct(d, 1)} from its EMA50, so it is ${(d ?? 0) >= 0 ? 'above' : 'below'} it`,
+    ex: (n: string, d: number | null) => `${n} closes ${pctSigned(d, 1)} from its EMA50, so it is ${(d ?? 0) > 0 ? 'above' : 'below'} it`,
   },
   brN: {
     title: 'Advancers and decliners', period: 'Period', up: 'Up', flat: 'Unchanged', down: 'Down', half: 'Tick = 50%',
-    sub: (h: string) => `Stocks up, flat and down over ${h} · sorted by share up`,
+    sub: (h: string, den: string) => `Stocks up, flat and down over ${h} · sorted by share up · ${den}`,
     hz: { r1d: '1D', r5d: '1W', r1m: '1M' } as Record<string, string>,
-    tip: (u: number, f: number, d: number, N: number) => `Up ${u} · flat ${f} · down ${d} of ${N}`,
+    tip: (u: number, f: number, d: number, N: number, of: number | null, hz: string) => `Up ${u} · flat ${f} · down ${d} of ${N}` + (of != null && of > N ? ` · ${of - N} of the ${of} stocks have no ${hz} return` : ''),
+    // check 1 D-2, BD-6: 1D as the Overview; 1W and 1M say who is counted
+    den1d: '1D vs each stock’s own previous close',
+    den: (hz: string, N: number, of: number) => (N < of ? `${N} of ${of} stocks have a ${hz} return` : `every stock has a ${hz} return`),
+    dNote: (k: number) => `${plural(k, 'stock')} did not trade on the previous session: counted against ${k === 1 ? 'its' : 'their'} own last close, shown “—” here.`,
     adv: 'Up', dec: 'Down', unch: 'Flat',
     dTitle: (w: string, h: string) => `${w} · stocks ${h}`, dSub: (u: number, f: number, d: number) => `${u} up · ${f} unchanged · ${d} down`,
-    read: 'Status = the stock’s move over the chosen period: up, flat or down; a stock without that return is not counted. Close and volume are the day’s.',
+    read: 'Status = the stock’s move over the chosen period: up, flat or down. 1D compares each stock with its own previous close (as the Overview); 1W and 1M count the stocks that have that return. Close and volume are the day’s.',
     ex: (n: string, c: string, r: number | null, s: number | null) => `${n} closed at ${c}, ${pct(r)} → ${s == null ? 'not counted' : s > 0 ? 'up' : s < 0 ? 'down' : 'flat'}`,
   },
   brD: {
     title: 'Stock detail', status: 'Status', all: 'All', dist: 'Distance from EMA', empty: 'No stock in this selection.',
     sub: (w: string, a: number, N: number, lab: string) => `Close vs EMAs · ${w}: ${a} of ${N} above ${lab}`,
     statusTip: (lab: string) => `Above or below ${lab}`, distTip: (n: number) => `Close vs EMA${n}, %`,
-    daysTip: (lab: string) => `Sessions in the current status vs ${lab} (300+ = at least 300)`, sinceTip: (lab: string) => `First session of the current status vs ${lab}`,
+    // check 1 D-3: Days counts market sessions from Since, so the two agree for a thinly traded stock
+    daysTip: (lab: string) => `Market sessions in the current status vs ${lab}, from Since to the date shown (300+ = at least 300)`, sinceTip: (lab: string) => `First session of the current status vs ${lab}`,
+    // check 1 BD-11: the reason of a dash
+    sinceNa: 'The status is older than the 300 sessions of data', distNa: (n: number) => `No EMA${n} yet: fewer than ${n} sessions of history`,
+    more: (n: number) => `at least ${n}: the status began before the 300 sessions of data`,
     tip: (ab: 0 | 1 | null, lab: string, days: string, since: string) => (ab == null ? `No ${lab} yet` : `${ab ? 'Above' : 'Below'} ${lab} for ${days} sessions, since ${since}`),
     dists: (a: string, b: string) => `Close vs EMA50 ${a} · EMA200 ${b}`,
     foot: (lab: string) => `Distance = close vs EMA · status uses ${lab}, the “% above” of Breadth vs price · click a stock to open it in the Terminal`,

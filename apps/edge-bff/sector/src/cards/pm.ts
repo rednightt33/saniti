@@ -2,9 +2,9 @@
    matrix, the pair ratio, beta and correlation to the benchmark (the stocks' beta from their real closes, G9) and the
    stretched pairs. */
 import * as M from '../model.ts';
-import { calc, type Card, type Ctx, type Detail } from '../ctx.ts';
-import { $, $$, DOT, H3, SEG, esc, heat, msNote, msTh, msWire, onSeg, tipHide, tipShow, xHide, xShow, xTag } from '../ui.ts';
-import { customRange, periodOpts } from './ov.ts';
+import { calc, customSpan, type Card, type Ctx, type Detail } from '../ctx.ts';
+import { $, $$, DOT, H3, SEG, esc, heat, msNote, msTh, msWire, na, onSeg, tipHide, tipShow, xHide, xShow, xTag } from '../ui.ts';
+import { customRange, periodOpts, rangeNote } from './ov.ts';
 import { W } from '../words.ts';
 
 const zMemo = new WeakMap<M.Data, [string, string]>();
@@ -29,29 +29,35 @@ const corrW = (c: Ctx, a: string, b: string, w: number) => M.corr(M.dailyRets(c.
 export const pmM: Card = {
   id: 'pmM', tab: 'pm', cls: 'pm-m',
   render(el, c) {
-    const D = c.D, S = c.S, K = calc(D), [A, B] = pair(c), Md = S.pqM, P = S.pqP, CW = S.pqW, sp = K.span(P, S.pqR);
+    const D = c.D, S = c.S, K = calc(D), [A, B] = pair(c), Md = S.pqM, P = S.pqP, CW = S.pqW, sp = K.span(P, S.pqR, '1M');
     const rs: Record<string, M.N> = {}; D.names.forEach(n => (rs[n] = M.retAt(D.sec(n), sp.b, sp.e)));
     const SR: Record<string, M.N[]> = {}; if (Md === 'co') D.names.forEach(n => (SR[n] = M.dailyRets(D.sec(n), D.E - CW, D.E)));
     const val = (x: string, y: string): M.N => (Md === 'sp' ? M.minus(rs[x], rs[y]) : M.corr(SR[x], SR[y]));
-    const byRet = (x: string, y: string) => (rs[y] ?? -Infinity) - (rs[x] ?? -Infinity);
+    const avg: Record<string, number> = {};
+    if (Md === 'co') D.names.forEach(x => { const v = D.names.filter(y => y !== x).map(y => val(x, y)).filter((z): z is number => z != null); avg[x] = v.length ? v.reduce((a, b) => a + b, 0) / v.length : -Infinity });
+    const byRet = Md === 'co' ? (x: string, y: string) => avg[y] - avg[x] : (x: string, y: string) => (rs[y] ?? -Infinity) - (rs[x] ?? -Infinity);
     let ord = [...D.names].sort(byRet);
     const SK = M.msKeep(S.pqS, k => D.names.includes(k));
     if (SK.length) { const R = ord.map(x => { const r: any = { x }; SK.forEach(([cc]) => (r[cc] = x === cc ? null : val(x, cc))); return r }); M.msSort(R, SK); ord = R.map(r => r.x) }
     const cols = [...D.names].sort(byRet), all: number[] = [];
     ord.forEach(x => cols.forEach(y => { if (x !== y) { const v = val(x, y); if (v != null) all.push(Math.abs(v)) } }));
     const cap = Md === 'co' ? 1 : Math.max(...all) || 1, fmt = (v: number) => (Md === 'sp' ? M.ppx(v, 1) : M.fnum(v, 2));
-    const style = (v: M.N) => { if (v == null) return ''; if (Md === 'co') { const k = Math.max(0, v) * 0.8; return `background:color-mix(in srgb,var(--navy) ${(k * 100).toFixed(1)}%,transparent);color:${k > 0.45 ? '#fff' : 'var(--text)'}` } return heat(v, cap) };
-    const hz = P === 'C' && sp.custom ? M.rangeLabel(D.dates[sp.b + 1], D.dates[sp.e]) : P;
+    const style = (v: M.N) => {
+      if (v == null) return '';
+      if (Md === 'co') { const k = Math.abs(v) * 0.8; return v >= 0 ? `background:color-mix(in srgb,var(--navy) ${(k * 100).toFixed(1)}%,transparent);color:${k > 0.45 ? 'var(--sx-navy-ink)' : 'var(--text)'}` : `background:color-mix(in srgb,var(--down) ${(k * 100).toFixed(1)}%,transparent);color:var(--text)` }
+      return heat(v, cap);
+    };
+    const hz = K.plabel(sp);
     const sub = Md === 'sp' ? W.pmM.subSp(hz) : W.pmM.subCo(CW);
-    el.innerHTML = H3(W.pmM.title, sub, SEG('m', '', [['sp', W.pmM.spread], ['co', W.pmM.corr]], Md) + (Md === 'sp' ? SEG('p', '', periodOpts(['5D', '1M', '3M', 'C']).map(([v, l]) => [v, l]), P === 'C' && S.pqR ? 'C' : P) : SEG('w', '', [[20, '20D'], [60, '60D'], [120, '120D']], CW)), c.win ? null : 'pmM')
-      + `<div class="pmg-s" data-scroll="x"><div class="pmg has" style="grid-template-columns:88px repeat(${cols.length},minmax(34px,1fr));grid-template-rows:20px repeat(${ord.length},minmax(22px,1fr))"><div></div>`
+    el.innerHTML = H3(W.pmM.title, sub, SEG('m', '', [['sp', W.pmM.spread], ['co', W.pmM.corr]], Md) + (Md === 'sp' ? SEG('p', '', periodOpts(['5D', '1M', '3M', 'C']).map(([v, l]) => [v, l]), sp.key) : SEG('w', '', [[20, '20D'], [60, '60D'], [120, '120D']], CW)), c.win ? null : 'pmM')
+      + `<div class="pmg-s" data-scroll="x" data-sticky="1"><div class="pmg has" style="grid-template-columns:88px repeat(${cols.length},minmax(34px,1fr));grid-template-rows:20px repeat(${ord.length},minmax(18px,1fr))"><div></div>`
       + cols.map(y => msTh(SK, y, esc(D.abbr(y)), 'hd', W.pmM.sortBy(y), { tag: 'button' })).join('')
       + ord.map(x => `<button type="button" class="nm${x === A ? ' on' : ''}${x === B ? ' nb' : ''}" data-x="${esc(x)}" title="${esc(x === B ? W.pmM.isB(D.short(x)) : W.pmM.makeA(D.short(x)))}"${x === B ? ' aria-disabled="true"' : ''}>${esc(D.short(x))}</button>` + cols.map(y => {
         if (x === y) return '<div class="dg">—</div>';
         const v = val(x, y), sel = x === A && y === B, co = Md === 'co' ? v : corrW(c, x, y, CW);
-        return `<button type="button" class="c${sel ? ' sel' : ''}${x === A ? ' pk' : ''}" data-a="${esc(x)}" data-b="${esc(y)}" style="${style(v)}" data-tip="${esc(`<b>${esc(D.short(x))} / ${esc(D.short(y))}</b><br>${esc(W.pmM.spread)} ${esc(hz)} ${M.pp(M.minus(rs[x], rs[y]))}<br>${esc(W.pmM.corrW(CW))} ${M.fnum(co)}<br><span class="muted">${esc(W.pmM.open)}</span>`)}">${v == null ? '—' : fmt(v)}</button>`;
+        return `<button type="button" class="c${sel ? ' sel' : ''}${x === A ? ' pk' : ''}" data-a="${esc(x)}" data-b="${esc(y)}" style="${style(v)}" data-tip="${esc(`<b>${esc(D.short(x))} / ${esc(D.short(y))}</b><br>${Md === 'sp' ? `${esc(W.pmM.spread)} ${esc(hz)} ${M.pp(M.minus(rs[x], rs[y]))}<br>` : ''}${esc(W.pmM.corrW(CW))} ${M.fnum(co)}<br><span class="muted">${esc(W.pmM.open)}</span>`)}">${v == null ? '—' : fmt(v)}</button>`;
       }).join('')).join('') + `</div></div>`
-      + `<div class="lgd">${msNote(SK, Object.fromEntries(D.names.map(n => [n, D.short(n)])))}<span>${esc(Md === 'sp' ? W.pmM.footSp : W.pmM.footCo)}</span><span class="sp"></span><span>${esc(Md === 'sp' ? M.rangeLabel(D.dates[sp.b], D.dates[sp.e]) : M.rangeLabel(D.dates[D.E - CW], D.dates[D.E]))}</span></div>`;
+      + `<div class="lgd">${msNote(SK, Object.fromEntries(D.names.map(n => [n, D.short(n)])))}<span>${esc(Md === 'sp' ? W.pmM.footSp : W.pmM.footCo)}</span>${Md === 'sp' ? rangeNote(sp.note) : ''}<span class="sp"></span><span>${esc(Md === 'sp' ? M.rangeLabel(D.dates[sp.b], D.dates[sp.e], D.ref) : M.rangeLabel(D.dates[D.E - CW], D.dates[D.E], D.ref))}</span></div>`;
     onSeg(el, 'm', v => { S.pqM = v; c.redraw() });
     onSeg(el, 'p', (v, btn) => { if (v === 'C') { customRange(c, btn, S.pqR, r => { S.pqP = 'C'; S.pqR = r }); return } S.pqP = v; c.redraw() });
     onSeg(el, 'w', v => { S.pqW = +v; c.redraw() });
@@ -60,14 +66,14 @@ export const pmM: Card = {
     msWire(el, SK, () => c.redraw(), null, '.hd[data-k]');
   },
   detail(c): Detail {
-    const D = c.D, K = calc(D), sp = K.span(c.S.pqP, c.S.pqR), rows: any[] = [], [A, B] = pair(c);
+    const D = c.D, K = calc(D), sp = K.span(c.S.pqP, c.S.pqR, '1M'), rows: any[] = [], [A, B] = pair(c);
     D.names.forEach((a, i) => D.names.forEach((b, j) => {
       if (j <= i) return;
       const ra = M.retAt(D.sec(a), sp.b, sp.e), rb = M.retAt(D.sec(b), sp.b, sp.e), s = M.minus(ra, rb), x = (s ?? 0) >= 0 ? [a, b, ra, rb] : [b, a, rb, ra];
       rows.push({ name: `${D.short(x[0] as string)} / ${D.short(x[1] as string)}`, pa: x[0], pb: x[1], s: s == null ? null : Math.abs(s), ra: x[2], rb: x[3], c: corrW(c, a, b, 60) });
     }));
     return {
-      title: W.pmM.dTitle(rows.length), sub: `${c.S.pqP === 'C' ? M.rangeLabel(D.dates[sp.b], D.dates[sp.e]) : c.S.pqP}${DOT}${W.pmM.leaderFirst}`, search: W.search.pair,
+      title: W.pmM.dTitle(rows.length), sub: `${K.plabel(sp)}${DOT}${W.pmM.leaderFirst}`, search: W.search.pair,
       cols: [{ k: 'name', l: W.col.pair }, { k: 's', l: W.pmM.spread, num: true, tone: true, f: v => M.pp(v) }, { k: 'ra', l: W.col.aheadRet, num: true, tone: true, f: v => M.pct(v, 1) }, { k: 'rb', l: W.col.behindRet, num: true, tone: true, f: v => M.pct(v, 1) }, { k: 'c', l: W.pmM.corrW(60), num: true, f: v => M.fnum(v) }],
       rows, sort: ['s', 1], onRow: r => setPair(c, r.pa, r.pb), isSel: r => (r.pa === A && r.pb === B) || (r.pa === B && r.pb === A),
       read: W.pmM.read, ex: r => W.pmM.ex(D.short(r.pa), r.ra, D.short(r.pb), r.rb, r.s, r.c),
@@ -77,23 +83,23 @@ export const pmM: Card = {
 
 /* ===================== the pair ratio (logic.js L608-645) ===================== */
 function ratioSpan(c: Ctx) {
-  const D = c.D, S = c.S, MA = S.prMA, sp = calc(D).span(S.prP, S.prR);
+  const D = c.D, S = c.S, MA = S.prMA, sp = calc(D).span(S.prP, S.prR, '6M');
   const b = Math.max(MA, sp.b);
-  return { i0: b, i1: sp.e, moved: b > sp.b ? D.dates[b] : null, custom: sp.custom };
+  return { i0: b, i1: sp.e, moved: b > sp.b ? D.dates[b] : null, custom: sp.custom, key: sp.key, note: sp.note };
 }
 export const pmR: Card = {
   id: 'pmR', tab: 'pm', cls: 'pm-r',
   render(el, c) {
-    const D = c.D, S = c.S, [a, b] = pair(c), MA = S.prMA, { i0, i1, moved } = ratioSpan(c), band = M.ratioBand(D.sec(a), D.sec(b), i0, i1, MA);
+    const D = c.D, S = c.S, [a, b] = pair(c), MA = S.prMA, { i0, i1, moved, custom, key, note } = ratioSpan(c), band = M.ratioBand(D.sec(a), D.sec(b), i0, i1, MA);
     const { v, m, up, dn } = band, nL = v.length - 1, spr = M.minus(M.retAt(D.sec(a), i0, i1), M.retAt(D.sec(b), i0, i1));
     const last = v[nL], pos = last == null || up[nL] == null || dn[nL] == null ? null : last > (up[nL] as number) ? 'up' : last < (dn[nL] as number) ? 'dn' : 'in';
     const pb = pos === 'in' ? (((last as number) - (dn[nL] as number)) / (((up[nL] as number) - (dn[nL] as number)) || 1)) * 100 : null;
     const opt = (x: string, other: string) => D.names.map(n => `<option value="${esc(n)}"${n === x ? ' selected' : ''}>${esc(D.short(n))}${n === other ? ' ⇄' : ''}</option>`).join('');
-    const pl = S.prP === 'C' && S.prR ? W.pmR.period : S.prP;
-    el.innerHTML = H3(`${D.short(a)} / ${D.short(b)}`, W.pmR.sub, SEG('p', '', periodOpts(['3M', '6M', '1Y', 'C']), S.prP === 'C' && S.prR ? 'C' : S.prP), c.win ? null : 'pmR')
+    const pl = custom ? W.pmR.period : key;
+    el.innerHTML = H3(`${D.short(a)} / ${D.short(b)}`, W.pmR.sub, SEG('p', '', periodOpts(['3M', '6M', '1Y', 'C']), key), c.win ? null : 'pmR')
       + `<div class="pmbar"><select class="sx-sel" data-ab="a" aria-label="${esc(W.pmR.a)}">${opt(a, b)}</select><button class="sw" type="button" data-swap title="${esc(W.pmR.swap)}" aria-label="${esc(W.pmR.swap)}">⇄</button><select class="sx-sel" data-ab="b" aria-label="${esc(W.pmR.b)}">${opt(b, a)}</select><span class="sp"></span>${SEG('ma', 'MA', [[20, '20'], [50, '50']], MA)}</div>`
       + `<div class="pmk one"><div><span>${esc(W.pmR.spreadK(pl))}</span><b class="${M.cls(spr)}">${M.pp(spr, 1)}</b></div><div class="bst ${pos || ''}"><span>${esc(W.pmR.band)}</span><b>${esc(pos == null ? '—' : W.pmR.pos(pos, pb))}</b></div></div>`
-      + `<div class="pmc" data-chart></div><div class="lgd"><span class="sw"><i style="background:var(--navy)"></i>${esc(W.pmR.lineA)}</span><span class="sw"><i style="background:var(--text-3)"></i>MA${MA}</span><span class="sw"><i style="background:color-mix(in srgb,var(--navy) 15%,transparent);height:8px"></i>${esc(W.pmR.bandL)}</span>${moved ? `<span class="warnx">${esc(W.pmR.moved(M.dateLabel(moved, false, true), MA))}</span>` : ''}<span class="sp"></span><span>${esc(M.rangeLabel(D.dates[i0], D.dates[i1]))}</span></div>`;
+      + `<div class="pmc" data-chart></div><div class="lgd"><span class="sw"><i style="background:var(--navy)"></i>${esc(W.pmR.lineA)}</span><span class="sw"><i style="background:var(--text-3)"></i>MA${MA}</span><span class="sw"><i style="background:color-mix(in srgb,var(--navy) 15%,transparent);height:8px"></i>${esc(W.pmR.bandL)}</span>${moved ? `<span class="warnx">${esc(W.pmR.moved(M.dateLabel(moved, false, true), MA))}</span>` : ''}${rangeNote(note)}<span class="sp"></span><span>${esc(M.rangeLabel(D.dates[i0], D.dates[i1], D.ref))}</span></div>`;
     onSeg(el, 'p', (x, btn) => { if (x === 'C') { customRange(c, btn, S.prR, r => { S.prP = 'C'; S.prR = r }); return } S.prP = x; c.redraw() });
     onSeg(el, 'ma', x => { S.prMA = +x; c.redraw() });
     ($('[data-ab=a]', el) as HTMLSelectElement).onchange = e => { const n = (e.target as HTMLSelectElement).value; n === b ? setPair(c, n, a) : setPair(c, n, b) };
@@ -117,7 +123,7 @@ export const pmR: Card = {
         + v.map((x, i) => (x == null || up[i] == null ? '' : x > (up[i] as number) ? `<circle cx="${X(i).toFixed(1)}" cy="${Y(x).toFixed(1)}" r="2.2" fill="var(--up)"/>` : x < (dn[i] as number) ? `<circle cx="${X(i).toFixed(1)}" cy="${Y(x).toFixed(1)}" r="2.2" fill="var(--down)"/>` : '')).join('');
       const mk = S.prMk ? D.dates.indexOf(S.prMk) : -1;
       if (mk >= i0 && mk <= i1 && v[mk - i0] != null) {
-        const k = mk - i0, x = X(k), y = Y(v[k] as number), lb = M.dateLabel(D.dates[mk]), tw = lb.length * 6.4 + 12, lx = Math.max(L, Math.min(R - tw, x - tw / 2));
+        const k = mk - i0, x = X(k), y = Y(v[k] as number), lb = M.dateIn(D.dates[mk], D.ref), tw = lb.length * 6.4 + 12, lx = Math.max(L, Math.min(R - tw, x - tw / 2));
         o += `<line x1="${x}" x2="${x}" y1="${T}" y2="${B}" stroke="var(--text)"/><line x1="${L}" x2="${R}" y1="${y}" y2="${y}" stroke="var(--text)" stroke-dasharray="3 3"/><circle cx="${x}" cy="${y}" r="4.5" fill="var(--navy)" stroke="var(--surface)" stroke-width="1.5"/><g class="xtg"><rect x="${lx}" y="${T}" width="${tw}" height="17" rx="3"/><text x="${lx + tw / 2}" y="${T + 12}" text-anchor="middle">${esc(lb)}</text></g><text class="ax" x="${R}" y="${y - 5}" text-anchor="end" style="fill:var(--text);font-weight:600">${(v[k] as number).toFixed(1)}</text>`;
       }
       if (last != null) o += `<circle cx="${X(n - 1)}" cy="${Y(last)}" r="3" fill="var(--navy)"/>`;
@@ -154,17 +160,21 @@ export const pmR: Card = {
 
 /* ===================== beta and correlation to the benchmark (logic.js L648-669) ===================== */
 const BETA_W: [string, string][] = [['20', '20D'], ['60', '60D'], ['120', '120D'], ['252', '1Y'], ['C', 'Custom']];
-function betaSpan(c: Ctx) {
+function betaSpan(c: Ctx): { j0: number; j1: number; label: string; key: string; note: string | null } {
   const D = c.D, S = c.S;
-  if (S.btW === 'C' && S.btR) { const s = M.rangeIn(D.dates, S.btR, D.E); if (s && s.base >= 0) return { j0: s.base, j1: s.last, label: `${s.n}D` } }
-  const w = S.btW === 'C' ? 120 : Math.min(+S.btW, D.E);
-  return { j0: D.E - w, j1: D.E, label: (BETA_W.find(x => x[0] === S.btW) || ['', `${w}D`])[1] };
+  let note: string | null = null;
+  if (S.btW === 'C' && S.btR) {
+    const r = customSpan(D, S.btR, '120D'); note = r.note;
+    if (r.s) return { j0: r.s.base, j1: r.s.last, label: `${r.s.n}D`, key: 'C', note };
+  }
+  const k = S.btW === 'C' ? '120' : S.btW, w = Math.min(+k, D.E);
+  return { j0: D.E - w, j1: D.E, label: (BETA_W.find(x => x[0] === k) || ['', `${w}D`])[1], key: k, note };
 }
 const benchOf = (c: Ctx) => (c.D.series.index[c.S.btB] ? c.S.btB : c.D.market);
 export const pmT: Card = {
   id: 'pmT', tab: 'pm', cls: 'pm-t',
   render(el, c) {
-    const D = c.D, S = c.S, [A, B] = pair(c), { j0, j1, label } = betaSpan(c), W0 = j1 - j0, BM = benchOf(c), bx = D.series.index[BM], br = M.dailyRets(bx, j0, j1), bret = M.retAt(bx, j0, j1);
+    const D = c.D, S = c.S, [A, B] = pair(c), { j0, j1, label, key, note } = betaSpan(c), W0 = j1 - j0, BM = benchOf(c), bx = D.series.index[BM], br = M.dailyRets(bx, j0, j1), bret = M.retAt(bx, j0, j1);
     const rows = D.names.map(nm => {
       const a = D.sec(nm), r = M.dailyRets(a, j0, j1), be = M.beta(r, br), rt = M.retAt(a, j0, j1);
       let db: M.N = null;
@@ -176,10 +186,10 @@ export const pmT: Card = {
     const mxb = Math.max(1.6, ...rows.map(r => r.b ?? 0)), th = (k: string, l: string, cl = '', t = '') => msTh(SK, k, esc(l), cl, t, { def: DEF, txt: k === 'n' });
     const LAB = { n: W.col.sector, b: W.pmT.beta, db: W.pmT.dBeta, c: W.pmT.corr, rt: W.col.ret, ex: W.vs(BM), al: W.pmT.alpha };
     const benches = (D.meta.benchmarks?.length ? D.meta.benchmarks : [D.market]).filter(x => D.series.index[x]);
-    el.innerHTML = H3(W.pmT.title(BM), W.pmT.sub(BM, label), SEG('w', W.pmT.window, BETA_W.map(([v, l]) => [v, v === 'C' ? W.range.custom : l] as [string, string]), S.btW === 'C' && S.btR ? 'C' : S.btW) + (benches.length > 1 ? SEG('b', W.pmT.vs, benches.map(x => [x, x] as [string, string]), BM) : ''), c.win ? null : 'pmT')
-      + `<div class="tbl-wrap" data-scroll="y"><table class="tbl padat"><thead><tr>${th('n', LAB.n, 'l')}${th('b', `${W.pmT.beta} ${label}`)}<th class="l bcol"></th>${th('db', LAB.db, '', W.pmT.dBetaTip)}${th('c', LAB.c)}${th('rt', LAB.rt, '', W.pmT.retTip)}${th('ex', LAB.ex, '', W.pmT.exTip(BM))}${th('al', LAB.al, '', W.pmT.alTip(BM))}</tr></thead><tbody>`
-      + rows.map(r => `<tr class="${r.nm === A || r.nm === B ? 'on' : ''}" data-n="${esc(r.nm)}" role="button" tabindex="0" title="${esc(W.pmT.rowTip(r.n))}"><td class="l"><b>${esc(r.n)}</b>${r.nm === A ? '<span class="pab">A</span>' : r.nm === B ? '<span class="pab">B</span>' : ''}</td><td><b>${M.fnum(r.b)}</b></td><td class="l bcol"><div class="bbar"><b style="width:${Math.min(100, ((r.b ?? 0) / mxb) * 100).toFixed(1)}%;background:${(r.b ?? 0) >= 1 ? 'var(--navy)' : 'var(--gray-400)'}"></b><i style="left:${(100 / mxb).toFixed(1)}%"></i></div></td><td class="${r.db == null ? '' : r.db > 0.05 ? 'down' : r.db < -0.05 ? 'up' : ''}">${r.db == null ? '—' : M.ppx(r.db, 2)}</td><td>${M.fnum(r.c)}</td><td class="${M.cls(r.rt)}">${M.pct(r.rt, 1)}</td><td class="${M.cls(r.ex)}">${M.pp(r.ex, 1)}</td><td class="${M.cls(r.al)}">${M.pp(r.al, 1)}</td></tr>`).join('')
-      + `</tbody></table></div><div class="lgd">${msNote(SK, LAB, { n: 1 })}<span>${esc(W.pmT.foot(BM, M.pct(bret, 1)))}</span><span class="sp"></span><span>${esc(M.rangeLabel(D.dates[j0], D.dates[j1]))}</span></div>`;
+    el.innerHTML = H3(W.pmT.title(BM), W.pmT.sub(BM, label), SEG('w', W.pmT.window, BETA_W.map(([v, l]) => [v, v === 'C' ? W.range.custom : l] as [string, string]), key) + (benches.length > 1 ? SEG('b', W.pmT.vs, benches.map(x => [x, x] as [string, string]), BM) : ''), c.win ? null : 'pmT')
+      + `<div class="tbl-wrap" data-scroll="y" data-sticky="1"><table class="tbl padat"><thead><tr>${th('n', LAB.n, 'l')}${th('b', `${W.pmT.beta} ${label}`)}<th class="l bcol"></th>${th('db', LAB.db, '', W.pmT.dBetaTip)}${th('c', LAB.c)}${th('rt', LAB.rt, '', W.pmT.retTip)}${th('ex', LAB.ex, '', W.pmT.exTip(BM))}${th('al', LAB.al, '', W.pmT.alTip(BM))}</tr></thead><tbody>`
+      + rows.map(r => `<tr class="${r.nm === A || r.nm === B ? 'on' : ''}" data-n="${esc(r.nm)}" role="button" tabindex="0" title="${esc(W.pmT.rowTip(r.n))}"><td class="l"><b>${esc(r.n)}</b>${r.nm === A ? '<span class="pab">A</span>' : r.nm === B ? '<span class="pab">B</span>' : ''}</td><td><b>${M.fnum(r.b)}</b></td><td class="l bcol"><div class="bbar"><b style="width:${Math.min(100, ((r.b ?? 0) / mxb) * 100).toFixed(1)}%;background:${(r.b ?? 0) >= 1 ? 'var(--navy)' : 'var(--gray-400)'}"></b><i style="left:${(100 / mxb).toFixed(1)}%"></i></div></td><td class="${r.db == null ? '' : r.db > 0.05 ? 'down' : r.db < -0.05 ? 'up' : ''}">${r.db == null ? na(W.pmT.dBetaNa(label)) : M.ppx(r.db, 2)}</td><td>${M.fnum(r.c)}</td><td class="${M.cls(r.rt)}">${M.pct(r.rt, 1)}</td><td class="${M.cls(r.ex)}">${M.pp(r.ex, 1)}</td><td class="${M.cls(r.al)}">${M.pp(r.al, 1)}</td></tr>`).join('')
+      + `</tbody></table></div><div class="lgd">${msNote(SK, LAB, { n: 1 })}<span>${esc(W.pmT.foot(BM, M.pct(bret, 1)))}</span>${rangeNote(note)}<span class="sp"></span><span>${esc(M.rangeLabel(D.dates[j0], D.dates[j1], D.ref))}</span></div>`;
     onSeg(el, 'w', (v, btn) => { if (v === 'C') { customRange(c, btn, S.btR, r => { S.btW = 'C'; S.btR = r }, { min: 10 }); return } S.btW = v; c.redraw() });
     onSeg(el, 'b', v => { S.btB = v; c.redraw() });
     msWire(el, SK, () => c.redraw(), DEF, 'th[data-k]');
@@ -236,7 +246,7 @@ export const pmS: Card = {
       + `<div class="pmbar">${SEG('f', '', [['all', W.pmS.all], ['up', W.pmS.still], ['dn', W.pmS.turning]], F, S.stH === '1M' ? { up: W.pmS.disabled, dn: W.pmS.disabled } : {})}<span class="sp"></span>${SEG('n', W.pmS.show, [['7', W.pmS.top(7)], ['all', W.pmS.allRows]], N)}</div>`
       + `<div class="tbl-wrap" data-scroll="y"><table class="tbl padat"><thead><tr>${th('n', LAB.n, 'l')}${th('s3', LAB.s3)}${th('s5', LAB.s5)}${th('s21', LAB.s21)}</tr></thead><tbody>`
       + rows.map(r => `<tr class="${(r.a === A && r.b === B) || (r.a === B && r.b === A) ? 'on' : ''}" data-a="${esc(r.a)}" data-b="${esc(r.b)}" role="button" tabindex="0" title="${esc(W.pmS.rowTip)}"><td class="l"><b>${esc(r.n)}</b></td>${td(r.s3, 's3')}${td(r.s5, 's5')}${td(r.s21, 's21')}</tr>`).join('')
-      + `</tbody></table></div><div class="lgd">${msNote(SK, LAB, { n: 1 }, W.pmS.defOrder(S.stH))}<span>${esc(W.pmS.foot(N === 'all' ? null : Math.min(+N, tot), tot))}</span><span class="sp"></span><span>${esc(M.dateLabel(D.dates[D.E]))}</span></div>`;
+      + `</tbody></table></div><div class="lgd">${msNote(SK, LAB, { n: 1 }, W.pmS.defOrder(S.stH))}<span>${esc(W.pmS.foot(N === 'all' ? null : Math.min(+N, tot), tot))}</span><span class="sp"></span><span>${esc(M.dateIn(D.dates[D.E], D.ref))}</span></div>`;
     onSeg(el, 'h', v => { S.stH = v; S.stS = []; c.redraw() });
     onSeg(el, 'f', v => { S.stF = v; c.redraw() });
     onSeg(el, 'n', v => { S.stN = v; c.redraw() });

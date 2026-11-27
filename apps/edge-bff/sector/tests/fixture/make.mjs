@@ -35,5 +35,27 @@ export function makeFiles(opts = {}) {
     }
   });
   stocks.push({ t: 'XOTH', n: 'PT Contoh Lain Tbk', sec: 'Other', ind: null, close: walk(r, n, 500, 0.01).map(v => Math.round(v)), volume: Array(n).fill(2e5) });
+  if (opts.edge !== false) edgeCases(n, industries, stocks);
   return buildFiles({ market: 'IHSG', lq45: 'LQ45', dates, index: { IHSG: ih, LQ45: lq }, sector, industries, stocks, days: opts.days ?? 20 });
+}
+
+/* the cases the page's check 1 found on real data, made up here (no market data) so the tests and the look check meet
+   them: a stock far above its EMAs (a three-digit distance), one below its EMAs for most of the history (a status that
+   began a year back), a thinly traded stock that did not trade on the previous session (its r1d is null while Feature 08
+   counts it, D-2) and with gaps (its own bars fewer than the market's sessions, D-3), a long IDX-IC industry name, an
+   industry whose only stock has sessions without a close (its index level is null there, D-8), a stock listed 150
+   sessions ago (no EMA200 yet, BD-11) and two more stocks without an IDX-IC sector (D-7) */
+function edgeCases(n, industries, stocks) {
+  const line = (f) => Array.from({ length: n }, (_, i) => Math.round(f(i))), vol = Array(n).fill(4e5);
+  industries.push({ name: 'Internet Applications & Services', sector: 'Technology' }, { name: 'Alternative Energy Equipment', sector: 'Energy' });
+  stocks.push({ t: 'XRAL', n: 'PT Contoh Naik Tbk', sec: 'Technology', ind: 'Internet Applications & Services', close: line(i => (i < n - 70 ? 300 + (i % 7) : 300 * Math.pow(1.02, i - (n - 70)))), volume: vol });
+  stocks.push({ t: 'XNET', n: 'PT Contoh Jaringan Tbk', sec: 'Technology', ind: 'Internet Applications & Services', close: line(i => 800 + 40 * Math.sin(i / 9)), volume: vol });
+  stocks.push({ t: 'XDRP', n: 'PT Contoh Turun Tbk', sec: 'Consumer Cyclicals', ind: stocks.find(s => s.sec === 'Consumer Cyclicals').ind, close: line(i => (i < 30 ? 2000 : 2000 * Math.pow(0.996, i - 30))), volume: vol });
+  const thin = line(i => (i <= n - 100 ? 500 : 500 * Math.pow(1.004, i - (n - 100))));
+  stocks.push({ t: 'XTHN', n: 'PT Contoh Jarang Tbk', sec: 'Financials', ind: stocks.find(s => s.sec === 'Financials').ind, close: thin.map((v, i) => (i === n - 2 || (i > n - 90 && i % 3 === 1 && i < n - 2) ? null : v)), volume: vol });
+  const aee = line(i => 150 + (i % 5));
+  stocks.push({ t: 'XAEE', n: 'PT Contoh Energi Baru Tbk', sec: 'Energy', ind: 'Alternative Energy Equipment', close: aee.map((v, i) => (i >= n - 60 && i < n - 54 ? null : v)), volume: vol });
+  stocks.push({ t: 'XNEW', n: 'PT Contoh Baru Tbk', sec: 'Industrials', ind: stocks.find(s => s.sec === 'Industrials').ind, close: line(i => 700 + (i % 9) * 4).map((v, i) => (i < n - 150 ? null : v)), volume: vol });
+  stocks.push({ t: 'XOT2', n: 'PT Contoh Lain Dua Tbk', sec: 'Other', ind: null, close: line(i => 120 + (i % 4)), volume: vol });
+  stocks.push({ t: 'XOT3', n: 'PT Contoh Lain Tiga Tbk', sec: 'Other', ind: null, close: line(i => 90 + (i % 6)), volume: vol });
 }

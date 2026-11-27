@@ -5,7 +5,7 @@
    on a phone; a wide table card opens stacked so nothing scrolls sideways (N05); the card's legend stays (N08). */
 import * as M from './model.ts';
 import { cloneState, type Card, type Ctx, type Detail, type State } from './ctx.ts';
-import { $, $$, esc, msNote, msTh, msWire, tipHide } from './ui.ts';
+import { $, $$, esc, msNote, msTh, msWire, na, scrollCues, tipHide } from './ui.ts';
 import { W } from './words.ts';
 
 export interface WindowHost {
@@ -40,7 +40,10 @@ export function openWindow(card: Card, page: Ctx, host: WindowHost, from: HTMLEl
     $('.fw-tt', el).textContent = h ? h.textContent : '';
     $('.fw-st', el).textContent = s ? s.textContent : '';
     el.setAttribute('aria-label', h ? h.textContent || '' : card.id);
-    if (card.detail && right && foot) detail(card.detail(c), c, right, foot, draw);
+    if (card.detail && right && foot) { detail(card.detail(c), c, right, foot, draw); scrollCues(right) }
+    // a stacked window of a table card gives the card at most half its height, so the detail table below shows enough
+    // rows to use (check 1 OR-11, RP-11: two stock rows were visible under the card's table)
+    el.classList.toggle('stk-t', !phone && el.classList.contains('stk') && !!card.detail && !!$('.tbl-wrap', left));
   };
   c = host.ctx(S, true, draw);
   const close = () => {
@@ -101,7 +104,8 @@ function detail(D: Detail, c: Ctx, box: HTMLElement, foot: HTMLElement, redraw: 
     + `<div class="fw-tw"><table class="tbl padat fw-tb${D.center ? ' ctr' : ''}"><thead><tr>${D.cols.map(x => msTh(SK, x.k, esc(x.l), `${x.num ? '' : 'l'}${x.hl ? ' hc' : ''}`, x.tip || '', { def: D.sort, txt: !x.num })).join('')}</tr></thead><tbody>`
     + (rows.length ? rows.map((r, i) => {
       const cells = D.cols.map(x => {
-        const v = r[x.k], t = x.html ? r[x.html] ?? '—' : x.f ? (v == null ? '—' : x.f(v, r)) : esc(v ?? '—');
+        // a dash says why (check 1 BD-11: the same mechanism in the windows' tables)
+        const v = r[x.k], NA = na(W.win.na), t = x.html ? (r[x.html] == null || r[x.html] === '—' ? NA : r[x.html]) : v == null || v === '—' ? NA : x.f ? x.f(v, r) : esc(v);
         const inner = x.term && r.t ? `<button type="button" class="tk" data-term="${esc(r.t)}" title="${esc(W.term.rowTip(r.t))}">${esc(r.t)}</button>` : x.b ? `<b>${t}</b>` : t;
         return `<td class="${x.num ? '' : 'l'}${x.tone && typeof v === 'number' ? ' ' + M.cls(v) : ''}${x.hl ? ' hc' : ''}">${inner}</td>`;
       }).join('');

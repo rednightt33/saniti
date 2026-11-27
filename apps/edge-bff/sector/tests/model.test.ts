@@ -47,8 +47,9 @@ describe('periods (decision E: as the Overview)', () => {
     const D = F.files['sector-series'].dates as string[], E = D.length - 1;
     const r = M.checkRange(D, E, D[10], D[40]);
     expect(r.ok).toBe(true); expect(r.span).toEqual({ first: 10, last: 40, base: 9, n: 31 });
-    expect(r.msg).toContain('31 trading days');
-    expect(M.checkRange(D, E, D[0], D[E]).msg).toMatch(/at most 1 year/);
+    expect(r.msg).toBe(`${M.rangeLabel(D[9], D[40])} · 31 sessions`);          // the card's own label: from the base close (OR-6)
+    expect(M.checkRange(D, E, D[1], D[E]).msg).toMatch(/at most 1 year/);
+    expect(M.checkRange(D, E, D[0], D[40]).msg).toMatch(/^Pick dates from/);       // RP-1: before the first usable date, refused
     expect(M.checkRange(D, E, D[40], D[10]).ok).toBe(false);
     expect(M.checkRange(D, E, D[10], D[12]).msg).toMatch(/at least 5/);
     expect(M.checkRange(D, E, D[10], D[160], { max: 130, maxWhy: 'max 26 weeks' }).msg).toBe('max 26 weeks');   // D09
@@ -82,7 +83,7 @@ describe('the rotation map (relative strength and momentum, the prototype formul
     expect(gu.rs[39]).toBeGreaterThan(100);
     expect(M.quad(101, 101)).toBe('Leading'); expect(M.quad(101, 99)).toBe('Weakening'); expect(M.quad(99, 101)).toBe('Improving'); expect(M.quad(99, 99)).toBe('Lagging');
     const mv = M.move({ rs: [100, null, 101], mom: [100, null, 101] }, 2, 2)!;
-    expect(mv.deg).toBeCloseTo(45); expect(mv.sp).toBeCloseTo(Math.SQRT2); expect(M.heading(mv.deg)).toBe('Strengthening');
+    expect(mv.deg).toBeCloseTo(45); expect(mv.sp).toBeCloseTo(Math.SQRT2); expect(M.heading(mv.deg)).toBe('Both up');
     expect(M.clockwise('Lagging', 'Improving')).toBe(true); expect(M.clockwise('Leading', 'Lagging')).toBe(false);
   });
 });
@@ -125,7 +126,8 @@ describe('the files arranged for the cards (model.makeData)', () => {
     expect(D.short('Consumer Non-Cyclicals')).toBe('Non-Cyc'); expect(D.abbr('Financials')).toBe('Fin'); expect(D.P('1M')).toBe(20); expect(D.P('5D')).toBe(5);
     expect(D.members('IHSG').length).toBe(D.rows.length);
     expect(D.rows.some(r => r.sec === 'Other')).toBe(true);                       // "Other" counts in the market only
-    expect(D.names.reduce((n, s) => n + D.members(s).length, 0)).toBe(D.rows.length - 1);
+    expect(D.other).toBeGreaterThan(0);
+    expect(D.names.reduce((n, s) => n + D.members(s).length, 0)).toBe(D.rows.length - D.other);
     expect(D.weightLabel).toBe('20-day average traded value');
     const older = data(F.files['sector-meta'].dates[0]);
     expect(older.E).toBe(older.dates.indexOf(F.files['sector-meta'].dates[0]));   // an earlier date moves every card's end
@@ -138,7 +140,7 @@ describe('the cards\' figures', () => {
     const best = [...c.D.names].sort((a, b) => (K.rr(b, w) ?? -1e9) - (K.rr(a, w) ?? -1e9))[0];
     expect(K.strongest).toBe(best); expect(shown(c)).toBe(best);
     c.S.pin = c.D.names[3]; expect(shown(c)).toBe(c.D.names[3]);
-    expect(K.span('YTD', null).b).toBe(c.D.ytd()); expect(K.span('3M', null)).toEqual({ b: c.D.E - 60, e: c.D.E, custom: false });
+    expect(K.span('YTD', null).b).toBe(c.D.ytd()); expect(K.span('3M', null)).toMatchObject({ b: c.D.E - 60, e: c.D.E, custom: false, key: '3M', note: null });
   });
   it('the drill-down has its industry rows from series.industry, rated among industries (defect D03)', () => {
     const c = ctx(), { SEC, IND } = drillRows(c);
@@ -186,7 +188,7 @@ describe('the cards\' figures', () => {
   it('the detail examples read what is computed (W1, W2): the chosen window and compare date', () => {
     const c = ctx(); c.S.rsN = 10; c.S.rbK = '10';
     const a = rsA.detail!(c), ex = a.ex!(a.rows[0]);
-    expect(ex).toContain('10D'); expect(a.read).toMatch(/window chosen/);
+    expect(ex).toContain('10D'); expect(a.read).toMatch(/ranks the 10D window, the one picked on the card/);
     const b = rsB.detail!(c);
     expect(b.read).toContain(M.dateLabel(c.D.dates[c.D.E - 10]));
     expect(rsD.detail!(c).rows.length).toBe(c.D.members(shown(c)).length);

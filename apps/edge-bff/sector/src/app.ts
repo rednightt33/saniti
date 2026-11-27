@@ -6,7 +6,7 @@ import { FILE, SectorError, cached } from './api.ts';
 import { lockOnly } from '../../shared/example-view.ts';
 import * as M from './model.ts';
 import { calc, cloneState, DEFAULT_STATE, TABS, type Card, type Ctx, type State, type StocksState, type TabKey } from './ctx.ts';
-import { $, $$, DOT, esc, initTips, tipHide, closeRange } from './ui.ts';
+import { $, $$, DOT, esc, escTop, initTips, scrollCues, tipHide, closeRange } from './ui.ts';
 import { closeWindow, openWindow, windowOpen } from './windows.ts';
 import { dayDates as pickable, open, stocksFile } from './loader.ts';
 import { hxCard, mkCard, mmCard, rcCard } from './cards/ov.ts';
@@ -29,7 +29,7 @@ const LAYOUT: Record<TabKey, string> = {
 /* decision J (UD66): in the example every control but the five tabs asks for the shell's sign-in or upgrade box, as a click
    on a locked control of the Overview's example does; hover and scrolling stay */
 const CONTROL = 'button, select, input, a[href], [role=button], [role=tab], [data-n], [data-t], [data-a], [data-k], [data-tg], [data-term], .bz, .ihc, .fwx';
-export const exampleLocked = (el: Element) => !!el.closest(CONTROL) && !el.closest('#tabs [role=tab]');
+export const exampleLocked = (el: Element) => !!el.closest(CONTROL) && !el.closest('#tabs [role=tab]') && !el.closest('.dchip');
 
 type PageCtx = Ctx & { alive: boolean };
 export function start(api: SectorApi, view: HTMLElement, opts: { example?: boolean } = {}) {
@@ -87,14 +87,53 @@ export function start(api: SectorApi, view: HTMLElement, opts: { example?: boole
   }
   const page = makeCtx(S, false, () => redraw());
 
-  /** draws a card into its element, keeping the scroll of its lists and the keyboard focus (a choice redraws the card) */
+  /** draws a card into its element, keeping the scroll of its lists and the keyboard focus (a choice redraws the card).
+      A list keeps its scroll only while it shows the same columns (its data-scroll-key; check 1 OR-3: a Custom range of
+      25 weeks opened scrolled to the oldest week); one that was at its right end stays at the end. */
   function renderCard(card: Card, el: HTMLElement, c: Ctx) {
     el.classList.add('card', 'tc', ...card.cls.split(' ')); el.dataset.card = card.id;
-    const scroll = $$('[data-scroll]', el).map(x => [x.scrollTop, x.scrollLeft]);
+    const scroll = $$('[data-scroll]', el).map(x => ({ t: x.scrollTop, l: x.scrollLeft, k: x.dataset.scrollKey || '', end: x.scrollWidth > x.clientWidth + 1 && x.scrollLeft + x.clientWidth >= x.scrollWidth - 1 }));
     const a = document.activeElement as HTMLElement | null, focus = a && el.contains(a) ? focusKey(a) : null;
     try { card.render(el, c) } catch (e) { console.error(e); el.innerHTML = `<div class="cv-empty pad">${esc(W.err.card)}</div>` }
-    $$('[data-scroll]', el).forEach((x, i) => { const s = scroll[i]; if (s) { x.scrollTop = s[0]; x.scrollLeft = s[1]; x.dataset.kept = '1' } });
+    $$('[data-scroll]', el).forEach((x, i) => {
+      const s = scroll[i]; if (!s || s.k !== (x.dataset.scrollKey || '')) return;
+      x.scrollTop = s.t; x.scrollLeft = s.l; x.dataset.kept = '1'; if (s.end) x.dataset.atEnd = '1';
+    });
     if (focus) { const f = el.querySelector(focus) as HTMLElement | null; f?.focus({ preventScroll: true }) }
+    watchSize(card, el, c);
+    scrollCues(el);
+    requestAnimationFrame(() => scrollCues(el));
+  }
+  /* a chart is drawn for the size of its box; when the box changes size afterwards (the header wraps to two rows once the
+     font arrives, a scrollbar appears) the card is drawn again (check 1 BD-1: the svg kept its first height and its axis
+     printed over the legend; RP-5) */
+  const sizeRO = new WeakMap<HTMLElement, ResizeObserver>(), redrawn = new WeakMap<HTMLElement, number[]>();
+  function watchSize(card: Card, el: HTMLElement, c: Ctx) {
+    sizeRO.get(el)?.disconnect();
+    const seen = new WeakMap<Element, string>(), boxes = $$('[data-chart],[data-map],[data-strip]', el);
+    let t = 0;
+    const again = () => {
+      const now = performance.now(), log = (redrawn.get(el) || []).filter(x => now - x < 2000);
+      if (log.length >= 3) return;                    // a card that keeps changing its own size stays as drawn
+      log.push(now); redrawn.set(el, log);
+      clearTimeout(t);
+      t = window.setTimeout(() => { if ((c as PageCtx).alive === false || !el.isConnected) return; renderCard(card, el, c) }, 60);
+    };
+    const ro = new ResizeObserver(es => {
+      let changed = false;
+      for (const e of es) {
+        const k = `${Math.round(e.contentRect.width)}x${Math.round(e.contentRect.height)}`, was = seen.get(e.target);
+        seen.set(e.target, k); if (was != null && was !== k) changed = true;
+      }
+      if (changed) again();
+    });
+    boxes.forEach(b => ro.observe(b));
+    sizeRO.set(el, ro);
+    // a chart drawn before its box took its final size overflows the box: it is drawn again
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!el.isConnected) return;
+      if (boxes.some(b => { const s = b.querySelector(':scope > svg'); return !!s && s.getBoundingClientRect().bottom > b.getBoundingClientRect().bottom + 1 })) again();
+    }));
   }
   const slots = new Map<string, HTMLElement>();
   function redraw() {
@@ -128,9 +167,9 @@ export function start(api: SectorApi, view: HTMLElement, opts: { example?: boole
   const dayDates = () => pickable(meta, index);
   function renderHead() {
     const bt = meta.breadth_through;
-    $('#pills').innerHTML = `<span class="pill pos" title="${esc(W.head.pricesTip)}"><span class="dot"></span>${esc(W.head.prices(M.dateLabel(day.date, true)))}</span>`
+    $('#pills').innerHTML = `<span class="pill pos" title="${esc(W.head.pricesTip)}"><span class="dot"></span>${esc(W.head.prices(M.dateIn(day.date, meta.prices_through, true)))}</span>`
       + (bt && bt < day.date ? `<span class="pill warn" title="${esc(W.head.breadthTip)}"><span class="dot"></span>${esc(W.head.breadth(M.dateLabel(bt, true)))}</span>` : '');
-    $('#dlab').textContent = M.dateLabel(day.date, true) + DOT + W.head.close;
+    $('#dlab').textContent = M.dateIn(day.date, meta.prices_through, true) + DOT + W.head.close;
     const t = headTarget();
     $('#termbtn').title = W.term.headTip(t);
     $('#termbtn').setAttribute('aria-label', W.term.headTip(t));
@@ -149,17 +188,25 @@ export function start(api: SectorApi, view: HTMLElement, opts: { example?: boole
     pop.style.maxHeight = Math.max(160, innerHeight - a.bottom - 6 - G) + 'px';
     ($('.menu-item.on', pop) as HTMLElement | null)?.focus();
   }
+  /* the last pick wins: an older date's file that arrives later is dropped (check 1 BD-5) */
+  const latestPick = M.lastWins();
   async function pickDate(d: string) {
-    if (d === day.date) return;
     const btn = $('#datebtn'); btn.setAttribute('aria-busy', 'true');
-    try { day = await get<Day>(FILE.day(d)); D = M.makeData(meta, series, day); S.rotK = null; S.rqT = null; closeWindow(); redraw() }
-    catch (e) { toast(e instanceof SectorError ? e.message : W.err.date) }
-    finally { btn.removeAttribute('aria-busy') }
+    const r = await latestPick(d === day.date ? Promise.resolve(day) : get<Day>(FILE.day(d)));
+    if (r.stale) return;
+    btn.removeAttribute('aria-busy');
+    if (r.error) { toast(r.error instanceof SectorError ? r.error.message : W.err.date); return }
+    if (r.value === day) return;
+    day = r.value as Day; D = M.makeData(meta, series, day); S.rotK = null; S.rqT = null;
+    const ds = dayDates(); S.date = day.date === ds[ds.length - 1] ? null : day.date;   // kept in the address (check 1 BD-10)
+    closeWindow(); redraw();
   }
   function showTab(t: TabKey, focus = false) {
     if (t === S.tab) return;
     S.tab = t; closeWindow(); closeRange(); redraw();
-    if (focus) ($(`#tabs [data-t="${t}"]`) as HTMLElement).focus();
+    const tb = $(`#tabs [data-t="${t}"]`) as HTMLElement;
+    if (focus) tb.focus();
+    tb.scrollIntoView({ block: 'nearest', inline: 'nearest' });                // a phone's tab bar scrolls (check 1 MX-3)
     // the tab bar stays at the top while the page scrolls: a new tab starts right under it
     const bar = $('.bar1'), pn = t === 'ov' ? $('#kpis') : $(`.tabp[data-tab="${t}"]`);
     const top = pn.getBoundingClientRect().top, bb = bar.getBoundingClientRect().bottom;
@@ -177,9 +224,19 @@ export function start(api: SectorApi, view: HTMLElement, opts: { example?: boole
     });
     $('#datebtn').addEventListener('click', e => { e.stopPropagation(); dateMenu($('#datepop').hidden) });
     $('#datepop').addEventListener('click', e => { const b = (e.target as Element).closest('.menu-item') as HTMLElement | null; if (!b) return; dateMenu(false); void pickDate(b.dataset.d as string) });
+    // the menu pattern: the arrow keys, Home and End move between the dates (check 1 BD-9, MX-6)
+    $('#datepop').addEventListener('keydown', e => {
+      const items = $$('.menu-item', $('#datepop')), i = items.indexOf(document.activeElement as HTMLElement), to = M.menuStep(items.length, Math.max(0, i), e.key);
+      if (to == null) return; e.preventDefault(); items[i < 0 && e.key === 'ArrowDown' ? 0 : to].focus();
+    });
     $('#termbtn').addEventListener('click', () => terminal(headTarget()));
     document.addEventListener('click', e => { if (!$('#datepop').hidden && !$('.dd').contains(e.target as Node)) dateMenu(false) });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#datepop').hidden) { dateMenu(false); $('#datebtn').focus() } });
+    // Esc closes the newest popover a card opened before anything else (a window registers its own key handler later)
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (escTop()) { e.preventDefault(); e.stopImmediatePropagation(); return }
+      if (!$('#datepop').hidden) { dateMenu(false); $('#datebtn').focus() }
+    }, true);
     // the expand button of a card opens it as a floating window (any card on the page)
     view.addEventListener('click', e => {
       const b = (e.target as Element).closest('.fwx') as HTMLElement | null; if (!b || windowOpen()) return;
@@ -196,9 +253,10 @@ export function start(api: SectorApi, view: HTMLElement, opts: { example?: boole
       } catch { /* another origin */ }
     }
     initTips();
+    scrollCues($('.bar1'));
     // the cards follow their box (every width): drawn again when the page's width changes
     let w0 = view.clientWidth, rt = 0;
-    new ResizeObserver(() => { const w = view.clientWidth; if (Math.abs(w - w0) < 2) return; w0 = w; clearTimeout(rt); rt = window.setTimeout(redraw, 120) }).observe(view);
+    new ResizeObserver(() => { const w = view.clientWidth; if (Math.abs(w - w0) < 2) return; w0 = w; clearTimeout(rt); rt = window.setTimeout(() => { redraw(); scrollCues($('.bar1')) }, 120) }).observe(view);
   }
 
   function renderError(e: unknown) {
@@ -206,23 +264,27 @@ export function start(api: SectorApi, view: HTMLElement, opts: { example?: boole
     $('#body').hidden = true;
     const boot = $('#boot'); boot.hidden = false;
     boot.innerHTML = `<span class="err" aria-hidden="true">!</span><span>${esc(m)}</span><button class="btn sm" type="button" data-act="retry">${esc(W.err.retry)}</button>`;
+    $('#dlab').textContent = W.head.none;
     ($('[data-act=retry]', boot) as HTMLElement).onclick = () => void boot_();
   }
   let bound = false;
+  /* the header's date and Terminal buttons act on the data: off until it is in, and while only an error shows (check 1 MX-7) */
+  const headLive = (on: boolean) => ['#datebtn', '#termbtn'].forEach(s => { ($(s) as HTMLButtonElement).disabled = !on });
   async function boot_() {
     const boot = $('#boot');
-    boot.hidden = false; $('#body').hidden = true;
+    boot.hidden = false; $('#body').hidden = true; headLive(false);
     boot.innerHTML = `<span class="ml-loading" role="status"><span class="ml-spin" aria-hidden="true"></span>${esc(W.page.loading)}</span>`;
     $('#ppurpose').textContent = W.page.purpose;
     try {
-      const o = await open(files);
+      const o = await open(files, S.date || undefined);
       index = o.index; meta = o.meta; series = o.series;
-      if (!o.day) { boot.innerHTML = `<span>${esc(W.err.noDate)}</span>`; return }
+      if (!o.day) { boot.innerHTML = `<span>${esc(W.err.noDate)}</span>`; $('#dlab').textContent = W.head.none; return }
       day = o.day;
     } catch (e) { renderError(e); return }
     D = M.makeData(meta, series, day);
+    { const ds = dayDates(); S.date = day.date === ds[ds.length - 1] ? null : day.date }   // a date no longer listed: the newest
     if (S.pin && !D.names.includes(S.pin)) S.pin = null;
-    boot.hidden = true; $('#body').hidden = false;
+    boot.hidden = true; $('#body').hidden = false; headLive(true);
     if (!bound) { bind(); bound = true }
     redraw();
     document.body.dataset.ready = '1';

@@ -17,6 +17,9 @@ export const pct = (v: N | undefined, d = 2) => (!fin(v) ? '—' : sign(+v.toFix
 export const pp = (v: N | undefined, d = 2) => (!fin(v) ? '—' : sign(+v.toFixed(d) === 0 ? 0 : v) + Math.abs(v).toFixed(d) + ' pp');
 /** a signed number without a unit; a value that rounds to 0 has no sign */
 export const ppx = (v: N | undefined, d = 1) => (!fin(v) ? '—' : +Math.abs(v).toFixed(d) === 0 ? (0).toFixed(d) : sign(v) + Math.abs(v).toFixed(d));
+/** "+1.2%" that keeps the sign of a value that rounds to zero ("−0.0%"), so a distance agrees with its status (check 1
+    BD-12: a close just under its EMA read "0.0%" on a row marked Below) */
+export const pctSigned = (v: N | undefined, d = 1) => (!fin(v) ? '—' : (v > 0 ? '+' : v < 0 ? MINUS : '') + Math.abs(v).toFixed(d) + '%');
 /** a number with a minus sign and no plus ("0.92", "−0.14") */
 export const fnum = (v: N | undefined, d = 2) => (!fin(v) ? '—' : (v < 0 && +Math.abs(v).toFixed(d) !== 0 ? MINUS : '') + Math.abs(v).toFixed(d));
 /** an index level or a price with thousands commas */
@@ -55,9 +58,13 @@ export const dateLabel = (iso: string | null | undefined, weekday = false, year 
   const d = utc(iso);
   return (weekday ? WD[d.getUTCDay()] + NB : '') + d.getUTCDate() + NB + MON[d.getUTCMonth()] + (year ? NB + d.getUTCFullYear() : '');
 };
+/** a date that carries its year when it is not in the year of `ref` (the page's date): "11 Nov 2025" on a page of
+    26 Nov 2026, "4 May" on the same page (check 1 RP-6: a map date a year back printed without its year) */
+export const dateIn = (iso: string | null | undefined, ref: string | null | undefined, weekday = false) =>
+  dateLabel(iso, weekday, !!iso && !!ref && iso.slice(0, 4) !== ref.slice(0, 4));
 /** "20 Aug – 13 Nov"; both ends carry their year when the range crosses a year (defect D11) */
-export const rangeLabel = (a: string, b: string) => {
-  const y = !!a && !!b && a.slice(0, 4) !== b.slice(0, 4);
+export const rangeLabel = (a: string, b: string, ref?: string | null) => {
+  const y = !!a && !!b && (a.slice(0, 4) !== b.slice(0, 4) || (!!ref && b.slice(0, 4) !== ref.slice(0, 4)));
   return a === b ? dateLabel(b, false, y) : `${dateLabel(a, false, y)} – ${dateLabel(b, false, y)}`;
 };
 /** the date tag under a chart's hover line: "Mon 16 Nov '26" */
@@ -90,7 +97,8 @@ export function ytdBase(dates: string[], end: number): number {
 export const periodStart = (dates: string[], end: number, p: Hz) => (p === 'YTD' ? ytdBase(dates, end) : Math.max(0, end - p));
 
 /* Custom range (decision E: "capped and anchored as the Overview's Custom (F1)"): the first trading day on or after From,
-   the last on or before To; a return is measured from the session before the first (base), at most 365 days */
+   the last on or before To; a return is measured from the session before the first (base), at most 365 days. A chart of a
+   level (the breadth line) has no base: it shows the range from its first session (check 1 BD-7). */
 export const CUSTOM_MAX_DAYS = 365;
 export interface Range { a: string; b: string }
 export interface Span { base: number; first: number; last: number; n: number }
@@ -100,22 +108,54 @@ export function rangeIn(dates: string[], r: Range, end = dates.length - 1): Span
   if (first < 0 || last < first) return null;
   return { first, last, base: first - 1, n: last - first + 1 };
 }
+/** `level`: the range of a level chart (no base session needed); `first`: the first session the card has data for */
+export interface RangeOpts { min?: number; max?: number; maxWhy?: string; level?: boolean; first?: number; label?: (s: Span) => string }
+/** the first session a Custom range may start on: a return needs the session before it (as the Overview's dates[1]) */
+const firstUsable = (o: RangeOpts) => (o.level ? Math.max(0, o.first ?? 0) : Math.max(1, (o.first ?? 0) + 1));
+/** what a card prints for a span: a return from the base close ("3 Sep – 26 Nov · 60 sessions"), a level from its first
+    session; the Custom popover prints the same words (check 1 OR-6, BD-7: one start date for one range) */
+export const spanLabel = (dates: string[], s: Span, level = false) => `${rangeLabel(dates[level ? s.first : s.base], dates[s.last])} · ${s.n} session${s.n === 1 ? '' : 's'}`;
 export interface RangeCheck { ok: boolean; msg: string; span?: Span }
-/** Why a range cannot be used, or its span and a note ("19 Aug → 17 Nov · 60 trading days"). `min` sessions; `max`
-    sessions when the card can show no more (the weekly heatmap: 26 weeks, defect D09) */
-export function checkRange(dates: string[], end: number, a: string, b: string, o: { min?: number; max?: number; maxWhy?: string } = {}): RangeCheck {
-  const lo = dates[1], hi = dates[end];
+/** Why a range cannot be used, or its span and the card's own label of it. A date outside the data is refused, as the
+    Overview's Custom (check 1 RP-1: a start before the first session was accepted and the card silently showed 3M).
+    `min` sessions; `max` sessions when the card can show no more (the weekly heatmap: 26 weeks, defect D09) */
+export function checkRange(dates: string[], end: number, a: string, b: string, o: RangeOpts = {}): RangeCheck {
+  const lo = dates[firstUsable(o)], hi = dates[end];
   if (!a || !b) return { ok: false, msg: 'Pick both dates.' };
   if (a > b) return { ok: false, msg: 'The start date is after the end date. Swap them.' };
-  if (b < lo || a > hi) return { ok: false, msg: `Pick dates from ${dateLabel(lo, false, true)} to ${dateLabel(hi, false, true)}.` };
+  if (a < lo || b > hi) return { ok: false, msg: `Pick dates from ${dateLabel(lo, false, true)} to ${dateLabel(hi, false, true)}.` };
   const days = (utc(b).getTime() - utc(a).getTime()) / 86400000;
   if (days > CUSTOM_MAX_DAYS) return { ok: false, msg: `The range is ${Math.round(days)} days. Pick at most 1 year (${CUSTOM_MAX_DAYS} days).` };
-  const s = rangeIn(dates, { a: a < lo ? lo : a, b }, end);
-  if (!s || s.base < 0) return { ok: false, msg: 'There is no trading day in this range. Pick another.' };
+  const s = rangeIn(dates, { a, b }, end);
+  if (!s || s.base < (o.level ? -1 : 0)) return { ok: false, msg: 'There is no trading day in this range. Pick another.' };
   const min = o.min ?? 5;
-  if (s.n < min) return { ok: false, msg: `Pick a range of at least ${min} trading days.` };
-  if (o.max && s.n > o.max) return { ok: false, msg: o.maxWhy || `Pick at most ${o.max} trading days.` };
-  return { ok: true, span: s, msg: `${rangeLabel(dates[s.first], dates[s.last])} · ${s.n} trading day${s.n > 1 ? 's' : ''}` };
+  if (s.n < min) return { ok: false, msg: `Pick a range of at least ${min} sessions.` };
+  if (o.max && s.n > o.max) return { ok: false, msg: o.maxWhy || `Pick at most ${o.max} sessions.` };
+  return { ok: true, span: s, msg: o.label ? o.label(s) : spanLabel(dates, s, o.level) };
+}
+/** A stored Custom range on the page's data (the address may hold one from another date or publication): never replaced
+    silently (check 1 RP-1). Clamped to the sessions the data holds, with what was clamped; null when no session of it is
+    left (the card then names the period it shows instead). */
+export interface Resolved extends Span { clampStart: boolean; clampEnd: boolean }
+export function resolveRange(dates: string[], r: Range, end: number, o: RangeOpts = {}): Resolved | null {
+  const s = rangeIn(dates, r, end), lo = firstUsable(o);
+  if (!s) return null;
+  const first = Math.max(lo, s.first);
+  if (s.last < first) return null;
+  return { first, last: s.last, base: first - 1, n: s.last - first + 1, clampStart: first > s.first || r.a < dates[0], clampEnd: r.b > dates[end] };
+}
+/** the sessions of a horizon key at `end` (YTD: since the base of the year) */
+export const hzSessions = (dates: string[], end: number, key: string, P: (k: string) => number) => (key === 'YTD' ? end - ytdBase(dates, end) : P(key));
+/** the reading of a dot placed at its return over two horizons, x across and y up (check 1 OR-1): the longer horizon is
+    the trend, the shorter the turn, whichever axis holds it; two horizons of the same length read neutrally */
+export type HzRead = 'both' | 'down' | 'up' | 'turn' | 'xonly' | 'yonly';
+export function hzRead(x: N | undefined, y: N | undefined, nx: number, ny: number): HzRead | null {
+  if (!fin(x) || !fin(y)) return null;
+  if (x >= 0 && y >= 0) return 'both';
+  if (x < 0 && y < 0) return 'down';
+  if (nx === ny) return x >= 0 ? 'xonly' : 'yonly';
+  const shortUp = nx < ny ? x >= 0 : y >= 0;                // up over the shorter horizon, down over the longer
+  return shortUp ? 'up' : 'turn';
 }
 
 /* ===================== returns and ranks ===================== */
@@ -188,8 +228,10 @@ export function move(g: { rs: N[]; mom: N[] }, i: number, lb: number): { dx: num
   const dx = a - b, dy = c - d;
   return { dx, dy, deg: ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360, sp: Math.hypot(dx, dy) };
 }
-/** "Strengthening", "Turning up", ... (logic.js L1498): the compass reading of a direction in 45-degree slices */
-export const heading = (d: number) => (d < 22.5 || d >= 337.5 ? 'Strength up' : d < 67.5 ? 'Strengthening' : d < 112.5 ? 'Momentum up' : d < 157.5 ? 'Turning up' : d < 202.5 ? 'Strength down' : d < 247.5 ? 'Weakening' : d < 292.5 ? 'Momentum down' : 'Rolling over');
+/** "Both up", "Turning up", ... (logic.js L1498): the compass reading of a direction in 45-degree slices. No heading
+    reuses a quadrant's name (check 1 RP-9: "Weakening" was both a heading and a quadrant) */
+export const HEADINGS = ['Strength up', 'Both up', 'Momentum up', 'Turning up', 'Strength down', 'Both down', 'Momentum down', 'Rolling over'] as const;
+export const heading = (d: number) => HEADINGS[Math.floor((((d % 360) + 360 + 22.5) % 360) / 45)];
 /** one step along Lagging -> Improving -> Leading -> Weakening */
 export const clockwise = (a: Quad, b: Quad) => { const o: Quad[] = ['Lagging', 'Improving', 'Leading', 'Weakening']; return (o.indexOf(b) - o.indexOf(a) + 4) % 4 === 1 };
 
@@ -255,18 +297,74 @@ export const share = (a: N | undefined, n: N | undefined): N => (fin(a) && fin(n
 /** % of a group's members above their EMA50 or EMA200 on every date (members with that EMA only, as the Overview) */
 export const breadthLine = (b: Breadth | undefined, ms: 50 | 200): N[] => (!b ? [] : (ms === 50 ? b.a50 : b.a200).map((a, i) => share(a, (ms === 50 ? b.n50 : b.n200)[i])));
 export interface Counts { u: number; f: number; d: number; N: number }
-/** advancers, unchanged and decliners of a return column: a stock without the return is not counted (as the publisher's
-    day breadth and the series' adv/unch/dec) */
+/** advancers, unchanged and decliners of a return column of the day file (1W, 1M): a stock without the return is not
+    counted, so N can be smaller than the group's stocks (the cards say so). The 1D counts are the series' (aud1d), not
+    this: the day file's r1d is over market sessions, the series' over each stock's own previous close (check 1 BD-6) */
 export function aud(values: N[]): Counts {
   let u = 0, f = 0, d = 0;
   for (const v of values) { if (!fin(v)) continue; if (Math.abs(v) < 1e-9) f++; else if (v > 0) u++; else d++ }
   return { u, f, d, N: u + f + d };
+}
+/** the 1D advancers, unchanged and decliners of a group as Feature 08 counts them (= the Overview): each stock against its
+    own previous final close, so a stock that did not trade on the previous market session still counts (check 1 D-2,
+    BD-6: the day file's r1d is null for it). null when the series has no counts for that date */
+export function aud1d(b: Breadth | undefined, i: number): Counts | null {
+  const u = b?.adv?.[i], f = b?.unch?.[i], d = b?.dec?.[i];
+  return fin(u) && fin(f) && fin(d) ? { u, f, d, N: u + f + d } : null;
+}
+/** sessions in a status by the market's calendar (check 1 D-3: "Days" counted the stock's own bars, so a thinly traded
+    stock read 19 days since a date 66 sessions back): from `since` (the status's first session) to `end`, both counted.
+    When `since` is older than the series, or unknown because the publisher stopped at its cap, the count is a lower
+    bound (`more`): at least the series' sessions to `end`, at least the stock's own count. */
+export function statusSessions(dates: string[], end: number, since: string | null, own: N, cap = 300): { n: number; more: boolean } | null {
+  if (since) {
+    const k = dates.indexOf(since);
+    if (k >= 0 && k <= end) { const n = end - k + 1; return n >= cap ? { n: cap, more: true } : { n, more: false } }
+    if (since < dates[0]) { const n = Math.max(own ?? 0, end + 1); return n >= cap ? { n: cap, more: true } : { n, more: true } }
+    return fin(own) ? { n: own, more: false } : null;
+  }
+  return fin(own) ? { n: Math.min(cap, own), more: own >= cap } : null;
 }
 /** a share of flags: 1s over the known flags (a null flag is not counted, as the series' n50 / a50) */
 export function flagShare(flags: (0 | 1 | null)[]): { a: number; n: number; p: N } {
   let a = 0, n = 0;
   for (const f of flags) if (f === 0 || f === 1) { n++; a += f }
   return { a, n, p: share(a, n) };
+}
+
+/** an axis range that one outlier cannot squeeze (check 1 RP-5: one stock at −56 pp packed 30 dots in a quarter of the
+    width): the values inside Tukey's far fences (quartiles ± 3 × the interquartile range), at least ±`pad`; a value
+    beyond is drawn hollow at the edge. With fewer than 8 values every value is inside. */
+export function axisRange(v: number[], pad = 2): [number, number] {
+  const s = v.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!s.length) return [-pad, pad];
+  let lo = s[0], hi = s[s.length - 1];
+  if (s.length >= 8) {
+    const q = (k: number) => s[Math.floor((s.length - 1) * k)], q1 = q(0.25), q3 = q(0.75), iq = q3 - q1;
+    lo = Math.max(lo, q1 - 3 * iq); hi = Math.min(hi, q3 + 3 * iq);
+  }
+  return [Math.min(-pad, lo), Math.max(pad, hi)];
+}
+/** carries an index level over the dates without one (the contract: "NULL when a date has no member with both closes
+    (the level carries)"; check 1 D-8: a return whose base fell on such a date read "—") */
+export function carryLevels(level: N[]): N[] {
+  let last: N = null;
+  return level.map(v => (fin(v) ? (last = v) : last));
+}
+/** the item a key moves the focus to in a menu of n items (the menu pattern: arrows, Home, End; check 1 BD-9, MX-6) */
+export function menuStep(n: number, i: number, key: string): number | null {
+  if (!n) return null;
+  const to: Record<string, number> = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: n - 1 };
+  return key in to ? (to[key] + n) % n : null;
+}
+/** the last request wins (check 1 BD-5: two quick date picks, the older answer arriving last replaced the newer pick):
+    each call is numbered; its result reports whether a newer call started meanwhile */
+export function lastWins() {
+  let seq = 0;
+  return async <T>(p: Promise<T>): Promise<{ stale: boolean; value?: T; error?: unknown }> => {
+    const k = ++seq;
+    try { const value = await p; return { stale: k !== seq, value } } catch (error) { return { stale: k !== seq, error } }
+  };
 }
 
 /* ===================== the treemap (logic.js L1195-1205, the squarified layout) ===================== */
@@ -353,6 +451,12 @@ export interface Data {
   weightBasis: string | null; weightLabel: string;
   ytd(end?: number): number;
   industries(sector: string): string[];
+  /** an industry's index level with the dates without one carried (carryLevels) */
+  indLevel(name: string): N[];
+  /** the page's date (a date of another year than this one prints its year: dateIn) */
+  ref: string;
+  /** the stocks of the day without an IDX-IC sector ("Other"): in the market rows only (check 1 D-7) */
+  other: number;
 }
 /** the series index of a date, or of the newest series date before it */
 export function seriesEnd(dates: string[], date: string): number {
@@ -378,7 +482,10 @@ export function makeData(meta: Meta, series: Series, day: Day): Data {
   for (const r of rows) { const g = bySec.get(r.sec) || []; g.push(r); bySec.set(r.sec, g) }
   const indOf = new Map<string, string[]>();
   for (const x of meta.industries || []) { const g = indOf.get(x.sector) || []; g.push(x.name); indOf.set(x.sector, g) }
+  const levels = new Map<string, N[]>(), known = new Set(names);
   return {
+    indLevel: n => { if (!levels.has(n)) levels.set(n, carryLevels(series.industry?.[n]?.level || [])); return levels.get(n) as N[] },
+    ref: dates[E] ?? day.date, other: rows.filter(r => !known.has(r.sec)).length,
     meta, series, day, dates, E, market, IH: series.index[market] || [],
     names, info,
     P: key => meta.periods?.[key] ?? PERIODS[key] ?? (/^\d+D$/.test(key) ? parseInt(key, 10) : NaN),

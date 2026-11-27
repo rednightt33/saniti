@@ -8,8 +8,10 @@
 
 /* ---------- the frame (the Overview's: the page scrolls inside the shell's frame) ---------- */
 html,body{width:auto;height:100%;overflow:hidden;background:var(--bg)}
-:root{--sx-dim:#dcdcdc}
-:root.dark,:root[data-theme="dark"]{--sx-dim:#333}
+:root{--sx-dim:#dcdcdc;--sx-hot:var(--text);--sx-navy-ink:#fff}
+/* the ink on a strong fill reads 4.5:1 in each theme (check 1 MX-5): dark text on a light theme's heat, white on a dark
+   theme's heat, dark on the dark theme's light navy */
+:root.dark,:root[data-theme="dark"]{--sx-dim:#333;--sx-hot:#fff;--sx-navy-ink:var(--gray-900)}
 svg{display:block;flex:none}
 .app{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);height:100vh;overflow:hidden}
 .main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
@@ -54,7 +56,7 @@ svg{display:block;flex:none}
 .tc .card-h .ttl-s{overflow-wrap:anywhere}
 .tc .card-h .pctl{flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end;row-gap:var(--s-3);min-width:0}
 .card-h h3{display:flex;align-items:center;min-width:0;max-width:100%}
-.card-h h3>.h3t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-h h3>.h3t{min-width:0;overflow-wrap:anywhere}                    /* a title wraps, never cut (check 1 OR-7) */
 .fwx{display:inline-flex;align-items:center;justify-content:center;flex:none;width:22px;height:22px;margin:-6px 0 -6px 4px;padding:0;border:0;border-radius:var(--r-sm);background:none;color:var(--text-3);box-shadow:none}
 .fwx:hover{background:var(--hover);color:var(--text)}
 .tc .tb{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;padding:0 var(--s-8) var(--s-6)}
@@ -65,7 +67,7 @@ svg{display:block;flex:none}
 .lgd .warnx{color:var(--amber)}
 .mss{color:var(--text-2)}
 .mss .rsr,.clr{border:0;background:none;padding:0;height:auto;font:inherit;color:var(--text);text-decoration:underline;text-underline-offset:2px;box-shadow:none}
-.dchip{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);font-size:var(--fs-2xs);font-weight:var(--fw-medium);color:var(--text-2);white-space:nowrap}
+.dchip{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);font:inherit;font-size:var(--fs-2xs);font-weight:var(--fw-medium);color:var(--text-2);white-space:nowrap;box-shadow:none;cursor:help}
 .dchip i{width:6px;height:6px;border-radius:50%;background:var(--navy)}
 .sx-sel{height:var(--h-sm);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);padding:0 var(--s-4);font:inherit;font-size:var(--fs-12);font-weight:var(--fw-medium);color:var(--text);max-width:100%}
 .seg button[disabled]{opacity:.45;cursor:not-allowed}
@@ -107,6 +109,19 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .dvb>.r[data-n]:hover,.dots>.r[data-n]:hover,.adr>div[data-n]:hover{background:var(--surface-2)}
 :is(.dvb .r,.dots .r,.adr>div,tr[role=button],.cpi,.ovx-bl .r,.ovx-hm .nm,.mk-t)[role=button]:focus-visible,.ovx-dot:focus-visible,.sl:focus-visible,.pt:focus-visible,circle.dt:focus-visible{outline:2px solid var(--text-3);outline-offset:-2px}
 .tbl tbody tr[role=button]{cursor:pointer}
+/* a sticky first cell has its own background: it follows the row's hover and selection (check 1 RP-11) */
+.rs-d .tbl tbody tr:hover>td:first-child,.br-t .tbl tbody tr:hover>td:first-child,.pm-t .tbl tbody tr:hover>td:first-child{background:var(--surface-2)}
+/* scroll cues (check 1 OR-2, BD-4, MX-2, MX-3): a scroller with more past an edge fades at that edge (ui.ts scrollCues) */
+.xs-r{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 32px),transparent)}
+.xs-l{-webkit-mask-image:linear-gradient(to left,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(to left,#000 calc(100% - 32px),transparent)}
+.xs-l.xs-r{-webkit-mask-image:linear-gradient(to right,transparent,#000 32px,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(to right,transparent,#000 32px,#000 calc(100% - 32px),transparent)}
+.xs-b:not(.xs-r):not(.xs-l){-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent)}
+.xs-b.xs-r{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 32px),transparent),linear-gradient(to bottom,#000 calc(100% - 22px),transparent);-webkit-mask-composite:source-in;mask-image:linear-gradient(to right,#000 calc(100% - 32px),transparent),linear-gradient(to bottom,#000 calc(100% - 22px),transparent);mask-composite:intersect}
+.tbl-wrap,.hm-s,.pmg-s,.rsw-s{scrollbar-width:thin}
+.xs-sl :is(.rsw>.nm,.rsw>.hd:first-child,.pmg>.nm,td:first-child,th:first-child){box-shadow:6px 0 6px -5px color-mix(in srgb,var(--text) 22%,transparent)}
+.rs-l>.lgd{column-gap:var(--s-5)}                                       /* one line at 1440 px (check 1 OR-12) */
+.lgd .sw i.dsh{width:12px;height:0;border-radius:0;border-top:1.5px dashed var(--text);vertical-align:2px}
+.rsw.tight .nm{font-size:11px}.rsw.tight>.c{font-size:11px}
 
 /* ---------- the tab grids (1440 px: the prototype's; one column below 900 px) ---------- */
 .g-ov,.g-rs,.g-pm,.g-br,.g-rot{display:grid;gap:var(--s-8);align-items:stretch}
@@ -117,7 +132,8 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .g-rs>[data-slot=rsD]{grid-area:1/1/2/3}.g-rs>[data-slot=rsB]{grid-area:1/3/2/4}.g-rs>[data-slot=rsL]{grid-area:2/1/3/2}.g-rs>[data-slot=rsW]{grid-area:2/2/3/3}.g-rs>[data-slot=rsA]{grid-area:2/3/3/4}
 .g-rot{grid-template-columns:minmax(0,1fr) minmax(0,690px);grid-template-rows:413px 430px}
 .g-rot>.rotL{grid-area:1/1/3/2;display:flex;flex-direction:column;gap:var(--s-8);min-width:0;min-height:0}
-.rotL>[data-slot=rotA]{flex:1 1 0;min-height:0}.rotL>[data-slot=rotD]{flex:none}
+/* the map keeps the room its strip and chart need; direction and speed scroll inside its card when the column is narrow */
+.rotL>[data-slot=rotA]{flex:1 1 0;min-height:540px}.rotL>[data-slot=rotD]{flex:0 1 auto;min-height:0}
 .g-rot>[data-slot=rotB]{grid-area:1/2/2/3}.g-rot>[data-slot=rotC]{grid-area:2/2/3/3}
 .g-pm{grid-template-columns:minmax(0,1fr) minmax(0,500px);grid-template-rows:430px 420px}
 .g-br{grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:470px 470px}
@@ -159,6 +175,7 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .ovx-tog.on{color:var(--text-2)}.ovx-tog.on i{background:var(--c,var(--text))}
 .ovx-tog:hover{background:var(--surface-2);color:var(--text);box-shadow:none}
 .ovx-tog.ihx i{width:12px;height:0;border-radius:0;background:none;border-top:1.5px dashed var(--sx-dim)}.ovx-tog.ihx.on i{border-top-color:var(--text)}
+.ovx-tog.dsh.on i{width:12px;height:0;border-radius:0;background:none;border-top:2px dashed var(--c)}
 .ovx-dot{cursor:pointer;outline:none}.ovx-dot .hal{display:none}.ovx-dot.pk .hal{display:inline}
 .ovx-cv.hv .ovx-dot:not(:hover){opacity:.35}
 .ovx-dot .dl.b{font-weight:var(--fw-bold)}
@@ -181,7 +198,8 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .ovx-scl{display:inline-flex;align-items:center;gap:2px;color:var(--text-3)}
 .ovx-scl i{display:block;width:22px;height:8px}
 .ovx-scl span{padding:0 4px}
-.sx-spop{width:220px;padding:var(--s-5) var(--s-6);z-index:5}
+.sx-spop{width:max-content;min-width:200px;max-width:min(320px,calc(100% - 8px));padding:var(--s-5) var(--s-6);z-index:5}
+.sx-spop .kv b{white-space:nowrap}                                        /* a value never breaks (check 1 OR-5) */
 .sx-spop[hidden]{display:none}
 .sx-spop .ph{display:flex;align-items:baseline;gap:var(--s-4);margin-bottom:var(--s-3)}
 .sx-spop .ph b{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
@@ -219,7 +237,8 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .rsw .nm:hover,.rsw .nm.pk{background:var(--sel)}
 .rsw.has .c:not(.pk){opacity:.32}.rsw.has .nm:not(.pk){color:var(--text-3)}.rsw .nm.pk{font-weight:var(--fw-bold)}
 .tc .tbl-wrap .tbl td,.tc .tbl-wrap .tbl th{font-size:12px}
-.rs-d .tbl th,.rs-d .tbl td{padding-left:5px;padding-right:5px;text-align:center}
+.rs-d .tbl th,.rs-d .tbl td{padding-left:4px;padding-right:4px;text-align:center}
+.rsd-note{flex:none;margin:0 var(--s-8) var(--s-4);padding:var(--s-3) var(--s-5);border-radius:var(--r-sm);background:var(--surface-2);font-size:var(--fs-12);line-height:16px;color:var(--text-2)}
 .rs-d .tbl td:first-child,.rs-d .tbl th:first-child{padding-left:var(--s-8);text-align:left;position:sticky;left:0;z-index:2;background:var(--surface)}
 .rs-d .tbl thead th:first-child{z-index:3}
 .rs-d .tbl td.l,.rs-d .tbl th.l{text-align:left}
@@ -227,8 +246,8 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .rs-d .tbl tr.u td{background:var(--surface-2);height:30px}
 .rs-d .tbl tr.u td:first-child{padding-left:42px;color:var(--text-2);background:var(--surface-2)}
 .rs-d .tbl tr.u{cursor:default}
-.rs-d .nmx{display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
-.rs-d .car{display:inline-grid;place-items:center;width:20px;height:20px;margin:0 4px 0 -4px;padding:0;border:0;border-radius:4px;background:none;color:var(--text-3);vertical-align:middle;box-shadow:none}
+.rs-d .nmx{display:inline-block;white-space:nowrap;vertical-align:bottom}
+.rs-d .car{position:relative;display:inline-grid;place-items:center;width:20px;height:20px;margin:0 4px 0 -4px;padding:0;border:0;border-radius:4px;background:none;color:var(--text-3);vertical-align:middle;box-shadow:none}
 .rs-d .car:hover{background:var(--hover);color:var(--text)}
 
 /* ---------- Rotation ---------- */
@@ -258,7 +277,7 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .cpi span{font-size:11px;white-space:nowrap}
 .rot-b tbody tr.on td{background:var(--pick)}
 .qdp{flex:1 1 0;min-height:240px;position:relative}
-.rot-c .qn{font-size:10.5px;font-weight:var(--fw-semibold);letter-spacing:.4px;fill:var(--text-3)}
+.rot-c .qn{font-size:10.5px;font-weight:var(--fw-semibold);letter-spacing:.4px;fill:var(--text-3);paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
 .rot-c .lb{font-size:11px;font-weight:var(--fw-semibold);fill:var(--text);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 .rot-c .lb.b{font-weight:var(--fw-bold);font-size:12px}
 .rot-c .lgd b{color:var(--text);font-weight:var(--fw-semibold)}
@@ -291,6 +310,7 @@ circle.dt{cursor:pointer;outline:none}
 .pm-t .tbl tr>td:first-child,.pm-t .tbl tr>th:first-child{position:sticky;left:0;z-index:2;background:var(--surface)}
 .pm-t .tbl tr.on>td:first-child{background:var(--pick)}
 .pm-s td.hz{font-weight:var(--fw-semibold)}
+.pm-s .tbl.padat td{height:30px}
 
 /* ---------- Breadth ---------- */
 .bhk{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px;padding:0 var(--s-8) 4px}
@@ -307,7 +327,7 @@ circle.dt{cursor:pointer;outline:none}
 .bms{height:var(--h-sm);display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:200px;padding:0 8px 0 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font:inherit;font-size:12.5px;font-weight:var(--fw-medium);color:var(--text);box-shadow:none}
 .bms .bmn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bms .bmc{display:inline-grid;place-items:center;min-width:22px;height:18px;padding:0 5px;border-radius:9px;background:var(--text);color:var(--surface);font-size:11px;font-weight:var(--fw-semibold)}
-.bxp{position:absolute;z-index:40;width:272px;max-height:340px;overflow:auto;padding:6px}
+.bxp{position:fixed;z-index:40;width:272px;overflow:auto;padding:6px}
 .bxp[hidden]{display:none}.bxh{font-size:11px;color:var(--text-3);padding:4px 8px 6px}
 .bxp label{display:grid;grid-template-columns:14px minmax(0,1fr) 62px 10px;gap:8px;align-items:center;height:28px;padding:0 8px;border-radius:5px;font-size:12.5px;cursor:pointer;color:var(--text)}
 .bxp label:hover{background:var(--hover)}.bxp label.dis{color:var(--text-3);cursor:default}.bxp label.mn{font-weight:var(--fw-semibold)}
@@ -318,9 +338,9 @@ circle.dt{cursor:pointer;outline:none}
 .bxp label:hover .bmm,.bmm:focus-visible{opacity:1}
 .bsw{width:10px;height:3px;border-radius:2px}
 .bxf{font-size:11px;color:var(--text-3);padding:6px 8px 2px;border-top:1px solid var(--border);margin-top:4px}
-.br-t .tbl{table-layout:fixed;width:100%;min-width:560px}
-.br-t col.c-nm{width:112px}
-.br-t .tbl td,.br-t .tbl th{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;padding:6px 4px;height:auto}
+.br-t .tbl{table-layout:fixed;width:100%;min-width:480px}
+.br-t col.c-nm{width:100px}
+.br-t .tbl td,.br-t .tbl th{white-space:nowrap;font-size:11.5px;padding:6px 3px;height:auto}
 .br-t .tbl th:first-child,.br-t .tbl td:first-child{padding-left:var(--s-8);text-align:left;position:sticky;left:0;z-index:3;background:var(--surface)}
 .br-t .tbl th:not(.l){text-align:center;white-space:normal;line-height:1.2}
 .br-t .tbl td.hc{text-align:center;font-variant-numeric:tabular-nums}
@@ -357,14 +377,13 @@ circle.dt{cursor:pointer;outline:none}
 .adr .bx i{position:absolute;left:50%;top:-5px;bottom:-5px;width:1.5px;background:linear-gradient(var(--text) 0 4px,transparent 4px calc(100% - 4px),var(--text) calc(100% - 4px))}
 .adr .val{width:58px;flex:none;text-align:right;font-weight:var(--fw-semibold)}
 .adl{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--text-2)}.adl i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
-.br-d .tbl{table-layout:fixed;width:100%;min-width:380px}
-.br-d col.c-t{width:19%}.br-d col.c-s{width:19%}.br-d col.c-d{width:16%}.br-d col.c-n{width:12%}.br-d col.c-w{width:18%}
+.br-d .tbl{table-layout:auto;width:100%}
 .br-d .tbl th{font-size:11px;padding:0 6px;height:26px;text-align:right;white-space:nowrap;overflow:hidden}
 .br-d .tbl thead tr:first-child th{top:0;height:20px;border-bottom:0}
 .br-d .tbl thead tr:last-child th{top:20px}
 .br-d .tbl th.grp{text-align:center;color:var(--text-3);box-shadow:inset 0 -1px 0 var(--border);font-weight:var(--fw-medium)}
 .br-d .tbl th.l,.br-d .tbl td.l{text-align:left}
-.br-d .tbl td{font-size:11.5px;padding:0 6px;height:30px;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
+.br-d .tbl td{font-size:11.5px;padding:0 6px;height:30px;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
 .br-d tr[hidden]{display:none}
 .bdq{display:inline-flex;align-items:center;gap:6px;height:var(--h-sm);padding:0 8px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-3)}
 .bdq input{border:0;outline:0;background:none;font:inherit;font-size:12px;color:var(--text);width:140px;height:26px;padding:0;box-shadow:none}
@@ -403,6 +422,11 @@ circle.dt{cursor:pointer;outline:none}
 .fw.stk .fw-l{overflow:visible;border-right:0!important;border-bottom:1px solid var(--border)!important;min-height:min(520px,70vh)}
 .fw.stk .fw-r{padding-bottom:12px}.fw.stk .fw-tw{overflow:visible}
 .fw.stk .fw-l .tbl-wrap{max-height:none}
+.fw.stk.stk-t .fw-c{display:flex;flex-direction:column;overflow:hidden}
+.fw.stk.stk-t .fw-l{flex:0 1 auto;max-height:48%;min-height:0;overflow:hidden}
+.fw.stk.stk-t .fw-l .tbl-wrap{flex:1 1 auto;min-height:0;overflow:auto}
+.fw.stk.stk-t .fw-r{flex:1 1 0;min-height:0}
+.fw.stk.stk-t .fw-tw{overflow:auto}
 .fw-dh{display:flex;align-items:flex-start;flex-wrap:wrap;gap:8px 12px;margin-bottom:8px;flex:none}
 .fw-dt{flex:1 1 220px;min-width:0;display:flex;flex-direction:column}
 .fw-dt b{font-size:var(--fs-base);font-weight:var(--fw-semibold)}.fw-dt span{font-size:var(--fs-12);color:var(--text-3)}
@@ -422,7 +446,10 @@ circle.dt{cursor:pointer;outline:none}
 .fw-f{flex:none;padding:8px 24px 10px;font-size:var(--fs-12);color:var(--text-3);border-top:1px solid var(--border);line-height:1.45}
 .fw-f b{color:var(--text-2);font-weight:var(--fw-semibold)}
 .fw [data-card] .tbl-wrap{flex:1 1 auto}
-@media (max-width:640px){.fw{border-radius:0;resize:none}.fw-h{cursor:default;padding-left:16px}.fw-r{padding:12px 16px 0}.fw-f{padding:8px 16px}.fw-q input{width:110px}}
+@media (max-width:640px){.fw{border-radius:0;resize:none;overflow-y:auto}.fw-h{cursor:default;padding-left:16px;position:sticky;top:0;z-index:3;background:var(--surface)}.fw-ti{flex-wrap:wrap;white-space:normal}.fw-st{white-space:normal}
+  .fw-c,.fw.stk .fw-c{flex:none;overflow:visible}.fw-r{padding:12px 16px 0}.fw-f{padding:8px 16px}.fw-q input{width:110px}}
+/* touch: the small single controls get a 44 px hit area without changing their look (check 1 MX-4, in part) */
+@media (pointer:coarse){.fwx,.rs-d .car,.fw-x{position:relative}.fwx::after,.rs-d .car::after,.fw-x::after{content:"";position:absolute;inset:-11px}.fw-x::after{inset:-9px}}
 
 /* ---------- narrow widths (last, so they win over the cards' own rules) ---------- */
 @media (max-width:900px){

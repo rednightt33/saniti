@@ -3,23 +3,29 @@
 import * as M from '../model.ts';
 import { calc, shown, type Card, type Ctx, type Detail } from '../ctx.ts';
 import { cumChart, cumHover, type Geo, type Line } from '../charts.ts';
-import { $, $$, DOT, H3, SEG, esc, heat, msNote, msTh, msWire, onSeg, openRange, stockPop, textW } from '../ui.ts';
+import { $, $$, DOT, H3, SEG, esc, footNow, footSet, heat, msNote, msTh, msWire, na, onSeg, openRange, stockPop, textW } from '../ui.ts';
 import { W } from '../words.ts';
 
 const PAL = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)'];
 const HZ = ['1D', '1W', '1M', '3M', '6M', 'YTD', '1Y'];
 const AXES = ['1W', '1M', '3M', 'YTD'];
 export const periodOpts = (keys: string[]): [string, string][] => keys.map(k => [k, k === 'C' ? W.range.custom : k]);
-/** opens the Custom popover of a card's period and stores the range in its state keys */
-export function customRange(c: Ctx, btn: HTMLElement, cur: M.Range | null, set: (r: M.Range) => void, o: { max?: number; maxWhy?: string; min?: number; note?: string; dflt?: number } = {}) {
-  const D = c.D, s = calc(D).span('3M', null);
+/** opens the Custom popover of a card's period and stores the range in its state keys. The popover refuses a date
+    outside the data (as the Overview's) and prints the range the way the card will print it (check 1 RP-1, OR-6, BD-7):
+    a return card from the base close, a level card (`level`, the breadth line) from its first session. */
+export function customRange(c: Ctx, btn: HTMLElement, cur: M.Range | null, set: (r: M.Range) => void, o: M.RangeOpts & { note?: string; dflt?: number } = {}) {
+  const D = c.D, s = calc(D).span('3M', null), lo = o.level ? Math.max(0, o.first ?? 0) : Math.max(1, (o.first ?? 0) + 1);
   openRange(btn, {
-    title: W.range.title, min: D.dates[1], max: D.dates[D.E], note: o.note,
-    cur: cur || { a: D.dates[Math.max(1, D.E - (o.dflt ?? (s.e - s.b)) + 1)], b: D.dates[D.E] },
-    check: (a, b) => M.checkRange(D.dates, D.E, a, b, { min: o.min, max: o.max, maxWhy: o.maxWhy }),
+    title: W.range.title, min: D.dates[lo], max: D.dates[D.E], note: o.note ?? (o.level ? undefined : W.range.returnNote),
+    cur: cur || { a: D.dates[Math.max(lo, D.E - (o.dflt ?? (s.e - s.b)) + 1)], b: D.dates[D.E] },
+    check: (a, b) => M.checkRange(D.dates, D.E, a, b, o),
     apply: r => { set(r); c.redraw() },
   });
 }
+/** the warning a card shows when its stored Custom range was clamped or could not be shown (check 1 RP-1) */
+export const rangeNote = (note: string | null) => (note ? `<span class="warnx">${esc(note)}</span>` : '');
+/** a line colour per sector: the six chart colours, then the same colours dashed (check 1 OR-10: 11 sectors, 6 colours) */
+export const lineStyle = (k: number) => ({ c: PAL[k % PAL.length], dash: k >= PAL.length });
 /** the legend's sector rows of a detail: IHSG first when given */
 const secRows = (c: Ctx, fn: (nm: string) => any, ih?: () => any) => [...(ih ? [{ nm: c.D.market, name: c.D.market, ...ih() }] : []), ...c.D.names.map(nm => ({ nm, name: c.D.short(nm), ...fn(nm) }))];
 
@@ -34,15 +40,15 @@ export const rcCard: Card = {
   id: 'rcCard', tab: 'ov', cls: 'ov-wide',
   render(el, c) {
     const D = c.D, S = c.S, K = calc(D), sp = K.span(S.rcW, S.rcR), sel = rcSel(c), dates = D.dates.slice(sp.b, sp.e + 1);
-    const col: Record<string, string> = {}; let ci = 0;
-    D.names.forEach(n => { if (sel.includes(n)) col[n] = PAL[ci++ % PAL.length] });
+    const col: Record<string, string> = {}, dashed = new Set<string>(); let ci = 0;
+    D.names.forEach(n => { if (sel.includes(n)) { const st = lineStyle(ci++); col[n] = st.c; if (st.dash) dashed.add(n) } });
     const rows = D.names.map(n => ({ n, v: M.retAt(D.sec(n), sp.b, sp.e) })).filter(r => r.v != null).sort((p, q) => (q.v as number) - (p.v as number));
     const mx = Math.max(...rows.map(r => Math.abs(r.v as number))) || 1;
-    el.innerHTML = H3(W.rc.title, W.rc.sub, SEG('w', '', periodOpts(['1M', '3M', 'YTD', 'C']), S.rcW === 'C' && S.rcR ? 'C' : S.rcW), c.win ? null : 'rcCard')
-      + `<div class="ovx-b"><div class="ovx-lg">${D.names.map(n => `<button type="button" class="ovx-tog${sel.includes(n) ? ' on' : ''}" data-tg="${esc(n)}" aria-pressed="${sel.includes(n)}"${col[n] ? ` style="--c:${col[n]}"` : ''} title="${esc(W.rc.togTip(sel.includes(n)))}"><i></i>${esc(D.short(n))}</button>`).join('')}`
+    el.innerHTML = H3(W.rc.title, W.rc.sub, SEG('w', '', periodOpts(['1M', '3M', 'YTD', 'C']), sp.key), c.win ? null : 'rcCard')
+      + `<div class="ovx-b"><div class="ovx-lg">${D.names.map(n => `<button type="button" class="ovx-tog${sel.includes(n) ? ' on' : ''}${dashed.has(n) ? ' dsh' : ''}" data-tg="${esc(n)}" aria-pressed="${sel.includes(n)}"${col[n] ? ` style="--c:${col[n]}"` : ''} title="${esc(W.rc.togTip(sel.includes(n)))}"><i></i>${esc(D.short(n))}</button>`).join('')}`
       + `<button type="button" class="ovx-tog ihx${S.rcIh ? ' on' : ''}" data-tg="__ih" aria-pressed="${S.rcIh}" title="${esc(W.rc.ihTip(S.rcIh, D.market))}"><i></i>${esc(D.market)}</button></div>`
       + `<div class="ovx-cr"><div class="ovx-cv" data-chart></div><div class="ovx-bl">${rows.map(r => `<div class="r${r.n === S.pin ? ' on' : ''}" data-n="${esc(r.n)}" role="button" tabindex="0" aria-pressed="${r.n === S.pin}"><span title="${esc(r.n)}">${esc(D.short(r.n))}</span><div class="tr"><i style="${(r.v as number) >= 0 ? 'left:50%' : 'right:50%'};width:${(Math.abs(r.v as number) / mx) * 50}%;background:${(r.v as number) >= 0 ? 'var(--up)' : 'var(--down)'}"></i></div><b class="${M.cls(r.v)}">${M.pct(r.v, 1)}</b></div>`).join('')}</div></div></div>`
-      + `<div class="lgd"><span>${esc(M.rangeLabel(dates[0], dates[dates.length - 1]))}${DOT}${esc(W.sessions(sp.e - sp.b))}${DOT}${esc(W.rc.sectors(D.names.length))}</span><span class="sp"></span><span>${esc(W.rc.hint)}</span></div>`;
+      + `<div class="lgd"><span>${esc(M.rangeLabel(dates[0], dates[dates.length - 1], D.ref))}${DOT}${esc(W.sessions(sp.e - sp.b))}${DOT}${esc(W.rc.sectors(D.names.length))}</span>${rangeNote(sp.note)}<span class="sp"></span><span>${esc(dashed.size ? W.rc.many : W.rc.hint)}</span></div>`;
     onSeg(el, 'w', (v, b) => {
       if (v === 'C') { customRange(c, b, S.rcR, r => { S.rcW = 'C'; S.rcR = r; S.rcSel = null }); return }
       S.rcW = v; S.rcSel = null; c.redraw();
@@ -57,7 +63,7 @@ export const rcCard: Card = {
     let hover: string | null = null, geo: Geo | null = null, lines: Line[] = [];
     const draw = () => {
       const hl = hover || (S.pin && D.names.includes(S.pin) ? S.pin : null);
-      lines = D.names.map(n => ({ n, label: D.short(n), a: M.path(D.sec(n), sp.b, sp.e), c: hl ? (n === hl ? col[n] || 'var(--text)' : undefined) : col[n], on: hl ? n === hl : sel.includes(n), strong: n === hl }));
+      lines = D.names.map(n => ({ n, label: D.short(n), a: M.path(D.sec(n), sp.b, sp.e), c: hl ? (n === hl ? col[n] || 'var(--text)' : undefined) : col[n], on: hl ? n === hl : sel.includes(n), strong: n === hl, dot: dashed.has(n) }));
       lines.push({ n: '__ih', label: D.market, a: M.path(D.IH, sp.b, sp.e), c: 'var(--text)', on: S.rcIh, dash: true });
       geo = cumChart(box, lines, dates);
       $$('.ovx-bl .r', el).forEach(r => r.classList.toggle('on', r.dataset.n === hl));
@@ -65,7 +71,7 @@ export const rcCard: Card = {
     cumHover(box, {
       geo: () => geo, lines: () => lines, dates: () => dates, candidates: () => lines.filter(x => x.n !== '__ih'),
       pick: n => { if (n !== hover) { hover = n; draw() } },
-      tip: (n, i, v) => `<span class="d">${esc(M.dateLabel(dates[i], true, dates[0].slice(0, 4) !== dates[dates.length - 1].slice(0, 4)))}</span><div class="r"><i style="background:${col[n] || 'var(--text)'}"></i><span>${esc(D.short(n))}</span><b class="${M.cls(v)}">${M.pct(v)}</b></div><div class="r"><i style="background:var(--text)"></i><span>${esc(D.market)}</span><b class="${M.cls(M.retAt(D.IH, sp.b, sp.b + i))}">${M.pct(M.retAt(D.IH, sp.b, sp.b + i))}</b></div>`,
+      tip: (n, i, v) => `<span class="d">${esc(M.dateLabel(dates[i], true, dates[0].slice(0, 4) !== dates[dates.length - 1].slice(0, 4) || dates[i].slice(0, 4) !== D.ref.slice(0, 4)))}</span><div class="r"><i style="background:${col[n] || 'var(--text)'}"></i><span>${esc(D.short(n))}</span><b class="${M.cls(v)}">${M.pct(v)}</b></div><div class="r"><i style="background:var(--text)"></i><span>${esc(D.market)}</span><b class="${M.cls(M.retAt(D.IH, sp.b, sp.b + i))}">${M.pct(M.retAt(D.IH, sp.b, sp.b + i))}</b></div>`,
     });
     $$('.ovx-bl .r', el).forEach(r => {
       r.onmouseenter = () => { hover = r.dataset.n as string; draw() };
@@ -83,7 +89,7 @@ export const rcCard: Card = {
       return { r: M.retAt(a, b0, e1), dd: M.maxDrawdown(a, b0, e1), bd: n ? bd : null, wd: n ? wd : null, up: n ? (up / n) * 100 : null };
     };
     return {
-      title: W.rc.dTitle, sub: `${M.rangeLabel(D.dates[b0], D.dates[e1])}${DOT}${W.sessions(e1 - b0)}`,
+      title: W.rc.dTitle, sub: `${M.rangeLabel(D.dates[b0], D.dates[e1], D.ref)}${DOT}${W.sessions(e1 - b0)}`,
       cols: [{ k: 'name', l: W.col.sector }, { k: 'r', l: W.col.ret, num: true, tone: true, f: v => M.pct(v, 1) }, { k: 'x', l: W.col.vs(D.market), num: true, tone: true, f: v => M.pp(v) },
              { k: 'dd', l: W.col.maxdd, num: true, tone: true, f: v => M.pct(v, 1) }, { k: 'bd', l: W.col.best, num: true, tone: true, f: v => M.pct(v, 1) },
              { k: 'wd', l: W.col.worst, num: true, tone: true, f: v => M.pct(v, 1) }, { k: 'up', l: W.col.updays, num: true, f: v => v.toFixed(0) + '%' }],
@@ -101,10 +107,10 @@ export const mmCard: Card = {
     const D = c.D, S = c.S, K = calc(D);
     const opts = (v: string, other: string) => `${AXES.map(h => `<option value="${h}"${h === v ? ' selected' : ''}${h === other ? ` disabled` : ''}>${h}</option>`).join('')}`;
     el.innerHTML = H3(W.mm.title, W.mm.sub, `<select class="sx-sel" data-sel="x" aria-label="${esc(W.mm.xAxis)}">${opts(S.mmX, S.mmY)}</select><span class="plab">${esc(W.mm.vs)}</span><select class="sx-sel" data-sel="y" aria-label="${esc(W.mm.yAxis)}">${opts(S.mmY, S.mmX)}</select>`, c.win ? null : 'mmCard')
-      + `<div class="ovx-b"><div class="ovx-cv mm" data-chart></div></div><div class="lgd"><span data-foot>${esc(W.mm.foot(false))}</span></div>`;
+      + `<div class="ovx-b"><div class="ovx-cv mm" data-chart></div></div><div class="lgd"><span data-foot>${footNow(el, W.mm.foot(mmReading(c, S.mmX, S.mmY).corner, false))}</span></div>`;
     ($('[data-sel=x]', el) as HTMLSelectElement).onchange = e => { S.mmX = (e.target as HTMLSelectElement).value; c.redraw() };
     ($('[data-sel=y]', el) as HTMLSelectElement).onchange = e => { S.mmY = (e.target as HTMLSelectElement).value; c.redraw() };
-    const box = $('[data-chart]', el);
+    const box = $('[data-chart]', el), rd = mmReading(c, S.mmX, S.mmY);
     requestAnimationFrame(() => {
       const Wd = box.clientWidth, H = box.clientHeight; if (!Wd || !H) return;
       const xl = W.mm.axis(S.mmX), yl = W.mm.axis(S.mmY);
@@ -126,9 +132,9 @@ export const mmCard: Card = {
         o += `<text x="${x}" y="${y}" text-anchor="${an}" class="qd">${esc(t)}</text>`;
       };
       quad(W.mm.q.both, R - 4, T + 12, 'end', cx < R - 60 && cy > T + 14);
-      quad(W.mm.q.up, L + 6, T + 12, 'start', cx > L + 60 && cy > T + 14);
+      quad(rd.name(-1, 1), L + 6, T + 12, 'start', cx > L + 60 && cy > T + 14);
       quad(W.mm.q.down, L + 6, H - B - 6, 'start', cx > L + 60 && cy < H - B - 14);
-      quad(W.mm.q.turn, R - 4, H - B - 6, 'end', cx < R - 60 && cy < H - B - 14);
+      quad(rd.name(1, -1), R - 4, H - B - 6, 'end', cx < R - 60 && cy < H - B - 14);
       boxes.push(...dots);
       let hid = 0;
       pts.sort((p, q) => Y(p.y) - Y(q.y)).forEach(p => {
@@ -144,7 +150,7 @@ export const mmCard: Card = {
       });
       box.innerHTML = `<svg width="${Wd}" height="${H}">${o}</svg>`;
       box.classList.toggle('pk', !!S.pin);
-      $('[data-foot]', el).textContent = W.mm.foot(hid > 0);
+      footSet(el, W.mm.foot(rd.corner, hid > 0));
       $$('.ovx-dot', box).forEach(g => {
         g.onclick = () => c.lock(g.dataset.n as string);
         g.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.lock(g.dataset.n as string) } };
@@ -153,8 +159,8 @@ export const mmCard: Card = {
     });
   },
   detail(c): Detail {
-    const D = c.D, K = calc(D), X = c.S.mmX, Y = c.S.mmY, rx = (a: M.N[]) => K.retP(a, X, null), ry = (a: M.N[]) => K.retP(a, Y, null);
-    const reading = (x: M.N, y: M.N) => (x == null || y == null ? '' : x >= 0 ? (y >= 0 ? W.mm.q.both : W.mm.q.turn) : y >= 0 ? W.mm.q.up : W.mm.q.down);
+    const D = c.D, K = calc(D), X = c.S.mmX, Y = c.S.mmY, rx = (a: M.N[]) => K.retP(a, X, null), ry = (a: M.N[]) => K.retP(a, Y, null), rd = mmReading(c, X, Y);
+    const reading = (x: M.N, y: M.N) => rd.name(x, y);
     const rows = secRows(c, nm => { const x = rx(D.sec(nm)), y = ry(D.sec(nm)); return { x, y, d: M.minus(y, x), q: reading(x, y) } }, () => { const x = rx(D.IH), y = ry(D.IH); return { x, y, d: M.minus(y, x), q: '' } });
     const rk = (k: string) => { const o = rows.filter(r => r.nm !== D.market && r[k] != null).sort((p, q) => q[k] - p[k]); o.forEach((r, i) => (r['r' + k] = i + 1)) };
     rk('x'); rk('y');
@@ -163,7 +169,7 @@ export const mmCard: Card = {
       cols: [{ k: 'name', l: W.col.sector }, { k: 'x', l: X, num: true, tone: true, f: v => M.pct(v, 1) }, { k: 'y', l: Y, num: true, tone: true, f: v => M.pct(v, 1) },
              { k: 'd', l: `${Y} − ${X}`, num: true, tone: true, f: v => M.pp(v) }, { k: 'q', l: W.col.reading }, { k: 'rx', l: W.col.rank(X), num: true, f: v => String(v) }, { k: 'ry', l: W.col.rank(Y), num: true, f: v => String(v) }],
       rows, sort: ['d', 1], onRow: r => { if (r.nm !== D.market) c.lock(r.nm) }, isSel: r => r.nm === c.S.pin,
-      read: W.mm.read, ex: r => W.mm.ex(r.name, r.x, r.y, X, Y, r.q),
+      read: W.mm.read(rd.corner), ex: r => W.mm.ex(r.name, r.x, r.y, X, Y, r.q),
     };
   },
 };
@@ -179,8 +185,8 @@ export const hxCard: Card = {
     M.msSort(rows, SK, { sn: 1 }, DEF);
     el.innerHTML = H3(W.hx.title, W.hx.sub, '', c.win ? null : 'hxCard')
       + `<div class="hm-s" data-scroll="x"><div class="ovx-hm${S.pin ? ' pk' : ''}" data-hm>${msTh(SK, 'sn', esc(W.col.sector), 'hd l', W.sort.byName, { tag: 'div', def: DEF, txt: true })}${HZ.map((h, i) => msTh(SK, 'h' + i, h, 'hd', W.sort.byCol(h), { tag: 'div', def: DEF })).join('')}`
-      + rows.map(r => `<div class="nm${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" role="button" tabindex="0" aria-pressed="${r.n === S.pin}" title="${esc(r.n)}">${esc(r.sn)}</div>` + r.v.map((v: M.N, i: number) => (v == null ? '<div>—</div>' : `<div class="c${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" data-tip="${esc(`<b>${esc(r.sn)}</b><br>${HZ[i]} ${M.pct(v)}`)}" style="${heat(v, cap[i])}">${M.pct(v, 1)}</div>`)).join('')).join('')
-      + `<div class="nm ih">${esc(D.market)}</div>` + ih.map(v => `<div class="ih">${M.pct(v, 1)}</div>`).join('') + `</div></div>`
+      + rows.map(r => `<div class="nm${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" role="button" tabindex="0" aria-pressed="${r.n === S.pin}" title="${esc(r.n)}">${esc(r.sn)}</div>` + r.v.map((v: M.N, i: number) => (v == null ? `<div>${na(W.hx.na(HZ[i]))}</div>` : `<div class="c${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" data-tip="${esc(`<b>${esc(r.sn)}</b><br>${HZ[i]} ${M.pct(v)}`)}" style="${heat(v, cap[i])}">${M.pct(v, 1)}</div>`)).join('')).join('')
+      + `<div class="nm ih">${esc(D.market)}</div>` + ih.map((v, i) => `<div class="ih">${v == null ? na(W.hx.na(HZ[i])) : M.pct(v, 1)}</div>`).join('') + `</div></div>`
       + `<div class="lgd">${msNote(SK, LAB, { sn: 1 })}<span>${esc(W.hx.foot(D.market))}</span></div>`;
     msWire(el, SK, () => c.redraw(), DEF, '.hd[data-k]');
     $$('[data-hm] [data-n]', el).forEach(x => {
@@ -215,9 +221,9 @@ export const mkCard: Card = {
     const subs = [...g.entries()].map(([ind, s]) => { s.sort((p, q) => (q.w as number) - (p.w as number)); const w = s.reduce((p, x) => p + (x.w as number), 0); return { ind, s, w, v5: s.reduce((p, x) => p + (x.w as number) * x.v5, 0) / w } }).sort((p, q) => q.w - p.w);
     const tot = subs.reduce((p, s) => p + s.w, 0), floored = subs.filter(s => s.w < tot * GROUP_FLOOR).length;
     if (S.mkSub && !g.has(S.mkSub)) S.mkSub = null;
-    el.innerHTML = H3(W.mk.title(D.short(n)), W.mk.sub(D.weightLabel, D.market), '', c.win ? null : 'mkCard')
+    el.innerHTML = H3(W.mk.title(D.short(n)), W.mk.sub(D.weightLabel, D.market, locked), '', c.win ? null : 'mkCard')
       + `<div class="ovx-b"><div class="ovx-mk${S.mkSub ? ' sub' : ''}" data-map></div></div>`
-      + `<div class="lgd"><span>${esc(W.mk.foot(ms.length, subs.length, locked, floored))}</span><span class="sp"></span><span class="ovx-scl" aria-hidden="true"><span>−</span><i style="${heat(-1, 1)}"></i><i style="${heat(-0.45, 1)}"></i><i style="background:var(--sel)"></i><i style="${heat(0.45, 1)}"></i><i style="${heat(1, 1)}"></i><span>+</span></span></div>`;
+      + `<div class="lgd"><span>${esc(W.mk.foot(ms.length, subs.length, floored))}</span><span class="sp"></span><span class="ovx-scl" aria-hidden="true"><span>−</span><i style="${heat(-1, 1)}"></i><i style="${heat(-0.45, 1)}"></i><i style="background:var(--sel)"></i><i style="${heat(0.45, 1)}"></i><i style="${heat(1, 1)}"></i><span>+</span></span></div>`;
     const box = $('[data-map]', el);
     requestAnimationFrame(() => {
       const Wd = box.clientWidth, H = box.clientHeight; if (!Wd || !H) return;
@@ -238,7 +244,7 @@ export const mkCard: Card = {
       const open = (t: HTMLElement) => {
         const x = ms.find(m => m.t === t.dataset.t); if (!x) return;
         const r = t.getBoundingClientRect(), b = box.getBoundingClientRect();
-        const p = stockPop(box, r.left - b.left + r.width / 2, r.top - b.top + Math.min(r.height, 28), `<div class="ph"><b>${esc(x.t)}</b><span class="muted">${esc(x.ind)}</span></div><div class="kv"><span>5D</span><b class="${M.cls(x.r5d)}">${M.pct(x.r5d)}</b></div><div class="kv"><span>${esc(W.vs(D.market))}</span><b class="${M.cls(x.v5)}">${M.pp(x.v5)}</b></div><div class="kv"><span>${esc(W.cap(D.weightLabel))}</span><b>${esc(M.weightText(D.weightBasis, x.w))}</b></div><div class="btns"><button type="button" class="btn sm primary" data-term="${esc(x.t)}">${esc(W.term.open)}</button></div>`);
+        const p = stockPop(box, r.left - b.left + r.width / 2, r.top - b.top + Math.min(r.height, 28), `<div class="ph"><b>${esc(x.t)}</b><span class="muted">${esc(x.ind)}</span></div><div class="kv"><span>5D</span><b class="${M.cls(x.r5d)}">${M.pct(x.r5d)}</b></div><div class="kv"><span>${esc(W.vs(D.market))}</span><b class="${M.cls(x.v5)}">${M.pp(x.v5)}</b></div><div class="kv"><span>${esc(W.cap(D.weightLabel))}</span><b>${esc(M.weightText(D.weightBasis, x.w))}</b></div><div class="btns"><button type="button" class="btn sm primary" data-term="${esc(x.t)}">${esc(W.term.open)}</button></div>`, { from: t });
         ($('[data-term]', p) as HTMLElement).onclick = ev => { ev.stopPropagation(); c.terminal(x.t) };
       };
       $$('.mk-t', box).forEach(t => {
@@ -274,4 +280,13 @@ export function SEL_SECTOR(c: Ctx, cur: string, withMarket = false) {
 export function wireSectorSelect(el: HTMLElement, c: Ctx, set?: (v: string) => void) {
   const s = $('[data-fwsel]', el) as HTMLSelectElement | null;
   if (s) s.onchange = () => (set ? set(s.value) : c.lock(s.value, false));
+}
+
+/** the readings of the Momentum card for its two horizons (check 1 OR-1): which corner is "turning up" follows the axis
+    that holds the shorter horizon; horizons of the same length name their corners by the horizon that is up */
+export function mmReading(c: Ctx, X: string, Y: string) {
+  const D = c.D, nx = M.hzSessions(D.dates, D.E, X, D.P), ny = M.hzSessions(D.dates, D.E, Y, D.P);
+  const name = (x: M.N, y: M.N) => { const q = M.hzRead(x, y, nx, ny); return q == null ? '' : q === 'xonly' ? W.mm.only(X) : q === 'yonly' ? W.mm.only(Y) : W.mm.q[q] };
+  const corner = nx === ny ? null : nx > ny ? W.mm.topLeft : W.mm.bottomRight;
+  return { nx, ny, name, corner };
 }

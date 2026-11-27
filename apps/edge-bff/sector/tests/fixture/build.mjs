@@ -45,7 +45,9 @@ export function buildFiles(src) {
         m++;
         if (s.e50[i] != null) { n50++; if (s.close[i] > s.e50[i]) a50++ }
         if (s.e200[i] != null) { n200++; if (s.close[i] > s.e200[i]) a200++ }
-        if (i > 0 && s.close[i - 1] != null) { if (s.close[i] > s.close[i - 1]) adv++; else if (s.close[i] < s.close[i - 1]) dec++; else unch++ }
+        // as Feature 08 (CONTRACT 2): each stock against its own previous final close, which can be sessions back
+        let pv = null; for (let k = i - 1; k >= 0 && pv == null; k--) pv = s.close[k];
+        if (pv != null) { if (s.close[i] > pv) adv++; else if (s.close[i] < pv) dec++; else unch++ }
       }
       b.members.push(m); b.n50.push(n50); b.a50.push(a50); b.n200.push(n200); b.a200.push(a200); b.adv.push(adv); b.unch.push(unch); b.dec.push(dec);
     }
@@ -60,8 +62,10 @@ export function buildFiles(src) {
       members.push(ms.filter(s => s.close[i] != null).length);
       let sw = 0, sr = 0;
       for (const s of ms) if (i > 0 && s.close[i] != null && s.close[i - 1] != null && s.w[i - 1] > 0) { sw += s.w[i - 1]; sr += s.w[i - 1] * (s.close[i] / s.close[i - 1] - 1) }
-      if (lv == null) { if (members[i]) lv = 100 } else if (sw > 0) lv = lv * (1 + sr / sw);
-      level.push(lv == null ? null : Math.round(lv * 1e4) / 1e4);
+      // as Feature_08_Group_Daily (CONTRACT 2): NULL on a date without a member that has both closes; the level carries
+      let moved = false;
+      if (lv == null) { if (members[i]) { lv = 100; moved = true } } else if (sw > 0) { lv = lv * (1 + sr / sw); moved = true }
+      level.push(lv == null || !moved ? null : Math.round(lv * 1e4) / 1e4);
     }
     industry[x.name] = { level, members };
   }
@@ -82,9 +86,12 @@ export function buildFiles(src) {
       rows.r1d.push(ret(s.close, i, 1)); rows.r5d.push(ret(s.close, i, 5)); rows.r1m.push(ret(s.close, i, 20)); rows.r3m.push(ret(s.close, i, 60));
       for (const [e, a, dd, dy, sn] of [[s.e50, 'above_ema50', 'd_ema50', 'days50', 'since50'], [s.e200, 'above_ema200', 'd_ema200', 'days200', 'since200']]) {
         if (e[i] == null) { rows[a].push(null); rows[dd].push(null); rows[dy].push(null); rows[sn].push(null); continue }
+        // as the publisher (sector.py run_length): counted back over the stock's own rows (a session without a close is not
+        // a row), at most 300 ("300+", no first session)
         const up = s.close[i] > e[i];
-        let j = i; while (j - 1 >= 0 && i - (j - 1) < 300 && e[j - 1] != null && s.close[j - 1] != null && (s.close[j - 1] > e[j - 1]) === up) j--;
-        rows[a].push(up ? 1 : 0); rows[dd].push(r2((s.close[i] / e[i] - 1) * 100)); rows[dy].push(i - j + 1); rows[sn].push(D[j]);
+        let j = i, bars = 1;
+        for (let k = i - 1; k >= 0 && bars < 300; k--) { if (s.close[k] == null) continue; if (e[k] == null || (s.close[k] > e[k]) !== up) break; j = k; bars++ }
+        rows[a].push(up ? 1 : 0); rows[dd].push(r2((s.close[i] / e[i] - 1) * 100)); rows[dy].push(bars); rows[sn].push(bars >= 300 ? null : D[j]);
       }
     });
     files[`sector-day-${d}`] = { schema: 1, date: d, prior_date: i > 0 ? D[i - 1] : null, stocks: rows };

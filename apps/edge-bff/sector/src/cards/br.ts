@@ -3,9 +3,9 @@
    Feature_08_Group_Daily (sector-series breadth, G4), the stocks' distance from their EMAs and days in status are the day
    file's (G6, G7), and their close and volume too (G8). EMA50 and EMA200 only (decision C1). */
 import * as M from '../model.ts';
-import { type Card, type Ctx, type Detail } from '../ctx.ts';
-import { $, $$, DOT, H3, SEG, esc, heat, msNote, msTh, msWire, onSeg, tipHide, tipShow, xHide, xShow, xTag } from '../ui.ts';
-import { customRange, periodOpts, SEL_SECTOR } from './ov.ts';
+import { customSpan, type Card, type Ctx, type Detail } from '../ctx.ts';
+import { $, $$, DOT, H3, SEG, esc, escPush, heat, msNote, msTh, msWire, na, onSeg, scrollCues, tipHide, tipShow, xHide, xShow, xTag } from '../ui.ts';
+import { customRange, periodOpts, rangeNote, SEL_SECTOR } from './ov.ts';
 import { W } from '../words.ts';
 
 /** the tab's selection: the market (every stock) or one sector */
@@ -23,6 +23,14 @@ const who = (c: Ctx, n: string) => (n === c.D.market ? W.all(c.D.market) : c.D.s
 const BHC = ['var(--c1)', 'var(--c5)', 'var(--c3)', 'var(--c2)'];
 const line = (c: Ctx, g: string, ms: 50 | 200) => M.breadthLine(c.D.breadth(g), ms);
 const rowsOf = (c: Ctx, g: string) => c.D.members(g);
+/** advancers, unchanged and decliners of a group over a horizon: 1D as Feature 08 counts it (= the Overview: each stock
+    against its own previous close), 1W and 1M from the day file's returns, with `of` = the group's stocks of the day so
+    a card can say who was not counted (check 1 D-2, BD-6) */
+export function audOf(c: Ctx, g: string, H: 'r1d' | 'r5d' | 'r1m'): M.Counts & { of: number; series: boolean } {
+  const ms = rowsOf(c, g), s = H === 'r1d' ? M.aud1d(c.D.breadth(g), c.D.E) : null;
+  return s ? { ...s, of: ms.length, series: true } : { ...M.aud(ms.map(x => x[H])), of: ms.length, series: false };
+}
+const HZL: Record<string, string> = { r1d: '1D', r5d: '1W', r1m: '1M' };
 
 /* ===================== Breadth vs Price (logic.js L804-878) ===================== */
 export const brH: Card = {
@@ -32,24 +40,26 @@ export const brH: Card = {
     const bs = line(c, SEL, MS), FIRST = Math.max(1, bs.findIndex(x => x != null)), MIN = 20;
     const XS = S.bhX.filter(x => x !== SEL && (x === D.market || D.names.includes(x))).slice(0, 4), xs = XS.map(x => line(c, x, MS));
     const HID = new Set(S.bhHid.filter(x => x === '__px' || x === SEL || XS.includes(x)));
-    // the visible sessions: a zoom or drag (stored as dates), a Custom range or a preset period
+    // the visible sessions: a zoom or drag (stored as dates), a Custom range or a preset period. A level has no base: a
+    // Custom range is shown from its first session and a preset of n sessions shows n sessions (check 1 BD-7)
     let v0: number, v1: number;
-    const custom = S.bhP === 'C' && S.bhR ? M.rangeIn(D.dates, S.bhR, E) : null;
-    if (S.bhV) { v0 = Math.max(FIRST, M.seriesEnd(D.dates, S.bhV[0])); v1 = Math.min(E, M.seriesEnd(D.dates, S.bhV[1])); if (v1 - v0 < MIN) { v0 = Math.max(FIRST, E - D.P('6M')); v1 = E } }
-    else if (custom) { v0 = Math.max(FIRST, custom.base); v1 = custom.last }
-    else { v0 = Math.max(FIRST, E - D.P(S.bhP === 'C' ? '6M' : S.bhP)); v1 = E }
+    const cs = S.bhP === 'C' && S.bhR ? customSpan(D, S.bhR, '6M', { level: true, first: FIRST }) : null, custom = cs?.s ?? null;
+    if (S.bhV) { v0 = Math.max(FIRST, M.seriesEnd(D.dates, S.bhV[0])); v1 = Math.min(E, M.seriesEnd(D.dates, S.bhV[1])); if (v1 - v0 < MIN) { v0 = Math.max(FIRST, E - D.P('6M') + 1); v1 = E } }
+    else if (custom) { v0 = Math.max(FIRST, custom.first); v1 = custom.last }
+    else { v0 = Math.max(FIRST, E - D.P(S.bhP === 'C' ? '6M' : S.bhP) + 1); v1 = E }
     const now = bs[E], d5 = M.minus(now, bs[E - 5]);
-    const legend = [[SEL, 'var(--text)', W.brH.legTip(who(c, SEL), M.pct(now, 1), lab, M.dateLabel(D.dates[E]))], ...XS.map((x, k) => [x, BHC[k], W.brH.legTip(who(c, x), M.pct(xs[k][E], 1), lab, M.dateLabel(D.dates[E]))]), ['__px', '', W.brH.pxTip(D.market)]];
+    const today = M.dateIn(D.dates[E], D.ref);
+    const legend = [[SEL, 'var(--text)', W.brH.legTip(who(c, SEL), M.pct(now, 1), lab, today)], ...XS.map((x, k) => [x, BHC[k], W.brH.legTip(who(c, x), M.pct(xs[k][E], 1), lab, today)]), ['__px', '', W.brH.pxTip(D.market)]];
     el.innerHTML = H3(W.brH.title, W.brH.sub(SEL === D.market ? null : D.short(SEL), lab, D.market),
       `<span class="plab">${esc(W.brH.show)}</span><button class="bms" type="button" data-show aria-haspopup="true" aria-expanded="false" aria-label="${esc(W.brH.showAria([SEL, ...XS].map(x => who(c, x))))}"><span class="bmn">${esc(who(c, SEL))}</span>${XS.length ? `<span class="bmc">+${XS.length}</span>` : ''}<svg class="ic ic-sm"><use href="#i-chev"/></svg></button>`
       + SEG('m', W.brH.above, [[50, 'EMA50'], [200, 'EMA200']], MS) + SEG('p', W.brH.period, periodOpts(['3M', '6M', '1Y', 'C']), presetOn()), c.win ? null : 'brH')
-      + `<div class="bhk"><b>${now == null ? '—' : Math.round(now) + '%'}</b><span>${esc(W.brH.head(lab, M.dateLabel(D.dates[E])))}${d5 == null ? '' : ` · <span class="${M.cls(d5)}">${M.ppx(d5, 1)} pp</span> ${esc(W.brH.vs5)}`}</span><span class="bhx">${legend.map(([x, col, t]) => `<button type="button" class="bxl${x === '__px' ? ' ihp' : ''}${HID.has(x) ? ' off' : ''}" data-h="${esc(x)}" aria-pressed="${!HID.has(x)}" title="${esc(W.brH.hideTip(t, HID.has(x)))}"><i${col ? ` style="background:${col}"` : ''}></i>${esc(x === '__px' ? W.brH.price(D.market) : x === D.market ? D.market : D.short(x))}</button>`).join('')}</span></div>`
+      + `<div class="bhk"><b>${now == null ? '—' : Math.round(now) + '%'}</b><span>${esc(W.brH.head(lab, today))}${d5 == null ? '' : ` · <span class="${M.cls(d5)}">${M.ppx(d5, 1)} pp</span> ${esc(W.brH.vs5)}`}</span><span class="bhx">${legend.map(([x, col, t]) => `<button type="button" class="bxl${x === '__px' ? ' ihp' : ''}${HID.has(x) ? ' off' : ''}" data-h="${esc(x)}" aria-pressed="${!HID.has(x)}" title="${esc(W.brH.hideTip(t, HID.has(x)))}"><i${col ? ` style="background:${col}"` : ''}></i>${esc(x === '__px' ? W.brH.price(D.market) : x === D.market ? D.market : D.short(x))}</button>`).join('')}</span></div>`
       + `<div class="bhc bz" data-chart tabindex="0" aria-label="${esc(W.brH.aria(lab))}"></div>`
-      + `<div class="lgd"><span>${esc(W.brH.foot(hi, lo, c.example))}</span><span class="sp"></span><span data-range></span></div>`;
+      + `<div class="lgd"><span>${esc(W.brH.foot(hi, lo, c.example))}</span>${S.bhV ? '' : rangeNote(cs?.note ?? null)}<span class="sp"></span><span data-range>${esc(`${M.rangeLabel(D.dates[v0], D.dates[v1], D.ref)}${DOT}${W.sessions(v1 - v0 + 1)}`)}</span></div>`;
     function presetOn() { if (S.bhV) return ''; if (S.bhP === 'C') return custom ? 'C' : '6M'; return S.bhP }
     $$('.bhx .bxl', el).forEach(b => (b.onclick = () => { const h = b.dataset.h as string, s = new Set(HID); s.has(h) ? s.delete(h) : s.add(h); S.bhHid = [...s]; c.redraw() }));
     onSeg(el, 'm', v => { S.bhM = +v as 50 | 200; S.bdS = []; c.redraw() });
-    onSeg(el, 'p', (v, btn) => { if (v === 'C') { customRange(c, btn, S.bhR, r => { S.bhP = 'C'; S.bhR = r; S.bhV = null }, { min: MIN }); return } S.bhP = v; S.bhV = null; c.redraw() });
+    onSeg(el, 'p', (v, btn) => { if (v === 'C') { customRange(c, btn, S.bhR, r => { S.bhP = 'C'; S.bhR = r; S.bhV = null }, { min: MIN, level: true, first: FIRST }); return } S.bhP = v; S.bhV = null; c.redraw() });
     // Show: one list of the lines on the chart (at most 5); the main line (ink) is the tab's selection
     const all = [SEL, ...XS], full = all.length >= 5, ba = $('[data-show]', el);
     const pop = document.createElement('div');
@@ -59,8 +69,12 @@ export const brH: Card = {
       return `<label class="${dis && !on ? 'dis' : ''}${mn ? ' mn' : ''}"><input type="checkbox" value="${esc(n)}"${on ? ' checked' : ''}${dis ? ' disabled' : ''}><span class="bxn">${esc(who(c, n))}</span><span class="bmb">${mn ? `<span class="bmt">${esc(W.brH.main)}</span>` : on ? `<button type="button" class="bmm" data-m="${esc(n)}">${esc(W.brH.setMain)}</button>` : ''}</span><i class="bsw" style="background:${on ? (mn ? 'var(--text)' : BHC[k]) : 'transparent'}"></i></label>`;
     }).join('')}<div class="bxf">${esc(W.brH.showFoot)}</div>`;
     el.appendChild(pop);
-    const place = () => { const cr = el.getBoundingClientRect(), r = ba.getBoundingClientRect(); pop.style.top = r.bottom - cr.top + 6 + 'px'; pop.style.left = Math.max(8, Math.min(r.left - cr.left, cr.width - 280)) + 'px' };
-    const open = (o: boolean) => { pop.hidden = !o; ba.setAttribute('aria-expanded', String(o)); if (o) place() };
+    let offEsc: (() => void) | null = null;
+    const place = () => { const r = ba.getBoundingClientRect(), G = 8, w = pop.offsetWidth; pop.style.left = Math.max(G, Math.min(r.left, innerWidth - w - G)) + 'px'; const top = r.bottom + 6; pop.style.top = top + 'px'; pop.style.maxHeight = Math.max(160, innerHeight - top - G) + 'px'; scrollCues(pop) };
+    const open = (o: boolean) => {
+      pop.hidden = !o; ba.setAttribute('aria-expanded', String(o)); offEsc?.(); offEsc = null;
+      if (o) { place(); offEsc = escPush(() => { if (pop.hidden || !pop.isConnected) return false; open(false); ba.focus(); return true }) }
+    };
     if ((c as any)._showOpen) { open(true); (c as any)._showOpen = false }
     ba.onclick = e => { e.stopPropagation(); open(pop.hidden) };
     const reopen = () => { (c as any)._showOpen = true };
@@ -96,7 +110,7 @@ export const brH: Card = {
         + `<line class="hv" y1="0" y2="${B}" stroke="var(--text-3)" stroke-dasharray="2 3" display="none"/><circle class="hd" r="3.5" fill="var(--text)" stroke="var(--surface)" stroke-width="1.5" display="none"/>`;
       box.innerHTML = `<svg width="${Wd}" height="${H}" aria-hidden="true">${o}</svg>`;
       g = { L, R, n, X, Y, B };
-      rng.textContent = `${M.rangeLabel(D.dates[v0], D.dates[v1])}${DOT}${W.sessions(n - 1)}`;
+      rng.textContent = `${M.rangeLabel(D.dates[v0], D.dates[v1], D.ref)}${DOT}${W.sessions(n)}`;
     };
     box.dataset.ownTip = '';
     const at = (cx: number) => { const r = box.getBoundingClientRect(); return v0 + ((cx - r.left - 16 - (g as any).L) / ((g as any).R - (g as any).L)) * ((g as any).n - 1) };
@@ -154,9 +168,9 @@ export const brT: Card = {
     const D = c.D, S = c.S, CNT = S.btC, E = D.E, DEF: M.Level = ['e50', 1];
     const COLS: [string, string, keyof M.Row | null][] = [['u1', W.col.up('1D'), 'r1d'], ['u5', W.col.up('1W'), 'r5d'], ['u21', W.col.up('1M'), 'r1m'], ['e50', '> EMA50', null], ['e200', '> EMA200', null]];
     const agg = (g: string) => {
-      const ms = rowsOf(c, g), o: any = { nm: g, sn: g === D.market ? W.allShort(D.market) : D.short(g), N: ms.length, cnt: {}, den: {} };
+      const ms = rowsOf(c, g), o: any = { nm: g, sn: g === D.market ? W.allShort(D.market) : D.short(g), N: ms.length, cnt: {}, den: {}, of: {} };
       for (const [k, , f] of COLS) {
-        if (f) { const a = M.aud(ms.map(x => x[f] as M.N)); o.cnt[k] = a.u; o.den[k] = a.N; o[k] = M.share(a.u, a.N) }
+        if (f) { const a = audOf(c, g, f as 'r1d' | 'r5d' | 'r1m'); o.cnt[k] = a.u; o.den[k] = a.N; o.of[k] = a.series ? null : a.of; o[k] = M.share(a.u, a.N) }
         else { const s = M.flagShare(ms.map(x => (k === 'e50' ? x.e50 : x.e200))); o.cnt[k] = s.a; o.den[k] = s.n; o[k] = s.p }
       }
       const bl = line(c, g, 50); o.dl = M.minus(bl[E], bl[E - 5]);
@@ -168,14 +182,15 @@ export const brT: Card = {
     const SK = M.msKeep(S.btTS, k => ['sn', 'N', 'dl', ...COLS.map(x => x[0]), ...XS.map(x => 'x_' + x.k)].includes(k));
     M.msSort(rows, SK, { sn: 1 }, DEF);
     const LAB: Record<string, string> = { sn: W.col.sector, N: W.col.stocks, dl: W.brT.dl, ...Object.fromEntries(COLS.map(x => [x[0], x[1]])), ...Object.fromEntries(XS.map(x => ['x_' + x.k, W.brT.dx(x.ms, x.hz)])) };
-    const hc = (v: M.N, n: number, N: number, gap: boolean) => (v == null ? `<td class="hc${gap ? ' gap' : ''}">—</td>` : `<td class="hc${gap ? ' gap' : ''}" style="${heat(v, 50, 50)}" data-tip="${esc(W.brT.cellTip(n, N, v))}">${CNT === 'cnt' ? `${n}<small>/${N}</small>` : Math.round(v) + '%'}</td>`);
-    const dcell = (v: M.N, gap: boolean) => (v == null ? `<td class="hc${gap ? ' gap' : ''}">—</td>` : `<td class="hc${gap ? ' gap' : ''}" style="${heat(v, 25)}">${M.ppx(v, 0)} pp</td>`);
-    const row = (r: any, isAll: boolean) => `<tr class="${isAll ? 'all' : ''}${isSel(c, r.nm) ? ' cur' : ''}" data-n="${esc(r.nm)}" role="button" tabindex="0"><td class="l"><b>${esc(r.sn)}</b></td><td>${r.N}</td>${COLS.map(([k], j) => hc(r[k], r.cnt[k], r.den[k], j === 3)).join('')}${dcell(r.dl, true)}${XS.map((x, j) => dcell(r['x_' + x.k], j === 0)).join('')}</tr>`;
+    const NA = na(W.brT.na), hzOf: Record<string, string> = { u1: '1D', u5: '1W', u21: '1M' };
+    const hc = (v: M.N, n: number, N: number, gap: boolean, of: number | null, k: string) => (v == null ? `<td class="hc${gap ? ' gap' : ''}">${NA}</td>` : `<td class="hc${gap ? ' gap' : ''}" style="${heat(v, 50, 50)}" data-tip="${esc(W.brT.cellTip(n, N, v, of, hzOf[k] ?? null))}">${CNT === 'cnt' ? `${n}<small>/${N}</small>` : Math.round(v) + '%'}</td>`);
+    const dcell = (v: M.N, gap: boolean) => (v == null ? `<td class="hc${gap ? ' gap' : ''}">${NA}</td>` : `<td class="hc${gap ? ' gap' : ''}" style="${heat(v, 25)}">${M.ppx(v, 0)} pp</td>`);
+    const row = (r: any, isAll: boolean) => `<tr class="${isAll ? 'all' : ''}${isSel(c, r.nm) ? ' cur' : ''}" data-n="${esc(r.nm)}" role="button" tabindex="0"><td class="l"><b${isAll && D.other ? ` data-tip="${esc(esc(W.brT.other(D.market, D.other)))}"` : ''}>${esc(r.sn)}</b></td><td>${r.N}</td>${COLS.map(([k], j) => hc(r[k], r.cnt[k], r.den[k], j === 3, r.of[k], k)).join('')}${dcell(r.dl, true)}${XS.map((x, j) => dcell(r['x_' + x.k], j === 0)).join('')}</tr>`;
     const th = (k: string, lab: string, cl = '', tip = '') => msTh(SK, k, esc(lab), cl, tip, { def: DEF, txt: k === 'sn' });
     const add = c.win ? `<span class="btx"><button class="btn sm" type="button" data-add aria-haspopup="true" aria-expanded="false">${esc(W.brT.addCol(XS.length))}</button><span class="btxp pop" role="group" aria-label="${esc(W.brT.addAria)}" hidden><span class="btxh">${esc(W.brT.addHead)}</span>${([50, 200] as const).map(ms => `<span class="btxr"><b>EMA${ms}</b>${EXTRA.filter(x => x.ms === ms).map(x => `<label><input type="checkbox" value="${x.k}"${XS.includes(x) ? ' checked' : ''}${x.dup ? ` disabled title="${esc(W.brT.shown)}"` : ''}>${x.hz}</label>`).join('')}</span>`).join('')}</span></span>` : '';
     el.innerHTML = H3(W.brT.title, W.brT.sub, add + SEG('c', W.brT.show, [['pct', '%'], ['cnt', W.brT.count]], CNT), c.win ? null : 'brT')
-      + `<div class="tbl-wrap" data-scroll="x"><table class="tbl padat${brSel(c) !== D.market ? ' has' : ''}"><colgroup><col class="c-nm">${'<col>'.repeat(7 + XS.length)}</colgroup><thead><tr>${th('sn', LAB.sn, 'l')}${th('N', LAB.N)}${COLS.map(([k, l], j) => th(k, l, j === 3 ? 'gap' : '', W.brT.colTip(k))).join('')}${th('dl', LAB.dl, 'gap', W.brT.dlTip)}${XS.map((x, j) => th('x_' + x.k, LAB['x_' + x.k], j ? '' : 'gap', W.brT.dxTip(x.ms, x.hz))).join('')}</tr></thead><tbody>${row(all, true)}${rows.map(r => row(r, false)).join('')}</tbody></table></div>`
-      + `<div class="lgd">${msNote(SK, LAB, { sn: 1 })}<span>${esc(W.brT.foot)}</span><span class="sp"></span><span>${esc(M.dateLabel(D.dates[E]))}</span></div>`;
+      + `<div class="tbl-wrap" data-scroll="x" data-sticky="1"><table class="tbl padat${brSel(c) !== D.market ? ' has' : ''}"><colgroup><col class="c-nm">${'<col>'.repeat(7 + XS.length)}</colgroup><thead><tr>${th('sn', LAB.sn, 'l')}${th('N', LAB.N)}${COLS.map(([k, l], j) => th(k, l, j === 3 ? 'gap' : '', W.brT.colTip(k))).join('')}${th('dl', LAB.dl, 'gap', W.brT.dlTip)}${XS.map((x, j) => th('x_' + x.k, LAB['x_' + x.k], j ? '' : 'gap', W.brT.dxTip(x.ms, x.hz))).join('')}</tr></thead><tbody>${row(all, true)}${rows.map(r => row(r, false)).join('')}</tbody></table></div>`
+      + `<div class="lgd">${msNote(SK, LAB, { sn: 1 })}<span>${esc(W.brT.foot)}</span><span class="sp"></span><span>${esc(M.dateIn(D.dates[E], D.ref))}</span></div>`;
     onSeg(el, 'c', v => { S.btC = v; c.redraw() });
     msWire(el, SK, () => c.redraw(), DEF, 'th[data-k]');
     $$('tbody tr[data-n]', el).forEach(r => {
@@ -183,7 +198,11 @@ export const brT: Card = {
       r.onclick = go; r.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === r) { e.preventDefault(); go() } };
     });
     if (c.win) {
-      const pop = $('.btxp', el), b = $('[data-add]', el), open = (o: boolean) => { pop.hidden = !o; b.setAttribute('aria-expanded', String(o)) };
+      let offEsc: (() => void) | null = null;
+      const pop = $('.btxp', el), b = $('[data-add]', el), open = (o: boolean) => {
+        pop.hidden = !o; b.setAttribute('aria-expanded', String(o)); offEsc?.(); offEsc = null;
+        if (o) offEsc = escPush(() => { if (pop.hidden || !pop.isConnected) return false; open(false); b.focus(); return true });
+      };
       if ((c as any)._addOpen) { open(true); (c as any)._addOpen = false }
       b.onclick = e => { e.stopPropagation(); open(pop.hidden) };
       $$('input', pop).forEach(i => (i.onchange = () => { S.btX = $$<HTMLInputElement>('input:checked', pop).map(x => x.value); (c as any)._addOpen = true; c.redraw() }));
@@ -231,7 +250,7 @@ export const brA: Card = {
     const rows = rowsOf(c, SEL).map(x => ({ ...x, name: x.t, a: x.e50, ah: tg(x.e50), b: x.e200, bh: tg(x.e200) }));
     return {
       title: W.brA.dTitle(who(c, SEL)), sub: W.brA.dSub(rows.filter(r => r.a === 1).length, rows.length, rows.filter(r => r.b === 1).length), ctl: SEL_SECTOR(c, SEL, true), onSel: v => brSet(c, v), search: W.search.stock,
-      cols: [{ k: 'name', l: W.col.ticker, b: true, term: true }, { k: 'a', l: '> EMA50', html: 'ah' }, { k: 'b', l: '> EMA200', html: 'bh' }, { k: 'd50', l: W.col.vsEma(50), num: true, tone: true, f: v => M.pct(v, 1) }, { k: 'd200', l: W.col.vsEma(200), num: true, tone: true, f: v => M.pct(v, 1) }, { k: 'r1m', l: '1M', num: true, tone: true, f: v => M.pct(v) }],
+      cols: [{ k: 'name', l: W.col.ticker, b: true, term: true }, { k: 'a', l: '> EMA50', html: 'ah' }, { k: 'b', l: '> EMA200', html: 'bh' }, { k: 'd50', l: W.col.vsEma(50), num: true, tone: true, f: v => M.pctSigned(v, 1) }, { k: 'd200', l: W.col.vsEma(200), num: true, tone: true, f: v => M.pctSigned(v, 1) }, { k: 'r1m', l: '1M', num: true, tone: true, f: v => M.pct(v) }],
       rows, sort: ['d50', 1], read: W.brA.read, ex: r => W.brA.ex(r.name, r.d50),
     };
   },
@@ -242,13 +261,13 @@ export const brN: Card = {
   id: 'brN', tab: 'br', cls: 'br-n',
   render(el, c) {
     const D = c.D, S = c.S, H = S.adH as 'r1d' | 'r5d' | 'r1m', HL = W.brN.hz[H];
-    const cnt = (g: string) => M.aud(rowsOf(c, g).map(x => x[H]));
+    const cnt = (g: string) => audOf(c, g, H);
     const rows = D.names.map(nm => ({ nm, ...cnt(nm) })).filter(r => r.N > 0).sort((p, q) => q.u / q.N - p.u / p.N), all = { nm: D.market, ...cnt(D.market) };
-    const bar = (r: M.Counts) => { const sg = (v: number, bg: string, fg: string) => (v ? `<span style="width:${((100 * v) / r.N).toFixed(2)}%;background:${bg};color:${fg}" title="${esc(W.stocks(v))}">${(100 * v) / r.N >= 7 ? v : ''}</span>` : ''); return `<div class="bx"><div class="stk">${sg(r.u, 'var(--up)', '#fff')}${sg(r.f, 'var(--gray-300)', 'var(--gray-700)')}${sg(r.d, 'var(--down)', '#fff')}</div><i></i></div>` };
-    const line2 = (r: any, isAll: boolean) => `<div class="${isAll ? 'all' : ''}${isSel(c, r.nm) ? ' cur' : ''}" data-n="${esc(r.nm)}" role="button" tabindex="0" data-tip="${esc(`<b>${esc(isAll ? W.allShort(D.market) : D.short(r.nm))}</b> · ${HL}<br>${esc(W.brN.tip(r.u, r.f, r.d, r.N))}`)}"><span class="nm">${esc(isAll ? W.allShort(D.market) : D.short(r.nm))}</span>${bar(r)}<b class="val">${r.u}/${r.N}</b></div>`;
-    el.innerHTML = H3(W.brN.title, W.brN.sub(HL), SEG('h', W.brN.period, [['r1d', '1D'], ['r5d', '1W'], ['r1m', '1M']], H), c.win ? null : 'brN')
+    const bar = (r: M.Counts) => { const sg = (v: number, bg: string, fg: string) => (v ? `<span style="width:${((100 * v) / r.N).toFixed(2)}%;background:${bg};color:${fg}" title="${esc(W.stocks(v))}">${(100 * v) / r.N >= 7 ? v : ''}</span>` : ''); return `<div class="bx"><div class="stk">${sg(r.u, 'var(--up)', 'var(--gray-900)')}${sg(r.f, 'var(--gray-300)', 'var(--gray-700)')}${sg(r.d, 'var(--down)', 'var(--gray-900)')}</div><i></i></div>` };
+    const line2 = (r: any, isAll: boolean) => `<div class="${isAll ? 'all' : ''}${isSel(c, r.nm) ? ' cur' : ''}" data-n="${esc(r.nm)}" role="button" tabindex="0" data-tip="${esc(`<b>${esc(isAll ? W.allShort(D.market) : D.short(r.nm))}</b> · ${HL}<br>${esc(W.brN.tip(r.u, r.f, r.d, r.N, r.series ? null : r.of, HL))}${isAll && D.other ? `<br>${esc(W.brT.other(D.market, D.other))}` : ''}`)}"><span class="nm">${esc(isAll ? W.allShort(D.market) : D.short(r.nm))}</span>${bar(r)}<b class="val">${r.u}/${r.N}</b></div>`;
+    el.innerHTML = H3(W.brN.title, W.brN.sub(HL, all.series ? W.brN.den1d : W.brN.den(HL, all.N, all.of)), SEG('h', W.brN.period, [['r1d', '1D'], ['r5d', '1W'], ['r1m', '1M']], H), c.win ? null : 'brN')
       + `<div class="adr">${line2(all, true)}${rows.map(r => line2(r, false)).join('')}</div>`
-      + `<div class="lgd"><span class="adl"><span><i style="background:var(--up)"></i>${esc(W.brN.up)}</span><span><i style="background:var(--gray-300)"></i>${esc(W.brN.flat)}</span><span><i style="background:var(--down)"></i>${esc(W.brN.down)}</span></span><span>${esc(W.brN.half)}</span><span class="sp"></span><span>${esc(M.dateLabel(D.dates[D.E]))}</span></div>`;
+      + `<div class="lgd"><span class="adl"><span><i style="background:var(--up)"></i>${esc(W.brN.up)}</span><span><i style="background:var(--gray-300)"></i>${esc(W.brN.flat)}</span><span><i style="background:var(--down)"></i>${esc(W.brN.down)}</span></span><span>${esc(W.brN.half)}</span><span class="sp"></span><span>${esc(M.dateIn(D.dates[D.E], D.ref))}</span></div>`;
     onSeg(el, 'h', v => { S.adH = v; c.redraw() });
     $$('.adr>div[data-n]', el).forEach(r => {
       const go = () => brSet(c, r.dataset.n as string);
@@ -258,8 +277,11 @@ export const brN: Card = {
   detail(c): Detail {
     const D = c.D, H = c.S.adH as 'r1d' | 'r5d' | 'r1m', HL = W.brN.hz[H], SEL = brSel(c);
     const rows = rowsOf(c, SEL).map(x => { const v = x[H], s = v == null ? null : Math.abs(v) < 1e-9 ? 0 : v > 0 ? 1 : -1; return { ...x, name: x.t, st: s, sth: s == null ? '—' : `<span class="tag ${s > 0 ? 'pos' : s < 0 ? 'neg' : 'neu'}">${esc(s > 0 ? W.brN.adv : s < 0 ? W.brN.dec : W.brN.unch)}</span>`, r: v } });
+    // the counts are the card's (1D: Feature 08's); a stock the day file cannot place is named in the note
+    const a = audOf(c, SEL, H), listed = rows.filter(r => r.st != null).length, k = a.series ? a.N - listed : 0;
     return {
-      title: W.brN.dTitle(who(c, SEL), HL), sub: W.brN.dSub(rows.filter(r => r.st === 1).length, rows.filter(r => r.st === 0).length, rows.filter(r => r.st === -1).length), ctl: SEL_SECTOR(c, SEL, true), onSel: v => brSet(c, v), search: W.search.stock,
+      title: W.brN.dTitle(who(c, SEL), HL), sub: W.brN.dSub(a.u, a.f, a.d), ctl: SEL_SECTOR(c, SEL, true), onSel: v => brSet(c, v), search: W.search.stock,
+      note: k > 0 ? W.brN.dNote(k) : a.series ? '' : W.brN.den(HL, a.N, a.of),
       cols: [{ k: 'name', l: W.col.ticker, b: true, term: true }, { k: 'st', l: W.col.status, html: 'sth' }, { k: 'close', l: W.col.close, num: true, f: v => M.level(v, 0) }, { k: 'r', l: W.col.change(HL), num: true, tone: true, f: v => M.pct(v) }, { k: 'vol', l: W.col.volume, num: true, f: v => M.shares(v) }],
       rows, sort: ['r', 1], read: W.brN.read, ex: r => W.brN.ex(r.name, M.level(r.close, 0), r.r, r.st),
     };
@@ -273,23 +295,27 @@ export const brD: Card = {
   render(el, c) {
     const D = c.D, S = c.S, SEL = brSel(c), MS = S.bhM, lab = `EMA${MS}`, F = S.bdF, DEF: M.Level = [MS === 200 ? 'd200' : 'd50', 1];
     const SK = M.msKeep(S.bdS, k => ['t', 'ab', 'd50', 'd200', 'dy', 'since'].includes(k));
-    let R = rowsOf(c, SEL).map(x => { const ab = MS === 200 ? x.e200 : x.e50; return { ...x, ab, dy: MS === 200 ? x.days200 : x.days50, since: MS === 200 ? x.since200 : x.since50 } });
+    let R = rowsOf(c, SEL).map(x => {
+      const ab = MS === 200 ? x.e200 : x.e50, since = MS === 200 ? x.since200 : x.since50, st = ab == null ? null : M.statusSessions(D.dates, D.E, since, MS === 200 ? x.days200 : x.days50, DAYS_CAP);
+      return { ...x, ab, dy: st ? st.n : null, more: !!st?.more, since };
+    });
     const N = R.filter(r => r.ab != null).length, nA = R.filter(r => r.ab === 1).length, Q = c.win ? S.bdQ.trim().toUpperCase() : '';
     if (F !== 'all') R = R.filter(r => (F === 'up' ? r.ab === 1 : r.ab === 0));
     const hit = (r: typeof R[0]) => !Q || r.t.toUpperCase().includes(Q) || String(r.n || '').toUpperCase().includes(Q);
     M.msSort(R, SK, { t: 1, since: 1 }, DEF);
     const LAB = { t: W.col.ticker, ab: W.col.status, d50: 'EMA50', d200: 'EMA200', dy: W.col.days, since: W.col.since };
     const th = (k: string, t: string, cl = '', tip = '') => msTh(SK, k, esc(t), cl, tip, { def: DEF, txt: k === 't' || k === 'since' });
-    const dc = (v: M.N) => `<td class="${M.cls(v)}">${M.pct(v, 1)}</td>`, days = (v: M.N) => (v == null ? '—' : v >= DAYS_CAP ? `${DAYS_CAP}+` : String(v));
+    const dc = (v: M.N, ms: number) => `<td class="${M.cls(v)}">${v == null ? na(W.brD.distNa(ms)) : M.pctSigned(v, 1)}</td>`;
+    const days = (v: M.N, more: boolean) => (v == null ? '—' : `${v}${more ? '+' : ''}`);
     const srch = c.win ? `<label class="bdq"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-search"/></svg><input type="search" placeholder="${esc(W.search.stock)}" aria-label="${esc(W.search.stock)}" value="${esc(S.bdQ)}"></label>` : '';
     const shownN = R.filter(hit).length;
     el.innerHTML = H3(W.brD.title, W.brD.sub(who(c, SEL), nA, N, lab), srch + SEG('f', W.brD.status, [['all', W.brD.all], ['up', W.above], ['dn', W.below]], F), c.win ? null : 'brD')
       + `<div class="tbl-wrap" data-scroll="y"><table class="tbl padat"><colgroup><col class="c-t"><col class="c-s"><col class="c-d"><col class="c-d"><col class="c-n"><col class="c-w"></colgroup>`
       + `<thead><tr class="g"><th class="l" colspan="2"></th><th class="grp" colspan="2">${esc(W.brD.dist)}</th><th colspan="2"></th></tr>`
       + `<tr>${th('t', LAB.t, 'l')}${th('ab', LAB.ab, 'l', W.brD.statusTip(lab))}${th('d50', '50', '', W.brD.distTip(50))}${th('d200', '200', '', W.brD.distTip(200))}${th('dy', LAB.dy, '', W.brD.daysTip(lab))}${th('since', LAB.since, '', W.brD.sinceTip(lab))}</tr></thead><tbody>`
-      + R.map(r => `<tr data-t="${esc(r.t)}" role="button" tabindex="0"${hit(r) ? '' : ' hidden'} data-tip="${esc(`<b>${esc(r.t)}</b> · ${esc(r.n)}<br>${esc(D.short(r.sec))}<br>${esc(W.brD.tip(r.ab, lab, days(r.dy), r.since ? M.dateLabel(r.since, false, true) : '—'))}<br>${esc(W.brD.dists(M.pct(r.d50, 1), M.pct(r.d200, 1)))}<br><span class="muted">${esc(W.term.rowTip(r.t))}</span>`)}"><td class="l"><b>${esc(r.t)}</b></td><td class="l">${r.ab == null ? '—' : `<span class="tag ${r.ab ? 'pos' : 'neg'}">${esc(r.ab ? W.above : W.below)}</span>`}</td>${dc(r.d50)}${dc(r.d200)}<td>${days(r.dy)}</td><td>${r.since ? esc(M.dateLabel(r.since, false, r.since.slice(0, 4) !== D.dates[D.E].slice(0, 4))) : '—'}</td></tr>`).join('')
+      + R.map(r => `<tr data-t="${esc(r.t)}" role="button" tabindex="0"${hit(r) ? '' : ' hidden'} data-tip="${esc(`<b>${esc(r.t)}</b> · ${esc(r.n)}<br>${esc(D.short(r.sec))}<br>${esc(W.brD.tip(r.ab, lab, days(r.dy, r.more), r.since ? M.dateLabel(r.since, false, true) : r.ab == null ? '—' : W.brD.sinceNa))}<br>${esc(W.brD.dists(M.pctSigned(r.d50, 1), M.pctSigned(r.d200, 1)))}<br><span class="muted">${esc(W.term.rowTip(r.t))}</span>`)}"><td class="l"><b>${esc(r.t)}</b></td><td class="l">${r.ab == null ? na(W.brD.distNa(MS)) : `<span class="tag ${r.ab ? 'pos' : 'neg'}">${esc(r.ab ? W.above : W.below)}</span>`}</td>${dc(r.d50, 50)}${dc(r.d200, 200)}<td>${r.dy == null ? na(W.brD.distNa(MS)) : r.more ? `<span data-tip="${esc(esc(W.brD.more(r.dy)))}">${days(r.dy, true)}</span>` : days(r.dy, false)}</td><td>${r.since ? esc(M.dateIn(r.since, D.ref)) : r.ab == null ? na(W.brD.distNa(MS)) : na(W.brD.sinceNa)}</td></tr>`).join('')
       + `<tr class="bdn"${shownN ? ' hidden' : ''}><td class="l" colspan="6">${esc(R.length ? W.search.none(S.bdQ) : W.brD.empty)}</td></tr></tbody></table></div>`
-      + `<div class="lgd">${msNote(SK, LAB, { t: 1 })}<span>${esc(W.brD.foot(lab))}</span><span class="sp"></span><span data-cnt>${esc((Q ? W.search.shown(shownN, R.length) + DOT : '') + M.dateLabel(D.dates[D.E]))}</span></div>`;
+      + `<div class="lgd">${msNote(SK, LAB, { t: 1 })}<span>${esc(W.brD.foot(lab))}</span><span class="sp"></span><span data-cnt>${esc((Q ? W.search.shown(shownN, R.length) + DOT : '') + M.dateIn(D.dates[D.E], D.ref))}</span></div>`;
     onSeg(el, 'f', v => { S.bdF = v; c.redraw() });
     msWire(el, SK, () => c.redraw(), DEF, 'th[data-k]');
     $$('tbody tr[data-t]', el).forEach(r => {
@@ -301,7 +327,7 @@ export const brD: Card = {
       S.bdQ = q.value; const v = q.value.trim().toUpperCase(); let n = 0;
       $$('tbody tr[data-t]', el).forEach(r => { const s = R.find(x => x.t === r.dataset.t); const on = !v || !!s && (s.t.toUpperCase().includes(v) || String(s.n || '').toUpperCase().includes(v)); r.hidden = !on; if (on) n++ });
       const nn = $('tr.bdn', el); nn.hidden = n > 0; nn.firstElementChild!.textContent = W.search.none(q.value);
-      $('[data-cnt]', el).textContent = (v ? W.search.shown(n, R.length) + DOT : '') + M.dateLabel(D.dates[D.E]);
+      $('[data-cnt]', el).textContent = (v ? W.search.shown(n, R.length) + DOT : '') + M.dateIn(D.dates[D.E], D.ref);
     };
   },
 };

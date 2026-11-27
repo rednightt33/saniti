@@ -4,6 +4,7 @@
    logic.js L1274-1281). The state is plain data (it goes into the address, app.ts). */
 import * as M from './model.ts';
 import type { N, StocksFile } from './types.ts';
+import { W } from './words.ts';
 
 export type TabKey = 'ov' | 'rs' | 'rot' | 'pm' | 'br';
 export const TABS: TabKey[] = ['ov', 'rs', 'rot', 'pm', 'br'];
@@ -11,6 +12,7 @@ export type Pk = string;                                     // a period key ('1
 
 export const DEFAULT_STATE = {
   tab: 'ov' as TabKey,
+  date: null as string | null,                              // the picked market date (null: the newest), kept in the address (check 1 BD-10)
   pin: null as string | null,                               // the locked sector (every card that shows one sector follows it)
   // Overview
   rcW: '3M' as Pk, rcR: null as M.Range | null, rcSel: null as string[] | null, rcIh: true,
@@ -82,8 +84,20 @@ export interface Calc {
   strongest: string;
   /** a return over a period key ending at E (or a Custom span) */
   retP(a: N[], p: Pk, r: M.Range | null): N;
-  /** the span of a period key: [base, end] */
-  span(p: Pk, r: M.Range | null): { b: number; e: number; custom: boolean };
+  /** the span of a period key: [base, end], the period it shows (`key`: 'C' only when the Custom range is shown) and a
+      note when a stored Custom range was clamped or could not be shown (check 1 RP-1: never replaced silently) */
+  span(p: Pk, r: M.Range | null, dflt?: string): PSpan;
+  /** the name of a span in a label: its dates for a Custom range, else its period key (never the internal "C") */
+  plabel(s: PSpan): string;
+}
+export interface PSpan { b: number; e: number; custom: boolean; key: string; note: string | null }
+/** a stored Custom range on the page's data: its span and the note of what was clamped; or the card's preset, with the
+    note that the range has no session up to the page's date */
+export function customSpan(D: M.Data, r: M.Range, dflt: string, o: M.RangeOpts = {}): { s: M.Resolved | null; note: string | null } {
+  const s = M.resolveRange(D.dates, r, D.E, o);
+  if (!s) return { s: null, note: W.range.none(dflt) };
+  const note = s.clampStart ? W.range.clampStart(M.dateLabel(D.dates[o.level ? s.first : s.base], false, true)) : s.clampEnd ? W.range.clampEnd(M.dateLabel(D.dates[s.last], false, true)) : null;
+  return { s, note };
 }
 const cache = new WeakMap<M.Data, Calc>();
 export function calc(D: M.Data): Calc {
@@ -99,13 +113,16 @@ export function calc(D: M.Data): Calc {
   const q = Object.fromEntries(D.names.map(n => [n, rot[n].rs.map((x, i) => M.quad(x, rot[n].mom[i]))]));
   const w = D.P('1W');
   const strongest = [...D.names].sort((a, b) => (rr(b, w) ?? -Infinity) - (rr(a, w) ?? -Infinity))[0];
-  const span = (p: Pk, r: M.Range | null) => {
-    if (p === 'C' && r) { const s = M.rangeIn(D.dates, r, E); if (s && s.base >= 0) return { b: s.base, e: s.last, custom: true } }
-    if (p === 'YTD') return { b: D.ytd(), e: E, custom: false };
-    return { b: Math.max(0, E - D.P(p === 'C' ? '3M' : p)), e: E, custom: false };
+  const preset = (k: string, note: string | null): PSpan => (k === 'YTD' ? { b: D.ytd(), e: E, custom: false, key: k, note } : { b: Math.max(0, E - D.P(k)), e: E, custom: false, key: k, note });
+  const span = (p: Pk, r: M.Range | null, dflt = '3M'): PSpan => {
+    if (p !== 'C') return preset(p, null);
+    if (!r) return preset(dflt, null);                          // Custom without a range: the card's own period
+    const { s, note } = customSpan(D, r, dflt);
+    return s ? { b: s.base, e: s.last, custom: true, key: 'C', note } : preset(dflt, note);
   };
   c = {
     rr, rot, q, strongest, span,
+    plabel: s => (s.custom ? M.rangeLabel(D.dates[s.b], D.dates[s.e], D.ref) : s.key),
     rankAt: (n, i) => M.rankOf(D.names, nm => rr(nm, n, i)),
     retP: (a, p, r) => { const s = span(p, r); return M.retAt(a, s.b, s.e) },
   };
