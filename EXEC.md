@@ -18328,3 +18328,10 @@ yang ada di page sector, yang sifatnya top and bottom."
   https://claude.ai/artifact/BVdVVTPL1U5pXLdiR7MbH3. Dua yang terakhir tidak punya pilihan sektor: usulan agen (ditanyakan)
   menciutkan tabel atas ke pasangan yang dipakai Pair ratio / ke IHSG (all) + sektor yang dikunci, dan menandai baris itu
   di tabel bawah.
+- User 2026-11-27 (verbatim): "Coba kalau opsi 2 gimana?" Opsi 2 (tabel atas utuh dengan baris rapat 28 px, daftar bawah
+  di-scroll sendiri) dibuat untuk kelima jendela: Sector drill-down https://claude.ai/artifact/GzKYFy69qT1i4PrPv3BWd5;
+  Beta and correlation https://claude.ai/artifact/WtJArP4hTgStoq8Nng7tza; Rotation detail
+  https://claude.ai/artifact/8NDH4C5KFjV35pM9cnm6C7; Stretched pairs https://claude.ai/artifact/NJwaauX9qTUuyr6d6XehiZ;
+  Breadth heatmap table https://claude.ai/artifact/XFtpk2DcbNjTFrT7jshTuA. Ukuran di jendela 720 px (layar 1440 × 900):
+  tabel atas 336 px, ruang bawah 4 baris saham (Sector drill-down, Beta, Rotation detail), 7 baris (Stretched pairs), 3
+  baris (Breadth heatmap table). Pilihan antara opsi 1 dan 2 menunggu user.
