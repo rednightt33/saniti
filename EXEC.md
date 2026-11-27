@@ -16769,6 +16769,10 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD68 | EXEC-SECTOR-ANALYSIS (2026-11-27): the live promotion of Sector Analysis, which the user tied to the 5 Sonnet agents' findings being fixed ("Promosi ke live once temuan agent sonnet dibereskan"); the beta deploy of the fixes and the move of `live` are each asked with context when the fixes are done (a re-check of those fixes, rule 8, is asked then too) | 2026-11-27 | the live site's Sector Analysis | when the fixes of the check are done |
   | UD69 | EXEC-SECTOR-ANALYSIS (2026-11-27): the visual improvements the user wants on the Sector Analysis page ("Ada beberapa visual that we can improve"): which cards and what change, to be fixed in the same round as the 5 Sonnet agents' findings | 2026-11-27 | the fix round; the live promotion (UD68) | before the fix round closes |
   | UD70 | ERRORS M574 (2026-11-27): a page checker printed the value of `BACKTEST_WORKER_KEY` (backtest-worker's key, referenced by edge-bff and edge-bff-live) to its tool output; the worker is reachable only on the private network. Rotate it (a new value, then redeploys of backtest-worker, edge-bff and edge-bff-live) or keep it | 2026-11-27 with context | the key's exposure | at the user's choice |
+  | UD71 | ERRORS M575 D-5 (Sector Analysis check 1, 2026-11-27): 3 of 862 company names start "Pt " (AADI, DKHH, YUPI) exactly as in `IDX_Stock_Universe."Company Name"`, shown so on every page. Correct the source rows, add one display rule for every page, or leave them | 2026-11-27 with context | the names' look | at the user's choice |
+  | UD72 | ERRORS M575 MX-4 (2026-11-27): on a phone the design system's small controls (segmented 22 px, legend toggles 24 px, name buttons about 20 px, the quadrant's stock dots) are below a 44 px touch target; the page's own buttons got 44 px hit areas, the shared sizes are the Overview's too. Enlarge them on touch on every EDGE page (a design-system change) or keep them | 2026-11-27 with context | touch use of every EDGE page | at the user's choice |
+  | UD73 | ERRORS M575 MX-5 (2026-11-27): the light theme's grey label colour `--text-3` is 3.23:1 on white and the tag pairs 3.81-4.46:1, below the 4.5:1 reading guideline; the page's own colours were fixed. Darken the shared tokens (every EDGE page changes) or keep them | 2026-11-27 with context | readability of every EDGE page | at the user's choice |
+  | UD74 | ERRORS M575 MX-9 (2026-11-27): about 20 labels of the page use Δ, σ and β (the prototype's wording); the browser loads a 19 KB Greek font file once for them. Spell them out (a wording change) or keep them | 2026-11-27 with context | 19 KB on the first visit | at the user's choice |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -18197,3 +18201,11 @@ ke live once temuan agent sonnet dibereskan".
 **Keputusan user 2026-11-27 (verbatim):** "Jangan promosi ke live duul. Bereskan temuan agent sonnet dulu. Ada beberapa
 visual that we can improve." Live ditahan; putaran perbaikan berisi temuan 5 agen Sonnet ditambah perbaikan visual dari
 user (rinciannya menunggu user, register UD69).
+
+**Putaran perbaikan cek 1 (2026-11-27, di branch, belum di-deploy):** 52 temuan (6 major, 21 minor, 25 nit; ERRORS M575,
+`verification/sector_analysis/check1/FIXES.md`): 41 fixed, 7 fixed dengan kunci lain, 2 sebagian (MX-4, MX-5), 2 tidak
+dibangun (D-5, MX-9); keenam major selesai. Commit `29535145` (halaman, tes `check1.test.ts` dan `look/check1.mjs`),
+`1ccbe90d` (`SECTOR_FORMULAS.md` prosa, `CONTRACT.md` §5), `88b482b9` (FIXES.md, 50 baris ledger `waiting`). Dicek
+ulang oleh sesi ini sesudah merge: vitest 54/54, build, look check 29/29, tes record dan edge-bff terkait lulus. Setiap
+perbaikan baru diuji oleh pembuatnya saja (aturan 8). Terbuka: perbaikan visual user (UD69), empat bagian ke user
+(UD71-UD74), uji ulang (model dan effort dipilih user), deploy beta (UD68), lalu live atas permintaan user.

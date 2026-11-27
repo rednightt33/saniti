@@ -11758,7 +11758,9 @@
    "finding_id": "BD-1",
    "title": "Breadth vs price: chart is drawn at the wrong height at 1280 wide and its x-axis labels overlap the footer line",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-1, major: Breadth vs price: chart is drawn at the wrong height at 1280 wide and its x-axis labels overlap the footer line. Where: Breadth tab, card Breadth vs price, viewport 1280x800 (light and dark); card header controls wrap to two rows. Steps: Open /sector at 1280x800, Breadth tab (fresh load, no resize). Measure [data-card=brH] [data-chart] and its svg. Expected: The svg fits the chart box; footer 'Green zone >= 70% ...' sits below the axis labels, as at 1440 and 1152 Actual: Chart box is 234 px high (controls wrapped to 2 rows) but the svg stays 260 px (drawn before the wrap; the ResizeObserver only redraws on width change). svg bottom 586.4 and axis labels bottom 585.4 vs footer top 564.5: the date labels '8 Jun / 4 Aug / 1 Oct' print over 'Green zone >= 70% · red zone <= 30%'. At 1440 svg bottom 586.4 < footer 590.5 and at 1152 630.4 < 634.5 (ok). Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/br_1280_dark_full.png (overlap at y~585), /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/br_1280_dark_showpop.png; probe t18: 1280 {chartBottom:560.5, svgBottom:586.4, lgdTop:564.5, maxAxisBottom:585.4}; same in light",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -11781,7 +11783,9 @@
    "finding_id": "BD-2",
    "title": "Stock detail: distance values are cut with an ellipsis at 1280 wide",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-2, major: Stock detail: distance values are cut with an ellipsis at 1280 wide. Where: Breadth tab, card Stock detail, viewport 1280 (card 381 px wide). Steps: Open Breadth at 1280x800; read the first rows (IDEA, VOKS, INPS). Expected: Every distance is readable in full ('+104.7%', '+256.7%') Actual: Values of three digits are truncated: '+104...', '+256...', '+114...', '+142...' (td scrollWidth 66 > clientWidth 61, 5 cells in first view; 'XX Nov 2025' dates 88 > 68). The reader cannot tell +104% from +109%. Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/br_1280_dark_full.png; probe t19 1280: brD:TD:+104.7%:66>61 ...",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -11804,7 +11808,9 @@
    "finding_id": "BD-3",
    "title": "Stock detail 'Since' date with a year is clipped at 1440",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-3, minor: Stock detail 'Since' date with a year is clipped at 1440. Where: Breadth tab, Stock detail, EMA50 mode, 1440x900. Steps: Scroll Stock detail to the below-EMA50 stocks with the oldest status (ENAK, TIRA): Since column. Expected: '11 Nov 2025' Actual: '11 Nov 2…' (td 88 > 78); the year, the only thing that tells the date is a year back, is cut off Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/brD_2025_since.png; rows 'ENAK Below -12.9% -48.0% 251 11 Nov 2025', 'TIRA ... 245 19 Nov 2025'",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -11827,7 +11833,9 @@
    "finding_id": "BD-4",
    "title": "Breadth heatmap table: the last column (Delta EMA50 1W) is cut off at 1152 wide",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-4, minor: Breadth heatmap table: the last column (Delta EMA50 1W) is cut off at 1152 wide. Where: Breadth tab, Breadth heatmap table, viewport 1152 (card 516 px). Steps: Open Breadth at 1152x800; look at the table header and rows. Expected: All eight columns visible, or a clear sign that the table scrolls Actual: tbl-wrap scrollWidth 560 > 514; the header shows only the start of 'Delta' and every row's Delta cell is cut; '> EMA50' and '> EMA200' headers wrap to two lines; there is no visible scrollbar or fade Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/br_1152_light_full.png; probe t6 1152: brT:DIV.tbl-wrap 560>514",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -11850,7 +11858,9 @@
    "finding_id": "BD-5",
    "title": "Rapid date picks: an older, slower response can overwrite the newer pick",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-5, minor: Rapid date picks: an older, slower response can overwrite the newer pick. Where: Header date picker (app.ts pickDate), any tab. Steps: On the Breadth tab pick 30 Oct, then at once 12 Nov (script: both clicks in one tick; the 30 Oct day file delayed by 2.5 s with a route handler to model a slow network). Expected: The page ends on 12 Nov (the last choice) Actual: After both loads the page shows 30 Oct: date button 'Fri 30 Oct · Close', pill 'Prices to Fri 30 Oct', headline 'above EMA50 on 30 Oct'. pickDate has no sequence guard (day = await get(...) then assigns), so the last response to arrive wins, not the last click. Evidence: probe t21 output ['Fri 30 Oct · Close', 'Prices to Fri 30 Oct', 'above EMA50 on 30 Oct ...']; apps/edge-bff/sector/src/app.ts:152-157",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -11873,7 +11883,9 @@
    "finding_id": "BD-6",
    "title": "Same card, three different stock counts: A/U/D and the heatmap 'Up' columns use fewer stocks than the Stocks column",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-6, minor: Same card, three different stock counts: A/U/D and the heatmap 'Up' columns use fewer stocks than the Stocks column. Where: Breadth tab: heatmap (Stocks 838), A/U/D IHSG row '310/834', Stock detail '147 of 838'; also per sector (Energy 78 in the heatmap, 39/77 in A/U/D, Financials 98 vs 27/97). Steps: 26 Nov: read heatmap IHSG row, switch Show to Stock count, read A/U/D IHSG row and the window subtitle '310 up · 202 unchanged · 322 down'. Expected: Either the same denominator or a visible reason Actual: Stocks without that return (4 on 26 Nov, 1 on 17 Nov, 2 on 30 Oct; e.g. BBMD, DUTI, RONY, SURE) are dropped silently: 'Up 1D' IHSG = 310/834 = 37% while the Stocks column says 838 and the series' own adv/unch/dec for the date is 311/204/323 = 838. Energy: heatmap 51% (39/77), series 39/78 = 50.0%. Only the window 'How to read' mentions 'a stock without that return is not counted'. The code comment in br.ts:258 says this matches the series' adv/unch/dec, which it does not (series 311/204/323). Evidence: day file sector-day-2026-11-26 r1d: up 310 flat 202 dn 322 null 4; sector-series IHSG adv/unch/dec at 2026-11-26 = 311/204/323; page brN IHSG row 310 | 202 | 322 | 310/834; heatmap tooltip 'Energy 39 of 77 stocks . 50.6%'",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -11896,7 +11908,9 @@
    "finding_id": "BD-7",
    "title": "Custom range: the applied range starts one session before the chosen From date, and the count differs from the popover",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-7, minor: Custom range: the applied range starts one session before the chosen From date, and the count differs from the popover. Where: Breadth vs price, Period Custom. Steps: Custom, From 2026-02-01 To 2026-05-29: popover note says '2 Feb – 29 May · 72 trading days'; Apply. Also From 2026-10-01 To 2026-11-26. Expected: The footer range starts on the chosen first session ('2 Feb – 29 May') Actual: Footer shows '30 Jan – 29 May · 72 sessions' (and '30 Sep – 26 Nov · 41 sessions' for a 1 Oct start): the chart starts at the session before From, so it shows 73 points and a date the viewer did not choose Evidence: probe t9 'custom applied 30 Jan – 29 May · 72 sessions'; probe t15 'custom 30 Sep – 26 Nov · 41 sessions'; popover text '2 Feb – 29 May · 72 trading days'",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -11919,7 +11933,9 @@
    "finding_id": "BD-8",
    "title": "Show popover list is clipped: the last sector (Transport) and the footer note need a scroll that has no visible cue",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-8, minor: Show popover list is clipped: the last sector (Transport) and the footer note need a scroll that has no visible cue. Where: Breadth vs price, Show popover, 1440/1280/1152. Steps: Click Show (IHSG (all stocks)). Expected: All 12 options and the note 'The main line (ink) also sets the selection of the other breadth cards' visible, or a visible scrollbar Actual: Popover is 338 px high with 421 px of content (overflow auto): the list ends at 'Tech'; 'Transport' and the note are below the fold and no scrollbar is shown in the screenshots Evidence: probe t5: pop [top 252.4, bottom 592.4, scrollHeight 421, clientHeight 338, overflowY auto]; /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/brH_show_pop.png",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -11942,7 +11958,9 @@
    "finding_id": "BD-9",
    "title": "Date menu does not respond to arrow keys although its items are role=menuitemradio",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-9, nit: Date menu does not respond to arrow keys although its items are role=menuitemradio. Where: Header date picker. Steps: Open the menu (focus lands on the checked item), press ArrowDown twice, then Enter. Expected: Focus moves down the list (menu pattern) and Enter picks that date Actual: Focus stays on 'Thu 26 Nov 2026'; Enter picks the same date, nothing changes (Tab works) Evidence: probe t14 'focus 2026-11-26', 'after kb Thu 26 Nov · Close'",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -11965,7 +11983,9 @@
    "finding_id": "BD-10",
    "title": "The picked date is not kept in the address although every other choice is",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-10, nit: The picked date is not kept in the address although every other choice is. Where: Header date picker / readHash. Steps: Pick 12 Nov, read location.hash, reload. Expected: Per the file comment 'the viewer's choices live in the address' the date would survive a reload or a shared link Actual: Hash holds only the tab/state diff ({\"tab\":\"br\"}); a reload or a copied link returns to the newest date Evidence: probe t14 hash '#%7B%22tab%22%3A%22br%22%7D'; app.ts diffState has no date",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -11988,7 +12008,9 @@
    "finding_id": "BD-11",
    "title": "Stock detail shows '—' (Since) next to '300+' days, and '—' distance, without a reason",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-11, nit: Stock detail shows '—' (Since) next to '300+' days, and '—' distance, without a reason. Where: Stock detail, EMA200 mode and recently listed stocks. Steps: Breadth tab, % above EMA200; sort by Since: AYAM/MKAP/JRPT show Days '300+' and Since '—'. Also XSPI EMA200 distance '—'. Expected: A hint (tooltip) why: status older than the 300-session history / no EMA200 yet Actual: Bare dashes; the row tooltip only says 'EMA200 —' Evidence: probe t8 'brD sort since [AYAM Above +5.7% +25.5% 300+ —, ...]'; first screenshot XSPI row",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12011,7 +12033,9 @@
    "finding_id": "BD-12",
    "title": "Tiny negative distances print as '0.0%' on a row marked Below",
    "finding": "agents_20261127-sector-brdt, sonnet, BD-12, nit: Tiny negative distances print as '0.0%' on a row marked Below. Where: Stock detail, Below filter, EMA50 sort. Steps: Below filter: BNGA, MPIX, HELI show '0.0%' (neutral colour) vs EMA50 though Below Expected: '-0.0%' or '<0.1%' so the status and the sign agree Actual: '0.0%' without a sign Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/win_brD_below.png (rows BNGA/MPIX/HELI)",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12034,7 +12058,9 @@
    "finding_id": "D-1",
    "title": "Industry rows and their sector row measure different things and can disagree in sign and size by tens of points",
    "finding": "agents_20261127-sector-data, sonnet, D-1, minor: Industry rows and their sector row measure different things and can disagree in sign and size by tens of points. Where: Relative Strength > Sector drill-down / Open all industries; Feature_08_Group_Daily.index_level (SECTOR rows unused) vs official IDX sector index in sector-series.sector; SECTOR_FORMULAS.md section 6. Steps: Open Relative Strength, 'Open all industries'. Compare Technology (official IDXTECHNO 1M -9.7%) with its biggest industry Internet Applications & Services (19 members, 1M +9.4%), and Healthcare (-0.4%) with Pharmaceuticals (+8.9%) / Healthcare Providers (-10.6%). Over 252 sessions Transportation & Logistic is -18.2% on the official index but its 3 industries are -55% to -65%. Expected: Either industry returns reconcile with their sector row, or the page says plainly that the sector row is the official free-float index and the industry rows a different, traded-value-weighted index. Actual: The only note is 'an industry's returns come from the weighted index of its stocks'. The same traded-value chain index applied to whole sectors (Feature_08_Group_Daily SECTOR rows) differs from the official index by up to 48 pp over 1Y (Transport -66.5% vs -18.2%; Technology 1M +8.3% vs -9.7%; Healthcare 1M -11.6% vs -0.4%; Properties & Real Estate level 3.79 since 2021 vs official 650 / 922 = -29%). The SECTOR rows' index_level and the series adv/unch/dec are shipped/stored but no page figure uses them, so the divergence is only visible by comparing the two bases. Arithmetic is correct (recomputed to 4 decimals); this is a methodology/disclosure gap, the documented 1D example (-0.16% vs -0.31%) understates it. Evidence: Queries on Feature_08_Group_Daily (SECTOR index_level at 2026-11-26, -20, -60, -252 sessions) vs sector-series.sector; c-script output in /tmp/.../sector_check1/agents_20261127-sector-data (pg/ind_all.txt for the page rows; Tech industries 1M: Internet +9.4, Software +2.8, Electronic Equip +6.7, IT Services -8.1, Networking -30.2, Computer Hardware -2.2).",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145",
     "1ccbe90d"
@@ -12058,7 +12084,9 @@
    "finding_id": "D-2",
    "title": "Breadth tab 1D advancers/decliners differ from the Overview and Feature 08 for the same market and date",
    "finding": "agents_20261127-sector-data, sonnet, D-2, minor: Breadth tab 1D advancers/decliners differ from the Overview and Feature 08 for the same market and date. Where: Breadth > Advancers and decliners (1D), Breadth heatmap 'Up 1D'; apps/edge-bff/sector/src/cards/br.ts aud(); CONTRACT section 2/3.2 (adv_1d, series adv/unch/dec). Steps: Open Breadth on 26 Nov: 'IHSG (all)' 1D shows 310 up / 202 flat / 322 down, share 310/834. Open the Overview for the same date: advancers 311, unchanged 204, decliners 323 (838 stocks). Financials: page 27/34/36 of 97, Feature 08 27/35/36 of 98. Expected: The same market/day counts on both pages (the contract says Feature 08 breadth must equal the Overview's), or a visible note that the page counts only stocks with a bar on the previous market session. Actual: The page derives 1D counts from r1d, which is null when the stock has no bar on the previous market session (BBMD, DUTI, RONY, SURE on 26 Nov: thin stocks that did not trade on 25 Nov), so 4 stocks drop out of the denominator and the flat count loses 2. The series' adv/unch/dec (which equal the Overview) are downloaded but unused. Same mechanism makes 1W/1M denominators 830/829 vs 838. Evidence: overview-day-2026-11-26 breadth {'advancers':311,'decliners':323,'unchanged':204}; sector-series.breadth.IHSG adv/unch/dec[-1] = 311/204/323 = Feature_08_Group_Daily; page text pg/tab4.txt 'IHSG (all) 310 202 322 310/834'; r1d null list from sector-day-2026-11-26.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145",
     "1ccbe90d"
@@ -12082,7 +12110,9 @@
    "finding_id": "D-3",
    "title": "Stock detail 'Days' counts the stock's own bars, so it contradicts the 'Since' date for thinly traded stocks",
    "finding": "agents_20261127-sector-data, sonnet, D-3, minor: Stock detail 'Days' counts the stock's own bars, so it contradicts the 'Since' date for thinly traded stocks. Where: Breadth > Stock detail columns Days / Since; words.ts:348 daysTip 'Sessions in the current status'; sector.py status runs over Feature 04 rows. Steps: Open Breadth > Stock detail, find INPS (EMA50, 'Above ... 19 ... 27 Aug'). Count market sessions 27 Aug to 26 Nov: 66. Expected: 'Days' = sessions (the tooltip says sessions) consistent with 'Since'. Actual: INPS shows 19 days since 27 Aug (19 Feature 04/price bars in that span, 66 market sessions). Of 1,646 status runs that start inside the 300-session window on 26 Nov, 98 (6%) have days != market sessions since the 'since' date, up to 57 off (PPGL EMA200 48 vs 105; INPS EMA200 206 vs 263; TRUE EMA50 95 vs 151). SECTOR_FORMULAS.md section 7 documents 'baris Feature 04 saham itu sendiri' but the page tooltip does not. Evidence: day-file recount (since vs series calendar): 98/1646; DB: INPS 19 Feature_04 rows and 19 price rows vs 66 IHSG sessions between 2026-08-27 and 2026-11-26.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145",
     "1ccbe90d"
@@ -12106,7 +12136,9 @@
    "finding_id": "D-4",
    "title": "Industry RS rating is ranked among all 58 industries, the sector rating among 11 sectors; neither the page nor the formulas say so",
    "finding": "agents_20261127-sector-data, sonnet, D-4, nit: Industry RS rating is ranked among all 58 industries, the sector rating among 11 sectors; neither the page nor the formulas say so. Where: Relative Strength > Sector drill-down industry rows; SECTOR_FORMULAS.md 8.2 ('urutan selisih 1M di antara 11 sektor'). Steps: 'Open all industries'; Pharmaceuticals (Healthcare) shows RS 89, Education & Support Services 99, Healthcare Providers 23. Expected: Rating scale stated (or ranked within the parent sector). Actual: Ratings of all 58 industries equal round(1+98*(58-1-k)/57) by 1M excess vs IHSG (0 mismatches over 58 rows), so a 99 in Consumer Cyclicals sits beside a sector 99 on a different scale; the subtitle reads 'per sector'. Evidence: c6.py: ranking within parent sector gives 52 mismatches, ranking among all 58 gives 0.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145",
     "1ccbe90d"
@@ -12130,7 +12162,9 @@
    "finding_id": "D-6",
    "title": "Closes are rounded to 2 decimals in sector-series and sector-stocks but carried at full precision in sector-day",
    "finding": "agents_20261127-sector-data, sonnet, D-6, nit: Closes are rounded to 2 decimals in sector-series and sector-stocks but carried at full precision in sector-day. Where: sector-stocks-<index>.close, sector-series.index/sector vs sector-day.close/r1m. Steps: Compare SINI 2025-09-02: stocks file 2460.0 vs price table 2459.9978; ELPI 306.03 vs 306.02724. Expected: One precision for one price, or a stated rounding. Actual: Max difference 0.005 (relative up to ~1e-4 on sub-100 prices); page stock lines/betas use the rounded values, the day file's r1m/r5d the raw ones. Effect on displayed figures is below their rounding; Industrials (168/2100 sampled cells) and Transportation (256/2100) show it. The Overview series rounds the same way, so it is consistent with the Overview. Evidence: sampled sector-stocks closes vs Price_Stock_Indonesia_IDX; index closes max abs diff 0.005000000000109.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "1ccbe90d"
    ],
@@ -12153,7 +12187,9 @@
    "finding_id": "D-7",
    "title": "Market rows count 8 'Other' (Undefined-sector) stocks that no sector row shows, without a note",
    "finding": "agents_20261127-sector-data, sonnet, D-7, nit: Market rows count 8 'Other' (Undefined-sector) stocks that no sector row shows, without a note. Where: Breadth heatmap table: 'IHSG (all)' 838 vs the 11 sector rows summing 830; Breadth by sector omits 'Other'. Steps: Add the Stocks column of the 11 sector rows: 830; IHSG (all) shows 838. Expected: A footnote that 8 stocks without an IDX-IC sector (e.g. XCIS, XSPI, AKKU, GTBO) are in the market row only. Actual: No note on the page; meta.stocks.sector = 'Other' for 21 stocks (8 trading on 26 Nov), and Breadth by sector's 'Other' bucket exists in my recount (43% > IHSG 5D) but is not drawn. Evidence: pg/tab4.txt heatmap rows; sector-meta Other count 21; day file 2026-11-26.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145",
     "1ccbe90d"
@@ -12177,7 +12213,9 @@
    "finding_id": "D-8",
    "title": "Industry level is NULL (not carried) on dates without members, so returns whose base or end falls there read '—'",
    "finding": "agents_20261127-sector-data, sonnet, D-8, nit: Industry level is NULL (not carried) on dates without members, so returns whose base or end falls there read '—'. Where: sector-series.industry['Alternative Energy Equipment'].level on 2026-09-16 and 09-21..09-25 (members 0); CONTRACT 2 says the level carries. Steps: Choose a Custom range in Relative Strength whose base session is 2026-09-21 and open industries. Expected: The last level is used (contract: 'the level carries'). Actual: The table stores NULL on those dates and the page's ret() returns null; 6 null levels in 17,400 cells; not visible at the 20 selectable dates with fixed periods today, but a Custom range or a thinly traded industry hits it. Evidence: sector-series null scan: 6 nulls, all Alternative Energy Equipment; Feature_08_Group_Daily index_level NULL rows: 2,014 over 81,606 INDUSTRY rows.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145",
     "1ccbe90d"
@@ -12201,7 +12239,9 @@
    "finding_id": "MX-1",
    "title": "Breadth 'Stock detail': numbers cut to '+104....' on phones",
    "finding": "agents_20261127-sector-mobex, sonnet, MX-1, major: Breadth 'Stock detail': numbers cut to '+104....' on phones. Where: Breadth tab, card brD (Stock detail), 390 and 360 wide. Steps: Open /sector on the beta as the owner at 390x844 (or 360x740), tab Breadth, scroll to Stock detail, look at the 50 and 200 distance columns. Expected: Every figure readable (the table may scroll sideways, but a cell must not cut its value). Actual: Cells with 4 digits before the point show an ellipsis: '+104.7%' shown as '+104....', '+256.7%' as '+256....', '+114.4%' as '+114....'; the Since date '11 Nov 2025' also cut. td scrollWidth 66 > clientWidth 61 (value) and 94 > 68 (date), text-overflow ellipsis. Evidence: DOM probe on brD td (390 and 360, same numbers); screenshot /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/p390_brD.png; the largest rows are the top of the list (IDEA, VOKS...), i.e. the first thing the viewer sees.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12224,7 +12264,9 @@
    "finding_id": "MX-2",
    "title": "Wide tables scroll sideways inside their card with no cue; most columns are hidden on a phone",
    "finding": "agents_20261127-sector-mobex, sonnet, MX-2, minor: Wide tables scroll sideways inside their card with no cue; most columns are hidden on a phone. Where: rsD (Sector drill-down), rotB, pmT, pmS, brT, brD, hxCard heatmap, pmM matrix; 390 and 360. Steps: Phone width, open each tab, inspect the card scrollers. Expected: A visible cue that more columns exist (edge fade, scrollbar, or a narrower column set). Actual: rsD needs 836 px in a 356 px card (RS, Δ 4W, > EMA50, Rotation, Momentum are all off screen); rotB 548, pmT 636, brT 560, pmM 625, heatmap 494. The scrollers' scrollbar is not shown (touch, overlay), nothing hints at the hidden columns. No page-wide sideways scroll (document scrollWidth = viewport at 390, 360, 844x390 on all 5 tabs, light and dark). Evidence: overflow inventory in the frame (script run t16): 'rsD DIV.tbl-wrap sw836 cw356'; screenshot /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/p390_rsD.png",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12247,7 +12289,9 @@
    "finding_id": "MX-3",
    "title": "Fifth tab 'Breadth' is invisible on a 390 phone (no scroll cue on the tab bar)",
    "finding": "agents_20261127-sector-mobex, sonnet, MX-3, minor: Fifth tab 'Breadth' is invisible on a 390 phone (no scroll cue on the tab bar). Where: tab bar #tabs, 390x844. Steps: Open /sector at 390 wide; look at the tab bar. Expected: All five tabs visible or a visible hint that the bar scrolls. Actual: Tabs end at x=356 for 'Pair matrix'; 'Breadth' starts at x=370 beyond the 344 px bar, so on first view it is not on screen at all (at 360 'Pair ma' is cut, which hints a little). scrollbar-width none, no fade. It is reachable by swiping or by the arrow keys. Evidence: tab rects [Breadth 370..423] vs bar clientWidth 344 (scrollWidth 407); screenshot /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/p390_light_0.png",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12270,7 +12314,9 @@
    "finding_id": "MX-4",
    "title": "Touch targets well below 32-44 px",
    "finding": "agents_20261127-sector-mobex, sonnet, MX-4, minor: Touch targets well below 32-44 px. Where: all tabs on a phone. Steps: 390 wide, measure buttons. Expected: Touch-sized controls (>= 32 px, ideally 44). Actual: Expand button 22x22, period/segmented buttons 30-59 x 22, sector toggles 24 high, drill-down chevrons 20x20, matrix column heads 45x20, sector name buttons 78x20, window close button 26x26, rotation dots 12x12 (the quadrant map's sector dots are the only way to pick a sector there by touch). No overlapping hit area was found. (Not compared with the Overview's own sizes.) Evidence: bounding boxes from the probe (390 and 360), 12x12 for g.pt from t18",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12293,7 +12339,9 @@
    "finding_id": "MX-5",
    "title": "Contrast below 4.5:1 for small texts (light: whole page; dark: chart end labels and Breadth counts)",
    "finding": "agents_20261127-sector-mobex, sonnet, MX-5, minor: Contrast below 4.5:1 for small texts (light: whole page; dark: chart end labels and Breadth counts). Where: light theme: secondary grey labels on every tab; dark theme: rcCard end labels, brN counts. Steps: Compute text colour vs effective background on each tab at 390. Expected: WCAG AA 4.5:1 for 11-13 px text. Actual: Light: the page subtitle 3.10:1 (13 px) and the grey 11-12 px labels, axis ticks, card subtitles and headers 3.23:1 (97 text nodes on Overview, 936 on Breadth). Dark: chart end labels 'Financials -11.3%' 2.67:1 and 'Non-Cyc -15.6%' 4.15:1, 'DKHH +26.5%' 4.15:1, Breadth sector counts 3.57-3.90:1 (24 on Breadth, 11 on Pair matrix). The light value looks like the shared text-3 token, so it may be EDGE-wide and not specific to this page. Evidence: luminance probe over all text nodes (t19); no invisible text or lines found in dark mode, screenshots /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/p390_dark_*.png",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12316,7 +12364,9 @@
    "finding_id": "MX-6",
    "title": "Date menu has no arrow-key navigation",
    "finding": "agents_20261127-sector-mobex, sonnet, MX-6, nit: Date menu has no arrow-key navigation. Where: #datepop (role=menuitemradio items), src/app.ts dateMenu(). Steps: Focus the date button, Enter, press ArrowDown. Expected: Arrow keys move between the items (menu pattern); Esc closes. Actual: Focus lands on the selected item; ArrowDown does nothing (only Tab moves); Esc closes and returns focus to the button (works). Evidence: keyboard probe t15; no ArrowDown/ArrowUp handler in app.ts",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12339,7 +12389,9 @@
    "finding_id": "MX-7",
    "title": "When the data cannot load, header controls look live but do nothing",
    "finding": "agents_20261127-sector-mobex, sonnet, MX-7, nit: When the data cannot load, header controls look live but do nothing. Where: /sector-app/ opened signed out (not through the shell), also with ?example=1. Steps: Open https://edge-bff-dev.up.railway.app/sector-app/ with no session. Expected: Date and Open in Terminal disabled or hidden while only the error shows. Actual: Shows date button 'Loading' and a black 'Open in Terminal' above the message 'Your EDGE session ended'; clicking them does nothing (listeners bound after the first load, src/app.ts boot_/bind). No page error. Evidence: screenshot /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/visitor_sector-app_.png; click probe t21 (no errors)",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12362,7 +12414,9 @@
    "finding_id": "MX-8",
    "title": "Phone window text refers to things not present on a phone",
    "finding": "agents_20261127-sector-mobex, sonnet, MX-8, nit: Phone window text refers to things not present on a phone. Where: Rotation detail window (rotB) at 390. Steps: Rotation tab, Expand the detail card on a phone. Expected: Touch wording and no reference to a hidden map. Actual: 'Click a sector to highlight it on the map (Ctrl or Cmd click to add)' while the window shows only the table. The window's How-to-read footer keeps about 100 px of the 792 px phone window; the subtitle in the title is cut ('speed ...'). Evidence: screenshot /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-mobex/p390_dark_win_rotB.png",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12385,7 +12439,9 @@
    "finding_id": "OR-1",
    "title": "Momentum quadrant names and the window's 'Reading' column are wrong when the horizontal horizon is shorter than the vertical one",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-1, major: Momentum quadrant names and the window's 'Reading' column are wrong when the horizontal horizon is shorter than the vertical one. Where: Overview / Momentum (mmCard) and its window; apps/edge-bff/sector/src/cards/ov.ts quad()/reading() and words.ts W.mm.q, foot, read. Steps: Open Overview. In Momentum choose horizontal 1W and vertical 1M (both selects offer any pair). Look at Health (1W +2.3%, 1M -0.4%) and the corner names. Expected: A sector up over the short horizon but down over the longer one is 'turning up'; the names must follow which axis is the longer horizon (or the selects must only allow short on Y). Actual: Names are fixed for X=long, Y=short: top-left is always 'TURNING UP' and bottom-right 'TURNING DOWN'. With X=1W, Y=1M Health sits bottom-right labelled TURNING DOWN though it rose this week after a negative month; top-left 'TURNING UP' holds sectors that are down over 1W and up over 1M (turning down). The footer 'Top left = turning up' and the expanded window's Reading column ('Turning up'/'Down on both') and its example sentence have the same fixed meaning. Same with 1W vs 3M, 1W vs YTD, 1M vs 3M... whenever X is shorter than Y. Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/mm_1W_1M.png (dot Health vs corner label), /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/win_ov_mmCard.png for the default; probe: selects x=1W,y=1M; ov.ts reading(): x>=0 ? (y>=0 ? both : turn) : (y>=0 ? up : down) independent of horizon order",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12408,7 +12464,9 @@
    "finding_id": "OR-2",
    "title": "Sector drill-down: last columns (Rotation, Momentum) are cut off at 1440 and hidden behind a horizontal scroll at 1280",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-2, major: Sector drill-down: last columns (Rotation, Momentum) are cut off at 1440 and hidden behind a horizontal scroll at 1280. Where: Relative strength / Sector drill-down (rsD), rs.ts rsD render + styles; also its window header at default size is fine. Steps: Open Relative strength at 1440x900 and at 1280. Read the header row. Press 'Open all industries' at 1440. Expected: All 13 columns visible in the card (defect D15-type 'last columns cut off' was to be gone) or an obvious scroll cue. Actual: 1440: table 829 px in an 818 px wrapper, header reads 'Momentun' and the last tag is cut. 1280: card 660 px, wrapper scrollWidth 829 > 658 so '> EMA50' is cut and Rotation + Momentum (the cards' key signal columns) are off-screen with no cue. With industries open the first column widens and tags show 'Weakenin' cut at 1440 (the Rotation column then also needs a scroll). Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rs_1440_light.png, /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rsD_1280.png, /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rs_locked.png; probe tbl-wrap scrollWidth/clientWidth 829/818 (1440) and 829/658 (1280)",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12431,7 +12489,9 @@
    "finding_id": "OR-3",
    "title": "Weekly excess return opens scrolled to the OLDEST weeks after a Custom range wider than the card; the latest weeks are hidden",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-3, minor: Weekly excess return opens scrolled to the OLDEST weeks after a Custom range wider than the card; the latest weeks are hidden. Where: Relative strength / Weekly excess return, rs.ts rsW render (requestAnimationFrame: if (!t.dataset.kept) t.scrollLeft = 1e6). Steps: Click Custom, From 2026-06-02, To 2026-11-26, Apply (25 weeks, 994 px in a 400 px scroller). Expected: Scrolled to the right end so the newest week (26 Nov) shows, as the 8W default is meant to (inventory: 'scrolled to the right end'). Actual: scrollLeft = 0 (columns Jun 8 ... Aug), legend says '25 weeks, 29 May - 26 Nov' but newest columns are off-screen to the right. dataset.kept is already '1' from the first render (scrollWidth == clientWidth) so the scroll-to-end never runs. Same after returning to Custom from 4W. Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rsW_custom26.png; probe [scrollLeft, scrollWidth, clientWidth, kept] = [0, 994, 400, '1'] after Apply",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12454,7 +12514,9 @@
    "finding_id": "OR-4",
    "title": "Esc does not close the market-map stock popover",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-4, minor: Esc does not close the market-map stock popover. Where: Overview / market map tile popover (stockPop in ui.ts, ov.ts mkCard). Steps: Click a tile (e.g. KLBF), press Escape. Expected: Esc closes popovers (Custom popover, windows do); popover hides. Actual: Popover stays (hidden=false) until a click inside the map; keyboard users who opened it with Enter/Space must tab away. Evidence: probe after Escape: mk.querySelector('.sx-spop').hidden === false; /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/mk_pop2.png",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12477,7 +12539,9 @@
    "finding_id": "OR-5",
    "title": "Stock popover value wraps: 'Rp' on one line, '30.0B/day' on the next",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-5, nit: Stock popover value wraps: 'Rp' on one line, '30.0B/day' on the next. Where: Overview / market map tile popover. Steps: Click KLBF tile. Expected: Label and value each on one line or the label shortened. Actual: The 220 px popover breaks the row '20-day average traded value | Rp 30.0B/day' into two lines for both label and value. Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/mk_pop2.png",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12500,7 +12564,9 @@
    "finding_id": "OR-6",
    "title": "Date range in the Custom popover starts one session after the range the card prints for the same period",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-6, minor: Date range in the Custom popover starts one session after the range the card prints for the same period. Where: Cumulative return, Weekly excess, '<Sector> stocks' Custom popover vs card footer (ov.ts customRange, model.ts checkRange). Steps: On 3M open Custom: note says '4 Sep - 26 Nov - 60 trading days', From prefilled 2026-09-04. Card footer says '3 Sep - 26 Nov - 60 sessions'. Apply Custom 2 Jun-30 Sep: popover '2 Jun - 30 Sep - 84 trading days', card '29 May - 30 Sep - 84 sessions'. Expected: One start date for one range (or the card says 'from the 3 Sep close'). Actual: The two start dates differ by one session; reapplying the prefilled range moves the card's printed start (3 Sep vs 4 Sep wording) and looks like the range changed. Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rc_custom_pop.png, /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rc_custom_applied.png; probe text in s8 run",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12523,7 +12589,9 @@
    "finding_id": "OR-7",
    "title": "Momentum card title truncated at 1280",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-7, nit: Momentum card title truncated at 1280. Where: Overview / Momentum header at 1280 width. Steps: Open Overview at 1280x900. Expected: Full title or wrapped (N06 asked that titles fit). Actual: 'Momentum: horizon vs hori...' (scrollWidth 210 > 204). Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/ov_1280_light_top.png",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12546,7 +12614,9 @@
    "finding_id": "OR-8",
    "title": "Weekly excess default 8W is clipped at 1280: half of the oldest column and its month label are cut",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-8, nit: Weekly excess default 8W is clipped at 1280: half of the oldest column and its month label are cut. Where: Relative strength / Weekly excess return at 1280 (card 322 px). Steps: Open Relative strength at 1280. Expected: 8 columns fit or a clean scroll edge. Actual: Scroller 350 > 320 px, scrolled right; the first visible week (15 Oct) sits next to a clipped sliver of 8 Oct cells; legend still says '8 weeks'. Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rsW_1280.png",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12569,7 +12639,9 @@
    "finding_id": "OR-9",
    "title": "Wording: 'fell -11.3%' (double negative) and awkward phrases in windows",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-9, nit: Wording: 'fell -11.3%' (double negative) and awkward phrases in windows. Where: words.ts:95 rc.ex ('fell'/'rose' + signed pct); Relative return window note 'The rank uses the window chosen in this window.'; Rank change popover 'Rank on Thu 19 Nov 2026 vs the date shown'. Steps: Expand Cumulative return (example sentence); expand Relative return (How to read); open Rank change Custom. Expected: 'Financials fell 11.3%' / 'returned -11.3%'; plain wording. Actual: 'Financials fell -11.3%, +10.09 pp vs IHSG ...'; the two other sentences read oddly. Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/win_rc.png and text probe of win_rs_rsA",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12592,7 +12664,9 @@
    "finding_id": "OR-10",
    "title": "Cumulative return reuses 6 colours for 11 sectors",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-10, nit: Cumulative return reuses 6 colours for 11 sectors. Where: Overview / Cumulative return legend (ov.ts PAL has 6 entries). Steps: Switch every sector on (or click until >6 are on), 1M. Expected: Distinct swatches or a note. Actual: Basic Mat./Industrials share blue, Cons. Cyc/Infra purple, Energy/Tech teal, Non-Cyc/Property orange, Financials/Transport red: the legend swatch alone cannot identify a line (end labels do). Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rc_allon_1M.png",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12615,7 +12689,9 @@
    "finding_id": "OR-11",
    "title": "Sector drill-down window opens with only 2 stock rows visible",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-11, nit: Sector drill-down window opens with only 2 stock rows visible. Where: Relative strength / Sector drill-down window (stacked layout). Steps: Expand Sector drill-down at 1440x900. Expected: Enough of the stock list visible to use without scrolling (inventory: stacked, sized to content). Actual: Window 820 px: copied table takes 532 px, the stock table pane 1514 px scrolls inside .fw-c; first view shows header + KLBF + MIKA only, 'Sector' select and search near the bottom edge. Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/win_rs_rsD.png",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12638,7 +12714,9 @@
    "finding_id": "OR-12",
    "title": "Bottom-row card footers wrap onto 2-3 lines at 1440",
    "finding": "agents_20261127-sector-ovrs, sonnet, OR-12, nit: Bottom-row card footers wrap onto 2-3 lines at 1440. Where: Relative strength / '<Sector> stocks' and Weekly excess return legends. Steps: Open Relative strength at 1440, scroll to bottom. Expected: One-line legend (D13/N06 style truncations were to be gone). Actual: '- - Health index - top 2 and bottom 2 coloured - the strongest sector of the week until you lock one' wraps with the date range on a third line; Weekly excess: three stacked lines. Evidence: /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rsA_abs_hover.png (bottom of page)",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12661,7 +12739,9 @@
    "finding_id": "RP-1",
    "title": "A custom range that starts before the first session is accepted but silently ignored: Pair matrix shows 3M figures labelled 'C', Beta shows 120D figures labelled 'Custom'",
    "finding": "agents_20261127-sector-rotpm, sonnet, RP-1, major: A custom range that starts before the first session is accepted but silently ignored: Pair matrix shows 3M figures labelled 'C', Beta shows 120D figures labelled 'Custom'. Where: Pair matrix > Sector pair matrix (Spread, Custom) and Beta and correlation (Custom); apps/edge-bff/sector/src/cards/pm.ts betaSpan (fallback to 120) and K.span fallback; ov.ts customRange. Steps: Pair matrix tab. Sector pair matrix > Spread > Custom, From 2025-08-15, To 2026-06-30 > Apply. Then Beta and correlation > Custom, same dates > Apply. (Start 2025-09-03 works and gives 194D.) Expected: Either the popup rejects/clamps the range (data starts 2 Sep 2025 so the first usable base is 2 Sep) or the cards compute the chosen range and label it with its dates. Actual: The popup shows '3 Sep 2025 - 30 Jun 2026 . 194 trading days' and accepts. Matrix subtitle reads 'Return row - return column, C (pp) ...' (internal code 'C' leaks), footer '3 Sep - 26 Nov', Financials/Energy cell +18.3 = the 3M value (the chosen 194-session spread would be +5.3/+6.6). Beta subtitle reads 'from Custom daily returns', footer '8 Jun - 26 Nov' = the 120D window, Custom chip stays selected. Evidence: Screenshot scratchpad sector_check1/agents_20261127-sector-rotpm/custom_before_first_session.png; probe p29.py output: 'M sub: Return row - return column, C (pp) ... FinEn +18.3', 'T sub: ... from Custom daily returns | 8 Jun - 26 Nov'; contrast start 2025-09-03 -> 'from 194D daily returns', FinEn +5.3 (expected from the files +6.57 for base 3 Sep, +5.3 for base 2 Sep). Code: pm.ts betaSpan falls to w=120 when s.base < 0.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12684,7 +12764,9 @@
    "finding_id": "RP-2",
    "title": "Rotation map Timeline: sector names overlap each other, '26 Nov' collides with 'in phase', and the card has a large empty area below the grid",
    "finding": "agents_20261127-sector-rotpm, sonnet, RP-2, minor: Rotation map Timeline: sector names overlap each other, '26 Nov' collides with 'in phase', and the card has a large empty area below the grid. Where: Rotation > Rotation map > Timeline (src/cards/rot.ts timeline(): rh = min(.., max(cw,10))). Steps: Rotation tab at 1440x900 > Timeline. Expected: Rows tall enough for the 11px sector labels, no overlapping axis labels, the grid using the card height. Actual: 11 rows are about 10px high; labels Financials/Industrials/Non-Cyc/Transport/Cons. Cyc/Property ... are stacked with overlapping glyphs; the right axis labels read '26 Novin phase' (overlap); about 140px of blank card below the grid. The IHSG strip axis and the timeline axis show the same dates twice. Evidence: Screenshot rot_timeline.png (1440x900 light). Same rows height at any width because rh is capped by the column width.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12707,7 +12789,9 @@
    "finding_id": "RP-3",
    "title": "After picking a map date on the IHSG strip, Rotation detail and the stock quadrant stay on the latest date while the map and Direction & speed move, with no indication",
    "finding": "agents_20261127-sector-rotpm, sonnet, RP-3, minor: After picking a map date on the IHSG strip, Rotation detail and the stock quadrant stay on the latest date while the map and Direction & speed move, with no indication. Where: Rotation > Rotation detail ('Quadrant now vs 5D ago', 'Current quadrant', 'Last change') and stock momentum quadrant; rot.ts rotB uses E, rotA/rotD use mapDate(c). Steps: Rotation tab > click the middle of the IHSG strip (map date becomes 4 May) and read the three cards. Expected: Either all cards follow the map date or the cards that do not say so (e.g. 'as of 26 Nov'). Actual: Map subtitle '4 May . tail 4W', Direction & speed 'week to 4 May', but Rotation detail still says 'Quadrant now vs 5D ago' with the 26 Nov rows (Industrials Weakening, 'from Leading . 26 Nov'). The reader cannot tell the table is not the map's date. (The Rotation readings window does follow the map date, so the card and its window disagree.) Evidence: Screenshot rot_map_oldate.png; DOM text of .card.rot-b unchanged after the strip click (p5.py output 'B card ... Industrials Weakening ... from Leading . 26 Nov'); window title 'Rotation readings . 11 May' for the map date 11 May.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12730,7 +12814,9 @@
    "finding_id": "RP-4",
    "title": "Pair matrix card clips its last row ('Basic Mat.') at 1440x900 and 1280x800; the 11x11 matrix needs an inner scroll of 23px",
    "finding": "agents_20261127-sector-rotpm, sonnet, RP-4, minor: Pair matrix card clips its last row ('Basic Mat.') at 1440x900 and 1280x800; the 11x11 matrix needs an inner scroll of 23px. Where: Pair matrix > Sector pair matrix (.pmg-s, card height 430px). Steps: Pair matrix tab at 1440x900 or 1280x800, look at the bottom row of the matrix. Expected: All 11 rows visible without scrolling (they are on 1152 wide). Actual: Last row half hidden behind the footnote; .pmg-s scrollHeight 292 > clientHeight 269 (overflow-y auto) at 1440 and 1280. The Top 7 table of Stretched pairs has the same cut (7th row partly hidden). Evidence: Screenshots first_Pair_matrix.png (1440) and Pair_matrix_1280_light_bottom.png; DOM probe p22.py: 1440x900 s:[292,269], 1280x800 s:[292,269], 1152x800 s:[329,329].",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12753,7 +12839,9 @@
    "finding_id": "RP-5",
    "title": "Stock momentum quadrant: x-axis title touches the card border, quadrant names are covered by dots and labels, one outlier squeezes the chart",
    "finding": "agents_20261127-sector-rotpm, sonnet, RP-5, minor: Stock momentum quadrant: x-axis title touches the card border, quadrant names are covered by dots and labels, one outlier squeezes the chart. Where: Rotation > Health . stock momentum quadrant (rotC). Steps: Rotation tab at 1440x900, scroll to the card (default Health, IHSG). Expected: Axis title inside the plot area, quadrant names readable. Actual: '1M vs IHSG ->' is drawn on the line that separates the chart from the legend; 'LEADING' is overprinted by the KLBF dot and label and 'LAGGING' by the MMIX dot ('LAG(dot)MMIX'); with RSCH at -56 pp the vertical zero line sits at the right edge and about 30 dots are packed in the right 25% of the width. Evidence: Screenshots rot_quad_dotclick.png and D_Rotation_1440_bottom.png (x title at y~817 on the border), D_Rotation_1152_bottom.png (LAGGING/MMIX overlap).",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12776,7 +12864,9 @@
    "finding_id": "RP-6",
    "title": "Map date and its weeks are printed without a year although they can be a year back; hover offers weeks the click cannot select",
    "finding": "agents_20261127-sector-rotpm, sonnet, RP-6, minor: Map date and its weeks are printed without a year although they can be a year back; hover offers weeks the click cannot select. Where: Rotation > Rotation map subtitle / Direction & speed subtitle / IHSG strip. Steps: Rotation tab > Tail 4W > click the far left of the IHSG strip. Hover the first weeks of the strip. Expected: '11 Nov 2025' (the data cover Nov 2025 to Nov 2026, so '11 Nov' is ambiguous: D11 of the audit) ; hover only invites a click where a click works. Actual: Subtitle 'Relative strength x momentum vs IHSG . 11 Nov . tail 4W' and 'The move on the map over the week to 11 Nov' are Nov 2025 data. Hovering the week of 4 Nov 2025 says 'Click to set the map date' but the click lands on 11 Nov 2025 (clamped to the first date with a full tail), and the left 12W click lands on 5 Jan with the same year-less label. Evidence: p23.py output 'left edge 4W: ... . 11 Nov . tail 4W' and 'left edge 12W: ... 5 Jan . tail 12W'; strip tooltip at x=46: 'IHSG . week to 4 Nov 2025 ... Click to set the map date'.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12799,7 +12889,9 @@
    "finding_id": "RP-7",
    "title": "Correlation mode: row/column order and the tooltip's 'Spread' use a hidden period",
    "finding": "agents_20261127-sector-rotpm, sonnet, RP-7, nit: Correlation mode: row/column order and the tooltip's 'Spread' use a hidden period. Where: Pair matrix > Sector pair matrix > Correlation. Steps: Spread > 3M, then Correlation > 60D; hover a cell. Expected: Order explained in the footnote, or tied to the visible window. Actual: Rows and columns stay ordered by the last Spread period (3M) while the period buttons are hidden; the footnote of Correlation says nothing about the order; the cell tooltip lists 'Spread 3M +18.33 pp' next to 'Corr 60D'. Negative correlations get no fill at all. Evidence: Screenshot pm_corr.png (order Fin, NonCyc, Health, Trans... differs from the 1M order); p11.py tooltip text 'Spread 3M +18.33 pp Corr 60D 0.78'.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12822,7 +12914,9 @@
    "finding_id": "RP-8",
    "title": "Beta: 'Delta beta' shows a dash for the 1Y window with no reason on the card",
    "finding": "agents_20261127-sector-rotpm, sonnet, RP-8, nit: Beta: 'Delta beta' shows a dash for the 1Y window with no reason on the card. Where: Pair matrix > Beta and correlation, window 1Y (and any window longer than half of the 300 sessions). Steps: Window 1Y. Expected: A short reason (needs two windows of history) in the header tip or footnote. Actual: All 11 rows show a dash; the header tip only says 'Beta now - beta over the previous window of the same length'. Evidence: p15.py: 'IHSG 1Y ... Basic Mat.B | 1.38 | | | -- | 0.85 ...'; words.ts dBetaTip.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12845,7 +12939,9 @@
    "finding_id": "RP-9",
    "title": "'Heading' words reuse the quadrant names with another meaning",
    "finding": "agents_20261127-sector-rotpm, sonnet, RP-9, nit: 'Heading' words reuse the quadrant names with another meaning. Where: Rotation readings window (rotA) and Direction & speed window. Steps: Open the Rotation map window; look at Non-Cyc. Expected: Heading names that cannot be confused with the quadrant column. Actual: Non-Cyc: Quadrant 'Lagging', Heading 'Weakening'; Financials: Quadrant 'Weakening', Heading 'Weakening'; two different meanings (direction vs quadrant) in adjacent columns. Evidence: Screenshot win_rotA.png; M.heading() labels in model.ts (Weakening, Strengthening, Turning up...).",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12868,7 +12964,9 @@
    "finding_id": "RP-10",
    "title": "The 'Formula' chip of the Rotation map is a title-only tooltip",
    "finding": "agents_20261127-sector-rotpm, sonnet, RP-10, nit: The 'Formula' chip of the Rotation map is a title-only tooltip. Where: Rotation > Rotation map footer ('Formula' .dchip). Steps: Click or Tab to the Formula chip. Expected: Readable on touch and by keyboard (or a window). Actual: Click does nothing, no focus stop; the formula only appears as the browser's title tooltip after hovering. Evidence: p6.py: element is <span class=dchip title='Relative strength = 100 x ...'> with no handler; screenshot rot_formula.png shows no popup after click.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],
@@ -12891,7 +12989,9 @@
    "finding_id": "RP-11",
    "title": "Beta window: stock table has room for only about two rows; hovered row's first cell is not shaded",
    "finding": "agents_20261127-sector-rotpm, sonnet, RP-11, nit: Beta window: stock table has room for only about two rows; hovered row's first cell is not shaded. Where: Pair matrix > Beta and correlation > expand window (1440x900). Steps: Expand the card; hover a sector row. Expected: A usable stock table; uniform row hover. Actual: The sector table takes about 450px and leaves two visible stock rows (GTSI, DEWA) before an inner scroll; the hovered row (Non-Cyc) is shaded from the Beta column on but not in the Sector cell. Evidence: Screenshot win_pmT.png.",
-   "errors": [],
+   "errors": [
+    "M575"
+   ],
    "fix_commits": [
     "29535145"
    ],

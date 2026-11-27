@@ -8892,6 +8892,43 @@ in its staleness check.
   job screener-worker). Moved through each file's line diff from `53b4fafb` (none fell inside a changed hunk); the pointer
   test passes.
 
+### M575 — Sector Analysis check 1: 52 findings of five page checkers on the beta (2026-11-27; fixed on the branch in `29535145`, `1ccbe90d`, not deployed; four parts asked, UD71-UD74)
+
+- **Symptom (runs `agents_20261127-sector-{data,ovrs,rotpm,brdt,mobex}`, Sonnet medium, the user's order of
+  2026-11-27; journals in `verification/sector_analysis/check1/`):** 52 findings, 6 major, 21 minor, 25 nit, on the
+  beta's `aabb6530`. The majors: the Breadth vs price chart taller than its box at 1280 px (labels over the footer, BD-1);
+  the Stock detail's distances cut ("+104…") at 1280 px and on a phone (BD-2, MX-1); the Momentum corners named wrongly
+  when the horizontal axis holds the shorter horizon (OR-1); the drill-down's last column cut with no sign of a scroll
+  (OR-2); a Custom range starting before the data silently clamped, and the internal code "C" printed (RP-1). Every
+  figure the data checker recomputed from the database matched; the findings are layout, reading and wording.
+- **Verified root causes, by class** (each reproduced on the production build with the published files and on the
+  fixture build; `FIXES.md` one row per finding):
+  1. *A chart sized before its box settles:* a chart read its box before its legend text and font arrived and redrew only
+     on a width change (BD-1, RP-5).
+  2. *A table wider than its card with no cue:* fixed-width columns cut with an ellipsis, or a sideways scroll nothing
+     announced (OR-2, BD-2, BD-3, BD-4, MX-1, MX-2, MX-3, OR-8).
+  3. *A user's range changed without saying so:* `checkRange` clamped silently; a fallback label printed the period code
+     (RP-1, OR-6, BD-7; Rank change's compare date and an early map date had the same mechanism).
+  4. *A reading that assumed an axis order* (OR-1) and *a count from another source than the page's series* (the 1D
+     advancers recounted from the day file instead of Feature 08's series, so they differed from the Overview: D-2, BD-6).
+  5. *Gaps of state and keyboard:* Esc, arrow keys, the picked date not in the address, two quick picks racing (OR-4,
+     BD-5, BD-9, BD-10, MX-6), and bare dashes with no reason (BD-11, RP-8).
+- **Solution:** the page (`apps/edge-bff/sector/src`) fixed per class, every scroller with a cue (`ui.ts`
+  `scrollCues`), a chart redrawn when its box changes, a Custom range refused as the Overview's or clamped with a note,
+  corner names from the shorter horizon, 1D counts from the series (311/204/323 on 26 Nov, = the Overview);
+  `SECTOR_FORMULAS.md` prose (D-1, D-3, D-6, D-7; no formula code, fingerprints unchanged); the publisher unchanged.
+  Verdicts: 41 fixed, 7 fixed with another key, 2 fixed in part (MX-4, MX-5), 2 not built (D-5, MX-9). Tests:
+  `tests/check1.test.ts` (21 tests, each failing on the code before `29535145`) and `tests/look/check1.mjs` (Playwright,
+  5 widths × light/dark plus 19 interaction steps; 29 of 29 fail before, 29 of 29 pass after, 27 of 27 on the real
+  published files).
+- **Status:** fixed on the session branch, not deployed (the beta deploy is asked, UD68). Each fix was tested by its
+  author only: the 50 findings with a fix are rows of `verification/records/recheck_ledger.json` (status waiting) and of
+  `RECHECK.md`; a re-check runs only with the user's approval, model and effort (AGENTS.md rule 8). Open parts, asked
+  with context: D-5 company names "Pt …" from the source table (UD71), MX-4 the shared small controls on touch (UD72),
+  MX-5 the shared grey and tag tokens' contrast (UD73), MX-9 the Greek glyphs Δ σ β (UD74).
+- **Lesson:** a page's look check covers a chart whose box changes after its first draw and every scroller's cue, at
+  each frame width of the shell; a page's count of a figure another page shows reads the same series.
+
 ### M574 — A page checker printed the value of `BACKTEST_WORKER_KEY` to its tool output while reading the owner's login (2026-11-27; open: rotation asked, UD70)
 
 - **Symptom (checker `agents_20261127-sector-brdt`, its own collateral note):** to read the beta owner's login it ran
