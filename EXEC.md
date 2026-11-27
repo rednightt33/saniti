@@ -18352,3 +18352,11 @@ yang ada di page sector, yang sifatnya top and bottom."
   tabel atas sekarang), Stretched pairs https://claude.ai/artifact/82UqWBaJw2K9HSZmAu8Xsy (kiri: Top 7/All pasangan dengan
   spread 1M; kanan: 55 pasangan per horizon, pasangan terpilih ditandai; "All columns" = Spread 3D/1W/1M). Dicek di 1440,
   1152 dan 390 px: pita judul, judul kolom dan baris pertama kiri-kanan di garis yang sama, tidak ada sel terpotong.
+- User 2026-11-27 (verbatim, dengan screenshot jendela Stretched pairs, kotak merah = tabel atas, kotak biru = judul kolom
+  tabel bawah): "Buat rotation detail OK pakai C1 masukan exec / Untuk streched apirs kita pakai as is dari sisi how we
+  display it, tapi kotak A kita hapus, jadi hanya ada bagian Spread across horizons.. Khusus untuk kotak birunya 1D 3D dll
+  tambahkan kata Spread didepannya jadi Spread 1D Spread 3D dll / Konfirmasi"
+  Keputusan: Rotation detail = C1 (dikonfirmasi). Stretched pairs (jendela): tabel atas (Pair, Spread 3D/1W/1M, Top 7)
+  dihapus, jendela hanya berisi "Spread across horizons"; judul kolom menjadi "Spread 1D", "Spread 3D", "Spread 1W",
+  "Spread 2W", "Spread 1M", "Spread 3M". Ditanyakan: nasib kontrol tabel atas (Rank by, All / Leader still ahead / Leader
+  behind, Show), judul "|1M|", dan apakah kartu Stretched pairs di halaman ikut berubah.
