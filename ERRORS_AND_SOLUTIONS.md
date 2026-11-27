@@ -11525,6 +11525,13 @@ in its staleness check.
   runner is slow the key lands in the Terminal's frame, which has the focus from the click and does not pass Escape on.
   The check that would confirm it: the test reads `document.activeElement` of the shell before Escape on a run where it
   fails. Not a defect of the change; the release waits for a green run on the exact commit, which `4b35b5ed` is.
+- **Recurrence 2026-11-27 (`main` `e79caada`, Backend tests run 46047453925, job edge-bff):** the same test failed on all
+  three attempts at the same line (Escape after the Flow Timeline's lock opened the shell's box; the box still there after
+  10 s); 1 failed, 1,291 passed. The commit changed no part of that path (the Sector, Watchlist, Screener and Backtest
+  pages' texts and `shared/touch-words.ts`; not the shell, the Terminal or the bundle route), and `72c09231` passed it
+  (run 46029338198). Here, on `e79caada` with a disposable Postgres 16 and the CI's Chromium build: 3 passed, three runs
+  of 3 of 3. The failed job was re-run. The suspected cause above (the focus taken in a `requestAnimationFrame`) stays
+  unconfirmed; its check (the shell's `document.activeElement` read before Escape on a failing run) is still to be added.
 
 - **Found by:** the first CI runs of edge-bff's browser tests after M509: run 44663513713 (commit `b969529b`, Playwright
   1.65.2, Chrome 159): 947 passed, 2 failed; run 44667192992 (commit `58b75888`, Playwright 1.63.0, Chrome for Testing
