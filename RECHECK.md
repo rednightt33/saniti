@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 220 item
+## Menunggu uji ulang: 270 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -39,6 +39,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) | EXEC-PRICE-DISTORTION | 4 | 4 | 0 | 0 | 0 | 0 |
 | Backtest, Screener dan Terminal: state fokus dan terpilih mengikuti Terminal, pilihan yang terpotong (ERRORS M570) | EXEC-VISUAL-STATES | 2 | 2 | 0 | 0 | 0 | 0 |
 | Sector Analysis: nama file keluarga sector/ (ERRORS M572) | EXEC-SECTOR-ANALYSIS | 1 | 0 | 0 | 0 | 1 | 0 |
+| Sector Analysis: cek 1 halaman (5 agen Sonnet medium, 27 Nov 2026) | EXEC-SECTOR-ANALYSIS | 50 | 0 | 0 | 49 | 1 | 0 |
 
 ### Akun dan keamanan: re-check ronde 1 (R1) (40)
 
@@ -335,11 +336,66 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 |---|---|---|---|---|---|
 | `errors/M572` | The contract named the per-sector files with the index ticker in capitals, which terminal-api never serves | `e7d510b6` | bukan kode | M572 | 0 |
 
+### Sector Analysis: cek 1 halaman (5 agen Sonnet medium, 27 Nov 2026) (50)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `agents_20261127-sector-brdt/BD-1` | Breadth vs price: chart is drawn at the wrong height at 1280 wide and its x-axis labels overlap the footer line | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-brdt/BD-2` | Stock detail: distance values are cut with an ellipsis at 1280 wide | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-brdt/BD-3` | Stock detail 'Since' date with a year is clipped at 1440 | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-brdt/BD-4` | Breadth heatmap table: the last column (Delta EMA50 1W) is cut off at 1152 wide | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-brdt/BD-5` | Rapid date picks: an older, slower response can overwrite the newer pick | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-brdt/BD-6` | Same card, three different stock counts: A/U/D and the heatmap 'Up' columns use fewer stocks than the Stocks column | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-brdt/BD-7` | Custom range: the applied range starts one session before the chosen From date, and the count differs from the popover | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-brdt/BD-8` | Show popover list is clipped: the last sector (Transport) and the footer note need a scroll that has no visible cue | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-brdt/BD-9` | Date menu does not respond to arrow keys although its items are role=menuitemradio | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-brdt/BD-10` | The picked date is not kept in the address although every other choice is | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-brdt/BD-11` | Stock detail shows '—' (Since) next to '300+' days, and '—' distance, without a reason | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-brdt/BD-12` | Tiny negative distances print as '0.0%' on a row marked Below | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-data/D-1` | Industry rows and their sector row measure different things and can disagree in sign and size by tens of points | `29535145`, `1ccbe90d` | branch | - | 0 |
+| `agents_20261127-sector-data/D-2` | Breadth tab 1D advancers/decliners differ from the Overview and Feature 08 for the same market and date | `29535145`, `1ccbe90d` | branch | - | 0 |
+| `agents_20261127-sector-data/D-3` | Stock detail 'Days' counts the stock's own bars, so it contradicts the 'Since' date for thinly traded stocks | `29535145`, `1ccbe90d` | branch | - | 0 |
+| `agents_20261127-sector-data/D-4` | Industry RS rating is ranked among all 58 industries, the sector rating among 11 sectors; neither the page nor the formulas say so | `29535145`, `1ccbe90d` | branch | - | 0 |
+| `agents_20261127-sector-data/D-6` | Closes are rounded to 2 decimals in sector-series and sector-stocks but carried at full precision in sector-day | `1ccbe90d` | bukan kode | - | 0 |
+| `agents_20261127-sector-data/D-7` | Market rows count 8 'Other' (Undefined-sector) stocks that no sector row shows, without a note | `29535145`, `1ccbe90d` | branch | - | 0 |
+| `agents_20261127-sector-data/D-8` | Industry level is NULL (not carried) on dates without members, so returns whose base or end falls there read '—' | `29535145`, `1ccbe90d` | branch | - | 0 |
+| `agents_20261127-sector-mobex/MX-1` | Breadth 'Stock detail': numbers cut to '+104....' on phones | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-mobex/MX-2` | Wide tables scroll sideways inside their card with no cue; most columns are hidden on a phone | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-mobex/MX-3` | Fifth tab 'Breadth' is invisible on a 390 phone (no scroll cue on the tab bar) | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-mobex/MX-4` | Touch targets well below 32-44 px | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-mobex/MX-5` | Contrast below 4.5:1 for small texts (light: whole page; dark: chart end labels and Breadth counts) | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-mobex/MX-6` | Date menu has no arrow-key navigation | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-mobex/MX-7` | When the data cannot load, header controls look live but do nothing | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-mobex/MX-8` | Phone window text refers to things not present on a phone | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-1` | Momentum quadrant names and the window's 'Reading' column are wrong when the horizontal horizon is shorter than the vertical one | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-2` | Sector drill-down: last columns (Rotation, Momentum) are cut off at 1440 and hidden behind a horizontal scroll at 1280 | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-3` | Weekly excess return opens scrolled to the OLDEST weeks after a Custom range wider than the card; the latest weeks are hidden | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-4` | Esc does not close the market-map stock popover | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-5` | Stock popover value wraps: 'Rp' on one line, '30.0B/day' on the next | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-6` | Date range in the Custom popover starts one session after the range the card prints for the same period | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-7` | Momentum card title truncated at 1280 | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-8` | Weekly excess default 8W is clipped at 1280: half of the oldest column and its month label are cut | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-9` | Wording: 'fell -11.3%' (double negative) and awkward phrases in windows | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-10` | Cumulative return reuses 6 colours for 11 sectors | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-11` | Sector drill-down window opens with only 2 stock rows visible | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-ovrs/OR-12` | Bottom-row card footers wrap onto 2-3 lines at 1440 | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-rotpm/RP-1` | A custom range that starts before the first session is accepted but silently ignored: Pair matrix shows 3M figures labelled 'C', Beta shows 120D figures labelled 'Custom' | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-rotpm/RP-2` | Rotation map Timeline: sector names overlap each other, '26 Nov' collides with 'in phase', and the card has a large empty area below the grid | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-rotpm/RP-3` | After picking a map date on the IHSG strip, Rotation detail and the stock quadrant stay on the latest date while the map and Direction & speed move, with no indication | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-rotpm/RP-4` | Pair matrix card clips its last row ('Basic Mat.') at 1440x900 and 1280x800; the 11x11 matrix needs an inner scroll of 23px | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-rotpm/RP-5` | Stock momentum quadrant: x-axis title touches the card border, quadrant names are covered by dots and labels, one outlier squeezes the chart | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-rotpm/RP-6` | Map date and its weeks are printed without a year although they can be a year back; hover offers weeks the click cannot select | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-rotpm/RP-7` | Correlation mode: row/column order and the tooltip's 'Spread' use a hidden period | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-rotpm/RP-8` | Beta: 'Delta beta' shows a dash for the 1Y window with no reason on the card | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-rotpm/RP-9` | 'Heading' words reuse the quadrant names with another meaning | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-rotpm/RP-10` | The 'Formula' chip of the Rotation map is a title-only tooltip | `29535145` | branch | - | 0 |
+| `agents_20261127-sector-rotpm/RP-11` | Beta window: stock table has room for only about two rows; hovered row's first cell is not shaded | `29535145` | branch | - | 0 |
+
 ## Hitungan per status
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 220 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 270 |
 | `fixed` | diuji ulang agen lain: beres | 130 |
 | `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 2 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
@@ -347,7 +403,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | `open` | belum diperbaiki | 90 |
 | `accepted` | diterima user apa adanya | 4 |
 | `obsolete` | tidak berlaku lagi | 5 |
-| **Total** | | **451** |
+| **Total** | | **501** |
 
 Dari 90 baris `open`, 25 punya baris pemilik di PLAN.md atau EXEC.md dan 65 belum
 (aturan 1: setiap bagian yang terbuka butuh pemilik dan pemicu).
