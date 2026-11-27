@@ -8892,7 +8892,7 @@ in its staleness check.
   job screener-worker). Moved through each file's line diff from `53b4fafb` (none fell inside a changed hunk); the pointer
   test passes.
 
-### M578 — The limits left by check 2, UD80, UD81, and the agent's own quick check of the 21 fixes (2026-11-27; fixed on the branch in `c43f3512`, not deployed; tested by its author only)
+### M578 — The limits left by check 2, UD80, UD81, and the agent's own quick check of the 21 fixes (2026-11-27; fixed in `c43f3512`, on the beta since 2026-11-27 (`e79caada`); tested by its author only)
 
 - **The user's words (2026-11-27):** "Bereskan batas yang masih ada. ud 80 oke dgn rekomendasi. ud 81 oke dgn rekomendasi
   Jalankan, dan cek hasilnya (oleh kamu, bukan subagent) - Also quick check terhadap 21 perbaikan yang sudah sempat
@@ -8922,7 +8922,8 @@ in its staleness check.
   with the 26 Nov files; journal in the ledger rows): 18 fixed as the findings asked; OV2-1 and RP2-2 partly (the two
   limits above, now fixed); MX2-8 partly (its other pages, now UD81). Found by the agent's own changes and fixed before
   commit: the label column cut 24 tickers of the Beta window on a phone (the longest-word floor above).
-- **Status:** fixed on the session branch; the new fixes are tested by their author only (ledger rows waiting).
+- **Status:** fixed, on the beta since 2026-11-27 (`e79caada`, built with the cache: M577's error did not return), not on
+  the live site; the new fixes are tested by their author only (ledger rows waiting).
 - **Lesson:** a fix verified on the one sector or date of its finding is verified on all of them before it is called
   done (RP2-2 held for Health, failed on six other sectors).
 

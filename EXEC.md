@@ -18447,3 +18447,5 @@ yang ada di page sector, yang sifatnya top and bottom."
   diperbaiki di `c43f3512`). Uji: Sector vitest 101, round2 41/41 dan check2 36/36 (fixture dan data 26 Nov), check1 29/29
   (28/29 data asli, MX-7 kait fixture), oracle EDGE 52/52, vitest Watchlist 26, Screener 1545, Backtest 107. Perbaikan baru
   diuji pembuatnya saja (ledger waiting). Lalu push `main` (beta).
+- **Beta deploy (2026-11-27):** `main` `72c09231` → `e79caada`; `edge-bff` `8dd85c9e` SUCCESS 18:11 UTC with the cache;
+  bundles equal the tested builds; live unchanged `53b4fafb` (UD68 held). RAILWAY_CHANGELOG 2026-11-27.

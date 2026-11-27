@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-11-27 — The beta on `e79caada`: the limits of check 2, UD80, UD81 (ERRORS M578); the live site unchanged on `53b4fafb`
+
+- **The user's words (2026-11-27):** "Bereskan batas yang masih ada. ud 80 oke dgn rekomendasi. ud 81 oke dgn
+  rekomendasi Jalankan, dan cek hasilnya (oleh kamu, bukan subagent) - Also quick check terhadap 21 perbaikan yang sudah
+  sempat dijalankan. Ini semua dilakukan oleh kamu, bukan oleh subagent. Apabila ada temuan, fix it. After that's done,
+  push the main."
+- **Before:** no deployment waiting or building on the beta's or the live site's service; only `apps/edge-bff` changed
+  under `apps/` (no screener-worker watch path).
+- **`main` `72c09231` → `e79caada`** 18:10 UTC (fast-forward): `edge-bff` `8dd85c9e` SUCCESS 18:11:42 UTC, built with the
+  cache (ERRORS M577's cache error did not return).
+- **Checks:** the beta's `/version` `e79caada`, `/ready` 200; the bundles of the four changed pages equal the local
+  builds the agent tested (sector `index-BjQaop0i.js`, watchlist `index-Bcko4ifJ.js`, screener `index-CsDDEEMm.js`,
+  backtest `index-Wi2FVr4X.js`); a guest at 1440 and 390 px sees the sign-in page, its only failed request the expected
+  401 of `/api/v1/auth/session`. The live site `/version` `53b4fafb`, `/ready` 200.
+- **Rollback:** redeploy `edge-bff` from `72c09231` (`railway redeploy --commit`).
+
 ## 2026-11-27 — The beta on `72c09231`: Sector Analysis visual round 2 and check 2's fixes (EXEC-SECTOR-ANALYSIS, ERRORS M576), after one build without the cache (ERRORS M577); the live site unchanged on `53b4fafb`
 
 - **The user's words (2026-11-27):** "A, go kerjakan semuanya di branch - then assign 5 sonnets 5.5 medium to check

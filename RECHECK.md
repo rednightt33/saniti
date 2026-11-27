@@ -39,7 +39,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) | EXEC-PRICE-DISTORTION | 4 | 4 | 0 | 0 | 0 | 0 |
 | Backtest, Screener dan Terminal: state fokus dan terpilih mengikuti Terminal, pilihan yang terpotong (ERRORS M570) | EXEC-VISUAL-STATES | 2 | 2 | 0 | 0 | 0 | 0 |
 | Sector Analysis: nama file keluarga sector/ (ERRORS M572) | EXEC-SECTOR-ANALYSIS | 1 | 0 | 0 | 0 | 1 | 0 |
-| Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026) | EXEC-SECTOR-ANALYSIS | 4 | 0 | 0 | 4 | 0 | 0 |
+| Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026) | EXEC-SECTOR-ANALYSIS | 4 | 0 | 4 | 0 | 0 | 0 |
 
 ### Akun dan keamanan: re-check ronde 1 (R1) (40)
 
@@ -340,10 +340,10 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
-| `agents_20261127-sector-r2-ovrs/OV2-1` | Sector drill-down window with 'Open all industries': columns are cut at the window's right edge and both tables scroll sideways | `90bf33f0`, `c43f3512` | branch | M576, M578 | 1 |
-| `agents_20261127-sector-r2-rotpm/RP2-2` | Stock momentum quadrant: outlier dots still touch/overprint quadrant names and labels at narrow widths, and one outlier still squeezes the chart | `90bf33f0`, `c43f3512` | branch | M576, M578 | 1 |
-| `agents_20261127-sector-r2-mobex/MX2-8` | Visible subtitles still say 'click' on a touch screen | `90bf33f0`, `c43f3512` | branch | M576, M578 | 1 |
-| `agents_20261127-sector-r2-ovrs/OV2-2` | Windows stack below 1100 px, so every window of a 1152 px screen (frame 1096 px) is stacked | `c43f3512` | branch | M576, M578 | 0 |
+| `agents_20261127-sector-r2-ovrs/OV2-1` | Sector drill-down window with 'Open all industries': columns are cut at the window's right edge and both tables scroll sideways | `90bf33f0`, `c43f3512` | beta | M576, M578 | 1 |
+| `agents_20261127-sector-r2-rotpm/RP2-2` | Stock momentum quadrant: outlier dots still touch/overprint quadrant names and labels at narrow widths, and one outlier still squeezes the chart | `90bf33f0`, `c43f3512` | beta | M576, M578 | 1 |
+| `agents_20261127-sector-r2-mobex/MX2-8` | Visible subtitles still say 'click' on a touch screen | `90bf33f0`, `c43f3512` | beta | M576, M578 | 1 |
+| `agents_20261127-sector-r2-ovrs/OV2-2` | Windows stack below 1100 px, so every window of a 1152 px screen (frame 1096 px) is stacked | `c43f3512` | beta | M576, M578 | 0 |
 
 ## Hitungan per status
 

@@ -13461,7 +13461,7 @@
     "c43f3512"
    ],
    "fix_note": "90bf33f0: windows.ts widen(): a stacked window grows to its tables up to the screen less 48 px and draws again; the window's scroll cues set after the tables are aligned; round2.mjs step 7 fails on a cell past its scroller unless the window is at its widest and cues. Real 26 Nov: 1440/1280 window 1110 px, tables 1082/1082; 1152 window 1048 px, tables 1080 in 1020 with the cue (limit) (verdict in verification/sector_analysis/check2/FIXES.md); c43f3512: the part the quick check found open, fixed by the session agent (ERRORS M578)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "round2.mjs step 7 (fixture and real) (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13562,7 +13562,7 @@
     "c43f3512"
    ],
    "fix_note": "90bf33f0: quadrant names along their quadrant's edges, the first place no dot touches; stock names 3 px apart; axisRange ends at Tukey's 1.5 IQR whiskers (zero line 67-70% on 26 Nov, was 81-82%). Limit: LEADING touches DGNS at 390/360 (verdict in verification/sector_analysis/check2/FIXES.md); c43f3512: the part the quick check found open, fixed by the session agent (ERRORS M578)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check2.test \"RP2-2\", look check2 \"RP2-2\" (4 widths), check1 RP-5 (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13994,7 +13994,7 @@
     "c43f3512"
    ],
    "fix_note": "90bf33f0: 18 mouse texts and tips through tap(); the other pages' mouse words on touch are an open part (FIXES.md) (verdict in verification/sector_analysis/check2/FIXES.md); c43f3512: the part the quick check found open, fixed by the session agent (ERRORS M578)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look check2 \"MX2-8\", check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -14160,7 +14160,7 @@
     "c43f3512"
    ],
    "fix_note": "c43f3512: windows side by side from 1096 px (UD80, user 2026-11-27 \"ud 80 oke dgn rekomendasi\"); at 1152 five of seven side by side, hxCard and rsL stack by the D15 rule with nothing scrolling sideways",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "round2.mjs step 2 at 1152 (light, dark; fixture and 26 Nov files); own probe lim/shot1152.mjs",
    "status": "waiting",
    "open_row": "",
