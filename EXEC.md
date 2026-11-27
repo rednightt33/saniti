@@ -18347,3 +18347,8 @@ yang ada di page sector, yang sifatnya top and bottom."
   baris 36 px, kolom sejajar; contoh di file `sector_kiri_kanan_C1-C5.html`). Breadth heatmap table tetap. Sector
   drill-down dan Beta and correlation: menunggu variasi opsi 1 yang tombol "All 11 sectors"-nya dekat (dikirim sebagai
   file HTML).
+  Contoh C1 yang diterapkan (diminta user sebagai artifact): Rotation detail https://claude.ai/artifact/5dMf55qdCAZqjV9JYbfn5F
+  (kiri: sektor, kuadran sekarang, speed; kanan: quadrant changes, Ctrl/Cmd klik untuk beberapa sektor; "All columns" =
+  tabel atas sekarang), Stretched pairs https://claude.ai/artifact/82UqWBaJw2K9HSZmAu8Xsy (kiri: Top 7/All pasangan dengan
+  spread 1M; kanan: 55 pasangan per horizon, pasangan terpilih ditandai; "All columns" = Spread 3D/1W/1M). Dicek di 1440,
+  1152 dan 390 px: pita judul, judul kolom dan baris pertama kiri-kanan di garis yang sama, tidak ada sel terpotong.
