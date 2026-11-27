@@ -27,6 +27,7 @@ import { defaultOp, fieldHint, fieldMax, isSignal, measureOf, measuresFor, offer
 import { sideOf } from './texts.ts';
 import { checkCard } from './builder.ts';
 import { flowControlHtml, paramFieldValue, paramTitle } from './param-fields.ts';
+import { tap } from '../../shared/touch-words.ts';   // UD81: touch words on a touch screen
 
 export const MY = 'My metrics', ON_SCREEN = '__on', ALL = 'All';
 export type Sort = 'group' | 'az' | 'za';
@@ -384,7 +385,7 @@ function rowHtml(it: AddItem, i: number, added: boolean): string {
   const act = !it.ok ? `<span class="qadd">No data</span>`
     : added ? `<button type="button" class="qact on" data-qact="${i}" tabindex="-1" aria-label="Remove ${esc(it.label)}"><span class="q-on">Added ${ico(IC.check, 's')}</span><span class="q-rm">Remove</span></button>`
     : `<button type="button" class="qact" data-qact="${i}" tabindex="-1" aria-label="Add ${esc(it.label)}">Add</button>`;
-  const title = added ? 'On the screen with this condition. Click to remove it.' : it.ok ? 'Click to add with the condition shown' : (it.why || 'No data');
+  const title = added ? `On the screen with this condition. ${tap('Click', 'Tap')} to remove it.` : it.ok ? `${tap('Click', 'Tap')} to add with the condition shown` : (it.why || 'No data');
   const editable = it.ok && it.kind === 'ind' && !!it.entry?.params.length;   // its parameters are in the settings column (no grey line)
   // a pattern's side under its name (QA of unit C item 2), in place of the grey line (a row without data keeps its reason)
   const side = it.kind === 'ind' && it.ok ? sideOf(it.entry) : null;
@@ -541,7 +542,7 @@ export function openAddCondition(q = '', g: string = ALL) {
   if (!ctx.catalog) return;
   W.q = q; W.g = g; W.act = 0; W.pop = null; W.popBox = { w:0, h:0, dx:0, dy:0 }; W.kbd = false;   // user 2026-11-08: "Hoverstate hanya untuk mouse": no row is marked on opening or typing
   dialog(`<div class="dialog qwin" role="dialog" aria-label="Add a condition">
-    <div class="qwin-h"><div><strong>Add a condition</strong><small>Pick the condition next to an indicator, then click the row to add it. Click an added row to remove it. The window stays open until you close it.</small></div><button type="button" class="iconbtn sm" data-close aria-label="Close">${ico(IC.x)}</button></div>
+    <div class="qwin-h"><div><strong>Add a condition</strong><small>Pick the condition next to an indicator, then ${tap('click', 'tap')} the row to add it. ${tap('Click', 'Tap')} an added row to remove it. The window stays open until you close it.</small></div><button type="button" class="iconbtn sm" data-close aria-label="Close">${ico(IC.x)}</button></div>
     <div class="qwin-t"><label class="searchbox">${ico(IC.search, 's')}<input id="acq" placeholder="RSI, Stochastic, VWAP, Supertrend, breakout…" autocomplete="off" aria-label="Search indicators" role="combobox" aria-controls="acl" aria-expanded="true" value="${esc(q)}"></label>
       <label class="qwin-sort">Sort <select class="sel sm" id="acs" aria-label="Sort"><option value="group">Group</option><option value="az">Name A–Z</option><option value="za">Name Z–A</option></select></label></div>
     <div class="qwin-b"><nav class="qwin-g qrail" id="acg" aria-label="Groups"></nav><div class="qwin-split" data-wrz="split" aria-hidden="true"></div><div class="qwin-l" id="acl" role="listbox" aria-label="Indicators"></div></div>

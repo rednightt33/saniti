@@ -22,6 +22,7 @@ import { Previews, portRows, previewKey, type Rows } from './preview.ts';
 import { NO_STOCK } from './picker.ts';
 import { renderFilterBar } from './filterbar.ts';
 import { LANES, NARROW, drawSignalLanes, initLanes, laneSignals } from './lanes.ts';
+import { tap } from '../../shared/touch-words.ts';   // UD81: touch words on a touch screen
 
 export interface Sig { series: { c: Card; s: Uint8Array }[]; entry: Uint8Array; dates: string[] }
 
@@ -215,7 +216,7 @@ const portTable = (U: string[], tk: string) => {
   if(S.mode!=='portfolio'){ $('portSig').hidden = true; if (!needsDetail()) previews.drop(); return }
   const P = portSig(); const rows = U.map(t => { const {n, last, left} = P(t); const tr = S.result ? S.result.trades.filter(x=>x.tk===t) : []; const w = tr.filter(x=>x.ret>0).length;
       return `<tr class="${t===tk?'on':''}" data-t="${esc(t)}"><td><b>${esc(t)}</b></td><td ${left?TT(ttH(`${esc(t)} left out`, [['Error', esc(left.code)]], esc(left.message))):''}>${n ?? '—'}</td><td>${esc(last||'—')}</td><td>${S.result?tr.length:'—'}</td><td>${S.result&&tr.length?nf(w/tr.length*100,0)+'%':'—'}</td><td class="${S.result?cls(tr.reduce((s,x)=>s+x.pnl,0)):''}">${S.result?rp(tr.reduce((s,x)=>s+x.pnl,0)):'—'}</td></tr>` }).join('');
-  $('portSig').hidden = false; $('portSig').innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Signals across the universe <span style="color:var(--text-3);font-weight:400">— click a row to show it on the chart</span></div>${U.length ? `<table class="sigtbl"><thead><tr><th>Ticker</th><th>Entry signals</th><th>Last signal</th><th>Trades</th><th>Win rate</th><th>P&L</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="exempty">${NO_STOCK}</div>`}`;
+  $('portSig').hidden = false; $('portSig').innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Signals across the universe <span style="color:var(--text-3);font-weight:400">— ${tap('click', 'tap')} a row to show it on the chart</span></div>${U.length ? `<table class="sigtbl"><thead><tr><th>Ticker</th><th>Entry signals</th><th>Last signal</th><th>Trades</th><th>Win rate</th><th>P&L</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="exempty">${NO_STOCK}</div>`}`;
   $('portSig').querySelectorAll('[data-t]').forEach((r: HTMLElement) => r.onclick = () => { if(!drawable(r.dataset.t)) return; S.sigTicker = r.dataset.t; refreshSignals() });
 };
 /* no stock the chart can show (none picked, or none whose bars could be read): the chart, its legend and lanes are

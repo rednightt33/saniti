@@ -133,7 +133,7 @@ await step('1 heat: the steps are the same colours in the light and the dark the
 
 /* ---------- 2 the seven windows end level ---------- */
 const FIT = [['ov', 'rcCard', '.ovx-cr'], ['ov', 'mmCard', '.ovx-cv'], ['ov', 'hxCard', '.hm-s'], ['rs', 'rsA', '.dvb'], ['rs', 'rsB', '.slope'], ['rs', 'rsW', '.rsw-s'], ['rs', 'rsL', '.rlc']];
-for (const w of [1440, 1280]) for (const theme of ['light', 'dark']) await step(`2 the seven side-by-side windows end level at ${w} (${theme})`, async () => {
+for (const w of [1440, 1280, 1152]) for (const theme of ['light', 'dark']) await step(`2 the seven side-by-side windows end level at ${w} (${theme})`, async () => {
   await open(w, theme); const bad = [];
   for (const [t, card, grow] of FIT) {
     await tab(t); await win(card, w, `-${theme}`);
@@ -143,7 +143,13 @@ for (const w of [1440, 1280]) for (const theme of ['light', 'dark']) await step(
       const lb = (lg || l.lastElementChild).getBoundingClientRect().bottom, pane = r.getBoundingClientRect().bottom, gr = l.querySelector(g).getBoundingClientRect();
       return { stk: fw.classList.contains('stk'), last, lb, pane, scroll: tw.scrollHeight - tw.clientHeight, grow: gr.height, min: parseFloat(getComputedStyle(l.querySelector(g)).minHeight) || 0, svg: [...l.querySelectorAll('[data-chart] > svg')].map(s => s.getBoundingClientRect().bottom - s.parentElement.getBoundingClientRect().bottom) };
     }, grow);
-    if (m.stk) { bad.push(`${card}: stacked`); await closeWin(); continue }
+    // from 1096 px a window is side by side (UD80); at 1152 one whose detail table needs more room than beside its card
+    // stacks by the D15 rule (layout()), and is then right only when nothing scrolls sideways
+    if (m.stk) {
+      const side = w >= 1280 ? 0 : await page.evaluate(() => Math.max(0, ...[...document.querySelectorAll('.fw .fw-tw, .fw .tbl-wrap')].map(x => x.scrollWidth - x.clientWidth)));
+      if (w >= 1280 || side > 1) bad.push(`${card}: stacked${side > 1 ? `, ${side} px sideways` : ''}`);
+      await closeWin(); continue;
+    }
     if (Math.abs(m.last - m.lb) > 16) bad.push(`${card}: table ends ${Math.round(m.last)}, card ends ${Math.round(m.lb)}`);
     if (m.pane - m.last > 16) bad.push(`${card}: ${Math.round(m.pane - m.last)} px under the table`);
     if (m.scroll > 1) bad.push(`${card}: the table scrolls ${m.scroll} px`);
@@ -264,7 +270,9 @@ for (const w of [1440, 1280, 1152, 390]) await step(`7 drill-down and Beta windo
       // check 2 OV2-1: a cell clipped by its scroller's edge counts too, not only an ellipsis. A window is allowed a
       // clipped column only when it is as wide as the screen allows (its margin, 24 px a side) and its scroller fades
       // at that edge (the cue: nothing silently cut)
-      const fw = document.querySelector('.fw'), full = fw.getBoundingClientRect().width >= innerWidth - 48 - 2, clipped = [];
+      // since the label column wraps (the limit at 1152 px, user 2026-11-27 "Bereskan batas yang masih ada") a clipped
+      // column is allowed only on a phone, where the scroller cues it
+      const fw = document.querySelector('.fw'), full = innerWidth < 640 && fw.getBoundingClientRect().width >= innerWidth - 48 - 2, clipped = [];
       for (const sc of [top.parentElement, bot.parentElement]) {
         const r = sc.getBoundingClientRect(), right = r.left + sc.clientLeft + sc.clientWidth;
         const cueR = sc.classList.contains('xs-r'), cueL = sc.classList.contains('xs-l') || sc.classList.contains('xs-sl');

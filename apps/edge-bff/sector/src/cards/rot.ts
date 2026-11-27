@@ -377,7 +377,11 @@ export const rotC: Card = {
       const [xl, xh] = M.axisRange(st.map(s => s.x)), [yl, yh] = M.axisRange(st.map(s => s.y));
       const px = (xh - xl) * 0.04, py = (yh - yl) * 0.05, x0 = xl - px, x1 = xh + px, y0 = yl - py, y1 = yh + py;
       const L = 60, R = Wd - 12, T = 8, B = H - 52, cl = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
-      const X = (v: number) => L + ((cl(v, x0, x1) - x0) / (x1 - x0)) * (R - L), Y = (v: number) => B - ((cl(v, y0, y1) - y0) / (y1 - y0)) * (B - T), cx = X(0), cy = Y(0);
+      // the dots' band: the whole plot, or the plot less a 14 px strip (and the largest dot's radius) at its top and bottom,
+      // where the quadrant names go when a name finds no free place among the dots (`inStrip` below)
+      let Tp = T, Bp = B;
+      const X = (v: number) => L + ((cl(v, x0, x1) - x0) / (x1 - x0)) * (R - L), Y = (v: number) => Bp - ((cl(v, y0, y1) - y0) / (y1 - y0)) * (Bp - Tp), cx = X(0);
+      let cy = Y(0);
       const gw = Math.max(...st.map(s => s.w ?? 0)) || 1, rr = (s: typeof st[0]) => 2.5 + 7 * Math.sqrt(Math.max(0, s.w ?? 0) / gw);
       // a quadrant's name sits along its quadrant's outer edge or along the zero line, from the outer corner inward in 6 px
       // steps: the first place no dot touches, else the one fewest dots touch (check 2 RP2-2: MMIX sat against LAGGING,
@@ -385,7 +389,7 @@ export const rotC: Card = {
       const nameBox = (t: M.Quad, x: number, y: number, an: string) => { const w = textW(W.quad[t].toUpperCase(), '600 10.5px Inter, sans-serif') * 1.08, l = an === 'end' ? x - w : x; return { l: l - 2, t: y - 11, r: l + w + 2, b: y + 3 } };
       const hits = (b: { l: number; t: number; r: number; b: number }) => st.filter(s => { const x = X(s.x), y = Y(s.y), r = rr(s) + 2; return Math.hypot(Math.max(b.l, Math.min(x, b.r)) - x, Math.max(b.t, Math.min(y, b.b)) - y) < r }).length;
       const QDEF: [M.Quad, boolean, boolean][] =[['Leading', true, true], ['Weakening', true, false], ['Lagging', false, false], ['Improving', false, true]];
-      const QN = QDEF.map(([t, right, upper]) => {
+      const place = () => QDEF.map(([t, right, upper]) => {
         const [ql, qr, qt, qb] = [right ? cx : L, right ? R : cx, upper ? T : cy, upper ? cy : B], an = right ? 'end' : 'start';
         const ys = upper ? [T + 12, cy - 6] : [B - 6, cy + 14], all: { x: number; y: number; an: string; box: ReturnType<typeof nameBox> }[] = [];
         for (const y of ys) for (let k = 0; k < 60; k++) {
@@ -398,9 +402,19 @@ export const rotC: Card = {
         const ord = [...all].sort((a, b) => Math.abs(a.x - all[0].x) - Math.abs(b.x - all[0].x) || (a.y === ys[0] ? 0 : 1) - (b.y === ys[0] ? 0 : 1));
         let best = ord[0], bh = hits(best.box);
         for (const p of ord) { if (!bh) break; const h = hits(p.box); if (h < bh) { best = p; bh = h } }
-        return { t, ...best };
+        return { t, ...best, h: bh };
       });
-      let o = `<line x1="${cx}" x2="${cx}" y1="${T}" y2="${B}" stroke="var(--chart-base)"/><line x1="${L}" x2="${R}" y1="${cy}" y2="${cy}" stroke="var(--chart-base)"/>`
+      // no free place for a name (a phone's quadrant of 63 px with its dots: 22 names on a dot over six sectors on 26 Nov,
+      // the limit check 2 RP2-2 left; user 2026-11-27 "Bereskan batas yang masih ada"): the dots keep to the plot less a
+      // 14 px strip at its top and bottom, and every name sits in its corner of a strip, where no dot can be
+      let QN = place();
+      const inStrip = QN.some(q => q.h > 0);
+      if (inStrip) {
+        const pad = 14 + Math.max(...st.map(rr)) + 1;      // the strip and the largest dot's radius: a dot at the edge stays clear
+        Tp = T + pad; Bp = B - pad; cy = Y(0);
+        QN = QDEF.map(([t, right, upper]) => { const x = right ? R - 4 : L + 4, y = upper ? T + 11 : B - 3, an = right ? 'end' : 'start'; return { t, x, y, an, box: nameBox(t, x, y, an), h: 0 } });
+      }
+      let o = `<line x1="${cx}" x2="${cx}" y1="${Tp}" y2="${Bp}" stroke="var(--chart-base)"/><line x1="${L}" x2="${R}" y1="${cy}" y2="${cy}" stroke="var(--chart-base)"/>`
         + M.ticks(x0, x1, Wd < 420 ? 3 : 6).filter(v => X(v) > L + 14 && X(v) < R - 18).map(v => `<line x1="${X(v)}" x2="${X(v)}" y1="${B}" y2="${B + 4}" stroke="var(--border-2)"/><text class="ax" x="${X(v)}" y="${B + 18}" text-anchor="middle">${M.axPct(v)}</text>`).join('') + `<line x1="${L}" x2="${R}" y1="${B}" y2="${B}" stroke="var(--border)"/>`
         + M.ticks(y0, y1, 4).map(v => `<text class="ax" x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${M.axPct(v)}</text>`).join('')
         + `<text class="ax t" x="${(L + R) / 2}" y="${B + 36}" text-anchor="middle">${esc(W.rotC.xAxis(bn))} →</text><text class="ax t" transform="translate(13,${(T + B) / 2}) rotate(-90)" text-anchor="middle">${esc(W.rotC.yAxis(bn))} →</text>`;

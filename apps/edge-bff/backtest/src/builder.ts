@@ -18,6 +18,7 @@ import { SC, entryOf, refusalOf, testName } from './grammar.ts';
 import { abortRun } from './run.ts';
 import { bindPicker, pickerHtml } from './picker.ts';
 import { stocksText, tickersLabel } from './picked.ts';
+import { tap } from '../../shared/touch-words.ts';   // UD81: touch words on a touch screen
 
 /* =====================================================================
    5 · BUILDER UI
@@ -112,7 +113,7 @@ export const renderNav = () => {
     return `<button type="button" role="tab" id="btab${k+1}" aria-selected="${on}" tabindex="${on?0:-1}" data-st="${k+1}">${l}${n===null?'':`<span class="n">${n}</span>`}</button>` }).join('');
   $('bhSub').textContent = `${S.mode==='single' ? 'Single stock · '+S.ticker : 'Portfolio · max '+S.maxPos} · 5 steps`;
   $('bRailN').textContent = String(act); $('bRailN').title = `${act} active entry condition${act===1?'':'s'}`;
-  $('sumbox').innerHTML = `<div class="t"><div class="tt"><b>Strategy summary</b></div></div>${BX()?'<div class="bxhint">Focus mode · click outside or press Esc to return to the sidebar</div>':''}` + STEP_META.map(([l],k) => `<button class="sumrow ${S.step===k+1?'on':''}" data-st="${k+1}"><i>${k+1}</i><b>${l}</b><em>${esc(stepSummary(k+1))}</em></button>`).join('');
+  $('sumbox').innerHTML = `<div class="t"><div class="tt"><b>Strategy summary</b></div></div>${BX()?`<div class="bxhint">Focus mode · ${tap('click outside or press Esc', 'tap outside')} to return to the sidebar</div>`:''}` + STEP_META.map(([l],k) => `<button class="sumrow ${S.step===k+1?'on':''}" data-st="${k+1}"><i>${k+1}</i><b>${l}</b><em>${esc(stepSummary(k+1))}</em></button>`).join('');
   const xb = $('expandBtn');
   xb.innerHTML = BX() ? ico('<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>') : ico('<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>');
   xb.title = BX() ? 'Back to sidebar (Esc)' : 'Open the builder in the centre'; xb.setAttribute('aria-label', xb.title);
@@ -152,7 +153,7 @@ const flowNote = (c: Card) => `<span class="pill warn">${esc(CAT.flow.reason || 
 const opened = new Set<string>();
 export const condCard = (c: Card, i: number) => {
   const C = catOf(c), col = COLORS[i % COLORS.length], x = opened.has(c.id);
-  const open = `<div class="cond mc ${c.on?'':'off'} ${x?'x':''}" data-id="${c.id}" data-card="${c.id}" tabindex="0" role="group" aria-expanded="${x}" aria-label="${esc(C.label)}, press Enter to ${x?'close':'edit'}" title="${x?'':'Click to edit'}">`;
+  const open = `<div class="cond mc ${c.on?'':'off'} ${x?'x':''}" data-id="${c.id}" data-card="${c.id}" tabindex="0" role="group" aria-expanded="${x}" aria-label="${esc(C.label)}, press Enter to ${x?'close':'edit'}" title="${x?'':tap('Click', 'Tap')+' to edit'}">`;
   const head = (tag: string) => `<div class="cond-h"><span class="dot" style="background:${col}"></span><b>${esc(C.label)}</b>${tag}<label class="sw" title="Enable / disable"><input type="checkbox" data-c="${c.id}" data-p="on" ${c.on?'checked':''} aria-label="Enable condition"><span></span></label><button class="x" type="button" data-del="${c.id}" title="Remove" aria-label="Remove condition">${ico('<path d="M6 6l12 12M18 6 6 18"/>')}</button></div><div class="msum">${esc(condName(c))}</div>`;
   // Stage D (D5): a test card (the shared grammar, computed by the worker): its rule in the Screener's words, edited in
   // the condition window; why it cannot run, from the engine and the catalogs (grammar.ts refusalOf)
@@ -179,7 +180,7 @@ const bindDesign = (b: HTMLElement) => {
     if(on) S.exit.hold = S.exit.holdKeep || 20; else { S.exit.holdKeep = S.exit.hold; S.exit.hold = 0 }
     markStale(); renderBuilder(); refreshSignals() });
   b.querySelectorAll<HTMLElement>('.cond[data-card]').forEach((el: HTMLElement) => {
-    const flip = () => { const id = el.dataset.card!, x = !opened.has(id); if(x) opened.add(id); else opened.delete(id); el.classList.toggle('x', x); el.setAttribute('aria-expanded', String(x)); el.title = x ? '' : 'Click to edit' };
+    const flip = () => { const id = el.dataset.card!, x = !opened.has(id); if(x) opened.add(id); else opened.delete(id); el.classList.toggle('x', x); el.setAttribute('aria-expanded', String(x)); el.title = x ? '' : tap('Click', 'Tap') + ' to edit' };
     el.onclick = (e: MouseEvent) => { if(!(e.target as HTMLElement).closest('input,select,textarea,button,label,a,.cond-b')) flip() };
     el.onkeydown = (e: KeyboardEvent) => { if(e.target===el && (e.key==='Enter' || e.key===' ')){ e.preventDefault(); flip() } };
   });

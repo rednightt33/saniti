@@ -174,7 +174,7 @@ function usec(k: string): string {
     case 'sector': {
       const g = grouping('sector');
       if (!g) return `<div class="k">Sectors</div><div class="note">${T.loadingIndicators}</div>`;
-      return `<div class="k">Sectors <small>· click to include, again to exclude, again to clear</small></div><div class="chips">${g.values.map(v => { const st = U.sectors_in?.includes(v.value) ? 'on' : U.sectors_out?.includes(v.value) ? 'ex' : '';
+      return `<div class="k">Sectors <small>· ${esc(LIST_TEXT.hint)}</small></div><div class="chips">${g.values.map(v => { const st = U.sectors_in?.includes(v.value) ? 'on' : U.sectors_out?.includes(v.value) ? 'ex' : '';
           /* audit U23: the chip's state is read out (included, excluded, or no filter), not only shown by its colour */
           return `<button class="chip ${st}" data-sector="${esc(v.value)}" aria-pressed="${st ? 'true' : 'false'}" aria-label="${esc(v.value)}: ${st === 'on' ? 'included' : st === 'ex' ? 'excluded' : 'no filter'}">${esc(v.value)} <small>${nf(v.tickers)}</small></button>`; }).join('')}</div>
         ${g.unclassified ? `<label class="chk" title="An include filter (sector or industry) keeps a stock without that classification only when this is on; an exclude filter never drops it."><input type="checkbox" data-u="include_unclassified" ${U.include_unclassified ? 'checked' : ''}>Unclassified (${nf(g.unclassified)}): keep them with an include filter</label>` : ''}`;

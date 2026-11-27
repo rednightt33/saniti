@@ -26,6 +26,7 @@ import { layoutHooks } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
 import { keepField } from './keep-field.ts';
 import { cellNote, cellText, kindOfCard as kindOf, readsFlow } from './cell-text.ts';
+import { tap } from '../../shared/touch-words.ts';   // UD81: touch words on a touch screen
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -176,7 +177,7 @@ export function renderResults() {
     }).join('')}${xdefs.map(d => extraTh(d, th)).join('')}</tr></thead>
       <tbody>${pr.map(r => {
         const w = ctx.watch?.has(r.ticker) ?? false, nearRow = r.status === 'near';
-        return `<tr data-tk="${esc(r.ticker)}" tabindex="0" class="${nearRow ? 'near' : ''} ${S.pick === r.ticker && S.preview ? 'picked' : ''}${r.stale ? ' stale' : ''}"><td class="l"><input type="checkbox" data-sel="${esc(r.ticker)}" ${S.sel.has(r.ticker) ? 'checked' : ''} aria-label="Select ${esc(r.ticker)}"></td><td class="l"><button class="watch-dot ${w ? 'on' : ''}" data-watch="${esc(r.ticker)}" ${watchOk ? `title="${w ? 'In Watchlist — click to remove' : 'Add to Watchlist'}"` : watchNo} aria-label="${w ? 'Remove ' + esc(r.ticker) + ' from' : 'Add ' + esc(r.ticker) + ' to'} Watchlist" aria-pressed="${w}">${ico(w ? IC.check : IC.plus, 's')}</button></td>
+        return `<tr data-tk="${esc(r.ticker)}" tabindex="0" class="${nearRow ? 'near' : ''} ${S.pick === r.ticker && S.preview ? 'picked' : ''}${r.stale ? ' stale' : ''}"><td class="l"><input type="checkbox" data-sel="${esc(r.ticker)}" ${S.sel.has(r.ticker) ? 'checked' : ''} aria-label="Select ${esc(r.ticker)}"></td><td class="l"><button class="watch-dot ${w ? 'on' : ''}" data-watch="${esc(r.ticker)}" ${watchOk ? `title="${w ? `In Watchlist — ${tap('click', 'tap')} to remove` : 'Add to Watchlist'}"` : watchNo} aria-label="${w ? 'Remove ' + esc(r.ticker) + ' from' : 'Add ' + esc(r.ticker) + ' to'} Watchlist" aria-pressed="${w}">${ico(w ? IC.check : IC.plus, 's')}</button></td>
           <td class="l"><span class="sym">${esc(r.ticker)}</span>${r.remarks.length ? `<span class="rmark" role="img" tabindex="0" aria-label="${esc(rowRemarkLabel(r.remarks))}" title="${esc(rowRemarkTitle(r.remarks))}">${ico(IC.warn, 's')}</span>` : ''}${nearRow ? `<span class="neard" role="img" aria-label="Near miss" title="Near miss: ${r.met} of ${conds.length} conditions met"></span>` : ''}</td><td class="l co" title="${esc(r.name || '')}">${esc(r.name || '')}</td>${showSector ? `<td class="l">${sectorTag(r.sector)}</td>` : ''}${lastTd(r)}${d1Td(r)}<td title="Rp ${r.adv20_idr == null ? '—' : nf(r.adv20_idr / 1e9, 1) + ' billion'} a session (20-session average)">${r.adv20_idr == null ? '—' : nf(r.adv20_idr / 1e9, 1) + 'B'}</td>
           ${conds.length ? `<td><span class="dots">${conds.map(c => `<i class="${cellOf(r, c.id)?.status === 'pass' ? 'y' : ''}" style="--c:${colorOf(c)}"></i>`).join('')}</span> <b style="margin-left:4px">${r.met}/${conds.length}</b></td>` : ''}${conds.map(c => cellHtml(r, c)).join('')}${xdefs.map(d => extraTd(r, d)).join('')}</tr>`;
       }).join('')}</tbody></table></div>

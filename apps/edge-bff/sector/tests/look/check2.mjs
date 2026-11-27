@@ -129,6 +129,28 @@ for (const w of [1440, 1152, 390, 360]) await step(`RP2-2 the stock quadrant: st
   must(m.names === 4 && !m.bad.length, JSON.stringify(m));
 });
 
+/* RP2-2's limit (user 2026-11-27 "Bereskan batas yang masih ada"): on every sector a quadrant's name is on no dot; with no
+   free place the names go to a strip the dots keep out of (22 names on a dot over six sectors at 390 and 360 before) */
+for (const w of [1440, 1152, 390, 360]) await step(`RP2-2 the stock quadrant of every sector: no quadrant name on a dot (${w})`, async () => {
+  await open(w); await tab('rot'); const bad = [];
+  const names = await page.$$eval('[data-card=rotA] g.pt[data-n]', g => [...new Set(g.map(x => x.dataset.n))]);
+  for (const nm of names) {
+    await page.locator(`[data-card=rotA] g.pt[data-n="${nm}"]`).first().dispatchEvent('click'); await settle(450);
+    bad.push(...await page.evaluate(n => {
+      const box = document.querySelector('[data-card=rotC] .qdp'), out = [];
+      for (const q of box.querySelectorAll('text.qn')) {
+        const r = q.getBoundingClientRect();
+        for (const c of box.querySelectorAll('g.dt circle.v')) {
+          const b = c.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height / 2;
+          if (Math.hypot(Math.max(r.left, Math.min(x, r.right)) - x, Math.max(r.top, Math.min(y, r.bottom)) - y) < b.width / 2) out.push(`${n}: ${q.textContent} on ${c.parentElement.dataset.t}`);
+        }
+      }
+      return out;
+    }, nm));
+  }
+  must(names.length > 0 && !bad.length, bad.slice(0, 6).join(' | ') || 'no sector on the map');
+});
+
 /* ---------- RP2-3 / MX2-2: the Rotation detail band on a phone ---------- */
 for (const w of [390, 360]) await step(`RP2-3 MX2-2 the Rotation detail window on a phone: its switch on one line, its band's texts whole (${w})`, async () => {
   await open(w); await tab('rot'); await win('rotB');

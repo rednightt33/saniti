@@ -6,6 +6,7 @@
 import { WatchlistError, cached } from './api.ts';
 import * as M from './model.ts';
 import type { RadarFile, StocksFile, WList, WatchlistApi, WatchlistIndex } from './types.ts';
+import { tap } from '../../shared/touch-words.ts';   // UD81: touch words on a touch screen
 
 const FILE = 'watchlist-stocks';
 // Phase 3d (ERRORS M476): the Radar's screens, listed and served only with radar.view (app/pages.py carried)
@@ -608,7 +609,7 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement, opts: { example?: b
     b.removeAttribute('title');
     const d = document.createElement('div') as HTMLDivElement & { _for?: HTMLElement };
     d.className = 'rtip'; d.setAttribute('role', 'tooltip');
-    d.innerHTML = `<div class="rh">${ic('radar')}<b>${esc(s.t)}</b> met ${s.rd.length} Radar screen${s.rd.length > 1 ? 's' : ''}<span class="muted">${RD}</span></div>` + s.rd.map(f => `<div class="rr"><span class="rid">${esc(f)}</span>${esc(RN[f] || '')}</div>`).join('') + '<div class="rf">Click to open Radar</div>';
+    d.innerHTML = `<div class="rh">${ic('radar')}<b>${esc(s.t)}</b> met ${s.rd.length} Radar screen${s.rd.length > 1 ? 's' : ''}<span class="muted">${RD}</span></div>` + s.rd.map(f => `<div class="rr"><span class="rid">${esc(f)}</span>${esc(RN[f] || '')}</div>`).join('') + `<div class="rf">${tap('Click', 'Tap')} to open Radar</div>`;
     document.body.appendChild(d);
     const r = b.getBoundingClientRect(), w = d.offsetWidth, h = d.offsetHeight;
     let y = r.bottom + 6; if (y + h > innerHeight - 8) y = r.top - h - 6;

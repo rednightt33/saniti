@@ -11,6 +11,7 @@ import { cardName, optOf, displayUnit, type Card } from '../forms.ts';
 import { onBuilderField, colorOf } from '../builder.ts';
 import { toast } from '../dialogs.ts';
 import { openCardCustomize } from '../add-condition.ts';
+import { tap } from '../../../shared/touch-words.ts';   // UD81: touch words on a touch screen
 
 let box: HTMLElement | null = null, id: string | null = null, tip: HTMLElement | null = null, tipT: ReturnType<typeof setTimeout> | undefined;
 const cardOf = (cid: string | null) => S.cards.find(c => c.id === cid);
@@ -129,7 +130,7 @@ function reset() {
 function showTip(ch: HTMLElement) {
   const c = cardOf(ch.dataset.pedit!), e = c && entryOf(c); if (!c || !e || box) return;
   hideTip(); tip = document.createElement('div'); tip.className = 'pvtip6'; tip.setAttribute('role', 'tooltip');
-  tip.innerHTML = `<div class="pvtip6-l">${fields(e, c).map(x => `<span>${esc((x.two ? '2nd ' : '') + (x.p.label || x.p.key))} <b class="${x.ch ? 'cus' : ''}">${esc(optionText(x.p, x.v))}</b></span>`).join('')}</div><div class="pvtip6-h"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/></svg>Click to change</div>`;
+  tip.innerHTML = `<div class="pvtip6-l">${fields(e, c).map(x => `<span>${esc((x.two ? '2nd ' : '') + (x.p.label || x.p.key))} <b class="${x.ch ? 'cus' : ''}">${esc(optionText(x.p, x.v))}</b></span>`).join('')}</div><div class="pvtip6-h"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/></svg>${tap('Click', 'Tap')} to change</div>`;
   document.body.appendChild(tip);
   const r = ch.getBoundingClientRect(), w = tip.offsetWidth;
   tip.style.left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), innerWidth - w - 8) + 'px'; tip.style.top = (r.bottom + 6) + 'px';

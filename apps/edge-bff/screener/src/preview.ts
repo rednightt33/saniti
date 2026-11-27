@@ -29,6 +29,7 @@ import { afterPress } from './press.ts';
 import { keepField } from './keep-field.ts';
 import { cellNote, cellText, readsFlow } from './cell-text.ts';
 import { sameVersions } from './api/boot-cache.ts';
+import { tap } from '../../shared/touch-words.ts';   // UD81: touch words on a touch screen
 
 const $ = (id: string) => document.getElementById(id)!;
 let chart: IChartApi | null = null;
@@ -164,7 +165,7 @@ export function renderDetails() {
   if (!tk) {
     dropChart();
     keepField($('dtb'), () => {   // keep-field.ts, ERRORS M373
-      $('dtb').innerHTML = `<div class="pvtop">${lookup()}</div><div class="preview-head"><div><strong>Preview</strong><small>Stock detail and method</small></div>${closeBtn()}</div><div class="dempty">${ico(IC.chart)}<b style="color:var(--text)">Pick a stock</b>Click a result row — or look up any ticker above — to see its chart, why it passed or failed, and its remarks.</div>`;
+      $('dtb').innerHTML = `<div class="pvtop">${lookup()}</div><div class="preview-head"><div><strong>Preview</strong><small>Stock detail and method</small></div>${closeBtn()}</div><div class="dempty">${ico(IC.chart)}<b style="color:var(--text)">Pick a stock</b>${tap('Click', 'Tap')} a result row — or look up any ticker above — to see its chart, why it passed or failed, and its remarks.</div>`;
     });
     $('dacts').hidden = true; return;
   }

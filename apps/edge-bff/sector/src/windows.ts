@@ -33,7 +33,9 @@ export function openWindow(card: Card, page: Ctx, host: WindowHost, from: HTMLEl
   const S = cloneState(page.S); S.dS = []; S.dQ = '';
   const bd = document.createElement('div'), el = document.createElement('div');
   bd.className = 'fw-bd'; bd.setAttribute('aria-hidden', 'true');
-  const c1 = card.layout === 'c1', narrow = innerWidth < 1100, stacked = !c1 && (!!card.stack || narrow || !card.detail);
+  // side by side from 1096 px, the frame of a 1152 px screen beside the 56 px rail (user 2026-11-27, UD80 "oke dgn
+  // rekomendasi"; was 1100, so every window of a 1152 screen stacked: check 2 OV2-2)
+  const c1 = card.layout === 'c1', narrow = innerWidth < 1096, stacked = !c1 && (!!card.stack || narrow || !card.detail);
   el.className = 'fw' + (card.detail ? '' : ' nod') + (stacked ? ' stk' : '') + (c1 ? ' c1' : '') + (card.align ? ' al' : '');
   el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.tabIndex = -1;
   el.innerHTML = `<div class="fw-h"><div class="fw-ti"><b class="fw-tt"></b><span class="fw-st"></span></div><button class="iconbtn sm fw-x" type="button" aria-label="${esc(W.win.close)}" title="${esc(W.win.close)}"><svg class="ic ic-sm"><use href="#i-x"/></svg></button></div>`
@@ -62,7 +64,9 @@ export function openWindow(card: Card, page: Ctx, host: WindowHost, from: HTMLEl
     // the detail table below shows enough rows to use (check 1 OR-11, RP-11: two stock rows were visible under the table)
     el.classList.toggle('stk-t', !phone && el.classList.contains('stk') && !!card.detail && (!!$('.tbl-wrap', left) || left.classList.contains('ctlo')));
     if (card.detail && right && !hide && !laid) layout();
-    if (card.align && right) alignTables($('table', left) as HTMLTableElement | null, $('.fw-tb', right) as HTMLTableElement | null);
+    // the room the window can still grow (`widen`): the label column wraps only for what a full-width window still lacks
+    if (card.align && right) alignTables($('table', left) as HTMLTableElement | null, $('.fw-tb', right) as HTMLTableElement | null,
+      phone || !el.classList.contains('stk') ? 0 : Math.max(0, vw - 48 - el.offsetWidth));
     if (widen()) return;
     // the cues of the window's scrollers once their tables have their final widths (aligned, widened)
     scrollCues(el); requestAnimationFrame(() => c.alive && scrollCues(el));
@@ -207,20 +211,37 @@ export function spans(base: number[], other: number[]): number[] {
 }
 /** the widths of each column of a table at its natural size (its colspan-1 cells) */
 function naturalCols(t: HTMLTableElement): number[] {
-  t.querySelector('colgroup[data-al]')?.remove(); $$('.al-fill', t).forEach(x => x.remove());
+  t.querySelector('colgroup[data-al]')?.remove(); $$('.al-fill', t).forEach(x => x.remove()); t.classList.remove('al-wrap');
   t.style.tableLayout = 'auto'; t.style.width = 'max-content'; t.style.minWidth = '0';
   const n = t.querySelector('thead tr')?.children.length ?? 0, w = Array(n).fill(0);
   $$('tr', t).forEach(r => { if ((r as HTMLElement).hidden) return; let i = 0; [...r.children].forEach(x => { const s = (x as HTMLTableCellElement).colSpan || 1; if (s === 1 && i < n) w[i] = Math.max(w[i], x.getBoundingClientRect().width); i += s }) });
   return w.map(x => Math.ceil(x));
 }
-export function alignTables(top: HTMLTableElement | null, bot: HTMLTableElement | null) {
+/** the least width of a table's first column when it wraps: its longest word (min-content), read with `al-wrap` on */
+function minFirst(t: HTMLTableElement): number {
+  const w0 = t.style.width; t.classList.add('al-wrap'); t.style.width = 'min-content';
+  let w = 0;
+  $$('tr', t).forEach(r => { const x = r.firstElementChild as HTMLTableCellElement | null; if (!(r as HTMLElement).hidden && x && (x.colSpan || 1) === 1) w = Math.max(w, x.getBoundingClientRect().width) });
+  t.classList.remove('al-wrap'); t.style.width = w0;
+  return Math.ceil(w);
+}
+export function alignTables(top: HTMLTableElement | null, bot: HTMLTableElement | null, grow = 0) {
   if (!top || !bot || !top.offsetParent || !bot.offsetParent) return;
   const wt = naturalCols(top), wb = naturalCols(bot), [B, O, wB, wO] = wt.length >= wb.length ? [top, bot, wt, wb] : [bot, top, wb, wt];
   const sp = spans(wB, wO), slots = [...wB];
   let at = 0;
   const ranges = sp.map(n => { const r = [at, at + n]; at += n; return r });
   ranges.forEach(([a, z], j) => { const have = slots.slice(a, z).reduce((s, v) => s + v, 0), need = wO[j] || 0; if (need > have) for (let i = a; i < z; i++) slots[i] += (need - have) / (z - a) });
-  const box = Math.min((B.parentElement as HTMLElement).clientWidth, (O.parentElement as HTMLElement).clientWidth), sum = slots.reduce((s, v) => s + v, 0);
+  const box = Math.min((B.parentElement as HTMLElement).clientWidth, (O.parentElement as HTMLElement).clientWidth);
+  // one long label (an industry name of 280 px made the drill-down's first column 326 px: 1080 px of tables in a 1020 px
+  // scroller at 1152, the limit left by check 2 OV2-1) must not push the figures out of view: what the tables still lack
+  // beyond the room the window can grow comes off the label column (the first slot; both aligned tables start with
+  // their names), down to 60 % of its need, and its text wraps there (`al-wrap`) instead of being cut
+  const lack = slots.reduce((s, v) => s + v, 0) - box - grow, wrap = lack > 0.5 && slots.length > 1;
+  // never below the longest word of either first column (a ticker does not wrap: the Beta window cut 24 of them on a phone)
+  if (wrap) slots[0] -= Math.max(0, Math.min(lack, slots[0] * 0.4, slots[0] - Math.max(minFirst(B), minFirst(O))));
+  B.classList.toggle('al-wrap', wrap); O.classList.toggle('al-wrap', wrap);
+  const sum = slots.reduce((s, v) => s + v, 0);
   if (sum < box && slots.length > 1) { const extra = box - sum; for (let i = 1; i < slots.length; i++) slots[i] += extra / (slots.length - 1) }
   const total = Math.floor(Math.max(box, sum));
   const set = (t: HTMLTableElement, widths: number[]) => {

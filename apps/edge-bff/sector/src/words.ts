@@ -8,9 +8,9 @@ import { dateLabel, fnum, pct, pctSigned, pp } from './model.ts';
 const up1 = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 const plural = (n: number, one: string, many = one + 's') => `${n} ${n === 1 ? one : many}`;
 const QW = { Leading: 'Leading', Weakening: 'Weakening', Lagging: 'Lagging', Improving: 'Improving' } as const;
-/** a phone or tablet: the hints say tap, not hover, point or Ctrl click (check 1 MX-8) */
-export const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
-const tap = (mouse: string, touch: string) => (TOUCH ? touch : mouse);
+/** a phone or tablet: the hints say tap, not hover, point or Ctrl click (check 1 MX-8); one source for every page (UD81) */
+import { TOUCH, tap } from '../../shared/touch-words.ts';
+export { TOUCH };
 /** the single-sector cards' sector until one is locked */
 const AUTO = 'the strongest sector this week until you lock one';
 const turnUp = (corner: string | null) => (corner ? `${corner} = turning up: up over the shorter horizon, down over the longer.` : 'The two horizons have the same length.');

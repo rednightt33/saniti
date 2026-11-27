@@ -13,6 +13,7 @@ import { ctx, S, type UState } from '../state.ts';
 import { LIST_TEXT, T } from '../texts.ts';
 import { store } from '../storage.ts';
 import { LKEYS } from './prefs.ts';
+import { tap } from '../../../shared/touch-words.ts';   // UD81: touch words on a touch screen
 
 /* ---- More filters: group list ---------------------------------------------------------------------------- */
 // EXEC-SCREENER-STOCK-LISTS: Index and Group follow Sector and Industry (universe-ui.ts listSec)
@@ -182,7 +183,7 @@ export function dressPop(pop: HTMLElement, kind: string | null) {
   pop.style.width = sz ? sz.w + 'px' : ''; pop.style.height = sz ? sz.h + 'px' : ''; pop.style.maxHeight = sz ? 'none' : '';
   if (!pop.querySelector('.pop-grip')) {
     const g = document.createElement('span'); g.className = 'pop-grip'; g.tabIndex = 0;
-    g.setAttribute('role', 'separator'); g.setAttribute('aria-label', 'Resize this menu (arrow keys)'); g.title = 'Drag to resize · double-click to reset';
+    g.setAttribute('role', 'separator'); g.setAttribute('aria-label', 'Resize this menu (arrow keys)'); g.title = tap('Drag to resize · double-click to reset', 'Drag to resize · double-tap to reset');
     pop.appendChild(g);
   }
 }

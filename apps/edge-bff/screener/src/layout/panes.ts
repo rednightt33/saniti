@@ -6,6 +6,7 @@
 import { esc } from '../format.ts';
 import { activeCards, S, ui } from '../state.ts';
 import { layoutHooks, panes, savePanes, wide } from './prefs.ts';
+import { tap } from '../../../shared/touch-words.ts';   // UD81: touch words on a touch screen
 
 const $ = (id: string) => document.getElementById(id);
 const LIM = { lw:[220, 520], rw:[300, 640] } as const;
@@ -86,7 +87,7 @@ function makeGutter(k: Side, label: string): HTMLElement {
   g.className = 'gutter'; g.dataset.k = k; g.tabIndex = 0;
   g.setAttribute('role', 'separator'); g.setAttribute('aria-orientation', 'vertical'); g.setAttribute('aria-label', label);
   g.setAttribute('aria-valuemin', String(LIM[k][0])); g.setAttribute('aria-valuemax', String(LIM[k][1]));
-  g.title = label + ' · double-click to reset';
+  g.title = label + tap(' · double-click to reset', ' · double-tap to reset');
   g.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
     e.preventDefault(); g.setPointerCapture(e.pointerId);

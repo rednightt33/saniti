@@ -480,6 +480,7 @@ g.dt{cursor:pointer}
 .fw.al :is(.fw-l .tbl,.fw-tb) :is(th,td):last-child{padding-right:12px!important}
 .fw.al .rs-d .tbl tr.u>td:first-child{padding-left:42px!important}       /* an industry row stays indented under its sector */
 .fw.al .fw-tb .al-fill{padding:0!important}
+.fw.al table.al-wrap :is(th,td):first-child,.fw.al table.al-wrap :is(th,td):first-child .nmx{white-space:normal}   /* a label column given less than its longest name wraps it (alignTables) */
 /* Rotation detail (C1): the card's controls in one row over both sides; the list (left) and the detail (right) on one
    52 px title band, one header line and 36 px rows with the same row lines */
 .fw.c1 .fw-c{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}

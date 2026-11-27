@@ -9,6 +9,7 @@ import { comparableAcrossStocks, fmtValue, nf, timeText, unitWords, type ValueFo
 import { OPLABEL, optionText } from './entries.ts';
 import { cardName, type Card } from './forms.ts';
 import { ctx as page, entryOf, S, stateOfDefinition } from './state.ts';
+import { tap } from '../../shared/touch-words.ts';   // UD81: touch words on a touch screen
 
 export const T = {
   signIn: 'Sign in to EDGE first, then open the Screener tab again.',
@@ -51,7 +52,7 @@ export const T = {
 export const LIST_TEXT = {
   INDEX: { title:'Index', many:'indices', one:'index', icon:'Idx', search:'Search indices', none:'No index matches.', exclude:'Excluding index' },
   KONGLO: { title:'Group (konglomerasi)', many:'groups', one:'group', icon:'Grp', search:'Search groups', none:'No group matches.', exclude:'Excluding group' },
-  hint:'click to include, again to exclude, again to clear',
+  hint:`${tap('click', 'tap')} to include, again to exclude, again to clear`,
   rule:'Several in one list: a stock in any of them. Index and group together: a stock in both.',
   groups:'Groups are Stockbit\'s: a group is not proof of ownership, control or affiliation, and a stock can be in several.',
   asOf:(t: string) => `Current members as of ${t}; stocks outside the screener's universe are not counted.`,

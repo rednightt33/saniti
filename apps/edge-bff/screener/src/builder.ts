@@ -22,6 +22,7 @@ import { layoutHooks, wide } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
 import { keepField } from './keep-field.ts';
 import { pageCardOf, screenedCards } from './run.ts';
+import { tap } from '../../shared/touch-words.ts';   // UD81: touch words on a touch screen
 
 const $ = (id: string) => document.getElementById(id);
 const withinMax = () => ctx.catalog?.limits.find(l => l.name === 'within_max')?.value ?? 130;
@@ -58,7 +59,7 @@ function condRow(c: Card): string {
   const review = c.review?.length ? `<span class="pill t-warning" title="${esc(c.review.join('\n'))}">Needs review</span>` : '';
   const pt = passText(c), pass = `<div class="note cnt" data-pass="${c.id}" ${pt ? `title="${esc(pt.title)}"` : ''} ${pt?.zero ? 'data-z="1"' : ''}>${pt ? esc(pt.txt) : ''}</div>`
     + (ctx.refused?.id === c.id ? `<span class="ferr" role="alert" data-refused="${c.id}">${esc(ctx.refused.message)}</span>` : '');
-  const x = openRows.has(c.id) ? 'x' : '', tip = wide() ? ` tabindex="0" role="group" aria-label="${esc(cardName(e, c))}${x ? '' : ', press Enter to edit'}"${x ? '' : ' title="Click to edit"'}` : '';
+  const x = openRows.has(c.id) ? 'x' : '', tip = wide() ? ` tabindex="0" role="group" aria-label="${esc(cardName(e, c))}${x ? '' : ', press Enter to edit'}"${x ? '' : ` title="${tap('Click', 'Tap')} to edit"`}` : '';
   // a raw card, and a card with a universal operator (P3: set and changed in the Add a condition window), show their rule
   // an operator card says where it is changed (QA5 D7): in the Add a condition window, as a new card
   const opNote = c.op && e ? `<div class="note" data-opnote="${c.id}">${esc(T.operatorCardNote)}</div>` : '';
