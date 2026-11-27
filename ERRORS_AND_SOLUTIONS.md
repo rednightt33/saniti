@@ -8892,6 +8892,46 @@ in its staleness check.
   job screener-worker). Moved through each file's line diff from `53b4fafb` (none fell inside a changed hunk); the pointer
   test passes.
 
+### M576 — Sector Analysis check 2: 27 findings of five checkers on the visual round 2 (2026-11-27; fixed on the branch in `90bf33f0`, `3a597e76`, not deployed; two parts asked, UD80-UD81)
+
+- **Symptom (runs `agents_20261127-sector-r2-{ovrs,rotpm,brdt,mobex}` and `agents_20261127-edge-r2-wide`, Sonnet medium,
+  the user's order of 2026-11-27; journals in `verification/sector_analysis/check2/`):** 27 findings on the branch's
+  `8282e624` (the visual round 2, ERRORS M575 "Round 2"), 2 major, 9 minor, 16 nit. The majors: the Sector drill-down
+  window with every industry open cut its columns at the stacked window's fixed 1040 px (OV2-1); the slope rows and the
+  rotation map dots drew no keyboard ring, because two `outline:none` resets came after the focus rule with the same
+  specificity (BD2-1 = MX2-3). The same checkers re-tested check 1's 51 fixes with their original findings: 45 fixed,
+  6 partly (ledger rows of M575, `recheck`).
+- **Verified root causes, by class** (each reproduced on the production build with the 26 Nov published files and on the
+  fixture build; `verification/sector_analysis/check2/FIXES.md`, one row per finding):
+  1. *A size fixed where the content decides it:* the stacked window's 1040 px cap (OV2-1), a Timeline window keeping the
+     Map's height (RP2-1, RP2-5), one fixed corner per quadrant name (RP2-2), a group name on one line (MX2-9).
+  2. *A later rule of equal weight undoing a shared one:* the ring resets (BD2-1), the shared `.seg` wrapping its buttons
+     (MX2-2 = RP2-3), the up/down inks on a tint instead of the tag inks (BD2-2, EW2-4), the shell's old field ring
+     (EW2-1).
+  3. *A shared rule with no page-specific measure:* the 44 px touch areas of decision 14 overlap where controls are dense
+     (MX2-4, MX2-5, EW2-5, EW2-6); the scroll cue missing where a scroller is set after alignment (MX2-1).
+  4. *A colour or a word from another value than the one shown:* heat steps from the raw value, not the printed one
+     (BD2-4); "click" on a touch screen (MX2-8); a reason written in the "since" place (BD2-3); the Custom note (OV2-3).
+- **Solution:** the Sector page (`90bf33f0`: `windows.ts` `widen()`, `touch.ts` measured tap areas, the Timeline's own
+  height, quadrant names placed along their edges, Tukey's 1.5 IQR axis, heat and up/down colours from the printed
+  value, `tap()` words) and the other EDGE pages (`3a597e76`: the shell's fields take the field state, the Backtest's hover
+  ink, the Radar's, Watchlist's and Screener's touch caps). Verdicts: 21 fixed with a change (5 with a measured limit:
+  OV2-1 at 1152 px, RP2-2 at 390/360, MX2-4, MX2-5, EW2-5), 2 fixed with their duplicate, 3 unchanged with a reason (OV2-2,
+  EW2-2, EW2-3), 1 kept as a limit (EW2-6). Tests: `sector/tests/check2.test.ts`, `check2.styles.test.mjs`,
+  `tests/look/check2.mjs` (32 steps), `round2.mjs` step 7 extended, `verification/edge_states/round2_focus_contrast.mjs`
+  (52 steps, its new steps failing on the code before the fix), `apps/edge-bff/tests/test_focus_ring.py`. Run on the
+  merged branch `6ae428b6`: sector vitest 101/101, look check1 29/29, round2 39/39, check2 32/32 on the fixture; on the
+  26 Nov files round2 39/39, check2 32/32, check1 28/29 (MX-7 needs the fixture's failure hook); the EDGE oracle 52/52.
+- **Status:** fixed on the session branch, not deployed (the beta deploy follows, the user's go of 2026-11-27). Each fix
+  was tested by its author only: the 21 keys are rows of `verification/records/recheck_ledger.json` (status waiting,
+  errors M576) and of `RECHECK.md`; a re-check runs only with the user's approval, model and effort (AGENTS.md rule 8).
+  Open parts, asked with context: the windows' stacking threshold (OV2-2: 1100 px, so a 1152 px screen stacks; UD80);
+  MX2-8's other pages, the mouse words on a touch screen in the Watchlist (1), Screener (about 10) and Backtest (about 6)
+  (UD81; EXEC-SECTOR-ANALYSIS, carried open part).
+- **Lesson:** a shared rule (a focus ring, a touch area, a segmented control) is checked on each page that uses it with
+  that page's densest layout; a reset that follows a shared rule is caught by a specificity test, not by eye; a colour
+  or word shown for a value is derived from what is printed and from the input in use.
+
 ### M575 — Sector Analysis check 1: 52 findings of five page checkers on the beta (2026-11-27; fixed on the branch in `29535145`, `1ccbe90d`, not deployed; four parts asked, UD71-UD74)
 
 - **Symptom (runs `agents_20261127-sector-{data,ovrs,rotpm,brdt,mobex}`, Sonnet medium, the user's order of
@@ -8930,8 +8970,9 @@ in its staleness check.
   display rule (`shared/company-name.ts`, `b99bce73`); MX-5's shared part fixed (`--text-3` #8f8f8f → #6b6b6b, dark
   #7c7c7c → #8a8a8a, tag inks `--green-tag`/`--red-tag`/`--blue-tag`/`--amber-tag`, `c8c10f34`, `0c59f38d`, `8282e624`);
   MX-4's shared part fixed (44 px touch areas under `pointer:coarse` in the canonical layer, `c8c10f34`, `0c59f38d`),
-  still open: the Sector page's own dense controls and the Radar's stacked segment buttons (the round-2 check names them);
-  MX-9 kept as the user chose ("5B"). Every EDGE page but the Terminal ("Terminal jangan disentuh").
+  then open: the Sector page's own dense controls and the Radar's stacked segment buttons, fixed with measured limits in
+  check 2 (ERRORS M576: MX2-4, MX2-5, EW2-5, `90bf33f0`, `3a597e76`); MX-9 kept as the user chose ("5B"). Every EDGE page
+  but the Terminal ("Terminal jangan disentuh").
 - **Lesson:** a page's look check covers a chart whose box changes after its first draw and every scroller's cue, at
   each frame width of the shell; a page's count of a figure another page shows reads the same series.
 
