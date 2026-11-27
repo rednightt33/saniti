@@ -123,3 +123,9 @@ The example files for visitors are made as the Overview's (`apps/terminal-publis
   database.
 - Downloads: index, meta, series and the chosen day on open; `sector-stocks-<index>` only when a sector's stock lines
   or stock β window is opened; every file cached by its sha.
+- Check 1 (2026-11-27, `check1/FIXES.md`), how the page reads the files: the 1D advancers, unchanged and decliners of a
+  group are the series' `adv/unch/dec` (Feature 08, = the Overview), never a recount of the day file's `r1d`; 1W and 1M
+  count the stocks that have the return and say how many do not. "Days" in status are market sessions from `since` to the
+  page's date (the file's `days50`/`days200`, the stock's own rows, only as the lower bound of "300+"). An industry's
+  `index_level` is carried over a date without one. A Custom range outside the data is refused (as the Overview's), and
+  a stored one is clamped with a note on the card, never replaced silently.

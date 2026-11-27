@@ -65,7 +65,11 @@ Postgres (harga harian final, Feature 04, daftar saham)
   1Y = 252. "4W/8W/12W" = 20/40/60 sesi; langkah mingguan = 5 sesi.
 - **YTD**: dari penutupan sesi terakhir tahun sebelumnya. Contoh: untuk 25 Nov 2026 dasarnya **30 Des 2025**.
 - **Custom**: sama dengan Overview (`OVERVIEW_FORMULAS.md` bagian 12b): dasar return = sesi sebelum sesi pertama rentang,
-  rentang paling panjang 365 hari.
+  rentang paling panjang 365 hari. Tanggal di luar data **ditolak** dengan pesan (seperti Overview), dan popover menulis
+  rentang persis seperti kartu menuliskannya: kartu return dari penutupan dasar ("3 Sep – 26 Nov · 60 sessions" untuk
+  sesi pertama 4 Sep), garis breadth (sebuah level, bukan return) dari sesi pertamanya sendiri. Rentang yang tersimpan di
+  alamat halaman tetapi keluar dari data tanggal yang dipilih dipotong ke data yang ada dengan catatan di kartu, atau
+  diganti periode bawaan kartu dengan catatan; tidak pernah diganti diam-diam (cek 1, 27 Nov 2026: RP-1, OR-6, BD-7).
 - **Return sebuah indeks atau saham selama n sesi** = (penutupan hari ini / penutupan n sesi sebelumnya − 1) × 100.
   Contoh IHSG 25 Nov 2026: 5.197,61 / 5.241,59 − 1 = **−0,84%** (1D); 1W −0,96%; 1M −1,60%; 3M −21,20%; YTD −39,89%;
   1Y −37,66%.
@@ -113,7 +117,13 @@ Satu baris per tanggal pasar per kelompok:
 - Setiap anggota dibandingkan dengan **penutupan finalnya sendiri sebelumnya** (setelah suspensi, itu bisa beberapa
   hari pasar yang lalu). Saham baru tanpa penutupan sebelumnya tidak masuk ketiganya.
 - Contoh 25 Nov 2026: pasar **197 naik, 187 tetap, 453 turun**; Financials 24 / 31 / 43; Banks 12 / 10 / 24.
-- Halaman menghitung A/U/D untuk 1W dan 1M sendiri dari return di file harian (bagian 7).
+- **1D di halaman = angka ini** (sama dengan Overview): kartu Advancers and decliners, kolom "Up 1D" Breadth heatmap dan
+  jendelanya memakai `adv/unch/dec` seri. File harian tidak bisa: `r1d`-nya diukur per sesi pasar, jadi kosong untuk saham
+  yang tidak bertransaksi di sesi sebelumnya. Contoh dev 26 Nov 2026: seri **311 / 204 / 323** (838 saham, sama dengan
+  Overview), sedangkan `r1d` hanya 310 / 202 / 322 (834; BBMD, DUTI, RONY, SURE tidak bertransaksi 25 Nov). Jendela daftar
+  saham menyebut saham yang tidak bisa diberi status itu (cek 1 D-2, BD-6).
+- Halaman menghitung A/U/D untuk 1W dan 1M sendiri dari return di file harian (bagian 7). Saham tanpa return itu tidak
+  dihitung, dan kartu menyebutnya (misalnya "830 of 838 stocks have a 1W return").
 
 ## 6. Return tertimbang harian dan indeks industri
 
@@ -129,7 +139,14 @@ Satu baris per tanggal pasar per kelompok:
 - Riwayat dimulai **25 Jan 2021** (tanggal pertama indeks sektor IDX) lewat job backfill; sebelum backfill selesai
   publisher tidak menerbitkan file (tidak pernah setengah terisi).
 - Return sebuah industri untuk periode = level(akhir) / level(awal) − 1. Industri dengan 1 anggota (misalnya Consumer
-  Electronics) returnnya = return satu saham itu.
+  Electronics) returnnya = return satu saham itu. File seri menyimpan level kosong pada hari tanpa return (misalnya
+  Alternative Energy Equipment 16 dan 21-25 Sep 2026); **halaman memakai level terakhir** untuk hari itu, jadi return yang
+  awal atau akhirnya jatuh di hari itu tetap terhitung (cek 1 D-8).
+- **Beda dengan indeks sektor resmi.** Baris sektor di halaman adalah indeks resmi IDX (kapitalisasi free float); baris
+  industri adalah indeks EDGE di atas (nilai transaksi). Keduanya bisa berbeda arah dan besar: dev 26 Nov 2026,
+  Technology resmi 1M **−9,7%**, industri terbesarnya Internet Applications & Services **+9,4%**; 1Y Transportation &
+  Logistic resmi −18,2%, ketiga industrinya −55% sampai −65%. Metodenya tidak diubah (keputusan D1); kartu Sector
+  drill-down menuliskan bedanya setiap kali baris industri dibuka (cek 1 D-1).
 
 ## 7. File harian: angka per saham (`sector-day-<tanggal>`)
 
@@ -149,6 +166,13 @@ Setiap saham biasa dengan penutupan final pada tanggal itu, urut sesuai `meta.st
 - Catatan: return di file ini dihitung dari penutupan per **sesi pasar** (seperti grafik Overview), bukan
   `return_20d_pct` Feature 01 (yang menghitung observasi saham itu sendiri). Saham yang disuspensi di sesi dasar
   returnnya kosong.
+- **Kolom Days di halaman** = jumlah **sesi pasar** dari `since` sampai tanggal halaman (keduanya dihitung), supaya sama
+  dengan tanggal Since. `days50`/`days200` di file (baris saham itu sendiri) hanya dipakai bila `since` lebih tua dari 300
+  sesi seri atau kosong ("300+": paling sedikit). Contoh dev 26 Nov 2026: INPS di atas EMA50 sejak 27 Agu, 19 baris
+  sendiri, **66 sesi pasar** → halaman menulis 66 (cek 1 D-3).
+- **Pembulatan:** penutupan di `sector-series` dan `sector-stocks` ditulis 2 desimal (sama dengan seri Overview); return
+  di file harian dihitung dari penutupan tanpa pembulatan. Selisihnya paling besar 0,005 per harga (misalnya SINI 2 Sep
+  2025: 2.460,00 di file saham, 2.459,9978 di tabel harga), di bawah pembulatan angka yang tampil (cek 1 D-6).
 - Lama status dihitung sekali dari riwayat Feature 04, lalu setiap hari cukup +1 dari file kemarin (atau mulai lagi dari
   1 bila statusnya berubah).
 
@@ -165,7 +189,9 @@ formulas.md`), dengan periode keputusan E. "pp" = poin persentase (selisih dua p
 - **Cumulative Return:** garis (penutupan / penutupan dasar − 1) × 100 sejak dasar periode (1M, 3M bawaan, YTD,
   Custom); daftar kanan = return periode, urut dari terbesar. Contoh 1M Financials +2,53%, IHSG −1,60%.
 - **Momentum (horizon vs horizon):** titik sektor dengan x = return satu horizon, y = horizon lain (bawaan x = 3M,
-  y = 1M). Financials: x −10,87%, y +2,53% ("Turning up": x < 0, y ≥ 0).
+  y = 1M). Financials: x −10,87%, y +2,53% ("Turning up": turun di horizon panjang, naik di horizon pendek). Nama sudut
+  mengikuti sumbu mana yang horizonnya lebih pendek: x = 1W dan y = 1M membuat "Turning up" pindah ke kanan bawah (x ≥ 0,
+  y < 0); dua horizon yang sama panjang diberi nama netral "Up on 1M only" (cek 1 OR-1).
 - **Sector × Horizon:** tabel return 1D, 1W, 1M, 3M, 6M, YTD, 1Y. Financials: −0,31 / −0,00 / +2,53 / −10,87 / +4,56 /
   −19,07 / −14,58%.
 - **Market map:** kotak per industri, luas = Σ bobot (bagian 3), isinya 10 saham terbesar per bobot, warna = return 5D
@@ -180,7 +206,8 @@ formulas.md`), dengan periode keputusan E. "pp" = poin persentase (selisih dua p
   (4 atau 8 minggu); urut bawaan menurut selisih 20 sesi.
 - **Sector drill-down:** per sektor return 3D, 1W, 1M, 3M, YTD; vs IHSG 1M dan 3M; **RS rating** 1-99 = urutan selisih
   1M di antara 11 sektor (1 + 98 × (N − 1 − k) / (N − 1), k = posisi dari atas): Financials **99** (+4,13 pp), Basic
-  Materials 1 (−13,81 pp); Δ 4W = rating hari ini − rating 20 sesi lalu; % di atas EMA50 (bagian 4); kuadran rotasi;
+  Materials 1 (−13,81 pp). **Baris industri diberi rating di antara semua 58 industri** (bukan di dalam sektornya), dan
+  kartu menuliskannya (cek 1 D-4); Δ 4W = rating hari ini − rating 20 sesi lalu; % di atas EMA50 (bagian 4); kuadran rotasi;
   **Momentum** g = selisih 5D − selisih 1M × 5/20: Financials 0,95 − 4,13 × 5/20 = **−0,08** → "Steady" (Gaining bila
   > +0,5, Fading bila < −0,5). Baris industri memakai level industri (bagian 6) untuk 3M, YTD, Δ 4W dan kuadran.
 - **Sector stocks:** garis kumulatif 10 saham terbesar per bobot dari `sector-stocks-<indeks>` (penutupan asli, bukan
@@ -195,7 +222,8 @@ formulas.md`), dengan periode keputusan E. "pp" = poin persentase (selisih dua p
 - **Direction & speed:** perubahan (Δ strength, Δ momentum) selama 1, 2 atau 4 minggu; arah = sudut atan2, kecepatan =
   panjang vektornya.
 - **Rotation detail:** kuadran sekarang dan 5/10/20 sesi lalu; kecepatan = jarak yang ditempuh dalam 5 sesi; perubahan
-  kuadran terakhir pada seri harian.
+  kuadran terakhir pada seri harian. Bila tanggal peta dipilih di strip IHSG, kartu ini ikut tanggal itu dan menuliskannya;
+  kuadran saham (return harian file) tetap tanggal halaman dan menulis "as of" tanggal itu (cek 1 RP-3).
 - **Stock momentum quadrant:** titik saham sektor terpilih, x = r1m saham − return 20 sesi pembanding, y = r5d saham −
   return 5 sesi pembanding; ukuran titik = bobot.
 
@@ -215,13 +243,16 @@ formulas.md`), dengan periode keputusan E. "pp" = poin persentase (selisih dua p
 - **Breadth vs Price:** garis % di atas EMA50 (atau EMA200) per tanggal dari `sector-series.breadth` (pasar atau satu
   sektor; nilai asli Feature 04 per sektor, bukan garis buatan), dengan IHSG di sumbu kanan; Δ = selisih dengan 5 sesi
   lalu.
-- **Breadth heatmap table:** per sektor % saham naik 1D/1W/1M (dari `r1d`, `r5d`, `r1m` hari itu), % di atas EMA50 dan
-  EMA200, Δ EMA50 1W dari riwayat breadth sektor.
+- **Breadth heatmap table:** per sektor % saham naik 1D (hitungan seri, bagian 5), 1W/1M (dari `r5d`, `r1m` hari itu,
+  saham yang punya return itu), % di atas EMA50 dan EMA200, Δ EMA50 1W dari riwayat breadth sektor. Baris "IHSG (all)"
+  juga menghitung saham tanpa sektor IDX-IC ("Other", dev 26 Nov 2026: 8 saham, sehingga 11 baris sektor berjumlah 830 dan
+  IHSG 838); tooltip barisnya menyebutnya (cek 1 D-7).
 - **Breadth by sector:** % di atas EMA50, % dengan r5d > IHSG 5D, atau % dengan r5d > 0, per sektor.
-- **Advancers · Unchanged · Decliners:** jumlah saham naik/tetap/turun per sektor untuk 1D, 1W, 1M dari return harian;
-  rincian memakai `close` dan `volume` asli.
-- **Stock detail:** per saham status di atas/bawah EMA, jaraknya (`d_ema50`, `d_ema200`), lama status dan sejak kapan
-  (bagian 7).
+- **Advancers · Unchanged · Decliners:** jumlah saham naik/tetap/turun per sektor; 1D dari hitungan seri (bagian 5,
+  sama dengan Overview), 1W dan 1M dari return harian dengan penyebut yang disebut; rincian memakai `close` dan `volume`
+  asli.
+- **Stock detail:** per saham status di atas/bawah EMA, jaraknya (`d_ema50`, `d_ema200`; jarak yang dibulatkan ke 0 tetap
+  bertanda, "−0.0%" untuk saham sedikit di bawah EMA), lama status dalam sesi pasar dan sejak kapan (bagian 7).
 
 ## 9. Kapan file diperbarui
 
