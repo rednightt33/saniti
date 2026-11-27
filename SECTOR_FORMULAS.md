@@ -233,11 +233,21 @@ formulas.md`), dengan periode keputusan E. "pp" = poin persentase (selisih dua p
 - **Pair ratio:** rasio Q = penutupan A / penutupan B, rata-rata MA (20, 50) dan pita ± 2 simpangan baku (populasi), z =
   (Q − rata-rata) / simpangan. Financials / Energy dengan MA50: Q 0,5372, rata-rata 0,4672, simpangan 0,0438, **z
   +1,60** (di dalam pita).
+- **Pasangan otomatis** (keputusan user UD79 1A, putaran visual 2): halaman dibuka **tanpa pasangan terpilih**. Selama tidak
+  ada pilihan, Pair ratio memakai pasangan berurut yang rasionya paling jauh dari rata-rata 60 sesinya (|z| terbesar di
+  antara 110 pasangan berurut) dan menuliskan "Automatic pair"; pasangan itu tidak disimpan sebagai pilihan, jadi matriks
+  tidak menandai baris mana pun dan tidak ada sel yang diredupkan. File 26 Nov 2026: **Energy / Basic Materials, z
+  +2,46**. Klik pada sel, nama sektor, baris Stretched pairs atau baris Beta memilih pasangan; klik kedua pada yang sama
+  membatalkan pilihan dan kembali ke pasangan otomatis. Jendela Beta and correlation tanpa pilihan menampilkan saham
+  sektor A pasangan otomatis dan menuliskannya.
 - **Beta & Correlation** ke IHSG atau LQ45, W sesi (20, 60, 120 bawaan, 252): β = kovarians / varians return harian,
   korelasi Pearson, alpha = return sektor − β × return pembanding. Financials 120 sesi vs IHSG: **β 0,75**, korelasi
   **0,93**, return +4,56% vs IHSG −7,10%, alpha +4,56 − 0,75 × (−7,10) = **+9,86 pp**. Beta saham dihitung sama dari
   `sector-stocks-<indeks>`.
-- **Stretched pairs:** 55 pasangan diurutkan menurut |spread| H sesi (3, 5, 20).
+- **Stretched pairs:** 55 pasangan diurutkan menurut |spread| H sesi (3, 5, 20). Jendelanya (putaran visual 2) hanya
+  berisi "Spread across horizons" (Spread 1D, 3D, 1W, 2W, 1M, 3M; kolom |1M| dihapus): "Rank by" mengurutkan menurut
+  |spread| horizon itu (kolomnya diberi latar), "Leader still ahead"/"Leader behind" menyaring pasangan dengan spread
+  horizon itu > 0 / < 0 (mati bila Rank by 1M, karena pemimpin 1M selalu di depan), "Show Top 7" membatasi barisnya.
 
 ### 8.5 Tab Breadth
 - **Breadth vs Price:** garis % di atas EMA50 (atau EMA200) per tanggal dari `sector-series.breadth` (pasar atau satu
@@ -253,6 +263,26 @@ formulas.md`), dengan periode keputusan E. "pp" = poin persentase (selisih dua p
   asli.
 - **Stock detail:** per saham status di atas/bawah EMA, jaraknya (`d_ema50`, `d_ema200`; jarak yang dibulatkan ke 0 tetap
   bertanda, "−0.0%" untuk saham sedikit di bawah EMA), lama status dalam sesi pasar dan sejak kapan (bagian 7).
+
+### 8.6 Warna sel heatmap (putaran visual 2, keputusan user UD77 2A)
+Setiap sel heatmap memakai **7 tingkat warna pekat Overview** (`apps/edge-bff/overview/src/model.ts` `colorOf`, bertanda):
+hijau 600 / 500 / 300, abu datar, merah 300 / 500 / 600, teks putih pada tingkat 500 dan 600, sama di tema terang dan
+gelap (hanya abu datar yang mengikuti tema, seperti `--ov-flat` Overview). Nilai diubah ke skala Overview:
+c = (nilai − pusat) / batas × 3; c ≥ 3 tingkat terkuat, c ≥ 1,5 tingkat tengah, selain itu tingkat muda; nilai yang tidak
+tepat di pusat selalu mendapat paling sedikit tingkat muda, hanya nilai tepat di pusat yang abu. Jadi **tingkat terkuat
+dicapai tepat pada batas kolom**, tingkat tengah mulai setengah batas.
+- Batas per kartu: Sector × horizon = |return| terbesar di kolom horizon itu; Market map = |5D − IHSG 5D| terbesar di antara
+  ubin; Weekly excess heatmap = |selisih| terbesar di seluruh sel; Breadth heatmap table = pusat 50%, batas 50 poin (100%
+  terkuat, 75% tengah) dan kolom Δ = batas 25 pp; Pair matrix spread = |spread| terbesar di matriks.
+- Contoh file 26 Nov 2026, kolom 1M Sector × horizon: batas = |Basic Materials −10,51%| → merah 600 (c = −3,00);
+  Technology −9,71% → c = −2,77 → merah 500; Financials +5,21% → c = +1,49 → hijau 300 (tepat di bawah setengah batas);
+  Healthcare −0,39% → merah 300.
+- **Korelasi** (Pair matrix mode Correlation) memakai tingkat yang sama dengan dua warnanya sendiri, navy (bergerak
+  bersama) dan merah (berlawanan), pada skala tetap karena korelasi bukan ukuran relatif: tingkat terkuat dari ±0,8, tengah
+  dari ±0,4, muda di bawahnya. Korelasi 60 sesi antarsektor 26 Nov 2026 berkisar 0,64-0,94 (Financials / Energy 0,78 →
+  navy 500); skala tetap 1,0 akan mewarnai hampir semuanya tingkat tengah.
+- Saat sektor dikunci atau pasangan dipilih, **sel lain tidak lagi diredupkan** (dulu 32%); baris terpilih ditandai di sel
+  namanya (tebal, latar terpilih, garis kiri).
 
 ## 9. Kapan file diperbarui
 

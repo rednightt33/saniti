@@ -129,3 +129,11 @@ The example files for visitors are made as the Overview's (`apps/terminal-publis
   page's date (the file's `days50`/`days200`, the stock's own rows, only as the lower bound of "300+"). An industry's
   `index_level` is carried over a date without one. A Custom range outside the data is refused (as the Overview's), and
   a stored one is clamped with a note on the card, never replaced silently.
+- Visual round 2 (2026-11-27, the user's V1-V10 and UD76-UD79 in `EXEC.md`; `round2/CHANGES.md`), what the page shows
+  from the files: every heat cell is one of the Overview's seven solid steps (`colorOf`, signed), the column's cap at the
+  strongest step, the same steps in both themes, and no heat cell is dimmed while a sector is locked; the pair
+  correlation uses the same steps in navy and red on a fixed 0.4 / 0.8 scale. The page opens with no sector pair chosen:
+  the Pair ratio then shows the automatic pair (the ordered pair furthest from its 60-session mean) and says so, without
+  storing it as a choice; a second click on the chosen sector, cell or pair returns to it. The Stretched pairs window
+  shows only its spread per horizon (1D-3M), ranked, filtered and limited by the card's controls. The layout changes
+  (windows that end level, the aligned tables, the Rotation detail list, the Rotation map's Timeline) read no other data.
