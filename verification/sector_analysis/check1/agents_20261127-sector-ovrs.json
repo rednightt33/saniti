@@ -1,0 +1,140 @@
+{
+ "run": "agents_20261127-sector-ovrs",
+ "area": "overview-relative-strength",
+ "model": "sonnet",
+ "checked": [
+  "Beta /sector as owner at 1440x900, 1280, 1152 (light) and 1440 (dark, data-theme injected, no preference saved): no console errors/warnings, no HTTP >=400, no page-level horizontal overflow; scan of all visible text, title/aria-label/data-tip and all 9 floating windows finds no 'subsector', 'RRG', 'RS-Ratio', 'EMA20', 'Screener', 'prototype', NaN/undefined/null.",
+  "Figures recomputed from /api/v1/sector files (sector-series, sector-stocks-idxhealth, sector-day): Sector x Horizon (1D..1Y, YTD base 30 Dec 2025 = 217 sessions), KPI row (IHSG 5,242.17 +48.03 +0.92%, 2/11 beating, Health +1.35 pp, 5/11 improving, Energy rank gain 8), Relative Return 3D/5D/10D, Rank change 19 Nov to 26 Nov ranks, Weekly excess (Health row, Financials avg +1.17 / 5 of 8), market map tiles (KLBF +3.6, MMIX -18.6, MIKA +1.8), stock lines (DKHH +26.5, PRDA +23.2, RSCH -42.3, MMIX -62.3 since 3 Sep), > EMA50 (Financials 21/98). All match.",
+  "Periods as the Overview: 1M 20, 3M 60, YTD 217 sessions; weekly steps 5 sessions; 1Y = 252; cards show 'N sessions' consistently; IHSG 26 Nov 5,242.17 and 1D +0.86% equal /overview.",
+  "Cumulative return: 1M/3M/YTD/Custom, legend toggles incl. all-off and all-on (end labels de-overlap), IHSG toggle (title/aria-pressed, kept in URL hash across iframe reload), list-row hover highlights its line, list row click and Enter/Space lock/unlock, chart hover tooltip stays visible in a dense area (30 moves, 0 hidden, defect D06 gone), custom popover limits: 1 year cap message, min 5 days, From>To, no trading day, outside data, Esc/outside click/Cancel/toggle close it.",
+  "Momentum: X/Y selects disable the other's horizon (D07 same-horizon gone), dot hover tip, dot click lock (halo, others dimmed), keyboard; quadrant names drop instead of overlapping the zero line.",
+  "Sector x Horizon: 1/2/3 clicks sort, 4th level drops the oldest, Clear sort, Sector A-Z/Z-A, cell tooltip, row lock; Market map: follows lock, returns to the strongest sector on unlock (D08 gone), 11 sectors all render with tiles for tiny industries ('small industries drawn at a minimum size'), tile click opens the stock popover (Open in Terminal NOT clicked), window industry pick-out dims others.",
+  "Sector drill-down: all 13 headers sort with 3 clicks per cycle, Rotation sorts Leading>Improving>Weakening>Lagging, Open/Close all industries and per-sector caret (58 industry rows, D03 fixed), row lock marks 'stocks', Rank change, weekly, relative return; RS 1-99, delta 4W, momentum tags present, header tips.",
+  "Rank change: 5D/10D/1M/Custom subtitles/dates, single-date popover (min = data start + N sessions, max = day before, messages), follows Relative Return Window 3D/5D/10D; slope lines lock. Relative Return: vs IHSG and Absolute (dashed IHSG), tooltips with rank. Weekly Excess Return: 4W/8W/Custom, 26-week cap now has a message (D09 gone), default-order note under it (N07 gone), custom 11 sessions gives 2 weeks. '<Sector> stocks': 1M/3M/YTD/Custom, follows the lock for all 11 sectors, real closes (D02 gone).",
+  "Floating windows (all 9): open by expand button, size to content, own period/filters independent of page, detail table sort, row click lock, sector select, search with 'No row matches' message, drag by header, X / Esc / backdrop click close, Esc closes popover first then window, focus returns to the expand button, 'How to read' footer and example present.",
+  "Date picker: choosing Fri 20 Nov recomputes every card of both tabs (KPI, ranks, weekly columns, stock lines) consistently.",
+  "Dark theme (data-theme=dark): both tabs and windows legible; heat colours, tags, slope lines OK. 1152: single column, no clipping other than those listed."
+ ],
+ "findings": [
+  {
+   "id": "OR-1",
+   "severity": "major",
+   "title": "Momentum quadrant names and the window's 'Reading' column are wrong when the horizontal horizon is shorter than the vertical one",
+   "where": "Overview / Momentum (mmCard) and its window; apps/edge-bff/sector/src/cards/ov.ts quad()/reading() and words.ts W.mm.q, foot, read",
+   "steps": "Open Overview. In Momentum choose horizontal 1W and vertical 1M (both selects offer any pair). Look at Health (1W +2.3%, 1M -0.4%) and the corner names.",
+   "expected": "A sector up over the short horizon but down over the longer one is 'turning up'; the names must follow which axis is the longer horizon (or the selects must only allow short on Y).",
+   "actual": "Names are fixed for X=long, Y=short: top-left is always 'TURNING UP' and bottom-right 'TURNING DOWN'. With X=1W, Y=1M Health sits bottom-right labelled TURNING DOWN though it rose this week after a negative month; top-left 'TURNING UP' holds sectors that are down over 1W and up over 1M (turning down). The footer 'Top left = turning up' and the expanded window's Reading column ('Turning up'/'Down on both') and its example sentence have the same fixed meaning. Same with 1W vs 3M, 1W vs YTD, 1M vs 3M... whenever X is shorter than Y.",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/mm_1W_1M.png (dot Health vs corner label), /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/win_ov_mmCard.png for the default; probe: selects x=1W,y=1M; ov.ts reading(): x>=0 ? (y>=0 ? both : turn) : (y>=0 ? up : down) independent of horizon order"
+  },
+  {
+   "id": "OR-2",
+   "severity": "major",
+   "title": "Sector drill-down: last columns (Rotation, Momentum) are cut off at 1440 and hidden behind a horizontal scroll at 1280",
+   "where": "Relative strength / Sector drill-down (rsD), rs.ts rsD render + styles; also its window header at default size is fine",
+   "steps": "Open Relative strength at 1440x900 and at 1280. Read the header row. Press 'Open all industries' at 1440.",
+   "expected": "All 13 columns visible in the card (defect D15-type 'last columns cut off' was to be gone) or an obvious scroll cue.",
+   "actual": "1440: table 829 px in an 818 px wrapper, header reads 'Momentun' and the last tag is cut. 1280: card 660 px, wrapper scrollWidth 829 > 658 so '> EMA50' is cut and Rotation + Momentum (the cards' key signal columns) are off-screen with no cue. With industries open the first column widens and tags show 'Weakenin' cut at 1440 (the Rotation column then also needs a scroll).",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rs_1440_light.png, /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rsD_1280.png, /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rs_locked.png; probe tbl-wrap scrollWidth/clientWidth 829/818 (1440) and 829/658 (1280)"
+  },
+  {
+   "id": "OR-3",
+   "severity": "minor",
+   "title": "Weekly excess return opens scrolled to the OLDEST weeks after a Custom range wider than the card; the latest weeks are hidden",
+   "where": "Relative strength / Weekly excess return, rs.ts rsW render (requestAnimationFrame: if (!t.dataset.kept) t.scrollLeft = 1e6)",
+   "steps": "Click Custom, From 2026-06-02, To 2026-11-26, Apply (25 weeks, 994 px in a 400 px scroller).",
+   "expected": "Scrolled to the right end so the newest week (26 Nov) shows, as the 8W default is meant to (inventory: 'scrolled to the right end').",
+   "actual": "scrollLeft = 0 (columns Jun 8 ... Aug), legend says '25 weeks, 29 May - 26 Nov' but newest columns are off-screen to the right. dataset.kept is already '1' from the first render (scrollWidth == clientWidth) so the scroll-to-end never runs. Same after returning to Custom from 4W.",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rsW_custom26.png; probe [scrollLeft, scrollWidth, clientWidth, kept] = [0, 994, 400, '1'] after Apply"
+  },
+  {
+   "id": "OR-4",
+   "severity": "minor",
+   "title": "Esc does not close the market-map stock popover",
+   "where": "Overview / market map tile popover (stockPop in ui.ts, ov.ts mkCard)",
+   "steps": "Click a tile (e.g. KLBF), press Escape.",
+   "expected": "Esc closes popovers (Custom popover, windows do); popover hides.",
+   "actual": "Popover stays (hidden=false) until a click inside the map; keyboard users who opened it with Enter/Space must tab away.",
+   "evidence": "probe after Escape: mk.querySelector('.sx-spop').hidden === false; /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/mk_pop2.png"
+  },
+  {
+   "id": "OR-5",
+   "severity": "nit",
+   "title": "Stock popover value wraps: 'Rp' on one line, '30.0B/day' on the next",
+   "where": "Overview / market map tile popover",
+   "steps": "Click KLBF tile.",
+   "expected": "Label and value each on one line or the label shortened.",
+   "actual": "The 220 px popover breaks the row '20-day average traded value | Rp 30.0B/day' into two lines for both label and value.",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/mk_pop2.png"
+  },
+  {
+   "id": "OR-6",
+   "severity": "minor",
+   "title": "Date range in the Custom popover starts one session after the range the card prints for the same period",
+   "where": "Cumulative return, Weekly excess, '<Sector> stocks' Custom popover vs card footer (ov.ts customRange, model.ts checkRange)",
+   "steps": "On 3M open Custom: note says '4 Sep - 26 Nov - 60 trading days', From prefilled 2026-09-04. Card footer says '3 Sep - 26 Nov - 60 sessions'. Apply Custom 2 Jun-30 Sep: popover '2 Jun - 30 Sep - 84 trading days', card '29 May - 30 Sep - 84 sessions'.",
+   "expected": "One start date for one range (or the card says 'from the 3 Sep close').",
+   "actual": "The two start dates differ by one session; reapplying the prefilled range moves the card's printed start (3 Sep vs 4 Sep wording) and looks like the range changed.",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rc_custom_pop.png, /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rc_custom_applied.png; probe text in s8 run"
+  },
+  {
+   "id": "OR-7",
+   "severity": "nit",
+   "title": "Momentum card title truncated at 1280",
+   "where": "Overview / Momentum header at 1280 width",
+   "steps": "Open Overview at 1280x900.",
+   "expected": "Full title or wrapped (N06 asked that titles fit).",
+   "actual": "'Momentum: horizon vs hori...' (scrollWidth 210 > 204).",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/ov_1280_light_top.png"
+  },
+  {
+   "id": "OR-8",
+   "severity": "nit",
+   "title": "Weekly excess default 8W is clipped at 1280: half of the oldest column and its month label are cut",
+   "where": "Relative strength / Weekly excess return at 1280 (card 322 px)",
+   "steps": "Open Relative strength at 1280.",
+   "expected": "8 columns fit or a clean scroll edge.",
+   "actual": "Scroller 350 > 320 px, scrolled right; the first visible week (15 Oct) sits next to a clipped sliver of 8 Oct cells; legend still says '8 weeks'.",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rsW_1280.png"
+  },
+  {
+   "id": "OR-9",
+   "severity": "nit",
+   "title": "Wording: 'fell -11.3%' (double negative) and awkward phrases in windows",
+   "where": "words.ts:95 rc.ex ('fell'/'rose' + signed pct); Relative return window note 'The rank uses the window chosen in this window.'; Rank change popover 'Rank on Thu 19 Nov 2026 vs the date shown'",
+   "steps": "Expand Cumulative return (example sentence); expand Relative return (How to read); open Rank change Custom.",
+   "expected": "'Financials fell 11.3%' / 'returned -11.3%'; plain wording.",
+   "actual": "'Financials fell -11.3%, +10.09 pp vs IHSG ...'; the two other sentences read oddly.",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/win_rc.png and text probe of win_rs_rsA"
+  },
+  {
+   "id": "OR-10",
+   "severity": "nit",
+   "title": "Cumulative return reuses 6 colours for 11 sectors",
+   "where": "Overview / Cumulative return legend (ov.ts PAL has 6 entries)",
+   "steps": "Switch every sector on (or click until >6 are on), 1M.",
+   "expected": "Distinct swatches or a note.",
+   "actual": "Basic Mat./Industrials share blue, Cons. Cyc/Infra purple, Energy/Tech teal, Non-Cyc/Property orange, Financials/Transport red: the legend swatch alone cannot identify a line (end labels do).",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rc_allon_1M.png"
+  },
+  {
+   "id": "OR-11",
+   "severity": "nit",
+   "title": "Sector drill-down window opens with only 2 stock rows visible",
+   "where": "Relative strength / Sector drill-down window (stacked layout)",
+   "steps": "Expand Sector drill-down at 1440x900.",
+   "expected": "Enough of the stock list visible to use without scrolling (inventory: stacked, sized to content).",
+   "actual": "Window 820 px: copied table takes 532 px, the stock table pane 1514 px scrolls inside .fw-c; first view shows header + KLBF + MIKA only, 'Sector' select and search near the bottom edge.",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/win_rs_rsD.png"
+  },
+  {
+   "id": "OR-12",
+   "severity": "nit",
+   "title": "Bottom-row card footers wrap onto 2-3 lines at 1440",
+   "where": "Relative strength / '<Sector> stocks' and Weekly excess return legends",
+   "steps": "Open Relative strength at 1440, scroll to bottom.",
+   "expected": "One-line legend (D13/N06 style truncations were to be gone).",
+   "actual": "'- - Health index - top 2 and bottom 2 coloured - the strongest sector of the week until you lock one' wraps with the date range on a third line; Weekly excess: three stacked lines.",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-ovrs/rsA_abs_hover.png (bottom of page)"
+  }
+ ]
+}
