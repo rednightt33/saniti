@@ -13453,17 +13453,27 @@
    "title": "Sector drill-down window with 'Open all industries': columns are cut at the window's right edge and both tables scroll sideways",
    "finding": "agents_20261127-sector-r2-ovrs, sonnet, OV2-1, major: Sector drill-down window with 'Open all industries': columns are cut at the window's right edge and both tables scroll sideways. Where: Relative strength / Sector drill-down window, 1440, 1280 and 1152 widths, light Steps: Open Relative strength, expand Sector drill-down, press 'Open all industries'. Read the right edge of both tables (without industries open nothing is cut and nothing scrolls). Expected: User (EXEC.md 2026-11-27, 'A'): every column edge of the stocks table on a column edge of the sector table and nothing cut, with and without 'Open all industries'. Actual: Edges do line up (stocks table 8 columns, 0 edges off the sector table's). But the tables need 1062 px in a 1012 px scroller: the first view shows 'Mon' / 'Fad' / 'Gai' (Momentum column) and 'Weig' / 'Rp 30.0E' (Weight column) cut at the edge; one has to scroll sideways (edge-fade cue exists). The stacked window is capped at 1040 px wide (windows.ts:40 `stacked ? 1040`) while the 13-column table with the wider first column needs about 50 px more. tests/look/round2.mjs step 7 passes because it only counts ellipsis cuts. Evidence: shots/rsD_win_1440_true.png; probe p5.mjs: 'hscroll tbl-wrap xs-r xs-b:1062/1012 fw-tw:1062/1012' at 1440, 1280 and 1152 with industries open; none with industries closed.",
    "errors": [
-    "M576"
+    "M576",
+    "M578"
    ],
    "fix_commits": [
-    "90bf33f0"
+    "90bf33f0",
+    "c43f3512"
    ],
-   "fix_note": "90bf33f0: windows.ts widen(): a stacked window grows to its tables up to the screen less 48 px and draws again; the window's scroll cues set after the tables are aligned; round2.mjs step 7 fails on a cell past its scroller unless the window is at its widest and cues. Real 26 Nov: 1440/1280 window 1110 px, tables 1082/1082; 1152 window 1048 px, tables 1080 in 1020 with the cue (limit) (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "beta",
+   "fix_note": "90bf33f0: windows.ts widen(): a stacked window grows to its tables up to the screen less 48 px and draws again; the window's scroll cues set after the tables are aligned; round2.mjs step 7 fails on a cell past its scroller unless the window is at its widest and cues. Real 26 Nov: 1440/1280 window 1110 px, tables 1082/1082; 1152 window 1048 px, tables 1080 in 1020 with the cue (limit) (verdict in verification/sector_analysis/check2/FIXES.md); c43f3512: the part the quick check found open, fixed by the session agent (ERRORS M578)",
+   "runs_on": "branch",
    "author_test": "round2.mjs step 7 (fixture and real) (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "partly",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/probe_dd.mjs on the production build with the 26 Nov files, every industry open: 1440/1280 window 1110 px, tables 1082 in 1082 (fixed); 1152 window 1048 px, tables 1080 in 1020 (60 px sideways, the limit). Cause: one industry name of 280 px (Electronic Equipment, Instruments & Components) made the first column 326 px. Fixed by the agent in c43f3512 (label column wraps); after: 1152 tables 1020 in 1020, no scroll; round2 step 7 now fails on any clipped column above phone width. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open Relative strength, expand Sector drill-down, press Open all industries at 1440, 1280 and 1152; read the right edge of both tables; look for the same cap in every stacked window (Beta, Breadth, phone).) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-ovrs.json (OV2-1); verification/sector_analysis/check2/FIXES.md",
@@ -13486,9 +13496,17 @@
    "fix_note": "90bf33f0: the Custom popover's note names the base close and the From date and follows the dates typed (W.range.fromClose, openRange noteOf) (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "check2.test, check2.styles, look check2 \"OV2-3\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/qc3.mjs (26 Nov files, 1440): the Custom popover of Cumulative return (3M) prefills From 2026-09-04 and says \"3 Sep – 26 Nov · 60 sessions. Measured from the 3 Sep close, the session before From (4 Sep), as the Overview’s Custom.\"; typing From 2026-10-01 gives \"30 Sep – 26 Nov · 41 sessions\". (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Press Custom on Cumulative return (3M); compare the From field with the printed range and the note; type another From; check every return card's Custom.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-ovrs.json (OV2-3); verification/sector_analysis/check2/FIXES.md",
@@ -13511,9 +13529,17 @@
    "fix_note": "90bf33f0: a window whose detail is hidden (bare) is as tall as its card; the Timeline's box takes the Timeline's height (.rrg.tlh, tlHeight); rows square unless the screen is too short (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "look check2 \"RP2-1\" (1440/1280/1152, both ways), check2.test, round2 step 9 (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/qc.mjs: Rotation map window on the Timeline, legend to window bottom 1-2 px at 1152 and 1280 (light, dark, switched in the window) and at 1440 and 1152 set on the card first. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Rotation map window at 1152, 1280 and 1440: Timeline switched in the window and set on the card before expanding; the legend at the window's bottom, no blank band; back to Map.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-rotpm.json (RP2-1); verification/sector_analysis/check2/FIXES.md",
@@ -13528,17 +13554,27 @@
    "title": "Stock momentum quadrant: outlier dots still touch/overprint quadrant names and labels at narrow widths, and one outlier still squeezes the chart",
    "finding": "agents_20261127-sector-r2-rotpm, sonnet, RP2-2, minor: Stock momentum quadrant: outlier dots still touch/overprint quadrant names and labels at narrow widths, and one outlier still squeezes the chart. Where: Rotation > Health stock momentum quadrant card, 1152 dark and 360 light (also window) Steps: Open Rotation at 360x740 (or 1096x800 dark); look at the bottom-left and the Leading/Weakening corner. Expected: Quadrant names readable, no label on label. Actual: The MMIX outlier circle sits against the LAGGING name (touching at 1152 and 360); at 360 the labels HEAL and SIDO touch each other; RSCH/MMIX at -56 pp still push the zero line to ~85% of the width so about 30 dots sit in the right quarter (original RP-5 third part). Evidence: check2/agents_20261127-sector-r2-rotpm/a4_card_1152.png, a4_card_360.png",
    "errors": [
-    "M576"
+    "M576",
+    "M578"
    ],
    "fix_commits": [
-    "90bf33f0"
+    "90bf33f0",
+    "c43f3512"
    ],
-   "fix_note": "90bf33f0: quadrant names along their quadrant's edges, the first place no dot touches; stock names 3 px apart; axisRange ends at Tukey's 1.5 IQR whiskers (zero line 67-70% on 26 Nov, was 81-82%). Limit: LEADING touches DGNS at 390/360 (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "beta",
+   "fix_note": "90bf33f0: quadrant names along their quadrant's edges, the first place no dot touches; stock names 3 px apart; axisRange ends at Tukey's 1.5 IQR whiskers (zero line 67-70% on 26 Nov, was 81-82%). Limit: LEADING touches DGNS at 390/360 (verdict in verification/sector_analysis/check2/FIXES.md); c43f3512: the part the quick check found open, fixed by the session agent (ERRORS M578)",
+   "runs_on": "branch",
    "author_test": "check2.test \"RP2-2\", look check2 \"RP2-2\" (4 widths), check1 RP-5 (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "partly",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/probe_q.mjs over all 11 sectors (not only Health): 0 names on a dot at 1440 and 1152, but 22 quadrant names on a dot over six sectors at 390 and 360. Fixed by the agent in c43f3512 (names to a strip when no free place, dots keep out of it with the largest radius); after: 0 at all four widths; check2 \"the stock quadrant of every sector\" added (fails before). (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Rotation > stock momentum quadrant at 360 and 1152 (dark): names readable, no label on label, the zero line and the dots' spread.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-rotpm.json (RP2-2); verification/sector_analysis/check2/FIXES.md",
@@ -13561,9 +13597,17 @@
    "fix_note": "90bf33f0: one cell padding (4 px; first 16, last 12) in both tables of an aligned window; industry rows keep their indent (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "round2 step 7 (texts on shared edges), check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/probe_dd.mjs: both aligned tables 4 px cell padding, first column 16 px, last 12 px at 1152/1280/1440; round2 step 7 (texts on shared edges) 41/41 on fixture and real files. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Beta and correlation window at 1440: compare the right edges of Corr/Return/vs IHSG/Alpha with Corr/1M/1M vs IHSG/Weight; the drill-down window too.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-rotpm.json (RP2-4); verification/sector_analysis/check2/FIXES.md",
@@ -13586,9 +13630,17 @@
    "fix_note": "90bf33f0: a Timeline card on the page grid fills its height with its rows; in the one-column layout the card is as tall as the Timeline (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "look check2 \"RP2-5\" (1440, 1152, 390) (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/qc.mjs: Timeline card, svg to legend 14 px (1440, 1152), 10 px (390); card bottom to legend 1 px. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Rotation tab > Timeline at 1440, 1152, 390: the band between the dates and the legend.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-rotpm.json (RP2-5); verification/sector_analysis/check2/FIXES.md",
@@ -13611,9 +13663,17 @@
    "fix_note": "90bf33f0: the outline:none of .slope .sl and .rrg .pt removed (they beat the focus rule at equal specificity) (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "check2.styles \"BD2-1\", look check2 \"BD2-1 MX2-3\", verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"every Tab stop draws the grey ring\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/qc.mjs: after a Tab, g.sl and the rotation map g.pt focused show a 2 px solid outline #6b6b6b (light) / #8a8a8a (dark), modality keyboard; after a mouse click modality pointer, no ring. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Tab to a slope row (Rank change) and a rotation map dot, light and dark; compare pixels with and without focus; look for any other reset after a focus rule.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-brdt.json (BD2-1); verification/sector_analysis/check2/FIXES.md",
@@ -13636,9 +13696,17 @@
    "fix_note": "90bf33f0: rs.ts QFG on the tag inks (--green-tag, --amber-tag, --red-tag, --blue-tag) (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "check2.styles \"BD2-2\", verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"every tab's tinted text reads 4.5:1\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own contrast sweep lim/qc.mjs: every .tg/.tag/.rq pill of the Relative strength tab at 4.5:1 or more, light and dark (none under). (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Relative strength, light: the contrast of the Lagging and Improving pills; scan every tab for text on a tint.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-brdt.json (BD2-2); verification/sector_analysis/check2/FIXES.md",
@@ -13661,9 +13729,17 @@
    "fix_note": "90bf33f0: words.ts brD.tip: no first session -> \": the status began before the 300 sessions of data\" (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "check2.test, check2.styles, look check2 \"BD2-3\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/qc3.mjs: EMA200 mode (Breadth vs price set to EMA200), 20 of 838 Stock detail tips read e.g. \"AYAM … Above EMA200 for 300+ sessions: the status began before the 300 sessions of data\"; none reads \"since The\". (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Breadth > Stock detail in EMA200 mode: the tips of AYAM, MKAP, JRPT.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-brdt.json (BD2-3); verification/sector_analysis/check2/FIXES.md",
@@ -13686,9 +13762,17 @@
    "fix_note": "90bf33f0: heat/corrHeat take the printed decimals; the up/down text colour too (M.cls dp, M.clsText); every heat table and figure (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "check2.test \"BD2-4\", look check2 \"BD2-4\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/qc2.mjs: in every visible table of the Breadth tab and the Breadth heatmap table window, per column, no printed value with two colours (an earlier per-card scan grouped two columns of different scales). (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Breadth heatmap table, Delta EMA50 1W: the \"0 pp\" cells; the same text in a column of every heat table; up/down text of a figure printed 0.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-brdt.json (BD2-4); verification/sector_analysis/check2/FIXES.md",
@@ -13711,9 +13795,17 @@
    "fix_note": "90bf33f0: .c1-chips is a cued scroller; a window's cues set after its tables are laid out (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "look check2 \"MX2-1\" (every scroller of every tab and window, 390/360) (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/qc.mjs at 390 and 360 touch: the Rotation detail chip row scrolls 502/532 px and carries the xs-r cue. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Rotation detail window at 390 and 360: the chip row's right edge; every other sideways scroller.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-1); verification/sector_analysis/check2/FIXES.md",
@@ -13736,9 +13828,17 @@
    "fix_note": "90bf33f0: the page's .seg keeps one line and moves whole (flex-wrap:nowrap; flex:none); on a phone the C1 band grows (min 52 px), its subtitle wraps (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "look check2 \"RP2-3 MX2-2\", check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/qc.mjs at 390 and 360: the band switch on one line, 0 cut texts in the band. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Rotation detail window at 390 and 360: the Changes / All columns switch and the band's title and subtitle; every segmented control squeezed.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-2); verification/sector_analysis/check2/FIXES.md",
@@ -13762,9 +13862,17 @@
    "fix_note": "90bf33f0 3a597e76: src/touch.ts: every small control's area measured from its neighbours (up to 44 px; to the next target, half way to another area; inside the pinned tab bar and its clip; 44 px shared between the sides), refitted after every draw, scroll and resize; chart dots get transparent circles; selects open from their wrapper; name clips on inner spans (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"sector: touch hit areas, no layout change, no overlap\"; check2.test \"MX2-4 / MX2-5\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own elementFromPoint sweep lim/qc.mjs at 390 touch over every tab: one control under 30 px tappable height, the industry caret (20 px → 25 px, inside its row; a limit FIXES.md lists); the oracle round2_focus_contrast.mjs 52/52 (no overlap, areas take the room around them). (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (A touch screen at 390 and 360: every tab and window; the tap extent of each small control (elementFromPoint), no two areas overlapping, no area over a neighbour.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-4); verification/sector_analysis/check2/FIXES.md",
@@ -13787,9 +13895,17 @@
    "fix_note": "90bf33f0: the outer buttons of a segmented control reach outward to the next target; inner ones keep their width (they touch); heights 44 px where the row has room (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "as MX2-4 (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "As MX2-4: segment buttons 44 px high where the row has room, their width their own between touching neighbours (the limit FIXES.md lists); oracle 52/52. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (A touch screen: the segment buttons of every tab; their tap width and height.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-5); verification/sector_analysis/check2/FIXES.md",
@@ -13812,9 +13928,17 @@
    "fix_note": "90bf33f0: label and control wrap together (.sgrp, Momentum x vs y, Breadth Show); the phone search keeps 150 px (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "look check2 \"MX2-6\", check2.test, check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/qc.mjs at 390 and 360: the Stretched pairs window shows \"Show\" on the line of its switch (0 px apart), the search placeholder whole. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Stretched pairs window at 390: Show beside Top 7 / All, the search's placeholder; every labelled control and placeholder.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-6); verification/sector_analysis/check2/FIXES.md",
@@ -13837,9 +13961,17 @@
    "fix_note": "90bf33f0: the default order's arrow drawn without its 45% opacity (text, >= 4.5:1) (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "look check2 \"MX2-7\", check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own contrast sweep lim/qc.mjs: every .sk sort arrow on the four table tabs at 4.5:1 or more, light and dark. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (The sort arrow of hxCard, rsD, pmT, brT, brD heads, light and dark: its contrast.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-7); verification/sector_analysis/check2/FIXES.md",
@@ -13854,17 +13986,27 @@
    "title": "Visible subtitles still say 'click' on a touch screen",
    "finding": "agents_20261127-sector-r2-mobex, sonnet, MX2-8, nit: Visible subtitles still say 'click' on a touch screen. Where: hxCard, pmM (two), pmT, brD, 390 touch Steps: p18.cjs scan of visible text with hasTouch Expected: Tap wording like the fixed MX-8 hint Actual: 'click a column header to sort', 'click a cell to open the pair', 'click column names', 'click a row to make it A', 'click a stock to open it in the Terminal' Evidence: /root/.claude/projects/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/tool-results/bd1qes6fg.txt",
    "errors": [
-    "M576"
+    "M576",
+    "M578"
    ],
    "fix_commits": [
-    "90bf33f0"
+    "90bf33f0",
+    "c43f3512"
    ],
-   "fix_note": "90bf33f0: 18 mouse texts and tips through tap(); the other pages' mouse words on touch are an open part (FIXES.md) (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "beta",
+   "fix_note": "90bf33f0: 18 mouse texts and tips through tap(); the other pages' mouse words on touch are an open part (FIXES.md) (verdict in verification/sector_analysis/check2/FIXES.md); c43f3512: the part the quick check found open, fixed by the session agent (ERRORS M578)",
+   "runs_on": "branch",
    "author_test": "look check2 \"MX2-8\", check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "partly",
+     "date": "2026-11-27",
+     "evidence": "Own scan lim/qc.mjs at 390 and 360 touch: no click/hover/point at/Ctrl in any text, title, tip or label of the Sector page; the Watchlist (1), Screener (10) and Backtest (5) still said click (the open part). Fixed by the agent in c43f3512 (shared/touch-words.ts, UD81); tests/test_touch_words.py fails on the 16 old texts. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (A touch screen at 390: every visible text, title and tip of every tab and window; also the Watchlist, Screener and Backtest (open part).) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-8); verification/sector_analysis/check2/FIXES.md",
@@ -13887,9 +14029,17 @@
    "fix_note": "90bf33f0: a group's name wraps onto up to three 14 px lines when wider than its group (the group keeps 55% for its tiles) (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "look check2 \"MX2-9\", check2.test (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own probe lim/qc.mjs at 390 and 360: no market map group name cut. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Market map window at 360 and 390: the group labels.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-9); verification/sector_analysis/check2/FIXES.md",
@@ -13912,9 +14062,17 @@
    "fix_note": "3a597e76: static/index.html: the settings select and input, compare search, search box and every text field take the field state (line transparent, --shadow), never the 3 px ring; a checkbox the keyboard ring (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"the logged-in shell's fields take the field state\"; tests/test_focus_ring.py (verification/edge_states/round2_focus_contrast.mjs (every page's fixture build))",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own read of static/index.html: no field focus rule draws an outline or a 2 px+ ring; the oracle step \"the logged-in shell's fields take the field state, never a ring\" passes (52/52). (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (The logged-in shell (or its class names injected): focus each field after a key press; read the outline and box-shadow.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-edge-r2-wide.json (EW2-1); verification/sector_analysis/check2/FIXES.md",
@@ -13937,9 +14095,17 @@
    "fix_note": "3a597e76: backtest.css .addc:hover and design.css .sb-go on --blue-tag (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"backtest: text on a blue hover tint reads 4.5:1\" (verification/edge_states/round2_focus_contrast.mjs (every page's fixture build))",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own read of backtest.css:420: .addc:hover text color var(--blue-tag); the oracle step \"backtest: text on a blue hover tint reads 4.5:1\" passes. (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Backtest light: hover Browse and an add-condition tile; the contrast of their text.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-edge-r2-wide.json (EW2-4); verification/sector_analysis/check2/FIXES.md",
@@ -13962,12 +14128,46 @@
    "fix_note": "3a597e76: radar.css: on a phone the stacked filter rows reach 7 px (half the gap), the first 11 px up, the last 9 px down (40/36/38 px); the Watchlist list menu and Screener Previous page buttons reach 6 px toward their neighbour (verdict in verification/sector_analysis/check2/FIXES.md)",
    "runs_on": "beta",
    "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"touch hit areas, no layout change, no overlap\" (overlaps fail) (verification/edge_states/round2_focus_contrast.mjs (every page's fixture build))",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-self-qc",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Own read of radar.css:958 (.bar-t .f .seg button{--hit-y:7px}); the oracle step \"radar: touch hit areas, no layout change, no overlap\" passes (40/36/38 px rows, no overlap). (the session agent, not the fix's author, at the user's order of 2026-11-27: \"quick check terhadap 21 perbaikan … dilakukan oleh kamu\")"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Radar at 390 and 360 with its local data: the stacked segment rows' tap areas; the Watchlist and Screener controls next to a neighbour.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check2/agents_20261127-edge-r2-wide.json (EW2-5); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-ovrs/OV2-2",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-ovrs",
+   "finding_id": "OV2-2",
+   "title": "Windows stack below 1100 px, so every window of a 1152 px screen (frame 1096 px) is stacked",
+   "finding": "agents_20261127-sector-r2-ovrs, sonnet, OV2-2, nit: the side-by-side windows stack below 1100 px of frame; a 1152 px screen (1096 px beside the rail) gets every window stacked (journal verification/sector_analysis/check2/agents_20261127-sector-r2-ovrs.json).",
+   "errors": [
+    "M576",
+    "M578"
+   ],
+   "fix_commits": [
+    "c43f3512"
+   ],
+   "fix_note": "c43f3512: windows side by side from 1096 px (UD80, user 2026-11-27 \"ud 80 oke dgn rekomendasi\"); at 1152 five of seven side by side, hxCard and rsL stack by the D15 rule with nothing scrolling sideways",
+   "runs_on": "branch",
+   "author_test": "round2.mjs step 2 at 1152 (light, dark; fixture and 26 Nov files); own probe lim/shot1152.mjs",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "At 1152 px (frame 1096) open each of the seven side-by-side windows (mmCard, hxCard, rcCard, rsA, rsB, rsW, rsL): side by side where the detail fits, ends level, nothing cut or scrolling sideways; a stacked one (D15) has no sideways scroll.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-ovrs.json (OV2-1); verification/sector_analysis/check2/FIXES.md",
    "from": "fix"
   }
  ]

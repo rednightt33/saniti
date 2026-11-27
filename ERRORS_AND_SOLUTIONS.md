@@ -8892,6 +8892,40 @@ in its staleness check.
   job screener-worker). Moved through each file's line diff from `53b4fafb` (none fell inside a changed hunk); the pointer
   test passes.
 
+### M578 — The limits left by check 2, UD80, UD81, and the agent's own quick check of the 21 fixes (2026-11-27; fixed on the branch in `c43f3512`, not deployed; tested by its author only)
+
+- **The user's words (2026-11-27):** "Bereskan batas yang masih ada. ud 80 oke dgn rekomendasi. ud 81 oke dgn rekomendasi
+  Jalankan, dan cek hasilnya (oleh kamu, bukan subagent) - Also quick check terhadap 21 perbaikan yang sudah sempat
+  dijalankan. Ini semua dilakukan oleh kamu, bukan oleh subagent. Apabila ada temuan, fix it. After that's done, push
+  the main."
+- **Limit 1, the drill-down at 1152 px (M576 OV2-1).** Verified cause: one industry name of 280 px ("Electronic Equipment,
+  Instruments & Components", 42 px indent) made the first column of both aligned tables 326 px: 1080 px of tables in a
+  1020 px scroller. Class: one long label widening an aligned table past its window (the drill-down, Beta, any later
+  aligned window). Fix (`sector/src/windows.ts` `alignTables`): what the tables still lack beyond the room the window can
+  grow comes off the label column, down to 60 % of its need and never below the longest word of either first column, and
+  its text wraps there (`al-wrap`). Real 26 Nov, every industry open: 1152 → tables 1020 in 1020, no sideways scroll;
+  1280 and 1440 unchanged (1082 in 1082, no wrap). round2 step 7 now fails on any clipped column above phone width.
+- **Limit 2, the stock quadrant's names on a phone (M576 RP2-2).** Verified on every sector (not only Health): 22
+  quadrant names on a dot over six sectors at 390 and 360 px. Fix (`sector/src/cards/rot.ts`): when a name finds no
+  free place among the dots, the dots keep to the plot less a 14 px strip (plus the largest dot's radius) at its top
+  and bottom, and the four names sit in the strips' corners. Real 26 Nov: 0 names on a dot over 11 sectors at 1440,
+  1152, 390 and 360 (a first try without the radius margin gave 50; caught by the same probe). Test: check2 "RP2-2 the
+  stock quadrant of every sector" (fails on the code before).
+- **UD80 (M576 OV2-2):** windows side by side from 1096 px (was 1100), the frame of a 1152 px screen. At 1152 five of the
+  seven windows are side by side; Sector × horizon and the sector's stocks (rsL) stack by the existing D15 rule (their detail table
+  needs more room than beside the card), with nothing scrolling sideways. round2 step 2 runs at 1152 too.
+- **UD81 (M576 MX2-8's open part):** `shared/touch-words.ts` (`TOUCH`, `tap`) is the one source; the Sector page imports
+  it, and the 16 texts of the Watchlist (1), the Screener (10) and the Backtest (5) say tap / double-tap on a touch screen.
+  `apps/edge-bff/tests/test_touch_words.py` fails on a mouse word a person reads outside `tap()` (16 hits on the code
+  before). The Terminal is untouched.
+- **The agent's own quick check of the 21 fixes** (run `agents_20261127-self-qc`, the original findings, the production build
+  with the 26 Nov files; journal in the ledger rows): 18 fixed as the findings asked; OV2-1 and RP2-2 partly (the two
+  limits above, now fixed); MX2-8 partly (its other pages, now UD81). Found by the agent's own changes and fixed before
+  commit: the label column cut 24 tickers of the Beta window on a phone (the longest-word floor above).
+- **Status:** fixed on the session branch; the new fixes are tested by their author only (ledger rows waiting).
+- **Lesson:** a fix verified on the one sector or date of its finding is verified on all of them before it is called
+  done (RP2-2 held for Health, failed on six other sectors).
+
 ### M577 — The beta's build of `72c09231` fails three times on Railway's build cache: S3 GetObject 416 InvalidRange (2026-11-27; fixed the same day by one build without the cache, UD82 "A")
 
 - **Symptom:** after `main` moved `aabb6530` → `72c09231` (the user's go for this round: "deploy ke main afterwards"),
