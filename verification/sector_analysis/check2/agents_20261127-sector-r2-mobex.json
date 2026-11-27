@@ -1,0 +1,164 @@
+{
+ "run": "agents_20261127-sector-r2-mobex",
+ "area": "Sector page on phones, dark, touch, keyboard, example mode, Open in Terminal",
+ "model": "sonnet",
+ "checked": [
+  "Real 26 Nov data, production build, 390x844 and 360x740, dark and light, touch context: all 5 tabs and all 22 expand windows each (p1.json): document scrollWidth = viewport everywhere, window box = viewport, no console errors, Esc closes and returns focus to the expand button; no ellipsis cut in a window except mkCard group label (MX2-9) and the Rotation detail subtitle (MX2-2)",
+  "Heat steps in dark (Sector x horizon, Market map, Breadth heatmap table, weekly heatmap) viewed in screenshots: all seven steps legible, white/dark text readable",
+  "Rotation detail window on a phone (C1): chips row present at 390 and 360 (p2.cjs, z_rotB_390.png); Stretched pairs window; Rotation map Map and Timeline windows at 390 (z_rotA_tl_390.png)",
+  "Touch (decision 14): hit-test sweep with elementsFromPoint of every control on 5 tabs and 4 windows with hasTouch+isMobile versus isMobile only (p3.json). Shared controls: expand 44x43, drill chevrons 42x42, legend-less seg buttons 44 high, close X ok. Layout diff coarse vs fine (p4/p5): the only moved elements are the 3 legends whose hint text changes from Click to Tap (-18 px), everything else equal within 0.6 px (941 elements)",
+  "Keyboard: Tab through every tab at 1384 light and 390 dark (p10): ring is solid 2px grey (rgb 107 light, 138 dark) on 1463 stops, focus never lost (1 body stop per cycle = wrap), nothing off screen; window Tab x70 and Shift+Tab x70 stay inside .fw, Esc returns to the expand button; ring absent after mouse close",
+  "Example mode and Open in Terminal on the fixture build inside an iframe host (p14, p15), desktop and touch 390: example: tabs switch, Open in Terminal, period buttons, expand, date menu all locked and post {type:locked,kind:example,source:sector}, ml.symbol not written; normal: Open in Terminal writes ml.symbol (IHSG, or IDXFINANCE after locking Financials) and posts edge-nav terminal. Same as before",
+  "Contrast sweep of text nodes at 390 dark and light on 5 tabs (p16): all >= 4.5:1 except the sort arrow glyph and disabled filters",
+  "Tests: npx vitest run in apps/edge-bff/sector 78/78; look/check1.mjs 29/29; look/round2.mjs 39/39 (vitest.txt, check1.txt, round2.txt)"
+ ],
+ "findings": [
+  {
+   "id": "MX2-1",
+   "severity": "minor",
+   "title": "Rotation detail window on a phone: the sector chip row scrolls sideways with no cue",
+   "where": "Rotation tab, Rotation detail (rotB) window, 390 and 360, dark and light",
+   "steps": "Real data, phone width, Rotation tab, expand Rotation detail; look at the chip row (Industrials, Energy, Tech, Cons. Cyc, Basic Ma...)",
+   "expected": "Same cue as other sideways scrollers (the xs-r edge fade, MX-2 fix)",
+   "actual": ".c1-chips scrollWidth 890 > clientWidth 388, className has no xs-r/xs-l, the last visible chip 'Basic Ma' is cut hard at the window edge; 6 more chips are off screen with no hint",
+   "evidence": "p1.json (rotB scr 'c1-chips 890>388'), z_rotB_390.png; check1.mjs cue test only walks [data-card] descendants so it does not see it"
+  },
+  {
+   "id": "MX2-2",
+   "severity": "minor",
+   "title": "Rotation detail window on a phone: 'Changes / All columns' switch wraps into two stacked rows inside the 52 px band and the subtitle is cut",
+   "where": "Rotation detail window, 390 and 360",
+   "steps": "Phone, expand Rotation detail, look at the 'Quadrant changes' band",
+   "expected": "One row switch, title and subtitle whole (user: C1 one 52 px band, nothing cut)",
+   "actual": "The seg is 147x52 (390) / 134x52 (360) with 'Changes' above 'All columns' (buttons at y 197 and 221), border touching the band lines; subtitle '28 changes in 52 weeks . Industrials' cut to 'Industr...' (scrollWidth 207 > 199 at 390, > 182 at 360)",
+   "evidence": "p2.cjs output, z_rotB_390.png, z_rotB_360.png"
+  },
+  {
+   "id": "MX2-3",
+   "severity": "minor",
+   "title": "Keyboard focus is invisible on the Rotation map's sector dots and the Relative strength Rank change rows",
+   "where": "Rotation tab rotA (g.pt) and Relative strength tab rsB (g.sl), any width, dark and light",
+   "steps": "Tab to a sector dot of the Rotation map (or a row of the Rank change slope chart); compare screenshots before and after focus",
+   "expected": "Grey focus ring (decision 12) on every focusable control",
+   "actual": "Both are tabindex=0 and :focus-visible matches but nothing is drawn: computed outline none; pixel-identical screenshots with and without focus. sector.css:271 `.rrg .pt{outline:none}` and :230 `.slope .sl{outline:none}` come after and win over the :113 `.pt:focus-visible`/`.sl:focus-visible` rule at the same specificity. circle.dt, ovx-dot, cards do show the ring",
+   "evidence": "p10.cjs (noRing g.sl, g.pt), p12.cjs (pixels differ: false for rotA g.pt, rsB g.sl; true for circle.dt), kb_gpt.png"
+  },
+  {
+   "id": "MX2-4",
+   "severity": "minor",
+   "title": "The page's own small controls still have less than 44 x 44 px to tap (left open on purpose by the merge; sizes)",
+   "where": "all tabs and windows, 390 (same at 360), touch",
+   "steps": "hasTouch+isMobile; hit extent = region where elementsFromPoint returns the control (p3.cjs, p7.cjs, p8.cjs)",
+   "expected": "44 x 44 px tap area without moving anything",
+   "actual": "Tap area (w x h) vs visible box: legend toggles .ovx-tog 52-82 x 24 (box 24 high); Momentum dots 11 x 11; Cumulative return end dots 5 x 5; Heatmap name cells (hxCard .nm) 92 x 24 and heat cells 52 x 24; weekly heatmap sector name buttons (rsW .nm) 78 x 20; Rank change dots 7 x 7; Rotation map sector dots 28 x 28 (hit circle r 14, visible 11); trail points 4-6; map labels 50-56 x 15; stock quadrant dots 11-21; Pair matrix heads 45 x 20, name buttons 88 x 30, cells 45 x 30, swap button 28 x 28, ratio dots 5; Breadth IHSG chips .bxl 50 x 24, .bms 121+ x 28, Show/segs; sortable table headers 36 high (Breadth 20-26 high); stock ticker buttons in windows 26 x 18; Formula chip 68 x 18; Rotation detail chips 53-81 x 32; search fields 26 high; selects (.sx-sel) 28 high; date menu items 230 x 28; header Date and Open in Terminal buttons 32 high; tabs 40 high; 'IHSG' .ihq 52 x 28",
+   "evidence": "p3.json, p7/p8/p9 console output"
+  },
+  {
+   "id": "MX2-5",
+   "severity": "nit",
+   "title": "Shared segmented buttons are 44 high but only 28-36 wide to tap",
+   "where": "every seg on every tab, touch",
+   "steps": "p3.cjs: 3M 34 x 44, All 30 x 44, Top 7 30 x 44, Below 32 x 44, 4W 36 x 44",
+   "expected": "at least 44 x 44 (user 3A)",
+   "actual": "width stays the button's own because edge-canonical.css:59 sets .seg{--hit-x:0px} (neighbours abut)",
+   "evidence": "p3.json (rs/pm/br/rot 'button.on' and 'button.' rows)"
+  },
+  {
+   "id": "MX2-6",
+   "severity": "nit",
+   "title": "Stretched pairs window on a phone: the 'Show' label is cut off from its Top 7 / All switch",
+   "where": "Pair matrix tab, Stretched pairs window, 390",
+   "steps": "Phone, expand Stretched pairs",
+   "expected": "label next to its switch",
+   "actual": "'Show' sits right of the filter row while 'Top 7 / All' wrap onto the next line; the search placeholder is cut to 'Search sector or'",
+   "evidence": "w_390_dark_pmS.png"
+  },
+  {
+   "id": "MX2-7",
+   "severity": "nit",
+   "title": "Active sort arrow has 1.9:1 (light) / 2.05:1 (dark) contrast",
+   "where": "hxCard, rsD, pmT, brT, brD headers, 390",
+   "steps": "p16.cjs contrast sweep: SPAN.sk arrow glyph",
+   "expected": "3:1 at least for a state indicator",
+   "actual": "1.89:1 light, 2.05:1 dark; everything else text >= 4.5:1 (disabled filters in pmS excluded)",
+   "evidence": "p16 output"
+  },
+  {
+   "id": "MX2-8",
+   "severity": "nit",
+   "title": "Visible subtitles still say 'click' on a touch screen",
+   "where": "hxCard, pmM (two), pmT, brD, 390 touch",
+   "steps": "p18.cjs scan of visible text with hasTouch",
+   "expected": "Tap wording like the fixed MX-8 hint",
+   "actual": "'click a column header to sort', 'click a cell to open the pair', 'click column names', 'click a row to make it A', 'click a stock to open it in the Terminal'",
+   "evidence": "/root/.claude/projects/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/tool-results/bd1qes6fg.txt"
+  },
+  {
+   "id": "MX2-9",
+   "severity": "nit",
+   "title": "Market map window: group label cut at 360",
+   "where": "Overview, Market map window, 360 (390: 'Healthcare Equipment & Su...')",
+   "steps": "Phone, expand Market map",
+   "expected": "whole group name",
+   "actual": "'Healthcare Equipment & Supplies' shown cut (scrollWidth 193 > 93 at 360, > 172 at 390)",
+   "evidence": "p1.json mkCard cut; w_390_dark_mkCard.png"
+  }
+ ],
+ "recheck": [
+  {
+   "key": "agents_20261127-sector-mobex/MX-1",
+   "verdict": "fixed",
+   "evidence": "Real data Breadth Stock detail at 390 and 360, both themes: no ellipsis cut in any td/th (p19: cuts []), +104.7% / +256.7% / +114.4% whole, brD_390_dark.png; table scrolls sideways with a fade cue",
+   "collateral": "none (vitest 78/78, check1 29/29, round2 39/39)"
+  },
+  {
+   "key": "agents_20261127-sector-mobex/MX-2",
+   "verdict": "partly",
+   "evidence": "Wide tables and heatmaps now show the xs-r edge fade (rsD, pmT, pmM, brT, brD, hxCard: classes xs-r in p1.json; brT_390.png, brD_390_dark.png). The new Rotation detail chip row (.c1-chips 890>388) has no cue: MX2-1",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-mobex/MX-3",
+   "verdict": "fixed",
+   "evidence": "Tab bar has class xs-r and a mask fade over the last 32 px; 'Pair matrix' fades out at the right edge at 390 and 360 (top0_390.png); the active tab scrolls into view",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-mobex/MX-4",
+   "verdict": "partly",
+   "evidence": "Shared controls now tap 44 high (expand 44x43, drill chevrons 42x42, window close, seg 44 high) with nothing moving (941 elements compared coarse vs fine, only the Click/Tap hint text changed). Seg width 28-36 (MX2-5) and the page's own small controls remain (MX2-4, sizes listed)",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-mobex/MX-5",
+   "verdict": "fixed",
+   "evidence": "Contrast sweep at 390 dark and light, 5 tabs: no text under 4.5:1 apart from the sort arrow glyph (MX2-7); chart end labels and Breadth counts now pass",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-mobex/MX-6",
+   "verdict": "fixed",
+   "evidence": "p21.cjs: Enter opens, ArrowDown 26 Nov -> 25 Nov -> 24 Nov, End 30 Oct, Home 26 Nov, ArrowUp wraps, Esc returns focus to #datebtn",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-mobex/MX-7",
+   "verdict": "fixed",
+   "evidence": "Fixture ?fail=1 at 390: #datebtn and #termbtn disabled, only 'No data' shows (p21.cjs); check1 step MX-7 ok",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-mobex/MX-8",
+   "verdict": "fixed",
+   "evidence": "Rotation detail window on touch reads 'Tap to choose', shows chips, no map text; no Hover/Ctrl wording left in any visible text of the 5 tabs and 22 windows. Remaining 'click' subtitles: MX2-8 (nit)",
+   "collateral": "none"
+  }
+ ],
+ "not_checked": [
+  "Light theme screenshots of each window were measured (overflow, cuts, contrast) but only dark ones viewed",
+  "360 screenshots of windows other than Rotation detail were not viewed (numbers only)",
+  "Landscape phone",
+  "Real beta/live"
+ ],
+ "artifacts": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/check2/agents_20261127-sector-r2-mobex/"
+}

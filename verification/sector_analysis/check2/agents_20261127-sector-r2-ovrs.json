@@ -1,0 +1,176 @@
+{
+ "run": "agents_20261127-sector-r2-ovrs",
+ "area": "Sector page: Overview and Relative strength tabs and data correctness",
+ "model": "sonnet",
+ "checked": [
+  "Ran apps/edge-bff/sector vitest: 8 files, 78/78 pass; ran tests/look/round2.mjs against the real 26 Nov files (CHECK_BASE, port 8791): 39 of 39 steps pass.",
+  "Figures: 77 Sector x horizon cells x 2 themes (all 11 sectors x 7 horizons) recomputed from sector-series (horizons 1/5/20/60/120/YTD/252 sessions): shown value equals the file (within 0.006), 0 mismatches.",
+  "Heat colours: for the same 77 cells, background equals the expected one of the 7 steps from c=v/cap*3 (cap = column max |v|), light and dark, opacity 1 (0 bad). Market map: 30 tiles, value = stock r5d (sector-day-2026-11-26) minus IHSG 5D 0.925, step matches, 0 bad, light and dark. Weekly excess: 88 cells, sector/IHSG/excess recomputed from sector-series for each week, 0 bad; all 88 are one of the 7 steps, light and dark.",
+  "No dimming: locked Financials-type row (Sector x horizon): 89 cells and 33 map tiles with opacity 1, weekly heat 88 cells opacity 1, both themes.",
+  "Seven windows at 1440 and 1280 (light): side by side, table last row within 11 px of chart/pane bottom, table does not scroll (0 px), viewport has no sideways scroll; 1152 stacked (OV2-2).",
+  "Cumulative return list card/window x 1440/1280/1152 x light/dark: 11 rows of 22-33 px, list 300 px, bars 146 px, chart top/bottom equals list top/bottom exactly.",
+  "Drill-down window: with and without industries at 1440/1280/1152: 8-column stocks table edges all on sector-table edges (0 misses); cut/scroll with industries open (OV2-1).",
+  "Market map window opened: unchanged layout (map left, industries table right). Company names AADI/DKHH/YUPI show PT in the market map tooltip and Breadth stock detail; INPS shows 66 sessions.",
+  "Re-test of 12 ovrs and 8 data findings (see recheck)."
+ ],
+ "findings": [
+  {
+   "id": "OV2-1",
+   "severity": "major",
+   "title": "Sector drill-down window with 'Open all industries': columns are cut at the window's right edge and both tables scroll sideways",
+   "where": "Relative strength / Sector drill-down window, 1440, 1280 and 1152 widths, light",
+   "steps": "Open Relative strength, expand Sector drill-down, press 'Open all industries'. Read the right edge of both tables (without industries open nothing is cut and nothing scrolls).",
+   "expected": "User (EXEC.md 2026-11-27, 'A'): every column edge of the stocks table on a column edge of the sector table and nothing cut, with and without 'Open all industries'.",
+   "actual": "Edges do line up (stocks table 8 columns, 0 edges off the sector table's). But the tables need 1062 px in a 1012 px scroller: the first view shows 'Mon' / 'Fad' / 'Gai' (Momentum column) and 'Weig' / 'Rp 30.0E' (Weight column) cut at the edge; one has to scroll sideways (edge-fade cue exists). The stacked window is capped at 1040 px wide (windows.ts:40 `stacked ? 1040`) while the 13-column table with the wider first column needs about 50 px more. tests/look/round2.mjs step 7 passes because it only counts ellipsis cuts.",
+   "evidence": "shots/rsD_win_1440_true.png; probe p5.mjs: 'hscroll tbl-wrap xs-r xs-b:1062/1012 fw-tw:1062/1012' at 1440, 1280 and 1152 with industries open; none with industries closed."
+  },
+  {
+   "id": "OV2-2",
+   "severity": "nit",
+   "title": "At a 1152 screen the seven 'side by side' windows are stacked, so chart height cannot follow the table",
+   "where": "Overview and Relative strength windows (Momentum, Sector x horizon, Cumulative return, Relative return, Rank change, Weekly excess return, stock lines), viewport 1096 (1152 screen)",
+   "steps": "Viewport 1096 x 800, open any of the seven windows.",
+   "expected": "The user named 1152 among the widths for the level-ending windows.",
+   "actual": "windows.ts:32 `narrow = innerWidth < 1100` stacks the window (class stk): chart on top, table below, table pane scrolls (right pane bottom 1138 vs window bottom 776). 1440 and 1280 are side by side and end level within 11 px (table last row 708 vs pane 719). Pre-existing rule, 4 px below the threshold; report as a question whether the threshold should drop to 1096.",
+   "evidence": "probe p3.mjs: 1152 rcCard {stk:true, lbottom:595, rbottom:1138}; 1440 {stk:false, lbottom:719, rbottom:719, lastRow:708}"
+  },
+  {
+   "id": "OV2-3",
+   "severity": "nit",
+   "title": "Custom popover prefills From 2026-09-04 while its own note and the card say the range starts 3 Sep",
+   "where": "Overview / Cumulative return, Custom popover on the 3M range, 1440 light",
+   "steps": "Press Custom on Cumulative return (3M).",
+   "expected": "One start date for one range.",
+   "actual": "The note reads '3 Sep - 26 Nov - 60 sessions' (same as the card, so the OR-6 disagreement is gone) but the From field holds 2026-09-04; typing 2026-06-02 prints '29 May - 30 Sep' (the base close). A user retyping the printed 3 Sep gets a one-session longer range.",
+   "evidence": "probe p7.mjs: ['3 Sep - 26 Nov - 60 sessions','2026-09-04']; Apply 2 Jun-30 Sep -> '29 May - 30 Sep - 84 sessions' in popover and card."
+  }
+ ],
+ "recheck": [
+  {
+   "key": "agents_20261127-sector-ovrs/OR-1",
+   "verdict": "fixed",
+   "evidence": "Probe p4.mjs: Momentum window, 6 pairs (1W/1M, 1M/1W, 1W/3M, YTD/1M, 1M/YTD, 3M/1W); every row's Reading recomputed from the shorter/longer horizon, 0 mismatches; corner label and footer follow the axis (1W/1M: 'bottom right = turning up'; 1M/1W: 'top left = turning up'); Health 1W +2.3% / 1M -0.4% is now 'Up on both' no longer mislabelled. ov.ts:285-291 mmReading.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-ovrs/OR-2",
+   "verdict": "partly",
+   "evidence": "Card fixed: 13 columns fit at 1440 (wrapper 818/818, no cut text), at 1280 the card scrolls sideways (804/658) with the edge-fade cue (xs-r) and a column sliver visible. Same mechanism NOT fixed in the window with 'Open all industries': both tables scroll sideways 1062/1012 at 1440, 1280 and 1152, first view cuts 'Momentum' and 'Weight' (shots/rsD_win_1440_true.png). See OV2-1.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-ovrs/OR-3",
+   "verdict": "fixed",
+   "evidence": "p6.mjs: Custom 2026-06-02..2026-11-26 (25 weeks) Apply: scrollLeft 494 = scrollWidth 894 - clientWidth 400, newest week visible; again after 4W then Custom: 494/894/400. shots/or3.png",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-ovrs/OR-4",
+   "verdict": "fixed",
+   "evidence": "p6.mjs: click KLBF tile, Esc -> .sx-spop hidden=true; opened by Enter on the focused tile, Esc closes it too.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-ovrs/OR-5",
+   "verdict": "fixed",
+   "evidence": "p6.mjs/shots/or5.png: popover 289 px wide, '20-day average traded value  Rp 30.0B/day' on one line.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-ovrs/OR-6",
+   "verdict": "fixed",
+   "evidence": "p7.mjs: popover note and card footer now print the same range: 3M '3 Sep - 26 Nov - 60 sessions' in both; Custom 2 Jun-30 Sep -> '29 May - 30 Sep - 84 sessions' in popover note and card. Residual nit OV2-3 (From field prefilled 2026-09-04 while the text says 3 Sep).",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-ovrs/OR-7",
+   "verdict": "fixed",
+   "evidence": "p6.mjs at 1280: Momentum title scrollWidth 230 = clientWidth 230, white-space normal, no ellipsis on any card title (shots/ov1280.png).",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-ovrs/OR-8",
+   "verdict": "fixed",
+   "evidence": "shots/rsD_card_1280_false.png (page scrolled) and p5: Weekly excess at 1280 shows 8 whole columns (Oct 8..26) with month labels, no clipped sliver.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-ovrs/OR-9",
+   "verdict": "fixed",
+   "evidence": "p7.mjs texts: Cumulative window 'Financials returned -11.3%, +10.09 pp vs IHSG'; Relative return 'The rank column ranks the 5D window, the one picked on the card'; Rank change popover 'Compares the ranks of Thu 19 Nov 2026 with the page's date, 5 sessions later'.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-ovrs/OR-10",
+   "verdict": "fixed",
+   "evidence": "p13.mjs: all 11 sectors on: sectors 7-11 are dashed (class dsh) in the same six colours; IHSG dashed black; shots/or10.png shows dashed swatches and lines (ov.ts:26-28 lineStyle).",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-ovrs/OR-11",
+   "verdict": "fixed",
+   "evidence": "shots/rsD_win_1440_false.png: drill-down window first view shows header + 7 stock rows (KLBF..RSCH) with the upper table capped, Sector select and search visible; was 2 rows.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-ovrs/OR-12",
+   "verdict": "fixed",
+   "evidence": "p7.mjs/shots/or12.png at 1440: legends of rsD, rsB, rsL, rsW, rsA are one line each (subtitle carries the long text); weekly legend 'Order: 1M vs IHSG (default) | 8 weeks | 1 Oct - 26 Nov' one line.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-data/D-1",
+   "verdict": "fixed",
+   "evidence": "p10.mjs: with industries open the card shows 'Sector rows are the official IDX sector index. Industry rows are EDGE's own index of their stocks, weighted by 20-day average traded value, so an industry can move unlike its sector.'",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-data/D-2",
+   "verdict": "fixed",
+   "evidence": "p8/p10: Breadth A/U/D IHSG (all) 311/204/323 and 311/838 on 26 Nov (= Overview 311/204/323), Financials 27/35/36 of 98 (= Feature 08); heatmap Up 1D 37% = 311/838; 1W tooltip '280 of 830 stocks ... 8 of the 838 stocks have no 1W return'.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-data/D-3",
+   "verdict": "fixed",
+   "evidence": "p9.mjs: Stock detail INPS tooltip 'Above EMA50 for 66 sessions, since 27 Aug 2026' (was 19).",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-data/D-4",
+   "verdict": "fixed",
+   "evidence": "p10.mjs: industry note 'An industry's RS ranks it among all 58 industries.' and RS header tip 'a sector among the 11 sectors, an industry among all industries'.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-data/D-5",
+   "verdict": "fixed",
+   "evidence": "p9.mjs: tooltips show 'PT Adaro Andalan Indonesia Tbk' (AADI), 'PT Cipta Sarana Medika Tbk.' (DKHH, in the market map tile and Breadth stock detail), 'PT Yupi Indo Jelly Gum Tbk' (YUPI); vitest company-name.test passes. Fixed by the UD71 display rule, not by changing the data.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-data/D-6",
+   "verdict": "fixed",
+   "evidence": "SECTOR_FORMULAS.md states the 2-decimal rounding (grep of the SINI 2 Sep 2025 example found); no file change, as the fix says.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-data/D-7",
+   "verdict": "fixed",
+   "evidence": "p10.mjs: IHSG (all) row tooltip 'also counts 8 stocks without an IDX-IC sector, which no sector row shows'; 838 vs 830 stated.",
+   "collateral": "none"
+  },
+  {
+   "key": "agents_20261127-sector-data/D-8",
+   "verdict": "fixed",
+   "evidence": "Not reproducible in the page (no Custom range in the drill-down); vitest tests/check1.test.ts 'D-8' (Alternative Energy Equipment, 6 null dates) passes, 78/78 in apps/edge-bff/sector.",
+   "collateral": "none"
+  }
+ ],
+ "not_checked": [
+  "Overview and Relative strength at phone widths; Rotation, Pair matrix and Breadth windows beyond the data rows named; touch (pointer: coarse) 44 px areas; focus-ring colour; the beta and live sites.",
+  "D-8 in the page (no UI path); only the vitest case.",
+  "Dark-theme side-by-side window alignment was only measured through the shipped test (pass), my own measurements were light."
+ ],
+ "artifacts": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/check2/agents_20261127-sector-r2-ovrs/"
+}

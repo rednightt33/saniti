@@ -11767,9 +11767,17 @@
    "fix_note": "29535145: The range label printed before the draw; a chart box that changes size, or a chart taller than its box, is drawn again (bounded) (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"layout 1280 …\" (a chart taller than its box fails) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "probe r1.js: svg bottom 560.4 <= chart box 560.5, axis labels bottom 559.4 < footer top 564.5 at 1224 wide (box 234 px, controls wrapped); 1384: 586.4/590.5; 1096: 630.4/634.5; light and dark, fresh load. Mechanism elsewhere (stock quadrant, rotation legends) not re-measured beyond check1.mjs 29/29."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open /sector at 1280x800, Breadth tab (fresh load, no resize). Measure [data-card=brH] [data-chart] and its svg.) on the beta once these commits run there; look for the same mechanism elsewhere (the stock quadrant (RP-5), the Momentum and rotation map legends); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-1); verification/sector_analysis/check1/FIXES.md",
@@ -11792,9 +11800,17 @@
    "fix_note": "29535145: The stock detail sizes to its content, no ellipsis; narrower than its card it scrolls with a cue (verdict in FIXES.md: fixed (also closes BD-3, mobex MX-1))",
    "runs_on": "branch",
    "author_test": "look \"layout …\" (a cut cell fails) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "At 1224 no td/th in Stock detail has scrollWidth > clientWidth; '+104.7%', '+256.7%' and '8 Sep' show whole (brD_1224.png); also none in the window (all and Below)."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open Breadth at 1280x800; read the first rows (IDEA, VOKS, INPS).) on the beta once these commits run there; look for the same mechanism elsewhere (the heatmap table, the drill-down's industry names); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-2); verification/sector_analysis/check1/FIXES.md",
@@ -11817,9 +11833,17 @@
    "fix_note": "29535145: Same (verdict in FIXES.md: fixed with another key: brdt/BD-2)",
    "runs_on": "branch",
    "author_test": "look \"layout 1440 …\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "At 1384 no truncated cell in the card; window with Below filter, 692 rows: no truncated cell (probe r2.js)."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Scroll Stock detail to the below-EMA50 stocks with the oldest status (ENAK, TIRA): Since column.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-3); verification/sector_analysis/check1/FIXES.md",
@@ -11842,9 +11866,17 @@
    "fix_note": "29535145: 480 px, a 100 px name column: fits at 1152; a cue when narrower (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"OR-2 BD-4\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "At 1096: tbl-wrap scrollWidth 514 = clientWidth 514; all 8 columns visible, 2-line headers (brT_1096.png). The Delta header fits."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open Breadth at 1152x800; look at the table header and rows.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-4); verification/sector_analysis/check1/FIXES.md",
@@ -11867,9 +11899,17 @@
    "fix_note": "29535145: `M.lastWins` in the date pick (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"BD-5\"; look \"BD-5\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "probe r4.js: 30 Oct day file delayed 2.5 s, picks 30 Oct then 12 Nov: page ends 'Thu 12 Nov . Close', pill 'Prices to Thu 12 Nov', headline 'above EMA50 on 12 Nov'."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (On the Breadth tab pick 30 Oct, then at once 12 Nov (script: both clicks in one tick; the 30 Oct day file delayed by 2.5 s with a route handler to model a slow network).) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-5); verification/sector_analysis/check1/FIXES.md",
@@ -11892,9 +11932,17 @@
    "fix_note": "29535145: Same as D-2; 1W/1M cells and rows name who is not counted (verdict in FIXES.md: fixed with another key: data/D-2)",
    "runs_on": "branch",
    "author_test": "check1.test \"D-2 (with brdt BD-6)\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "26 Nov: A/U/D IHSG row 311/204/323 and 311/838; heatmap Up 1D 37% with Stock count 311/838 and Stocks 838; Energy 39/78 (50%). Counts consistent with the series."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (26 Nov: read heatmap IHSG row, switch Show to Stock count, read A/U/D IHSG row and the window subtitle '310 up · 202 unchanged · 322 down'.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-6); verification/sector_analysis/check1/FIXES.md",
@@ -11917,9 +11965,17 @@
    "fix_note": "29535145: Its Custom range shows from its first session; a preset of n sessions shows n; popover = card (verdict in FIXES.md: fixed with another key: ovrs/OR-6 (its level-chart part here))",
    "runs_on": "branch",
    "author_test": "check1.test \"OR-6\"; look \"RP-1 OR-6 BD-7\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Custom 2026-02-01..2026-05-29: popover '2 Feb – 29 May . 72 sessions', applied footer '2 Feb – 29 May . 72 sessions'; 2026-10-01..2026-11-26: '1 Oct – 26 Nov . 41 sessions'."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Custom, From 2026-02-01 To 2026-05-29: popover note says '2 Feb – 29 May · 72 trading days'; Apply. Also From 2026-10-01 To 2026-11-26.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-7); verification/sector_analysis/check1/FIXES.md",
@@ -11942,9 +11998,17 @@
    "fix_note": "29535145: Placed in the viewport down to its bottom, a cue, Esc closes it (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"BD-8\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Show popover scrollHeight 421 = clientHeight 421 at 1224x800: all 12 options and the note visible, no scroll needed."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Click Show (IHSG (all stocks)).) on the beta once these commits run there; look for the same mechanism elsewhere (the \"+ Column\" popover's Esc); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-8); verification/sector_analysis/check1/FIXES.md",
@@ -11967,9 +12031,17 @@
    "fix_note": "29535145: `M.menuStep`: arrows, Home, End (verdict in FIXES.md: fixed (also closes mobex MX-6))",
    "runs_on": "branch",
    "author_test": "check1.test \"BD-9\"; look \"BD-9 BD-10\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Date menu: ArrowDown moves 26 Nov -> 25 Nov -> 24 Nov, ArrowUp back, End = 30 Oct (last), Home = 26 Nov; Enter on 25 Nov picked it."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open the menu (focus lands on the checked item), press ArrowDown twice, then Enter.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-9); verification/sector_analysis/check1/FIXES.md",
@@ -11992,9 +12064,17 @@
    "fix_note": "29535145: `S.date` in the address, opened on load, dropped when no longer listed (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"BD-10\"; look \"BD-9 BD-10\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "After picking 25 Nov the hash is {\"tab\":\"br\",\"date\":\"2026-11-25\"}; after reload the page shows 'Wed 25 Nov . Close'."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Pick 12 Nov, read location.hash, reload.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-10); verification/sector_analysis/check1/FIXES.md",
@@ -12017,9 +12097,17 @@
    "fix_note": "29535145: Each dash carries its reason (\"No EMA200 yet\", \"older than the 300 sessions\"; \"N+\" explained) (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"BD-11\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "partly",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "partly",
+     "date": "2026-11-27",
+     "evidence": "Dashes now have reasons in the row tip (distNa/sinceNa; check1.mjs BD-11 passes), but the sentence is broken: 'since The status is older than the 300 sessions of data' (BD2-3)."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Breadth tab, % above EMA200; sort by Since: AYAM/MKAP/JRPT show Days '300+' and Since '—'. Also XSPI EMA200 distance '—'.) on the beta once these commits run there; look for the same mechanism elsewhere (Sector × horizon, drill-down, heatmap table, Δ beta, every window table's dash); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-11); verification/sector_analysis/check1/FIXES.md",
@@ -12042,9 +12130,17 @@
    "fix_note": "29535145: `M.pctSigned` for distances (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"BD-12\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-brdt",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Below filter: BNGA, MPIX, HELI show '−0.0%' vs EMA50 (SDPC EMA200 '−0.0%'); sign agrees with status."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Below filter: BNGA, MPIX, HELI show '0.0%' (neutral colour) vs EMA50 though Below) on the beta once these commits run there; look for the same mechanism elsewhere (the Breadth by sector window and its example sentence); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-brdt.json (BD-12); verification/sector_analysis/check1/FIXES.md",
@@ -12068,9 +12164,17 @@
    "fix_note": "29535145 1ccbe90d: A note whenever industries are open: sector rows = official IDX index, industry rows = EDGE's index weighted by the file's weight label, can move unlike its sector; the industry tooltip says \"not an IDX index\"; the method kept (D1); `SECTOR_FORMULAS.md` section 6 with the 26 Nov examples (`1ccbe90d`) (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"D-1, D-4\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p10.mjs: with industries open the card shows 'Sector rows are the official IDX sector index. Industry rows are EDGE's own index of their stocks, weighted by 20-day average traded value, so an industry can move unlike its sector.'"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open Relative Strength, 'Open all industries'. Compare Technology (official IDXTECHNO 1M -9.7%) with its biggest industry Internet Applications & Services (19 members, 1M +9.4%), and Healthcare (-0.4%) with Pharmaceuticals (+8.9%) / Healthcare Providers (-10.6%). Over 252 sessions Transportation & Logistic is -18.2% on the official index but its 3 industries are -55% to -65%.) on the beta once these commits run there; look for the same mechanism elsewhere (the industry row tooltip); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-data.json (D-1); verification/sector_analysis/check1/FIXES.md",
@@ -12094,9 +12198,17 @@
    "fix_note": "29535145 1ccbe90d: `audOf`: 1D = `M.aud1d` (Feature 08, = the Overview: 311/204/323 on 26 Nov); the window's subtitle is the card's counts and its note names the stocks the day file cannot place; 1W/1M say their denominator (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"D-2 (with brdt BD-6)\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p8/p10: Breadth A/U/D IHSG (all) 311/204/323 and 311/838 on 26 Nov (= Overview 311/204/323), Financials 27/35/36 of 98 (= Feature 08); heatmap Up 1D 37% = 311/838; 1W tooltip '280 of 830 stocks ... 8 of the 838 stocks have no 1W return'."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open Breadth on 26 Nov: 'IHSG (all)' 1D shows 310 up / 202 flat / 322 down, share 310/834. Open the Overview for the same date: advancers 311, unchanged 204, decliners 323 (838 stocks). Financials: page 27/34/36 of 97, Feature 08 27/35/36 of 98.) on the beta once these commits run there; look for the same mechanism elsewhere (the heatmap's \"Up 1D\", the A/U/D window; the wrong comment of `M.aud`); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-data.json (D-2); verification/sector_analysis/check1/FIXES.md",
@@ -12120,9 +12232,17 @@
    "fix_note": "29535145 1ccbe90d: Chosen: market sessions, the meaning of \"days in status\" beside \"Since\" and of the tooltip. `M.statusSessions`: sessions from Since to the page's date; the own count only as the lower bound of \"N+\"; tooltip \"Market sessions …\"; `SECTOR_FORMULAS.md` section 7 (INPS: 19 rows, 66 sessions) (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"D-3\"; look \"BD-11\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p9.mjs: Stock detail INPS tooltip 'Above EMA50 for 66 sessions, since 27 Aug 2026' (was 19)."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open Breadth > Stock detail, find INPS (EMA50, 'Above ... 19 ... 27 Aug'). Count market sessions 27 Aug to 26 Nov: 66.) on the beta once these commits run there; look for the same mechanism elsewhere (the row tooltip's \"for N sessions\"); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-data.json (D-3); verification/sector_analysis/check1/FIXES.md",
@@ -12146,9 +12266,17 @@
    "fix_note": "29535145 1ccbe90d: The industry note and the RS header tip: \"an industry among all N industries\"; `SECTOR_FORMULAS.md` 8.2 (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"D-1, D-4\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p10.mjs: industry note 'An industry's RS ranks it among all 58 industries.' and RS header tip 'a sector among the 11 sectors, an industry among all industries'."
+    }
+   ],
    "recheck_action": "Reproduce the original finding ('Open all industries'; Pharmaceuticals (Healthcare) shows RS 89, Education & Support Services 99, Healthcare Providers 23.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-data.json (D-4); verification/sector_analysis/check1/FIXES.md",
@@ -12171,9 +12299,17 @@
    "fix_note": "1ccbe90d: `SECTOR_FORMULAS.md` section 7 states it (max 0.005 per price, SINI 2 Sep 2025 2,460.00 vs 2,459.9978), below the displayed rounding; no file change (`1ccbe90d`) (verdict in FIXES.md: fixed (stated))",
    "runs_on": "not_code",
    "author_test": "`scripts/tests/test_sector_formulas_doc.py` (3 passed) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "SECTOR_FORMULAS.md states the 2-decimal rounding (grep of the SINI 2 Sep 2025 example found); no file change, as the fix says."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Compare SINI 2025-09-02: stocks file 2460.0 vs price table 2459.9978; ELPI 306.03 vs 306.02724.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-data.json (D-6); verification/sector_analysis/check1/FIXES.md",
@@ -12197,9 +12333,17 @@
    "fix_note": "29535145 1ccbe90d: `D.other`; the \"IHSG (all)\" row of the heatmap and of A/U/D tells it in its tooltip; `SECTOR_FORMULAS.md` 8.5 (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"D-7\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p10.mjs: IHSG (all) row tooltip 'also counts 8 stocks without an IDX-IC sector, which no sector row shows'; 838 vs 830 stated."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Add the Stocks column of the 11 sector rows: 830; IHSG (all) shows 838.) on the beta once these commits run there; look for the same mechanism elsewhere (the A/U/D market row); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-data.json (D-7); verification/sector_analysis/check1/FIXES.md",
@@ -12223,9 +12367,17 @@
    "fix_note": "29535145 1ccbe90d: `D.indLevel` = `M.carryLevels` (the contract: \"the level carries\") for every industry figure; `sector.py` not needed (verdict in FIXES.md: fixed (in the page))",
    "runs_on": "branch",
    "author_test": "check1.test \"D-8\" (Alternative Energy Equipment, 6 null dates) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Not reproducible in the page (no Custom range in the drill-down); vitest tests/check1.test.ts 'D-8' (Alternative Energy Equipment, 6 null dates) passes, 78/78 in apps/edge-bff/sector."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Choose a Custom range in Relative Strength whose base session is 2026-09-21 and open industries.) on the beta once these commits run there; look for the same mechanism elsewhere (every industry column of the drill-down); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-data.json (D-8); verification/sector_analysis/check1/FIXES.md",
@@ -12248,9 +12400,17 @@
    "fix_note": "29535145: Same as BD-2 (verdict in FIXES.md: fixed with another key: brdt/BD-2)",
    "runs_on": "branch",
    "author_test": "look \"layout 390/360 …\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-mobex",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Real data Breadth Stock detail at 390 and 360, both themes: no ellipsis cut in any td/th (p19: cuts []), +104.7% / +256.7% / +114.4% whole, brD_390_dark.png; table scrolls sideways with a fade cue Collateral: none (vitest 78/78, check1 29/29, round2 39/39)"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open /sector on the beta as the owner at 390x844 (or 360x740), tab Breadth, scroll to Stock detail, look at the 50 and 200 distance columns.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-mobex.json (MX-1); verification/sector_analysis/check1/FIXES.md",
@@ -12273,9 +12433,17 @@
    "fix_note": "29535145: Same as OR-2 (verdict in FIXES.md: fixed with another key: ovrs/OR-2)",
    "runs_on": "branch",
    "author_test": "look \"layout 390/360 …\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "partly",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-mobex",
+     "round": 1,
+     "verdict": "partly",
+     "date": "2026-11-27",
+     "evidence": "Wide tables and heatmaps now show the xs-r edge fade (rsD, pmT, pmM, brT, brD, hxCard: classes xs-r in p1.json; brT_390.png, brD_390_dark.png). The new Rotation detail chip row (.c1-chips 890>388) has no cue: MX2-1"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Phone width, open each tab, inspect the card scrollers.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-mobex.json (MX-2); verification/sector_analysis/check1/FIXES.md",
@@ -12298,9 +12466,17 @@
    "fix_note": "29535145: The scroll cue on the tab bar; the chosen tab scrolled into view (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"layout 390/360 …\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-mobex",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Tab bar has class xs-r and a mask fade over the last 32 px; 'Pair matrix' fades out at the right edge at 390 and 360 (top0_390.png); the active tab scrolls into view"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open /sector at 390 wide; look at the tab bar.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-mobex.json (MX-3); verification/sector_analysis/check1/FIXES.md",
@@ -12325,9 +12501,17 @@
    "fix_note": "29535145: On a touch screen: 44 px hit areas for the expand buttons, drill-down chevrons, the window's close button, and a 28 px hit circle for the rotation map's dots, with no visual change (verdict in FIXES.md: fixed in part; the rest needs the user) Round 2 (UD72 \"3A\"): the shared small controls get a 44 px touch area under pointer:coarse in the canonical layer of every EDGE page but the Terminal (c8c10f34, 0c59f38d); the Sector page's own dense controls and the Radar's stacked segment buttons are still below 44 px (round-2 check).",
    "runs_on": "branch",
    "author_test": "none automated (CSS under `pointer: coarse`) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "partly",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-mobex",
+     "round": 1,
+     "verdict": "partly",
+     "date": "2026-11-27",
+     "evidence": "Shared controls now tap 44 high (expand 44x43, drill chevrons 42x42, window close, seg 44 high) with nothing moving (941 elements compared coarse vs fine, only the Click/Tap hint text changed). Seg width 28-36 (MX2-5) and the page's own small controls remain (MX2-4, sizes listed)"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (390 wide, measure buttons.) on the beta once these commits run there; look for the same mechanism elsewhere (Left as they are, needing the user: the segmented controls (22 px high), legend toggles (24 px), sector name buttons, matrix heads and the quadrant's stock dots: the shared EDGE component sizes (the Overview's too), a design value); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-mobex.json (MX-4); verification/sector_analysis/check1/FIXES.md",
@@ -12353,9 +12537,17 @@
    "fix_note": "29535145: End labels mix their colour with the text colour (2.67:1 → 4.5:1 or more); dark ink on the A/U/D bars (3.57/3.90 → 5.0/4.6); heat and correlation ink per theme (verdict in FIXES.md: the page's part fixed; the shared tokens need the user) Round 2 (UD73 \"4A\"): --text-3 #8f8f8f to #6b6b6b (dark #7c7c7c to #8a8a8a) and tag inks --green-tag/--red-tag/--blue-tag/--amber-tag at 4.5:1 or more on every EDGE page but the Terminal (c8c10f34, 0c59f38d, 8282e624).",
    "runs_on": "branch",
    "author_test": "check1.test \"MX-5 (the page's own part)\"; a contrast probe of every text at 390 px (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-mobex",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Contrast sweep at 390 dark and light, 5 tabs: no text under 4.5:1 apart from the sort arrow glyph (MX2-7); chart end labels and Breadth counts now pass"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Compute text colour vs effective background on each tab at 390.) on the beta once these commits run there; look for the same mechanism elsewhere (Not built: light `--text-3` #8f8f8f on white = 3.23:1 (every EDGE page's grey labels), and the tag pairs `--red`/`--red-bg` 4.39, `--green`/`--green-bg` 4.46, `--blue`/`--blue-bg` 3.81–4.08: shared design-system tokens); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-mobex.json (MX-5); verification/sector_analysis/check1/FIXES.md",
@@ -12378,9 +12570,17 @@
    "fix_note": "29535145: Same as BD-9 (verdict in FIXES.md: fixed with another key: brdt/BD-9)",
    "runs_on": "branch",
    "author_test": "check1.test \"BD-9\"; look \"BD-9 BD-10\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-mobex",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p21.cjs: Enter opens, ArrowDown 26 Nov -> 25 Nov -> 24 Nov, End 30 Oct, Home 26 Nov, ArrowUp wraps, Esc returns focus to #datebtn"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Focus the date button, Enter, press ArrowDown.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-mobex.json (MX-6); verification/sector_analysis/check1/FIXES.md",
@@ -12403,9 +12603,17 @@
    "fix_note": "29535145: Off until the data is in and while only an error shows (\"No data\") (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"MX-7\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-mobex",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Fixture ?fail=1 at 390: #datebtn and #termbtn disabled, only 'No data' shows (p21.cjs); check1 step MX-7 ok"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open https://edge-bff-dev.up.railway.app/sector-app/ with no session.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-mobex.json (MX-7); verification/sector_analysis/check1/FIXES.md",
@@ -12428,9 +12636,17 @@
    "fix_note": "29535145: Touch wording (\"Tap …\"); a window's own hint; a phone window scrolls as one under a sticky title that wraps (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"MX-8\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-mobex",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Rotation detail window on touch reads 'Tap to choose', shows chips, no map text; no Hover/Ctrl wording left in any visible text of the 5 tabs and 22 windows. Remaining 'click' subtitles: MX2-8 (nit)"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Rotation tab, Expand the detail card on a phone.) on the beta once these commits run there; look for the same mechanism elsewhere (Direction and speed, the Breadth, Momentum and rotation legends, Cumulative return's hint); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-mobex.json (MX-8); verification/sector_analysis/check1/FIXES.md",
@@ -12453,9 +12669,17 @@
    "fix_note": "29535145: `M.hzRead` + `mmReading`: the name follows which axis is shorter (YTD by its sessions); corners, legend, window Reading, How to read; equal lengths read neutrally (\"Up on 1M only\") (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"OR-1\"; look \"OR-1\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Probe p4.mjs: Momentum window, 6 pairs (1W/1M, 1M/1W, 1W/3M, YTD/1M, 1M/YTD, 3M/1W); every row's Reading recomputed from the shorter/longer horizon, 0 mismatches; corner label and footer follow the axis (1W/1M: 'bottom right = turning up'; 1M/1W: 'top left = turning up'); Health 1W +2.3% / 1M -0.4% is now 'Up on both' no longer mislabelled. ov.ts:285-291 mmReading."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open Overview. In Momentum choose horizontal 1W and vertical 1M (both selects offer any pair). Look at Health (1W +2.3%, 1M -0.4%) and the corner names.) on the beta once these commits run there; look for the same mechanism elsewhere (the stock quadrant (1M/5D) and the rotation map (fixed horizons) checked: no change needed); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-1); verification/sector_analysis/check1/FIXES.md",
@@ -12478,9 +12702,17 @@
    "fix_note": "29535145: Cell padding 5→4 px (fits at 1440); a scroll cue on every scroller (`ui.ts` `scrollCues`: an edge fade; a sticky column's shadow on the left) (verdict in FIXES.md: fixed (also closes mobex MX-2))",
    "runs_on": "branch",
    "author_test": "look \"OR-2 BD-4\"; look \"layout …\" (a scroller without a cue fails) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "partly",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "partly",
+     "date": "2026-11-27",
+     "evidence": "Card fixed: 13 columns fit at 1440 (wrapper 818/818, no cut text), at 1280 the card scrolls sideways (804/658) with the edge-fade cue (xs-r) and a column sliver visible. Same mechanism NOT fixed in the window with 'Open all industries': both tables scroll sideways 1062/1012 at 1440, 1280 and 1152, first view cuts 'Momentum' and 'Weight' (shots/rsD_win_1440_true.png). See OV2-1."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open Relative strength at 1440x900 and at 1280. Read the header row. Press 'Open all industries' at 1440.) on the beta once these commits run there; look for the same mechanism elsewhere (every table, heatmap, matrix, window table, the tab bar, the Show list, Direction and speed); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-2); verification/sector_analysis/check1/FIXES.md",
@@ -12503,9 +12735,17 @@
    "fix_note": "29535145: `data-scroll-key` (the weeks shown) and \"was at the end\": a new set of weeks opens on the newest (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"OR-3\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p6.mjs: Custom 2026-06-02..2026-11-26 (25 weeks) Apply: scrollLeft 494 = scrollWidth 894 - clientWidth 400, newest week visible; again after 4W then Custom: 494/894/400. shots/or3.png"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Click Custom, From 2026-06-02, To 2026-11-26, Apply (25 weeks, 994 px in a 400 px scroller).) on the beta once these commits run there; look for the same mechanism elsewhere (every list keeps its scroll only for the same content); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-3); verification/sector_analysis/check1/FIXES.md",
@@ -12528,9 +12768,17 @@
    "fix_note": "29535145: An Esc stack (`escPush`/`escTop`), run before the date menu and a window's Esc; focus returns to the tile (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"OR-4 OR-5\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p6.mjs: click KLBF tile, Esc -> .sx-spop hidden=true; opened by Enter on the focused tile, Esc closes it too."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Click a tile (e.g. KLBF), press Escape.) on the beta once these commits run there; look for the same mechanism elsewhere (the stock quadrant's popover, the Show list, the \"+ Column\" popover); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-4); verification/sector_analysis/check1/FIXES.md",
@@ -12553,9 +12801,17 @@
    "fix_note": "29535145: Width to content (200–320 px); a value never breaks (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"OR-4 OR-5\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p6.mjs/shots/or5.png: popover 289 px wide, '20-day average traded value  Rp 30.0B/day' on one line."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Click KLBF tile.) on the beta once these commits run there; look for the same mechanism elsewhere (the stock quadrant's popover (same element)); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-5); verification/sector_analysis/check1/FIXES.md",
@@ -12578,9 +12834,17 @@
    "fix_note": "29535145: `checkRange` prints the card's own label (`M.spanLabel`), with a line on the base close; the weekly heatmap prints its weeks; a level chart (breadth) its first session (verdict in FIXES.md: fixed (also closes brdt BD-7))",
    "runs_on": "branch",
    "author_test": "check1.test \"OR-6\"; model.test; look \"RP-1 OR-6 BD-7\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p7.mjs: popover note and card footer now print the same range: 3M '3 Sep - 26 Nov - 60 sessions' in both; Custom 2 Jun-30 Sep -> '29 May - 30 Sep - 84 sessions' in popover note and card. Residual nit OV2-3 (From field prefilled 2026-09-04 while the text says 3 Sep)."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (On 3M open Custom: note says '4 Sep - 26 Nov - 60 trading days', From prefilled 2026-09-04. Card footer says '3 Sep - 26 Nov - 60 sessions'. Apply Custom 2 Jun-30 Sep: popover '2 Jun - 30 Sep - 84 trading days', card '29 May - 30 Sep - 84 sessions'.) on the beta once these commits run there; look for the same mechanism elsewhere (every Custom: Cumulative return, stock lines, weekly heatmap, pair matrix, pair ratio, beta, breadth); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-6); verification/sector_analysis/check1/FIXES.md",
@@ -12603,9 +12867,17 @@
    "fix_note": "29535145: Titles wrap (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"layout …\" (no ellipsis on a title) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p6.mjs at 1280: Momentum title scrollWidth 230 = clientWidth 230, white-space normal, no ellipsis on any card title (shots/ov1280.png)."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open Overview at 1280x900.) on the beta once these commits run there; look for the same mechanism elsewhere (every card title); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-7); verification/sector_analysis/check1/FIXES.md",
@@ -12628,9 +12900,17 @@
    "fix_note": "29535145: `fitWeeks`: a narrower name and week column when needed; otherwise whole columns with the sticky column's shadow (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"OR-8 OR-12\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "shots/rsD_card_1280_false.png (page scrolled) and p5: Weekly excess at 1280 shows 8 whole columns (Oct 8..26) with month labels, no clipped sliver."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open Relative strength at 1280.) on the beta once these commits run there; look for the same mechanism elsewhere (a Custom range of more weeks); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-8); verification/sector_analysis/check1/FIXES.md",
@@ -12653,9 +12933,17 @@
    "fix_note": "29535145: \"returned −11.3%\"; the rank's window named; Rank change's note plain (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"OR-9\"; model.test (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p7.mjs texts: Cumulative window 'Financials returned -11.3%, +10.09 pp vs IHSG'; Relative return 'The rank column ranks the 5D window, the one picked on the card'; Rank change popover 'Compares the ranks of Thu 19 Nov 2026 with the page's date, 5 sessions later'."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Expand Cumulative return (example sentence); expand Relative return (How to read); open Rank change Custom.) on the beta once these commits run there; look for the same mechanism elsewhere (no other \"fell/rose\" + signed value left); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-9); verification/sector_analysis/check1/FIXES.md",
@@ -12678,9 +12966,17 @@
    "fix_note": "29535145: Lines past the sixth colour are dashed, their legend swatch too, and the legend says so (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"OR-10\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p13.mjs: all 11 sectors on: sectors 7-11 are dashed (class dsh) in the same six colours; IHSG dashed black; shots/or10.png shows dashed swatches and lines (ov.ts:26-28 lineStyle)."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Switch every sector on (or click until >6 are on), 1M.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-10); verification/sector_analysis/check1/FIXES.md",
@@ -12703,9 +12999,17 @@
    "fix_note": "29535145: A table card takes at most 48% of a stacked window and scrolls; the detail gets the rest (verdict in FIXES.md: fixed (also closes rotpm RP-11))",
    "runs_on": "branch",
    "author_test": "look \"OR-11 RP-11\" (2 rows before, 7 after) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "shots/rsD_win_1440_false.png: drill-down window first view shows header + 7 stock rows (KLBF..RSCH) with the upper table capped, Sector select and search visible; was 2 rows."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Expand Sector drill-down at 1440x900.) on the beta once these commits run there; look for the same mechanism elsewhere (every stacked table window (Beta, Rotation detail, Breadth tables, Stretched pairs)); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-11); verification/sector_analysis/check1/FIXES.md",
@@ -12728,9 +13032,17 @@
    "fix_note": "29535145: \"the strongest sector … until you lock one\" moved to the subtitle; a dashed swatch for the index line; the weekly legend shortened (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"OR-8 OR-12\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p7.mjs/shots/or12.png at 1440: legends of rsD, rsB, rsL, rsW, rsA are one line each (subtitle carries the long text); weekly legend 'Order: 1M vs IHSG (default) | 8 weeks | 1 Oct - 26 Nov' one line."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open Relative strength at 1440, scroll to bottom.) on the beta once these commits run there; look for the same mechanism elsewhere (the market map's legend); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-ovrs.json (OR-12); verification/sector_analysis/check1/FIXES.md",
@@ -12753,9 +13065,17 @@
    "fix_note": "29535145: Refused as the Overview's (\"Pick dates from … to …\"); a stored range is clamped with a note on the card, or the card's default with a note (`customSpan`); `plabel` never \"C\" (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"RP-1\", \"RP-1, the same mechanism in Rank change\"; model.test; look \"RP-1 OR-6 BD-7\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-rotpm",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p/b2.js: From 2025-08-15 and 2025-09-02 are refused in the popup ('Pick dates from 3 Sep 2025 to 26 Nov 2026', Apply disabled) for the matrix, Beta and Pair ratio; 2025-09-03 gives '2 Sep 2025 - 30 Jun 2026 . 194 sessions', matrix subtitle carries the dates (no 'C'), Beta says 'from 194D daily returns' with the figures of the chosen range. Same mechanism: p/b3.js/b4.js Cumulative return refused the same way, Rank change compare date says 'Data starts 10 Sep 2025. Pick a later date.', map dates clamp with a said reason. Collateral: none (vitest 78/78, check1 29/29)"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Pair matrix tab. Sector pair matrix > Spread > Custom, From 2025-08-15, To 2026-06-30 > Apply. Then Beta and correlation > Custom, same dates > Apply. (Start 2025-09-03 works and gives 194D.)) on the beta once these commits run there; look for the same mechanism elsewhere (all 7 Custom ranges, Rank change's compare date, a map date before the strip); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-1); verification/sector_analysis/check1/FIXES.md",
@@ -12778,9 +13098,17 @@
    "fix_note": "29535145: Rows share the card's height (16–28 px); \"in phase\" heads its column; the timeline's dates only when the IHSG strip is hidden (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"RP-2\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "partly",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-rotpm",
+     "round": 1,
+     "verdict": "partly",
+     "date": "2026-11-27",
+     "evidence": "Names and axis labels no longer overlap (p/b7.js overlap list empty at 1440/1152/390; b7_tl_1440.png), window Timeline is now the prototype's. The card still has a 155-242 px empty area below the grid (RP2-5), and the window's legend is not at the bottom at 1152/1280 (RP2-1)."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Rotation tab at 1440x900 > Timeline.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-2); verification/sector_analysis/check1/FIXES.md",
@@ -12803,9 +13131,17 @@
    "fix_note": "29535145: It follows the map date and says so; the stock quadrant (the day's returns) says \"as of\" the page's date (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"RP-3\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-rotpm",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p/b4.js: map date 11 May -> Rotation detail subtitle 'Quadrant on 11 May (the map date) vs 5D earlier', Direction & speed 'week to 11 May', the stock quadrant says 'as of 26 Nov, the page's date (stock returns are the day's)'."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Rotation tab > click the middle of the IHSG strip (map date becomes 4 May) and read the three cards.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-3); verification/sector_analysis/check1/FIXES.md",
@@ -12828,9 +13164,17 @@
    "fix_note": "29535145: Matrix rows at least 18 px; pair rows 30 px; a bottom cue on any list that scrolls (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"RP-4\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-rotpm",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p/c1.js: no vertical overflow in the Pair matrix card or Stretched pairs at 1440, 1280, 1152, 390 (only the Beta table scrolls by design, 11 rows in a capped box); c1_pm_1440.png shows all 11 matrix rows and 7 top pairs."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Pair matrix tab at 1440x900 or 1280x800, look at the bottom row of the matrix.) on the beta once these commits run there; look for the same mechanism elsewhere (every vertical list); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-4); verification/sector_analysis/check1/FIXES.md",
@@ -12853,9 +13197,17 @@
    "fix_note": "29535145: A legend known only after a draw keeps its last text (`footNow`/`footSet`) and a chart is drawn again when its box changes; names drawn last with a halo, labels keep clear; `M.axisRange` (quartiles ± 3 IQR) (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"RP-5\"; look \"RP-5\", \"layout …\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "partly",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-rotpm",
+     "round": 1,
+     "verdict": "partly",
+     "date": "2026-11-27",
+     "evidence": "x-axis title is 26-27 px clear of the card edge at 5 widths and no legend lines (p/a3.js); LEADING/LAGGING are no longer under dots/labels at 1440. Still: MMIX dot touches the LAGGING name at 1152/360, HEAL/SIDO labels touch at 360, outlier still squeezes the chart (RP2-2). Momentum/rotation legends and breadth range label not affected."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Rotation tab at 1440x900, scroll to the card (default Health, IHSG).) on the beta once these commits run there; look for the same mechanism elsewhere (the Momentum and rotation map legends; breadth's range label); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-5); verification/sector_analysis/check1/FIXES.md",
@@ -12878,9 +13230,17 @@
    "fix_note": "29535145: `M.dateIn` (the year when not the page's); one `target()` for hover and click, the tooltip names the date set (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"RP-6\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-rotpm",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p/b5.js: far-left 4W click gives '4 Nov 2025 . tail 4W' (year shown, first date reachable); 12W gives '5 Jan' (2026, same year as the page, no ambiguity). p/b6.js: hover over the early weeks says 'Too early for this tail: a click sets the first map date with a full tail, 5 Jan 2026'; later weeks say 'Click to set the map date to 26 Feb 2026'."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Rotation tab > Tail 4W > click the far left of the IHSG strip. Hover the first weeks of the strip.) on the beta once these commits run there; look for the same mechanism elsewhere (every date of the page: Rank change, weekly heatmap, stock lines, rotation cards, pair ratio marker, Breadth, header); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-6); verification/sector_analysis/check1/FIXES.md",
@@ -12903,9 +13263,17 @@
    "fix_note": "29535145: Ordered by the shown window's average correlation; the tooltip shows the correlation only; negatives in red; the legend says so (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"RP-7 RP-8\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-rotpm",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p/e1.js: Correlation has its own window seg (20D/60D/120D), its own row order (Prope,Infra,Non-C,...) different from Spread 3M, subtitle 'Correlation of daily returns, 60D', tooltip 'Corr 60D 0.88 / Click to open in the pair ratio' with no hidden Spread. (Negative correlations: none in real data, cannot tell.)"
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Spread > 3M, then Correlation > 60D; hover a cell.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-7); verification/sector_analysis/check1/FIXES.md",
@@ -12928,9 +13296,17 @@
    "fix_note": "29535145: The dash carries its reason; the header tip says when (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"RP-7 RP-8\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-rotpm",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p/e2.js: header tip now reads '... (— when the 300 sessions hold no such window)' on Δ beta; custom 194D range shows the dash with the same tip."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Window 1Y.) on the beta once these commits run there; look for the same mechanism elsewhere (brdt BD-11); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-8); verification/sector_analysis/check1/FIXES.md",
@@ -12953,9 +13329,17 @@
    "fix_note": "29535145: Headings renamed (\"Both up\", \"Both down\"); none is a quadrant's name (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "check1.test \"RP-9\"; model.test (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-rotpm",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "Rotation map window readings (a1_map_1440_light.png): Heading words Both down / Momentum up / Strength up / Momentum down / Rolling over / Both up, no quadrant names reused."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Open the Rotation map window; look at Non-Cyc.) on the beta once these commits run there; look for the same mechanism elsewhere (—); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-9); verification/sector_analysis/check1/FIXES.md",
@@ -12978,9 +13362,17 @@
    "fix_note": "29535145: A button with a read-out on hover, tap and focus; not locked in the example (verdict in FIXES.md: fixed)",
    "runs_on": "branch",
    "author_test": "look \"RP-10\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-rotpm",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p/e3.js: Formula is a <button> (tabIndex 0, aria-label with the formula); Enter after focus and tap on touch both open the .sx-tip with the full formula."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Click or Tab to the Formula chip.) on the beta once these commits run there; look for the same mechanism elsewhere (the industry rows' tooltip (was a title)); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-10); verification/sector_analysis/check1/FIXES.md",
@@ -13003,9 +13395,17 @@
    "fix_note": "29535145: The window split of OR-11; the sticky cell follows the row's hover (verdict in FIXES.md: fixed with another key: ovrs/OR-11 (and its own sticky-cell part))",
    "runs_on": "branch",
    "author_test": "look \"OR-11 RP-11\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-rotpm",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "e2_pmT.png: Beta window stock table shows 7 rows before scroll; p/e4.js: hovered row background is the same rgb(247,247,247) in every cell (pmT card and window, rsD drill-down, brT keeps its heat colours) so the first cell is shaded."
+    }
+   ],
    "recheck_action": "Reproduce the original finding (Expand the card; hover a sector row.) on the beta once these commits run there; look for the same mechanism elsewhere (the drill-down, heatmap table and beta sticky cells); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-11); verification/sector_analysis/check1/FIXES.md",
@@ -13028,9 +13428,17 @@
    "fix_note": "b99bce73: UD71 (\"tambah satu aturan tampilan saja\"): shared/company-name.ts shows a leading \"Pt \" as \"PT \" on every EDGE page but the Terminal (Overview, Watchlist, Radar, Sector, Screener, Backtest); the database and the publisher are unchanged.",
    "runs_on": "branch",
    "author_test": "apps/edge-bff tests/test_company_name.py, each page's company-name unit test, verification/edge_states/round2_focus_contrast.mjs (name step on 5 pages)",
-   "status": "waiting",
+   "status": "fixed",
    "open_row": "",
-   "recheck": [],
+   "recheck": [
+    {
+     "run": "agents_20261127-sector-r2-ovrs",
+     "round": 1,
+     "verdict": "fixed",
+     "date": "2026-11-27",
+     "evidence": "p9.mjs: tooltips show 'PT Adaro Andalan Indonesia Tbk' (AADI), 'PT Cipta Sarana Medika Tbk.' (DKHH, in the market map tile and Breadth stock detail), 'PT Yupi Indo Jelly Gum Tbk' (YUPI); vitest company-name.test passes. Fixed by the UD71 display rule, not by changing the data."
+    }
+   ],
    "recheck_action": "Open a page that lists AADI, DKHH or YUPI (Sector drill-down, Screener results, Watchlist) and check the name reads \"PT ...\"; check the Terminal is unchanged.",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-data.json (D-5); EXEC.md register UD71",

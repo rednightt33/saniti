@@ -1,0 +1,82 @@
+{
+  "run": "agents_20261127-edge-r2-wide",
+  "area": "EDGE-wide round-2 changes on every page but Sector (shell, Overview, Watchlist, Radar, Screener, Backtest, Admin)",
+  "model": "sonnet",
+  "checked": [
+    "Terminal untouched: git diff 53b4fafb..HEAD -- apps/edge-bff/terminal is 0 lines.",
+    "Own run of verification/edge_states/round2_focus_contrast.mjs (6 pages + shell, light+dark): all focus, contrast, touch and name steps pass except Radar touch (below). Its sector steps fail ('no expand button in view', both themes) but that is the Sector checkers' area and the script hardcodes sector.",
+    "Focus, own probe (probe_focus.mjs): per page and theme, 160 Tab stops (and 900 on Overview/Radar/Watchlist/Screener/shell) plus a mouse click on up to 120 focusables, reading the rendered outline, box-shadow and border colours of the focused element and its :focus-within ancestors. Blue focus states found: 0 on all pages and the shell sign-in; mouse clicks leave 0 rings; no text field takes an outline; ring colour is the grey (107/138). The only blue-bordered focused elements are the filled blue CTAs 'Add indicator' (Screener .top-add, Backtest #xsAdd), whose blue is their normal fill, not a focus state.",
+    "Fields: Watchlist, Backtest, Screener, Admin show decision 8 (transparent border + soft shadow). Overview and Radar fields show a 1px grey line and no shadow (EW2-2).",
+    "Shell: only the sign-in page can be rendered. For the logged-in components I injected elements with the real class names (.settings-select select, .compare-search>div, label.search, .composer) into the real static/index.html stylesheet: three show a 3px grey ring (EW2-1).",
+    "Contrast, own scan (probe_contrast.mjs) of every text node whose colour is --text-3, a tag ink or that sits on a tint, default state plus up to 14 tab/segment states per page: no pair below 4.5 except text-3 text drawn at reduced opacity (EW2-3). Hover scan (probe_hc.mjs): only blue --blue text on blue hover tints in Backtest (EW2-4); the rest are heat tiles / up-down numbers, which are unchanged by the decision, and artefacts of my hover-bg walk. --green/--red/--blue/--amber token values identical pre vs new on all six pages; .up/.down still use --green/--red.",
+    "Touch (probe_touch.mjs, probe_overlap.mjs, 390x844 and 360x740, hasTouch+isMobile): measured the real tap extent with elementFromPoint and the enlarged ::after/::before boxes of every shared control. Overview, Watchlist, Screener, Backtest, Admin: no overlap of enlarged areas; Radar: 8 overlapping pairs (EW2-5).",
+    "Names: fixtures served with 'Pt ...' show 'PT ...' (Watchlist, Screener, Backtest; also seen in crops crop_watchlist_*, crop_screener_*). Source review: every reader of a publisher name field goes through shared/company-name.ts; rule is startsWith('Pt ') only, so 'PT Bank' and 'Alpha Pt Beta' stay. Screener CSV export keeps the source text (download, not display) - by design.",
+    "Collateral damage: built the pre-change tree (git worktree at 46691b5d in scratch, fixtures built with symlinked node_modules and the local Radar/Overview data) and compared 6 pages x light/dark x 1384/390 (48 shots + element geometry). Element geometry identical on all (0 moved) except the Watchlist name span that got wider (Pt -> PT, 131.3 -> 135.1 px, expected). Structural pixel diff (edge map) is 0 on Admin, Backtest, Overview, Radar; Screener 62 px and Watchlist 197 px, both only the Pt -> PT names. Everything else differs only by colour (text-3 / tag inks). Hover state of up to 140 controls per page: no hover effect lost or gained (computed colours/shadow/transform), 0 differences.",
+    "Own page tests (vitest, read-only): overview 28, watchlist 26, radar 9, backtest 107, admin 15 all pass; screener run pending at time of writing, see not_checked/last line if it finished."
+  ],
+  "findings": [
+    {
+      "id": "EW2-1", "severity": "minor",
+      "title": "Shell components still draw a 3px ring (grey, 50% alpha) around fields on focus: settings select/input, compare search, generic .search",
+      "where": "shell (static/index.html), logged-in components; light and dark; checked with injected elements carrying the real class names because the logged-in shell cannot be loaded without a login",
+      "steps": "Load /monitor from a server that answers no API, inject <div class=app><div class=settings-select><select id=t2>, <div class=compare-search><div><input id=t3>, <label class=search><input id=t6> and focus each after a key press (probe_shell.mjs). Read computed box-shadow.",
+      "expected": "UD75/decision 13: a field (input, select, textarea) never takes a ring; decision 8: no border line, soft shadow.",
+      "actual": "select.settings-select: box-shadow oklch(0.708 0 0 / .5) 0 0 0 3px plus a 1px grey border; .compare-search>div and label.search: the same 3px spread ring and border (dark: oklch(.439)). Not blue, but a ring of the old shadcn style. Source: static/index.html:557-561 (.search:focus-within), 2145-2149 (.settings-select select), 3501-3505 (.compare-search>div); the round-2 diff left them on purpose ('A field keeps its own focus state', index.html comment near line 11236) while the user text says fields never have a ring.",
+      "evidence": "probe_shell.mjs output (scratch folder); index.html lines above. Could not confirm in the real logged-in DOM."
+    },
+    {
+      "id": "EW2-2", "severity": "nit",
+      "title": "Overview and Radar fields still show the previous decision 8 (1px grey line, no shadow) while Watchlist, Backtest, Screener, Admin show the 2026-11-26 one (transparent line, soft shadow)",
+      "where": "Overview (.inp/.sel/input:focus), Radar (.srch:focus-within, #rq), 1384 and 390, light and dark",
+      "steps": "Tab or click into the Overview 'cpa'/.inp.sm field or the Radar search box (#rq) in the fixture build; read computed border-color and box-shadow (probe_focus.mjs 'fieldstate' lines).",
+      "expected": "Per task item 1: decision 8 state (no border line, soft shadow) on every page.",
+      "actual": "Overview input.inp.sm: border rgb(141,141,141) / dark rgb(111,111,111), shadow none. Radar label.srch: border rgb(107,107,107) / dark 138, shadow none. overview.css:454 and radar.css:787 set --focus-border:var(--text-3);--focus-shadow:none. Identical in the pre tree, so not a regression; the 2026-11-26 change (EXEC 'Perubahan 2026-11-26') named only Backtest and Screener (and the new pages), so this may be intended 'old page' behaviour. Reported because the round-2 text says decision 8 holds on every page.",
+      "evidence": "overview/src/styles/overview.css:342-343,454; radar/src/styles/radar.css:340-341,787,692,837"
+    },
+    {
+      "id": "EW2-3", "severity": "nit",
+      "title": "Text in --text-3 drawn with reduced opacity falls below 4.5:1 (Screener)",
+      "where": "Screener, preset chip 'n/a' count '—' (.pchip.na{opacity:.6}) and result cells with no data (.res td.nodata{opacity:.6}), 'Up to date' disabled button (.75); light and dark",
+      "steps": "Open the Screener fixture; probe_contrast.mjs lists the elements; effective colour = text-3 blended at opacity over the surface.",
+      "expected": "UD73: --text-3 text reads at least 4.5:1.",
+      "actual": "The token itself passes (6b6b6b on #efefef = 4.63) but the element's opacity .6 brings the dash to about 2.4:1 and 'Up to date' (.75) to about 3.2:1. Placeholder dash and a disabled button, so arguably exempt (disabled/decorative); reported because the sweep is about text-3 text.",
+      "evidence": "screener/src/styles/screener.css:540, 543, 1075"
+    },
+    {
+      "id": "EW2-4", "severity": "nit",
+      "title": "Backtest: blue (--blue, not --blue-tag) text on a blue hover tint is below 4.5:1 in light",
+      "where": "Backtest light; '.addc:hover' (add-condition tile) and '.searchbox.adder-open .sb-go' ('Browse' on hover)",
+      "steps": "Hover the 'Browse' link in the add-indicator search box; hover the dashed '.addc' tile; compute the colour of the text over the blended tint (probe_hc.mjs).",
+      "expected": "UD73 4A: text on a tint at least 4.5:1; the tag/pill rule uses --blue-tag #0064d8 for that.",
+      "actual": "#0070f3 on rgb(235,244,254) = 4.08:1 (.sb-go hover); .addc:hover colour var(--blue) over color-mix(--blue 14%) = about 3.75:1. Dark theme passes (6.1-6.6).",
+      "evidence": "backtest/src/styles/backtest.css:419; backtest/src/styles/design.css:814. Same in pre tree (not a regression)."
+    },
+    {
+      "id": "EW2-5", "severity": "minor",
+      "title": "Radar stacked segment rows: enlarged touch areas overlap by 8 px and each button's real tap area is only 36 px (rows 1-2) / 42 px (row 3), not 44",
+      "where": "Radar, 390x844 and 360x740, touch, with the local data (3 stacked .seg.sm rows: Broad/Liquid, Loose/Standard/Tight, All hits/New today...); light",
+      "steps": "Open /radar-app/ with hasTouch+isMobile on the fixture with data; read each .seg button's ::after box (top/bottom -11px, 44 px tall) and elementFromPoint along its vertical axis (probe_overlap.mjs, probe_touch.mjs, radar_seg.mjs).",
+      "expected": "UD72 3A: 44 x 44 px tap area, no layout change, and 'no two areas overlapping' (--hit-y halfway to the neighbour).",
+      "actual": "Rows sit at a 36 px pitch (seg 28 px high, buttons 22 px), the default --hit-y 22px is not capped for this stack, so the ::after boxes of neighbouring rows overlap (8 pairs, 8 px each); the later element wins, leaving 36x(44 wide) for rows 1-2 and 42 for the last. Real data not needed beyond the local fixture. Fix without layout change: set --hit-y:7px on those rows (36 px, no overlap); 44 would need a row pitch of 44 or fewer rows.",
+      "evidence": "round2_focus_contrast.mjs 'radar: touch hit areas' FAIL: button.on 48x22 hit 48x36 ... ; probe_overlap.mjs: 8 overlapping pairs at 390 and 360; radar/src/styles/radar.css:945-950 (.seg{--hit-x:0px} only)."
+    },
+    {
+      "id": "EW2-6", "severity": "nit",
+      "title": "Screener preset segment buttons keep a 30 px tap height inside their own scroller",
+      "where": "Screener, 390x844 touch, the '.seg.sm' preset row (buttons 26 px)",
+      "steps": "round2_focus_contrast.mjs prints 'cut by their own scroller: button.on 35x26 in span.seg.sm: 35x30'; radar_seg.mjs shows the ::after at -9px but the row (span.seg.sm, 32 px high, overflow scroll) clips it.",
+      "expected": "44 px tap height where the row allows.",
+      "actual": "30 px; the scroller's overflow clips the enlarged area. Known open item, confirmed; the only no-layout-change refinement is none (the clip is the row's own height). Also uncovered by the shared list but under 44: Watchlist button.symb 18 px, Screener .ficon 30x30, .qf 32 px, Backtest .bh-btn 28x28, #btab* 36 px, .xinfo 18 px (not in the decision 14 list, so not a defect).",
+      "evidence": "probe_touch.mjs output; radar_seg.mjs screener block."
+    }
+  ],
+  "recheck": [],
+  "not_checked": [
+    "Logged-in shell (needs a login): only the sign-in page and injected class-name elements were rendered.",
+    "Python tests tests/test_focus_ring.py and test_company_name.py (pytest is not installed here); their rules were checked by reading and by the rendered probes instead.",
+    "Overview and Radar with real market data (only their local fixture data); Admin with real states (fixture shows one form).",
+    "Dialog and window states beyond what a click-through of the first 120 focusables reaches (Screener query window, Backtest picker partly reached).",
+    "Screener vitest summary may still be running; the 5 other pages pass."
+  ],
+  "artifacts": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/check2/agents_20261127-edge-r2-wide/ (probe_*.mjs, shots_new/, shots_pre/, cmp.py, crop_*.png, pre/ worktree of 46691b5d)"
+}
