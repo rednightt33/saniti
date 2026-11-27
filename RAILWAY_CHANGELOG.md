@@ -29,7 +29,11 @@
   Side effect of that check: the owner's synced Terminal ticker (`ml.symbol`) is now IDXFINANCE (the button writes it;
   the earlier value is not kept, IMPC on 2026-11-26).
 - **Postgres:** 1.99 GB after the run; the restart was refused for the crons' margin (the publisher tick 01:30 UTC, the
-  scheduled restart 02:45 UTC); the scheduled restart at 02:45 UTC covers it (read back below).
+  scheduled restart 02:45 UTC); the scheduled restart (postgres-memory-cron, container started 02:47:02 UTC) restarted
+  it: a clean shutdown at 02:47:08 ("administrator command", checkpoint complete), ready 02:47:10
+  (`pg_postmaster_start_time`), memory 0.64 GB at 02:49 UTC, both sites `/ready` 200. CI of `aabb6530` on `main`: every
+  run green (Backend tests 45925552927, look-ahead gate 45925552873, generated files, image builds, page smoke, record
+  statuses).
 - **Rollback:** the beta: redeploy `edge-bff` `a0b4577c` (`53b4fafb`), feature-04-worker and telegram-monitor their
   previous SUCCESS deployments; terminal-api `git archive 53b4fafb apps/terminal-api` upload; terminal-publisher the
   same for `apps/terminal-publisher` (the `sector/` files stay in the bucket, unread). The migrations are expand-only.

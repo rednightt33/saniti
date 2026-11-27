@@ -18179,4 +18179,4 @@ S0-S4 di branch dan S1 di database dev. Deploy layanan tetap ditanyakan satu per
 sumber, 5 tab tanpa error di 1440/390 px, Open in Terminal membuka IDXFINANCE (RAILWAY_CHANGELOG.md 2026-11-27).
 - **Terbuka:** (1) pemeriksa halaman (S5): jumlah agen, model dan tingkat berpikir dipilih user; (2) live: setelah user
   mengecek butir J di beta, atas permintaan user (pemindahan `live` berikutnya untuk alasan apa pun membawa tab ini, F);
-  (3) restart Postgres sesudah publikasi pertama: restart terjadwal 02:45 UTC.
+  (3) ~~restart Postgres sesudah publikasi pertama~~: selesai oleh restart terjadwal 02:47 UTC (0,64 GB sesudahnya).
