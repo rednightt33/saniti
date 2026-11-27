@@ -16766,6 +16766,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD65 | (answered 2026-11-26: "UD65 a": kept as it is) ERRORS M570, EXEC-VISUAL-STATES (2026-11-26; latent, rule 7): in the Screener's add window the row of Alpha Divergence (I60) gives its Swing Detection Mode box 34 px of room for its text, so the chosen "Original (SMI extreme)" shows as "Origina…" and the box overlaps the word "within" after it; it was the same before the change (C4, the user: "leave as is ... kalau terpotong tambahkan saja ..."). Every other shown choice that does not fit (10, the Condition column at 182 px) ends in "…" inside its own box. Options: (a) keep it; (b) let that row's settings wrap to a second line, as the Backtest window does (C3); (c) a narrower label for the choice ("Original", "Proposed"). | 2026-11-26 with context (VISUAL-STATES report) | the look of one Screener row | when the user answers; kept as is until then |
   | UD66 | (answered 2026-11-26: "a1 / b ok / c 1 / d1 … / e ok / f released … / g ok jd open in terminal / h hapus / i ok / j …", EXEC-SECTOR-ANALYSIS) PLAN.md SECTOR-ANALYSIS (2026-11-26): the Sector Analysis page from the user's prototype. A: this page vs ROTATION_SPEC.md (median, equal-weight market benchmark, three lenses) and the "RRG"/"RS-Ratio" names; B: the prototype's synthetic data replaced by real data; C: EMA20 (not in the database); D: the industry and treemap weight (trading value, median, or market cap that is not in the database); E: 1M = 20 or 21 sessions, 1Y = 250 or 252; F: the release path of a new tab (a lab tab is held, LAB_TAB_HELD_UNTIL); G: where Open in Screener goes; H: the hidden cards; I: the date picker (latest only, or 20 dates like the Overview); J: who may open it (plans, visitors' example). Each with the agent's recommendation | 2026-11-26 with context | the build of the page | before the build starts |
   | UD67 | (answered 2026-11-26: "1A 2A 3 go") EXEC-SECTOR-ANALYSIS (2026-11-26): (1) what "Open in Terminal" opens (the selected sector's index, e.g. IDXFINANCE, IHSG when none; a stock row or dot opens that stock); (2) the names "Relative Rotation Graph", "RS-Ratio", "RS-Momentum" (RRG Research marks) replaced by neutral names or kept; (3) the go for S0-S4 on the branch and S1 on the dev database | 2026-11-26 with context | the build of the page | before the build starts |
+  | UD68 | EXEC-SECTOR-ANALYSIS (2026-11-27): the live promotion of Sector Analysis, which the user tied to the 5 Sonnet agents' findings being fixed ("Promosi ke live once temuan agent sonnet dibereskan"); the beta deploy of the fixes and the move of `live` are each asked with context when the fixes are done (a re-check of those fixes, rule 8, is asked then too) | 2026-11-27 | the live site's Sector Analysis | when the fixes of the check are done |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -18180,3 +18181,13 @@ sumber, 5 tab tanpa error di 1440/390 px, Open in Terminal membuka IDXFINANCE (R
 - **Terbuka:** (1) pemeriksa halaman (S5): jumlah agen, model dan tingkat berpikir dipilih user; (2) live: setelah user
   mengecek butir J di beta, atas permintaan user (pemindahan `live` berikutnya untuk alasan apa pun membawa tab ini, F);
   (3) ~~restart Postgres sesudah publikasi pertama~~: selesai oleh restart terjadwal 02:47 UTC (0,64 GB sesudahnya).
+
+**Keputusan user 2026-11-27 (verbatim):** "5 agent Sonnet medium untuk cek halaman / Its ok keep it pending dulu. / Promosi
+ke live once temuan agent sonnet dibereskan".
+- Pemeriksaan awal halaman (AGENTS.md "Findings and fixes" aturan 8, *initial check*): 5 agen, model Sonnet, tingkat
+  berpikir medium, per area: (1) kebenaran angka vs database; (2) tab Overview dan Relative strength; (3) Rotation dan Pair
+  matrix; (4) Breadth, pemilih tanggal dan kepala halaman; (5) ponsel, tema gelap, mode contoh, Open in Terminal,
+  keyboard. Jurnal: `verification/sector_analysis/check1/` (run `agents_20261127-sector-<area>`).
+- Uji ulang item RECHECK.md yang menunggu: ditunda (user: "keep it pending dulu").
+- Live: sesudah temuan pemeriksaan ini dibereskan; deploy beta perbaikan dan pemindahan `live` tetap meminta
+  konfirmasi user saat itu (AGENTS.md "Deploys").
