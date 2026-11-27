@@ -13443,6 +13443,532 @@
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-data.json (D-5); EXEC.md register UD71",
    "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-ovrs/OV2-1",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-ovrs",
+   "finding_id": "OV2-1",
+   "title": "Sector drill-down window with 'Open all industries': columns are cut at the window's right edge and both tables scroll sideways",
+   "finding": "agents_20261127-sector-r2-ovrs, sonnet, OV2-1, major: Sector drill-down window with 'Open all industries': columns are cut at the window's right edge and both tables scroll sideways. Where: Relative strength / Sector drill-down window, 1440, 1280 and 1152 widths, light Steps: Open Relative strength, expand Sector drill-down, press 'Open all industries'. Read the right edge of both tables (without industries open nothing is cut and nothing scrolls). Expected: User (EXEC.md 2026-11-27, 'A'): every column edge of the stocks table on a column edge of the sector table and nothing cut, with and without 'Open all industries'. Actual: Edges do line up (stocks table 8 columns, 0 edges off the sector table's). But the tables need 1062 px in a 1012 px scroller: the first view shows 'Mon' / 'Fad' / 'Gai' (Momentum column) and 'Weig' / 'Rp 30.0E' (Weight column) cut at the edge; one has to scroll sideways (edge-fade cue exists). The stacked window is capped at 1040 px wide (windows.ts:40 `stacked ? 1040`) while the 13-column table with the wider first column needs about 50 px more. tests/look/round2.mjs step 7 passes because it only counts ellipsis cuts. Evidence: shots/rsD_win_1440_true.png; probe p5.mjs: 'hscroll tbl-wrap xs-r xs-b:1062/1012 fw-tw:1062/1012' at 1440, 1280 and 1152 with industries open; none with industries closed.",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: windows.ts widen(): a stacked window grows to its tables up to the screen less 48 px and draws again; the window's scroll cues set after the tables are aligned; round2.mjs step 7 fails on a cell past its scroller unless the window is at its widest and cues. Real 26 Nov: 1440/1280 window 1110 px, tables 1082/1082; 1152 window 1048 px, tables 1080 in 1020 with the cue (limit) (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "round2.mjs step 7 (fixture and real) (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Open Relative strength, expand Sector drill-down, press Open all industries at 1440, 1280 and 1152; read the right edge of both tables; look for the same cap in every stacked window (Beta, Breadth, phone).) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-ovrs.json (OV2-1); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-ovrs/OV2-3",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-ovrs",
+   "finding_id": "OV2-3",
+   "title": "Custom popover prefills From 2026-09-04 while its own note and the card say the range starts 3 Sep",
+   "finding": "agents_20261127-sector-r2-ovrs, sonnet, OV2-3, nit: Custom popover prefills From 2026-09-04 while its own note and the card say the range starts 3 Sep. Where: Overview / Cumulative return, Custom popover on the 3M range, 1440 light Steps: Press Custom on Cumulative return (3M). Expected: One start date for one range. Actual: The note reads '3 Sep - 26 Nov - 60 sessions' (same as the card, so the OR-6 disagreement is gone) but the From field holds 2026-09-04; typing 2026-06-02 prints '29 May - 30 Sep' (the base close). A user retyping the printed 3 Sep gets a one-session longer range. Evidence: probe p7.mjs: ['3 Sep - 26 Nov - 60 sessions','2026-09-04']; Apply 2 Jun-30 Sep -> '29 May - 30 Sep - 84 sessions' in popover and card.",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: the Custom popover's note names the base close and the From date and follows the dates typed (W.range.fromClose, openRange noteOf) (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "check2.test, check2.styles, look check2 \"OV2-3\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Press Custom on Cumulative return (3M); compare the From field with the printed range and the note; type another From; check every return card's Custom.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-ovrs.json (OV2-3); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-rotpm/RP2-1",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-rotpm",
+   "finding_id": "RP2-1",
+   "title": "Rotation map window, Timeline: the legend is not at the bottom when the window is taller than the content; a large blank band remains",
+   "finding": "agents_20261127-sector-r2-rotpm, sonnet, RP2-1, minor: Rotation map window, Timeline: the legend is not at the bottom when the window is taller than the content; a large blank band remains. Where: Rotation > Rotation map window > Timeline; 1152 and 1280 (light and dark), and 1440 when the card was set to Timeline before expanding Steps: Viewport 1096x800 (1152): Rotation tab > expand Rotation map > Timeline (or set Timeline on the card first and expand). Also 1384x900: set Timeline on the card, then expand. Expected: As the user's target (58.png) and CHANGES item 9: legend at the bottom of the window, Timeline using the window. Actual: 1152/1280: window 752 px tall, legend ends 181 px above the window's bottom (empty white band below it where the hidden readings/How-to-read were), 108 px blank between the date row and the legend. 1440 opened with Timeline on the card: window 820 px, 293 px blank between grid and legend (opened by switching inside the window at 1440 it is fine: legend 1 px from bottom, 85 px blank). Evidence: p/g2.js output (legendBottomToWin 181, gridBottomToLegend 108/259/293); screenshots check2/agents_20261127-sector-r2-rotpm/g2_card.png, a1_tl_1152_light.png",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: a window whose detail is hidden (bare) is as tall as its card; the Timeline's box takes the Timeline's height (.rrg.tlh, tlHeight); rows square unless the screen is too short (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "look check2 \"RP2-1\" (1440/1280/1152, both ways), check2.test, round2 step 9 (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Rotation map window at 1152, 1280 and 1440: Timeline switched in the window and set on the card before expanding; the legend at the window's bottom, no blank band; back to Map.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-rotpm.json (RP2-1); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-rotpm/RP2-2",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-rotpm",
+   "finding_id": "RP2-2",
+   "title": "Stock momentum quadrant: outlier dots still touch/overprint quadrant names and labels at narrow widths, and one outlier still squeezes the chart",
+   "finding": "agents_20261127-sector-r2-rotpm, sonnet, RP2-2, minor: Stock momentum quadrant: outlier dots still touch/overprint quadrant names and labels at narrow widths, and one outlier still squeezes the chart. Where: Rotation > Health stock momentum quadrant card, 1152 dark and 360 light (also window) Steps: Open Rotation at 360x740 (or 1096x800 dark); look at the bottom-left and the Leading/Weakening corner. Expected: Quadrant names readable, no label on label. Actual: The MMIX outlier circle sits against the LAGGING name (touching at 1152 and 360); at 360 the labels HEAL and SIDO touch each other; RSCH/MMIX at -56 pp still push the zero line to ~85% of the width so about 30 dots sit in the right quarter (original RP-5 third part). Evidence: check2/agents_20261127-sector-r2-rotpm/a4_card_1152.png, a4_card_360.png",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: quadrant names along their quadrant's edges, the first place no dot touches; stock names 3 px apart; axisRange ends at Tukey's 1.5 IQR whiskers (zero line 67-70% on 26 Nov, was 81-82%). Limit: LEADING touches DGNS at 390/360 (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "check2.test \"RP2-2\", look check2 \"RP2-2\" (4 widths), check1 RP-5 (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Rotation > stock momentum quadrant at 360 and 1152 (dark): names readable, no label on label, the zero line and the dots' spread.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-rotpm.json (RP2-2); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-rotpm/RP2-4",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-rotpm",
+   "finding_id": "RP2-4",
+   "title": "Beta window: right-aligned numbers of the lower table sit 4-5 px right of the upper table's although the column edges match",
+   "finding": "agents_20261127-sector-r2-rotpm, sonnet, RP2-4, nit: Beta window: right-aligned numbers of the lower table sit 4-5 px right of the upper table's although the column edges match. Where: Pair matrix > Beta and correlation window 1440 light Steps: Expand Beta card; compare Corr/Return/vs IHSG/Alpha with Corr/1M/1M vs IHSG/Weight. Expected: Texts on the same right edge (user: bottom column edges on top column edges). Actual: Cell edges are identical (695, 793, 911, 1039, 1193) but figures end e.g. 901 (Return) vs 905 (1M), 1177 (Alpha) vs 1181 (Weight): different right padding. Evidence: e2_pmT.png; p/e2.js column edges",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: one cell padding (4 px; first 16, last 12) in both tables of an aligned window; industry rows keep their indent (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "round2 step 7 (texts on shared edges), check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Beta and correlation window at 1440: compare the right edges of Corr/Return/vs IHSG/Alpha with Corr/1M/1M vs IHSG/Weight; the drill-down window too.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-rotpm.json (RP2-4); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-rotpm/RP2-5",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-rotpm",
+   "finding_id": "RP2-5",
+   "title": "Timeline in the card keeps about 150 px of empty card below the grid",
+   "finding": "agents_20261127-sector-r2-rotpm, sonnet, RP2-5, nit: Timeline in the card keeps about 150 px of empty card below the grid. Where: Rotation > Rotation map card, Timeline, 1440 light (155 px), 1152 (242 px), 390 (234 px) Steps: Rotation tab > Timeline. Expected: Grid uses the card (original RP-2). Actual: Rows are 14 px; the card height is set by its neighbour so a blank band stays between the date row and the legend. Overlap of names / '26 Nov' vs 'in phase' is gone. Evidence: b7_tl_1440.png; p/b7.js (svgBottomToCard 155)",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: a Timeline card on the page grid fills its height with its rows; in the one-column layout the card is as tall as the Timeline (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "look check2 \"RP2-5\" (1440, 1152, 390) (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Rotation tab > Timeline at 1440, 1152, 390: the band between the dates and the legend.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-rotpm.json (RP2-5); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-brdt/BD2-1",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-brdt",
+   "finding_id": "BD2-1",
+   "title": "Keyboard focus shows no ring on the slope-chart rows (Relative strength) and the Rotation map dots",
+   "finding": "agents_20261127-sector-r2-brdt, sonnet, BD2-1, major: Keyboard focus shows no ring on the slope-chart rows (Relative strength) and the Rotation map dots. Where: Relative strength tab (Sector stocks slope chart, g.sl) and Rotation tab (map, g.pt), light and dark, any width Steps: Open Relative strength, press Tab until focus reaches a slope row (g.sl role=button), or call el.focus({focusVisible:true}); read getComputedStyle: :focus-visible matches true but outline-style none. Same for g.pt on Rotation (33 stops each per 260 Tab presses, probe f4.js). Expected: Decision 12/13: Tab shows a grey 2 px ring on every focusable element of the page Actual: No ring at all (outline none 3px). Cause: sector.css:230 '.slope .sl{outline:none}' and :271 '.rrg .pt{outline:none}' have the same specificity as and come after the new :focus-visible rule at sector.css:113 (.sl:focus-visible,.pt:focus-visible), so they win. Chart dots (circle.dt), .ovx-dot and every other kind do show the ring. Evidence: probe f5.js: rs g.sl {fv:true, os:none}; rot g.pt {fv:true, os:none}; ov g.ovx-dot {os:solid 2px rgb(107,107,107)}; /tmp/.../check2/agents_20261127-sector-r2-brdt/f4.js output 'rs ... bad 33 g.circle noring'",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: the outline:none of .slope .sl and .rrg .pt removed (they beat the focus rule at equal specificity) (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "check2.styles \"BD2-1\", look check2 \"BD2-1 MX2-3\", verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"every Tab stop draws the grey ring\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Tab to a slope row (Rank change) and a rotation map dot, light and dark; compare pixels with and without focus; look for any other reset after a focus rule.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-brdt.json (BD2-1); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-brdt/BD2-2",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-brdt",
+   "finding_id": "BD2-2",
+   "title": "Quadrant tag pills Lagging and Improving are below 4.5:1 in light (decision 14)",
+   "finding": "agents_20261127-sector-r2-brdt, sonnet, BD2-2, minor: Quadrant tag pills Lagging and Improving are below 4.5:1 in light (decision 14). Where: Relative strength tab, tag pills of the quadrant (rs.ts QFG), light theme Steps: Open Relative strength, light theme, read the computed colour of the pills 'Lagging' and 'Improving' (.tg with inline QBG/QFG) Expected: tag inks at 4.5:1 or more (decision 14: tag tokens --red-tag, --blue-tag) Actual: Lagging rgb(214,40,57) on 9% red tint = 4.39:1; Improving rgb(0,112,243) on 8% blue tint = 4.08:1 (12 px semibold). They use var(--red)/var(--blue) (src/cards/rs.ts:10-11 QFG) instead of --red-tag/--blue-tag; the Rotation tab's .rq pills (4.61) and Tag pills Above/Below already use the tag tokens. Dark passes. Evidence: probe c1.js / c2.js; python composite: Lagging tg 4.39, Improving tg 4.08",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: rs.ts QFG on the tag inks (--green-tag, --amber-tag, --red-tag, --blue-tag) (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "check2.styles \"BD2-2\", verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"every tab's tinted text reads 4.5:1\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Relative strength, light: the contrast of the Lagging and Improving pills; scan every tab for text on a tint.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-brdt.json (BD2-2); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-brdt/BD2-3",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-brdt",
+   "finding_id": "BD2-3",
+   "title": "Stock detail row tooltip reads 'since The status is older than the 300 sessions of data'",
+   "finding": "agents_20261127-sector-r2-brdt, sonnet, BD2-3, nit: Stock detail row tooltip reads 'since The status is older than the 300 sessions of data'. Where: Breadth tab, Stock detail, EMA200 mode, rows AYAM, MKAP, JRPT (Days 300+, Since dash) Steps: EMA200 mode, hover/read the row tip of AYAM Expected: A sentence that reads correctly, e.g. 'Above EMA200 for 300+ sessions (older than the 300 sessions of data)' Actual: 'Above EMA200 for 300+ sessions, since The status is older than the 300 sessions of data' (words.ts:410 sinceNa is placed into the 'since ${since}' template at :412) Evidence: probe r2.js row tip of AYAM; src/words.ts:410,412",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: words.ts brD.tip: no first session -> \": the status began before the 300 sessions of data\" (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "check2.test, check2.styles, look check2 \"BD2-3\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Breadth > Stock detail in EMA200 mode: the tips of AYAM, MKAP, JRPT.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-brdt.json (BD2-3); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-brdt/BD2-4",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-brdt",
+   "finding_id": "BD2-4",
+   "title": "'0 pp' cells in the Breadth heatmap table's delta column have different colours",
+   "finding": "agents_20261127-sector-r2-brdt, sonnet, BD2-4, nit: '0 pp' cells in the Breadth heatmap table's delta column have different colours. Where: Breadth heatmap table, column Delta EMA50 1W, 26 Nov Steps: Read IHSG row (0 pp on solid green) and Cons. Cyc row (0 pp on flat grey) Expected: Same text, same colour (or show one decimal) Actual: Colour follows the raw value (+0.3 pp is light green), the text is rounded to 0; the Breadth change table below shows +0.3 pp Evidence: screenshot brT_win_dark.png, brT_1096.png",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: heat/corrHeat take the printed decimals; the up/down text colour too (M.cls dp, M.clsText); every heat table and figure (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "check2.test \"BD2-4\", look check2 \"BD2-4\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Breadth heatmap table, Delta EMA50 1W: the \"0 pp\" cells; the same text in a column of every heat table; up/down text of a figure printed 0.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-brdt.json (BD2-4); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-mobex/MX2-1",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-mobex",
+   "finding_id": "MX2-1",
+   "title": "Rotation detail window on a phone: the sector chip row scrolls sideways with no cue",
+   "finding": "agents_20261127-sector-r2-mobex, sonnet, MX2-1, minor: Rotation detail window on a phone: the sector chip row scrolls sideways with no cue. Where: Rotation tab, Rotation detail (rotB) window, 390 and 360, dark and light Steps: Real data, phone width, Rotation tab, expand Rotation detail; look at the chip row (Industrials, Energy, Tech, Cons. Cyc, Basic Ma...) Expected: Same cue as other sideways scrollers (the xs-r edge fade, MX-2 fix) Actual: .c1-chips scrollWidth 890 > clientWidth 388, className has no xs-r/xs-l, the last visible chip 'Basic Ma' is cut hard at the window edge; 6 more chips are off screen with no hint Evidence: p1.json (rotB scr 'c1-chips 890>388'), z_rotB_390.png; check1.mjs cue test only walks [data-card] descendants so it does not see it",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: .c1-chips is a cued scroller; a window's cues set after its tables are laid out (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "look check2 \"MX2-1\" (every scroller of every tab and window, 390/360) (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Rotation detail window at 390 and 360: the chip row's right edge; every other sideways scroller.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-1); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-mobex/MX2-2",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-mobex",
+   "finding_id": "MX2-2",
+   "title": "Rotation detail window on a phone: 'Changes / All columns' switch wraps into two stacked rows inside the 52 px band and the subtitle is cut",
+   "finding": "agents_20261127-sector-r2-mobex, sonnet, MX2-2, minor: Rotation detail window on a phone: 'Changes / All columns' switch wraps into two stacked rows inside the 52 px band and the subtitle is cut. Where: Rotation detail window, 390 and 360 Steps: Phone, expand Rotation detail, look at the 'Quadrant changes' band Expected: One row switch, title and subtitle whole (user: C1 one 52 px band, nothing cut) Actual: The seg is 147x52 (390) / 134x52 (360) with 'Changes' above 'All columns' (buttons at y 197 and 221), border touching the band lines; subtitle '28 changes in 52 weeks . Industrials' cut to 'Industr...' (scrollWidth 207 > 199 at 390, > 182 at 360) Evidence: p2.cjs output, z_rotB_390.png, z_rotB_360.png",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: the page's .seg keeps one line and moves whole (flex-wrap:nowrap; flex:none); on a phone the C1 band grows (min 52 px), its subtitle wraps (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "look check2 \"RP2-3 MX2-2\", check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Rotation detail window at 390 and 360: the Changes / All columns switch and the band's title and subtitle; every segmented control squeezed.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-2); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-mobex/MX2-4",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-mobex",
+   "finding_id": "MX2-4",
+   "title": "The page's own small controls still have less than 44 x 44 px to tap (left open on purpose by the merge; sizes)",
+   "finding": "agents_20261127-sector-r2-mobex, sonnet, MX2-4, minor: The page's own small controls still have less than 44 x 44 px to tap (left open on purpose by the merge; sizes). Where: all tabs and windows, 390 (same at 360), touch Steps: hasTouch+isMobile; hit extent = region where elementsFromPoint returns the control (p3.cjs, p7.cjs, p8.cjs) Expected: 44 x 44 px tap area without moving anything Actual: Tap area (w x h) vs visible box: legend toggles .ovx-tog 52-82 x 24 (box 24 high); Momentum dots 11 x 11; Cumulative return end dots 5 x 5; Heatmap name cells (hxCard .nm) 92 x 24 and heat cells 52 x 24; weekly heatmap sector name buttons (rsW .nm) 78 x 20; Rank change dots 7 x 7; Rotation map sector dots 28 x 28 (hit circle r 14, visible 11); trail points 4-6; map labels 50-56 x 15; stock quadrant dots 11-21; Pair matrix heads 45 x 20, name buttons 88 x 30, cells 45 x 30, swap button 28 x 28, ratio dots 5; Breadth IHSG chips .bxl 50 x 24, .bms 121+ x 28, Show/segs; sortable table headers 36 high (Breadth 20-26 high); stock ticker buttons in windows 26 x 18; Formula chip 68 x 18; Rotation detail chips 53-81 x 32; search fields 26 high; selects (.sx-sel) 28 high; date menu items 230 x 28; header Date and Open in Terminal buttons 32 high; tabs 40 high; 'IHSG' .ihq 52 x 28 Evidence: p3.json, p7/p8/p9 console output",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0",
+    "3a597e76"
+   ],
+   "fix_note": "90bf33f0 3a597e76: src/touch.ts: every small control's area measured from its neighbours (up to 44 px; to the next target, half way to another area; inside the pinned tab bar and its clip; 44 px shared between the sides), refitted after every draw, scroll and resize; chart dots get transparent circles; selects open from their wrapper; name clips on inner spans (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"sector: touch hit areas, no layout change, no overlap\"; check2.test \"MX2-4 / MX2-5\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (A touch screen at 390 and 360: every tab and window; the tap extent of each small control (elementFromPoint), no two areas overlapping, no area over a neighbour.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-4); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-mobex/MX2-5",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-mobex",
+   "finding_id": "MX2-5",
+   "title": "Shared segmented buttons are 44 high but only 28-36 wide to tap",
+   "finding": "agents_20261127-sector-r2-mobex, sonnet, MX2-5, nit: Shared segmented buttons are 44 high but only 28-36 wide to tap. Where: every seg on every tab, touch Steps: p3.cjs: 3M 34 x 44, All 30 x 44, Top 7 30 x 44, Below 32 x 44, 4W 36 x 44 Expected: at least 44 x 44 (user 3A) Actual: width stays the button's own because edge-canonical.css:59 sets .seg{--hit-x:0px} (neighbours abut) Evidence: p3.json (rs/pm/br/rot 'button.on' and 'button.' rows)",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: the outer buttons of a segmented control reach outward to the next target; inner ones keep their width (they touch); heights 44 px where the row has room (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "as MX2-4 (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (A touch screen: the segment buttons of every tab; their tap width and height.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-5); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-mobex/MX2-6",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-mobex",
+   "finding_id": "MX2-6",
+   "title": "Stretched pairs window on a phone: the 'Show' label is cut off from its Top 7 / All switch",
+   "finding": "agents_20261127-sector-r2-mobex, sonnet, MX2-6, nit: Stretched pairs window on a phone: the 'Show' label is cut off from its Top 7 / All switch. Where: Pair matrix tab, Stretched pairs window, 390 Steps: Phone, expand Stretched pairs Expected: label next to its switch Actual: 'Show' sits right of the filter row while 'Top 7 / All' wrap onto the next line; the search placeholder is cut to 'Search sector or' Evidence: w_390_dark_pmS.png",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: label and control wrap together (.sgrp, Momentum x vs y, Breadth Show); the phone search keeps 150 px (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "look check2 \"MX2-6\", check2.test, check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Stretched pairs window at 390: Show beside Top 7 / All, the search's placeholder; every labelled control and placeholder.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-6); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-mobex/MX2-7",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-mobex",
+   "finding_id": "MX2-7",
+   "title": "Active sort arrow has 1.9:1 (light) / 2.05:1 (dark) contrast",
+   "finding": "agents_20261127-sector-r2-mobex, sonnet, MX2-7, nit: Active sort arrow has 1.9:1 (light) / 2.05:1 (dark) contrast. Where: hxCard, rsD, pmT, brT, brD headers, 390 Steps: p16.cjs contrast sweep: SPAN.sk arrow glyph Expected: 3:1 at least for a state indicator Actual: 1.89:1 light, 2.05:1 dark; everything else text >= 4.5:1 (disabled filters in pmS excluded) Evidence: p16 output",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: the default order's arrow drawn without its 45% opacity (text, >= 4.5:1) (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "look check2 \"MX2-7\", check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (The sort arrow of hxCard, rsD, pmT, brT, brD heads, light and dark: its contrast.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-7); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-mobex/MX2-8",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-mobex",
+   "finding_id": "MX2-8",
+   "title": "Visible subtitles still say 'click' on a touch screen",
+   "finding": "agents_20261127-sector-r2-mobex, sonnet, MX2-8, nit: Visible subtitles still say 'click' on a touch screen. Where: hxCard, pmM (two), pmT, brD, 390 touch Steps: p18.cjs scan of visible text with hasTouch Expected: Tap wording like the fixed MX-8 hint Actual: 'click a column header to sort', 'click a cell to open the pair', 'click column names', 'click a row to make it A', 'click a stock to open it in the Terminal' Evidence: /root/.claude/projects/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/tool-results/bd1qes6fg.txt",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: 18 mouse texts and tips through tap(); the other pages' mouse words on touch are an open part (FIXES.md) (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "look check2 \"MX2-8\", check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (A touch screen at 390: every visible text, title and tip of every tab and window; also the Watchlist, Screener and Backtest (open part).) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-8); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-r2-mobex/MX2-9",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-r2-mobex",
+   "finding_id": "MX2-9",
+   "title": "Market map window: group label cut at 360",
+   "finding": "agents_20261127-sector-r2-mobex, sonnet, MX2-9, nit: Market map window: group label cut at 360. Where: Overview, Market map window, 360 (390: 'Healthcare Equipment & Su...') Steps: Phone, expand Market map Expected: whole group name Actual: 'Healthcare Equipment & Supplies' shown cut (scrollWidth 193 > 93 at 360, > 172 at 390) Evidence: p1.json mkCard cut; w_390_dark_mkCard.png",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "90bf33f0"
+   ],
+   "fix_note": "90bf33f0: a group's name wraps onto up to three 14 px lines when wider than its group (the group keeps 55% for its tiles) (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "look check2 \"MX2-9\", check2.test (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Market map window at 360 and 390: the group labels.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-sector-r2-mobex.json (MX2-9); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-edge-r2-wide/EW2-1",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "EDGE putaran 2 (fokus, kontras, sentuh): cek 2 halaman lain (27 Nov 2026)",
+   "run": "agents_20261127-edge-r2-wide",
+   "finding_id": "EW2-1",
+   "title": "Shell components still draw a 3px ring (grey, 50% alpha) around fields on focus: settings select/input, compare search, generic .search",
+   "finding": "agents_20261127-edge-r2-wide, sonnet, EW2-1, minor: Shell components still draw a 3px ring (grey, 50% alpha) around fields on focus: settings select/input, compare search, generic .search. Where: shell (static/index.html), logged-in components; light and dark; checked with injected elements carrying the real class names because the logged-in shell cannot be loaded without a login Steps: Load /monitor from a server that answers no API, inject <div class=app><div class=settings-select><select id=t2>, <div class=compare-search><div><input id=t3>, <label class=search><input id=t6> and focus each after a key press (probe_shell.mjs). Read computed box-shadow. Expected: UD75/decision 13: a field (input, select, textarea) never takes a ring; decision 8: no border line, soft shadow. Actual: select.settings-select: box-shadow oklch(0.708 0 0 / .5) 0 0 0 3px plus a 1px grey border; .compare-search>div and label.search: the same 3px spread ring and border (dark: oklch(.439)). Not blue, but a ring of the old shadcn style. Source: static/index.html:557-561 (.search:focus-within), 2145-2149 (.settings-select select), 3501-3505 (.compare-search>div); the round-2 diff left them on purpose ('A field keeps its own focus state', index.html comment near line 11236) while the user text says fields never have a ring. Evidence: probe_shell.mjs output (scratch folder); index.html lines above. Could not confirm in the real logged-in DOM.",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "3a597e76"
+   ],
+   "fix_note": "3a597e76: static/index.html: the settings select and input, compare search, search box and every text field take the field state (line transparent, --shadow), never the 3 px ring; a checkbox the keyboard ring (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"the logged-in shell's fields take the field state\"; tests/test_focus_ring.py (verification/edge_states/round2_focus_contrast.mjs (every page's fixture build))",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (The logged-in shell (or its class names injected): focus each field after a key press; read the outline and box-shadow.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-edge-r2-wide.json (EW2-1); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-edge-r2-wide/EW2-4",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "EDGE putaran 2 (fokus, kontras, sentuh): cek 2 halaman lain (27 Nov 2026)",
+   "run": "agents_20261127-edge-r2-wide",
+   "finding_id": "EW2-4",
+   "title": "Backtest: blue (--blue, not --blue-tag) text on a blue hover tint is below 4.5:1 in light",
+   "finding": "agents_20261127-edge-r2-wide, sonnet, EW2-4, nit: Backtest: blue (--blue, not --blue-tag) text on a blue hover tint is below 4.5:1 in light. Where: Backtest light; '.addc:hover' (add-condition tile) and '.searchbox.adder-open .sb-go' ('Browse' on hover) Steps: Hover the 'Browse' link in the add-indicator search box; hover the dashed '.addc' tile; compute the colour of the text over the blended tint (probe_hc.mjs). Expected: UD73 4A: text on a tint at least 4.5:1; the tag/pill rule uses --blue-tag #0064d8 for that. Actual: #0070f3 on rgb(235,244,254) = 4.08:1 (.sb-go hover); .addc:hover colour var(--blue) over color-mix(--blue 14%) = about 3.75:1. Dark theme passes (6.1-6.6). Evidence: backtest/src/styles/backtest.css:419; backtest/src/styles/design.css:814. Same in pre tree (not a regression).",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "3a597e76"
+   ],
+   "fix_note": "3a597e76: backtest.css .addc:hover and design.css .sb-go on --blue-tag (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"backtest: text on a blue hover tint reads 4.5:1\" (verification/edge_states/round2_focus_contrast.mjs (every page's fixture build))",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Backtest light: hover Browse and an add-condition tile; the contrast of their text.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-edge-r2-wide.json (EW2-4); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-edge-r2-wide/EW2-5",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "EDGE putaran 2 (fokus, kontras, sentuh): cek 2 halaman lain (27 Nov 2026)",
+   "run": "agents_20261127-edge-r2-wide",
+   "finding_id": "EW2-5",
+   "title": "Radar stacked segment rows: enlarged touch areas overlap by 8 px and each button's real tap area is only 36 px (rows 1-2) / 42 px (row 3), not 44",
+   "finding": "agents_20261127-edge-r2-wide, sonnet, EW2-5, minor: Radar stacked segment rows: enlarged touch areas overlap by 8 px and each button's real tap area is only 36 px (rows 1-2) / 42 px (row 3), not 44. Where: Radar, 390x844 and 360x740, touch, with the local data (3 stacked .seg.sm rows: Broad/Liquid, Loose/Standard/Tight, All hits/New today...); light Steps: Open /radar-app/ with hasTouch+isMobile on the fixture with data; read each .seg button's ::after box (top/bottom -11px, 44 px tall) and elementFromPoint along its vertical axis (probe_overlap.mjs, probe_touch.mjs, radar_seg.mjs). Expected: UD72 3A: 44 x 44 px tap area, no layout change, and 'no two areas overlapping' (--hit-y halfway to the neighbour). Actual: Rows sit at a 36 px pitch (seg 28 px high, buttons 22 px), the default --hit-y 22px is not capped for this stack, so the ::after boxes of neighbouring rows overlap (8 pairs, 8 px each); the later element wins, leaving 36x(44 wide) for rows 1-2 and 42 for the last. Real data not needed beyond the local fixture. Fix without layout change: set --hit-y:7px on those rows (36 px, no overlap); 44 would need a row pitch of 44 or fewer rows. Evidence: round2_focus_contrast.mjs 'radar: touch hit areas' FAIL: button.on 48x22 hit 48x36 ... ; probe_overlap.mjs: 8 overlapping pairs at 390 and 360; radar/src/styles/radar.css:945-950 (.seg{--hit-x:0px} only).",
+   "errors": [
+    "M576"
+   ],
+   "fix_commits": [
+    "3a597e76"
+   ],
+   "fix_note": "3a597e76: radar.css: on a phone the stacked filter rows reach 7 px (half the gap), the first 11 px up, the last 9 px down (40/36/38 px); the Watchlist list menu and Screener Previous page buttons reach 6 px toward their neighbour (verdict in verification/sector_analysis/check2/FIXES.md)",
+   "runs_on": "branch",
+   "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"touch hit areas, no layout change, no overlap\" (overlaps fail) (verification/edge_states/round2_focus_contrast.mjs (every page's fixture build))",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Reproduce the original finding (Radar at 390 and 360 with its local data: the stacked segment rows' tap areas; the Watchlist and Screener controls next to a neighbour.) on the beta once these commits run there; look for the same mechanism elsewhere; run the tests of the files the fix touched.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check2/agents_20261127-edge-r2-wide.json (EW2-5); verification/sector_analysis/check2/FIXES.md",
+   "from": "fix"
   }
  ]
 }

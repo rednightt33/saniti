@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 220 item
+## Menunggu uji ulang: 241 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -39,6 +39,8 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) | EXEC-PRICE-DISTORTION | 4 | 4 | 0 | 0 | 0 | 0 |
 | Backtest, Screener dan Terminal: state fokus dan terpilih mengikuti Terminal, pilihan yang terpotong (ERRORS M570) | EXEC-VISUAL-STATES | 2 | 2 | 0 | 0 | 0 | 0 |
 | Sector Analysis: nama file keluarga sector/ (ERRORS M572) | EXEC-SECTOR-ANALYSIS | 1 | 0 | 0 | 0 | 1 | 0 |
+| Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026) | EXEC-SECTOR-ANALYSIS | 18 | 0 | 0 | 18 | 0 | 0 |
+| EDGE putaran 2 (fokus, kontras, sentuh): cek 2 halaman lain (27 Nov 2026) | EXEC-SECTOR-ANALYSIS | 3 | 0 | 0 | 3 | 0 | 0 |
 
 ### Akun dan keamanan: re-check ronde 1 (R1) (40)
 
@@ -335,11 +337,42 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 |---|---|---|---|---|---|
 | `errors/M572` | The contract named the per-sector files with the index ticker in capitals, which terminal-api never serves | `e7d510b6` | bukan kode | M572 | 0 |
 
+### Sector Analysis: cek 2 halaman (5 agen Sonnet medium, 27 Nov 2026) (18)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `agents_20261127-sector-r2-ovrs/OV2-1` | Sector drill-down window with 'Open all industries': columns are cut at the window's right edge and both tables scroll sideways | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-ovrs/OV2-3` | Custom popover prefills From 2026-09-04 while its own note and the card say the range starts 3 Sep | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-rotpm/RP2-1` | Rotation map window, Timeline: the legend is not at the bottom when the window is taller than the content; a large blank band remains | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-rotpm/RP2-2` | Stock momentum quadrant: outlier dots still touch/overprint quadrant names and labels at narrow widths, and one outlier still squeezes the chart | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-rotpm/RP2-4` | Beta window: right-aligned numbers of the lower table sit 4-5 px right of the upper table's although the column edges match | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-rotpm/RP2-5` | Timeline in the card keeps about 150 px of empty card below the grid | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-brdt/BD2-1` | Keyboard focus shows no ring on the slope-chart rows (Relative strength) and the Rotation map dots | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-brdt/BD2-2` | Quadrant tag pills Lagging and Improving are below 4.5:1 in light (decision 14) | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-brdt/BD2-3` | Stock detail row tooltip reads 'since The status is older than the 300 sessions of data' | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-brdt/BD2-4` | '0 pp' cells in the Breadth heatmap table's delta column have different colours | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-mobex/MX2-1` | Rotation detail window on a phone: the sector chip row scrolls sideways with no cue | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-mobex/MX2-2` | Rotation detail window on a phone: 'Changes / All columns' switch wraps into two stacked rows inside the 52 px band and the subtitle is cut | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-mobex/MX2-4` | The page's own small controls still have less than 44 x 44 px to tap (left open on purpose by the merge; sizes) | `90bf33f0`, `3a597e76` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-mobex/MX2-5` | Shared segmented buttons are 44 high but only 28-36 wide to tap | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-mobex/MX2-6` | Stretched pairs window on a phone: the 'Show' label is cut off from its Top 7 / All switch | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-mobex/MX2-7` | Active sort arrow has 1.9:1 (light) / 2.05:1 (dark) contrast | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-mobex/MX2-8` | Visible subtitles still say 'click' on a touch screen | `90bf33f0` | branch | M576 | 0 |
+| `agents_20261127-sector-r2-mobex/MX2-9` | Market map window: group label cut at 360 | `90bf33f0` | branch | M576 | 0 |
+
+### EDGE putaran 2 (fokus, kontras, sentuh): cek 2 halaman lain (27 Nov 2026) (3)
+
+| Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
+|---|---|---|---|---|---|
+| `agents_20261127-edge-r2-wide/EW2-1` | Shell components still draw a 3px ring (grey, 50% alpha) around fields on focus: settings select/input, compare search, generic .search | `3a597e76` | branch | M576 | 0 |
+| `agents_20261127-edge-r2-wide/EW2-4` | Backtest: blue (--blue, not --blue-tag) text on a blue hover tint is below 4.5:1 in light | `3a597e76` | branch | M576 | 0 |
+| `agents_20261127-edge-r2-wide/EW2-5` | Radar stacked segment rows: enlarged touch areas overlap by 8 px and each button's real tap area is only 36 px (rows 1-2) / 42 px (row 3), not 44 | `3a597e76` | branch | M576 | 0 |
+
 ## Hitungan per status
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 220 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 241 |
 | `fixed` | diuji ulang agen lain: beres | 175 |
 | `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 8 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
@@ -347,7 +380,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | `open` | belum diperbaiki | 90 |
 | `accepted` | diterima user apa adanya | 4 |
 | `obsolete` | tidak berlaku lagi | 5 |
-| **Total** | | **502** |
+| **Total** | | **523** |
 
 Dari 90 baris `open`, 25 punya baris pemilik di PLAN.md atau EXEC.md dan 65 belum
 (aturan 1: setiap bagian yang terbuka butuh pemilik dan pemicu).
