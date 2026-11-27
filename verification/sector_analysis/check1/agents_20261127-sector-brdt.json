@@ -1,0 +1,137 @@
+{
+ "run": "agents_20261127-sector-brdt",
+ "area": "breadth-dates-header",
+ "model": "sonnet",
+ "checked": [
+  "Breadth tab at 1440x900 light and dark, 1280 and 1152 light/dark: layout, overlaps, clipped text, horizontal overflow, console errors (none on any load)",
+  "Breadth vs price: Show popover (IHSG + 11 sectors, 5-line limit, 7 disabled at 5, Set main, uncheck main promotes next, last line not removable), EMA50/EMA200, 3M/6M/1Y/Custom (popover note, invalid range messages, Apply), wheel zoom, drag pan, min/max zoom, +/- and arrow keys, legend hide/show of main and price line, hover tooltip (date, %, index, zone), sector as main line, daily-log window (60 rows, click date marks window chart)",
+  "Breadth heatmap table: % / Stock count, cell tooltips, all sort headers and 3-level sort with Clear sort note, row click selects sector and back, window with + Column popover (EMA50/EMA200 x 3D/1W/1M, no EMA20), How to read",
+  "Breadth by sector: three measures, subtitles, tooltips, window with sector select; A/U/D: 1D/1W/1M, tooltips, window with 1W; Stock detail: All/Above/Below, EMA50/EMA200 follow, sorts, window search, hover tooltip (stock row click NOT clicked because it opens the Terminal)",
+  "Date picker: all 20 dates opened and picked in turn on the Breadth tab (pills, date button, headline, heatmap, A/U/D, stock detail subtitle); 3 dates (26 Nov, 12 Nov, 30 Oct) across all five tabs with a search for newer dates still shown (none) and the Overview KPI row (IHSG 5D, beating, strongest, improving) recomputed from sector-series (matches); keyboard in menu; Escape; state carried over a date change (custom range, zoom, selection, mark)",
+  "Recomputed from sector-series.json / day files / Feature_04_Technical_Indicator: IHSG a50/n50 and 5-session change on 26 Nov, 17 Nov, 12 Nov, 30 Oct; Health, Transport, Financials, Energy on 26 Nov and 17 Nov; Tech, Property, Energy, Basic Mat. on 12 Nov and 30 Oct (members, Up 1D, >EMA50, >EMA200, Delta 1W); % > IHSG 5D for 3 sectors; IDEA days/since vs the database (49 sessions since 8 Sep): all match the page",
+  "Consistency with /overview: market % above EMA50 and '+x pp vs 5 sessions' equal on 26 Nov (18%, +0.3) and 12 Nov (16%, +5.6); 6M axis starts the same (8 Jun)",
+  "Original design defects for this tab: D12 (price line label/tooltip) fixed; D13 (A/U/D title/subtitle truncated, 50% line over counts) fixed at 1440; D14 (axis labels struck through) fixed; no EMA20 text anywhere in cards, windows, tooltips or source"
+ ],
+ "findings": [
+  {
+   "id": "BD-1",
+   "severity": "major",
+   "title": "Breadth vs price: chart is drawn at the wrong height at 1280 wide and its x-axis labels overlap the footer line",
+   "where": "Breadth tab, card Breadth vs price, viewport 1280x800 (light and dark); card header controls wrap to two rows",
+   "steps": "Open /sector at 1280x800, Breadth tab (fresh load, no resize). Measure [data-card=brH] [data-chart] and its svg.",
+   "expected": "The svg fits the chart box; footer 'Green zone >= 70% ...' sits below the axis labels, as at 1440 and 1152",
+   "actual": "Chart box is 234 px high (controls wrapped to 2 rows) but the svg stays 260 px (drawn before the wrap; the ResizeObserver only redraws on width change). svg bottom 586.4 and axis labels bottom 585.4 vs footer top 564.5: the date labels '8 Jun / 4 Aug / 1 Oct' print over 'Green zone >= 70% · red zone <= 30%'. At 1440 svg bottom 586.4 < footer 590.5 and at 1152 630.4 < 634.5 (ok).",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/br_1280_dark_full.png (overlap at y~585), /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/br_1280_dark_showpop.png; probe t18: 1280 {chartBottom:560.5, svgBottom:586.4, lgdTop:564.5, maxAxisBottom:585.4}; same in light"
+  },
+  {
+   "id": "BD-2",
+   "severity": "major",
+   "title": "Stock detail: distance values are cut with an ellipsis at 1280 wide",
+   "where": "Breadth tab, card Stock detail, viewport 1280 (card 381 px wide)",
+   "steps": "Open Breadth at 1280x800; read the first rows (IDEA, VOKS, INPS).",
+   "expected": "Every distance is readable in full ('+104.7%', '+256.7%')",
+   "actual": "Values of three digits are truncated: '+104...', '+256...', '+114...', '+142...' (td scrollWidth 66 > clientWidth 61, 5 cells in first view; 'XX Nov 2025' dates 88 > 68). The reader cannot tell +104% from +109%.",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/br_1280_dark_full.png; probe t19 1280: brD:TD:+104.7%:66>61 ..."
+  },
+  {
+   "id": "BD-3",
+   "severity": "minor",
+   "title": "Stock detail 'Since' date with a year is clipped at 1440",
+   "where": "Breadth tab, Stock detail, EMA50 mode, 1440x900",
+   "steps": "Scroll Stock detail to the below-EMA50 stocks with the oldest status (ENAK, TIRA): Since column.",
+   "expected": "'11 Nov 2025'",
+   "actual": "'11 Nov 2…' (td 88 > 78); the year, the only thing that tells the date is a year back, is cut off",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/brD_2025_since.png; rows 'ENAK Below -12.9% -48.0% 251 11 Nov 2025', 'TIRA ... 245 19 Nov 2025'"
+  },
+  {
+   "id": "BD-4",
+   "severity": "minor",
+   "title": "Breadth heatmap table: the last column (Delta EMA50 1W) is cut off at 1152 wide",
+   "where": "Breadth tab, Breadth heatmap table, viewport 1152 (card 516 px)",
+   "steps": "Open Breadth at 1152x800; look at the table header and rows.",
+   "expected": "All eight columns visible, or a clear sign that the table scrolls",
+   "actual": "tbl-wrap scrollWidth 560 > 514; the header shows only the start of 'Delta' and every row's Delta cell is cut; '> EMA50' and '> EMA200' headers wrap to two lines; there is no visible scrollbar or fade",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/br_1152_light_full.png; probe t6 1152: brT:DIV.tbl-wrap 560>514"
+  },
+  {
+   "id": "BD-5",
+   "severity": "minor",
+   "title": "Rapid date picks: an older, slower response can overwrite the newer pick",
+   "where": "Header date picker (app.ts pickDate), any tab",
+   "steps": "On the Breadth tab pick 30 Oct, then at once 12 Nov (script: both clicks in one tick; the 30 Oct day file delayed by 2.5 s with a route handler to model a slow network).",
+   "expected": "The page ends on 12 Nov (the last choice)",
+   "actual": "After both loads the page shows 30 Oct: date button 'Fri 30 Oct · Close', pill 'Prices to Fri 30 Oct', headline 'above EMA50 on 30 Oct'. pickDate has no sequence guard (day = await get(...) then assigns), so the last response to arrive wins, not the last click.",
+   "evidence": "probe t21 output ['Fri 30 Oct · Close', 'Prices to Fri 30 Oct', 'above EMA50 on 30 Oct ...']; apps/edge-bff/sector/src/app.ts:152-157"
+  },
+  {
+   "id": "BD-6",
+   "severity": "minor",
+   "title": "Same card, three different stock counts: A/U/D and the heatmap 'Up' columns use fewer stocks than the Stocks column",
+   "where": "Breadth tab: heatmap (Stocks 838), A/U/D IHSG row '310/834', Stock detail '147 of 838'; also per sector (Energy 78 in the heatmap, 39/77 in A/U/D, Financials 98 vs 27/97)",
+   "steps": "26 Nov: read heatmap IHSG row, switch Show to Stock count, read A/U/D IHSG row and the window subtitle '310 up · 202 unchanged · 322 down'.",
+   "expected": "Either the same denominator or a visible reason",
+   "actual": "Stocks without that return (4 on 26 Nov, 1 on 17 Nov, 2 on 30 Oct; e.g. BBMD, DUTI, RONY, SURE) are dropped silently: 'Up 1D' IHSG = 310/834 = 37% while the Stocks column says 838 and the series' own adv/unch/dec for the date is 311/204/323 = 838. Energy: heatmap 51% (39/77), series 39/78 = 50.0%. Only the window 'How to read' mentions 'a stock without that return is not counted'. The code comment in br.ts:258 says this matches the series' adv/unch/dec, which it does not (series 311/204/323).",
+   "evidence": "day file sector-day-2026-11-26 r1d: up 310 flat 202 dn 322 null 4; sector-series IHSG adv/unch/dec at 2026-11-26 = 311/204/323; page brN IHSG row 310 | 202 | 322 | 310/834; heatmap tooltip 'Energy 39 of 77 stocks . 50.6%'"
+  },
+  {
+   "id": "BD-7",
+   "severity": "minor",
+   "title": "Custom range: the applied range starts one session before the chosen From date, and the count differs from the popover",
+   "where": "Breadth vs price, Period Custom",
+   "steps": "Custom, From 2026-02-01 To 2026-05-29: popover note says '2 Feb – 29 May · 72 trading days'; Apply. Also From 2026-10-01 To 2026-11-26.",
+   "expected": "The footer range starts on the chosen first session ('2 Feb – 29 May')",
+   "actual": "Footer shows '30 Jan – 29 May · 72 sessions' (and '30 Sep – 26 Nov · 41 sessions' for a 1 Oct start): the chart starts at the session before From, so it shows 73 points and a date the viewer did not choose",
+   "evidence": "probe t9 'custom applied 30 Jan – 29 May · 72 sessions'; probe t15 'custom 30 Sep – 26 Nov · 41 sessions'; popover text '2 Feb – 29 May · 72 trading days'"
+  },
+  {
+   "id": "BD-8",
+   "severity": "minor",
+   "title": "Show popover list is clipped: the last sector (Transport) and the footer note need a scroll that has no visible cue",
+   "where": "Breadth vs price, Show popover, 1440/1280/1152",
+   "steps": "Click Show (IHSG (all stocks)).",
+   "expected": "All 12 options and the note 'The main line (ink) also sets the selection of the other breadth cards' visible, or a visible scrollbar",
+   "actual": "Popover is 338 px high with 421 px of content (overflow auto): the list ends at 'Tech'; 'Transport' and the note are below the fold and no scrollbar is shown in the screenshots",
+   "evidence": "probe t5: pop [top 252.4, bottom 592.4, scrollHeight 421, clientHeight 338, overflowY auto]; /tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/brH_show_pop.png"
+  },
+  {
+   "id": "BD-9",
+   "severity": "nit",
+   "title": "Date menu does not respond to arrow keys although its items are role=menuitemradio",
+   "where": "Header date picker",
+   "steps": "Open the menu (focus lands on the checked item), press ArrowDown twice, then Enter.",
+   "expected": "Focus moves down the list (menu pattern) and Enter picks that date",
+   "actual": "Focus stays on 'Thu 26 Nov 2026'; Enter picks the same date, nothing changes (Tab works)",
+   "evidence": "probe t14 'focus 2026-11-26', 'after kb Thu 26 Nov · Close'"
+  },
+  {
+   "id": "BD-10",
+   "severity": "nit",
+   "title": "The picked date is not kept in the address although every other choice is",
+   "where": "Header date picker / readHash",
+   "steps": "Pick 12 Nov, read location.hash, reload.",
+   "expected": "Per the file comment 'the viewer's choices live in the address' the date would survive a reload or a shared link",
+   "actual": "Hash holds only the tab/state diff ({\"tab\":\"br\"}); a reload or a copied link returns to the newest date",
+   "evidence": "probe t14 hash '#%7B%22tab%22%3A%22br%22%7D'; app.ts diffState has no date"
+  },
+  {
+   "id": "BD-11",
+   "severity": "nit",
+   "title": "Stock detail shows '—' (Since) next to '300+' days, and '—' distance, without a reason",
+   "where": "Stock detail, EMA200 mode and recently listed stocks",
+   "steps": "Breadth tab, % above EMA200; sort by Since: AYAM/MKAP/JRPT show Days '300+' and Since '—'. Also XSPI EMA200 distance '—'.",
+   "expected": "A hint (tooltip) why: status older than the 300-session history / no EMA200 yet",
+   "actual": "Bare dashes; the row tooltip only says 'EMA200 —'",
+   "evidence": "probe t8 'brD sort since [AYAM Above +5.7% +25.5% 300+ —, ...]'; first screenshot XSPI row"
+  },
+  {
+   "id": "BD-12",
+   "severity": "nit",
+   "title": "Tiny negative distances print as '0.0%' on a row marked Below",
+   "where": "Stock detail, Below filter, EMA50 sort",
+   "steps": "Below filter: BNGA, MPIX, HELI show '0.0%' (neutral colour) vs EMA50 though Below",
+   "expected": "'-0.0%' or '<0.1%' so the status and the sign agree",
+   "actual": "'0.0%' without a sign",
+   "evidence": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-brdt/win_brD_below.png (rows BNGA/MPIX/HELI)"
+  }
+ ]
+}
