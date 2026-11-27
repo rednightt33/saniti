@@ -270,7 +270,10 @@ hijau 600 / 500 / 300, abu datar, merah 300 / 500 / 600, teks putih pada tingkat
 gelap (hanya abu datar yang mengikuti tema, seperti `--ov-flat` Overview). Nilai diubah ke skala Overview:
 c = (nilai − pusat) / batas × 3; c ≥ 3 tingkat terkuat, c ≥ 1,5 tingkat tengah, selain itu tingkat muda; nilai yang tidak
 tepat di pusat selalu mendapat paling sedikit tingkat muda, hanya nilai tepat di pusat yang abu. Jadi **tingkat terkuat
-dicapai tepat pada batas kolom**, tingkat tengah mulai setengah batas.
+dicapai tepat pada batas kolom**, tingkat tengah mulai setengah batas. Nilai dibaca **seperti yang tercetak di sel**
+(dibulatkan ke desimal yang tampil; cek 2 BD2-4): sel bertuliskan "0 pp" atau "50%" abu, dan dua sel bertulisan sama
+di kolom yang sama berwarna sama. Contoh 26 Nov 2026, kolom Δ EMA50 1W tabel Breadth: IHSG +0,3 pp tercetak "0 pp" →
+abu datar (dulu hijau muda di samping "0 pp" Cons. Cyc yang abu). Warna teks naik/turun mengikuti aturan yang sama.
 - Batas per kartu: Sector × horizon = |return| terbesar di kolom horizon itu; Market map = |5D − IHSG 5D| terbesar di antara
   ubin; Weekly excess heatmap = |selisih| terbesar di seluruh sel; Breadth heatmap table = pusat 50%, batas 50 poin (100%
   terkuat, 75% tengah) dan kolom Δ = batas 25 pp; Pair matrix spread = |spread| terbesar di matriks.

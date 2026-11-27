@@ -4,6 +4,7 @@
    its floating window at the same time, so it finds its parts by data attributes inside its own element. */
 import * as M from './model.ts';
 import { W } from './words.ts';
+import { fitTouch } from './touch.ts';
 
 export const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 export const $ = <T extends Element = HTMLElement>(s: string, r: ParentNode = document) => r.querySelector(s) as T;
@@ -17,10 +18,12 @@ export function H3(title: string, sub: string, ctl = '', expand: string | null =
 }
 /** a segmented control: data-seg names it inside the card; options [value, label]; disabled options with a reason */
 export function SEG(key: string, label: string, opts: [string | number, string][], on: string | number, dis: Record<string, string> = {}) {
-  return `${label ? `<span class="plab">${esc(label)}</span>` : ''}<div class="seg sm" data-seg="${esc(key)}" role="group" aria-label="${esc(label || key)}">${opts.map(([v, l]) => {
+  // a label and its control wrap together (check 2 MX2-6: "Show" stayed on the row above its Top 7 / All on a phone)
+  const seg = `<div class="seg sm" data-seg="${esc(key)}" role="group" aria-label="${esc(label || key)}">${opts.map(([v, l]) => {
     const sel = String(v) === String(on), d = dis[String(v)];
     return `<button type="button" data-v="${esc(v)}" class="${sel ? 'on' : ''}" aria-pressed="${sel}"${d ? ` disabled title="${esc(d)}"` : ''}>${esc(l)}</button>`;
   }).join('')}</div>`;
+  return label ? `<span class="sgrp"><span class="plab">${esc(label)}</span>${seg}</span>` : seg;
 }
 /** the click of a segmented control's option (a Custom option is handled by its own popover, `custom`) */
 export function onSeg(el: HTMLElement, key: string, fn: (v: string, b: HTMLElement, e: MouseEvent) => void) {
@@ -52,7 +55,8 @@ export function escTop(): boolean {
 }
 
 /* ---------- scroll cues (check 1 OR-2, BD-4, MX-2, MX-3): a scroller with more content past an edge fades at that edge ---------- */
-const CUED = '.tbl-wrap,.hm-s,.pmg-s,.rsw-s,.fw-tw,.sx-tabs,.bxp,.cmp';
+// check 2 MX2-1: the Rotation detail window's sector chips on a phone are a sideways scroller too
+const CUED = '.tbl-wrap,.hm-s,.pmg-s,.rsw-s,.fw-tw,.sx-tabs,.bxp,.cmp,.c1-chips';
 function cue(x: HTMLElement) {
   const r = x.scrollLeft + x.clientWidth < x.scrollWidth - 1, l = x.scrollLeft > 1, b = x.scrollTop + x.clientHeight < x.scrollHeight - 1;
   // a scroller with a sticky first column shows its left cue as that column's shadow (a fade would fade the column)
@@ -83,9 +87,13 @@ export function step(c: number, up: Step[] = UP, down: Step[] = DOWN): Step {
 /** a heat cell: the column's cap maps onto the Overview's scale, c = (v − centre) / cap × 3, so the strongest step is
     reached at the cap, the middle one from half of it and the light one below (the Overview divides a return by its
     period's scale the same way: 1D ±0.5 / 1.5 / 3%) */
-export function heat(v: number | null | undefined, cap: number, centre = 0): string {
+/** `dp`: the decimals the cell prints; the step is taken from the value as printed, so a cell reading "0 pp" is the flat
+    step and two cells with the same text have the same colour (check 2 BD2-4: +0.3 printed "0 pp" was light green next
+    to a flat "0 pp") */
+export const shownAs = (v: number, dp?: number) => (dp == null ? v : +v.toFixed(dp) || 0);
+export function heat(v: number | null | undefined, cap: number, centre = 0, dp?: number): string {
   if (v == null || !Number.isFinite(v)) return '';
-  const [bg, fg] = step(((v - centre) / (cap || 1)) * 3);
+  const [bg, fg] = step(((shownAs(v, dp) - centre) / (cap || 1)) * 3);
   return `background:${bg};color:${fg}`;
 }
 /** the Pair matrix's correlation: the same steps in its own two hues, navy for moving together and red for opposite moves,
@@ -93,9 +101,9 @@ export function heat(v: number | null | undefined, cap: number, centre = 0): str
     closely" line), the middle one from ±0.4, the light one below. The sectors' 60-session correlations of 26 Nov 2026 ran
     0.64 to 0.94, so the two upper steps split them where a fixed 1.0 would have coloured all of them the middle step */
 export const CORR_CAP = 0.8;
-export function corrHeat(v: number | null | undefined): string {
+export function corrHeat(v: number | null | undefined, dp?: number): string {
   if (v == null || !Number.isFinite(v)) return '';
-  const [bg, fg] = step((v / CORR_CAP) * 3, NAVY, DOWN);
+  const [bg, fg] = step((shownAs(v, dp) / CORR_CAP) * 3, NAVY, DOWN);
   return `background:${bg};color:${fg}`;
 }
 /** the legend of a heat scale: its seven steps, strongest red to strongest green */
@@ -174,7 +182,7 @@ const ctx2d = typeof document !== 'undefined' ? document.createElement('canvas')
 export const textW = (t: string, f = '600 11px Inter, sans-serif') => { if (!ctx2d) return t.length * 6.2; ctx2d.font = f; return ctx2d.measureText(t).width };
 
 /* ---------- the Custom range popover: one element, placed under the Custom button that opened it ---------- */
-let pop: HTMLDivElement | null = null, popFor: { btn: HTMLElement; apply: (r: M.Range) => void; check: (a: string, b: string) => M.RangeCheck; single?: boolean } | null = null;
+let pop: HTMLDivElement | null = null, popFor: { btn: HTMLElement; apply: (r: M.Range) => void; check: (a: string, b: string) => M.RangeCheck; single?: boolean; noteOf?: (r: M.RangeCheck) => string } | null = null;
 const closeOut = (e: Event) => { if (pop && !pop.hidden && !pop.contains(e.target as Node) && e.target !== popFor?.btn && !popFor?.btn.contains(e.target as Node)) closeRange() };
 export function closeRange(focus = false) {
   if (!pop || pop.hidden) return;
@@ -184,17 +192,17 @@ export function closeRange(focus = false) {
   popFor = null;
 }
 /** opens the popover for `btn`. `single`: one date (Rank change's compare date). `cur`: the range shown first */
-export function openRange(btn: HTMLElement, o: { title: string; cur: M.Range; min: string; max: string; note?: string; single?: boolean; check: (a: string, b: string) => M.RangeCheck; apply: (r: M.Range) => void }) {
+export function openRange(btn: HTMLElement, o: { title: string; cur: M.Range; min: string; max: string; note?: string; noteOf?: (r: M.RangeCheck) => string; single?: boolean; check: (a: string, b: string) => M.RangeCheck; apply: (r: M.Range) => void }) {
   if (popFor?.btn === btn && pop && !pop.hidden) { closeRange(true); return }
   if (!pop) {
     pop = document.createElement('div'); pop.className = 'pop sx-rpop'; pop.setAttribute('role', 'dialog'); pop.hidden = true; document.body.appendChild(pop);
     pop.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); closeRange(true) } else if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') { e.preventDefault(); apply() } });
   }
   closeRange();
-  popFor = { btn, apply: o.apply, check: o.check, single: o.single };
+  popFor = { btn, apply: o.apply, check: o.check, single: o.single, noteOf: o.noteOf };
   pop.setAttribute('aria-label', o.title);
   pop.innerHTML = `<div class="ph"><b>${esc(o.title)}</b></div><div class="rp-f${o.single ? ' one' : ''}">${o.single ? '' : `<label>${esc(W.range.from)}<input type="date" data-r="a" min="${o.min}" max="${o.max}" value="${o.cur.a}"></label>`}<label>${esc(o.single ? W.range.compare : W.range.to)}<input type="date" data-r="b" min="${o.min}" max="${o.max}" value="${o.cur.b}"></label></div>`
-    + `<div class="rp-n" aria-live="polite"></div>${o.note ? `<div class="rp-x">${esc(o.note)}</div>` : ''}<div class="btns"><button type="button" class="btn sm" data-r="cancel">${esc(W.range.cancel)}</button><button type="button" class="btn sm primary" data-r="apply">${esc(W.range.apply)}</button></div>`;
+    + `<div class="rp-n" aria-live="polite"></div>${o.note || o.noteOf ? `<div class="rp-x">${esc(o.note || (o.noteOf ? o.noteOf(o.check(o.single ? o.cur.b : o.cur.a, o.cur.b)) : ''))}</div>` : ''}<div class="btns"><button type="button" class="btn sm" data-r="cancel">${esc(W.range.cancel)}</button><button type="button" class="btn sm primary" data-r="apply">${esc(W.range.apply)}</button></div>`;
   pop.hidden = false; btn.setAttribute('aria-haspopup', 'dialog'); btn.setAttribute('aria-expanded', 'true');
   const b = btn.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight, G = 8;
   pop.style.left = Math.max(G, Math.min(innerWidth - w - G, b.right - w)) + 'px';
@@ -202,7 +210,7 @@ export function openRange(btn: HTMLElement, o: { title: string; cur: M.Range; mi
   $$('input', pop).forEach(i => (i.oninput = check));
   ($('[data-r=cancel]', pop) as HTMLElement).onclick = () => closeRange(true);
   ($('[data-r=apply]', pop) as HTMLElement).onclick = apply;
-  check();
+  check(); fitTouch(pop);
   if (!matchMedia('(pointer: coarse)').matches) (($('input', pop) as HTMLInputElement)).focus();
   setTimeout(() => document.addEventListener('pointerdown', closeOut, true));
 }
@@ -211,6 +219,8 @@ function check(): M.RangeCheck | null {
   if (!pop || !popFor) return null;
   const v = vals(), r = popFor.check(v.a as string, v.b), n = $('.rp-n', pop);
   n.textContent = r.msg; n.classList.toggle('err', !r.ok);
+  // a note that follows the dates typed (the close a return is measured from, check 2 OV2-3)
+  const x = popFor.noteOf ? $('.rp-x', pop) : null; if (x) x.textContent = popFor.noteOf!(r);
   ($('[data-r=apply]', pop) as HTMLButtonElement).disabled = !r.ok;
   $$('input', pop).forEach(i => i.classList.toggle('bad', !r.ok));
   return r;
@@ -237,5 +247,6 @@ export function stockPop(box: HTMLElement, x: number, y: number, html: string, o
   let top = y + 12; if (top + ph > H2 - G) top = y - ph - 12;
   p.style.left = Math.max(G, Math.min(x - pw / 2, W2 - pw - G)) + 'px';
   p.style.top = Math.max(G, Math.min(top, H2 - ph - G)) + 'px';
+  fitTouch(p);
   return p;
 }

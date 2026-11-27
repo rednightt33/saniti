@@ -253,7 +253,7 @@ await step('RP-4 every row of the pair matrix and the top 7 pairs show at 1440 a
 });
 await step('RP-5 the stock quadrant\'s names are drawn over its dots', async () => {
   await open(1440); await tab('rot');
-  const order = await page.evaluate(() => { const k = [...document.querySelectorAll('[data-card=rotC] svg > *')]; return [k.findIndex(e => e.matches('text.qn')), k.map((e, i) => e.matches('circle.dt') ? i : -1).filter(i => i >= 0).pop()] });
+  const order = await page.evaluate(() => { const k = [...document.querySelectorAll('[data-card=rotC] svg > *')]; return [k.findIndex(e => e.matches('text.qn')), k.map((e, i) => e.matches('g.dt') ? i : -1).filter(i => i >= 0).pop()] });
   must(order[0] > order[1], `names at ${order[0]}, last dot at ${order[1]}`);
 });
 await step('RP-7 RP-8 Correlation keeps its order whatever the hidden spread period; a Δ beta dash says why', async () => {

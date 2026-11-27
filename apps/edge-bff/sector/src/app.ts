@@ -8,6 +8,7 @@ import * as M from './model.ts';
 import { calc, cloneState, DEFAULT_STATE, TABS, type Card, type Ctx, type State, type StocksState, type TabKey } from './ctx.ts';
 import { $, $$, DOT, esc, escTop, initTips, scrollCues, tipHide, closeRange } from './ui.ts';
 import { closeWindow, openWindow, windowOpen } from './windows.ts';
+import { fitTouch } from './touch.ts';
 import { dayDates as pickable, open, stocksFile } from './loader.ts';
 import { hxCard, mkCard, mmCard, rcCard } from './cards/ov.ts';
 import { rsA, rsB, rsD, rsL, rsW } from './cards/rs.ts';
@@ -103,6 +104,8 @@ export function start(api: SectorApi, view: HTMLElement, opts: { example?: boole
     watchSize(card, el, c);
     scrollCues(el);
     requestAnimationFrame(() => scrollCues(el));
+    // the touch areas once its chart is drawn (a card draws its chart in the next frame; check 2 MX2-4)
+    requestAnimationFrame(() => requestAnimationFrame(() => fitTouch(el)));
   }
   /* a chart is drawn for the size of its box; when the box changes size afterwards (the header wraps to two rows once the
      font arrives, a scrollbar appears) the card is drawn again (check 1 BD-1: the svg kept its first height and its axis
@@ -140,6 +143,7 @@ export function start(api: SectorApi, view: HTMLElement, opts: { example?: boole
     if (!D) return;
     tipHide();
     renderHead();
+    requestAnimationFrame(() => fitTouch($('.head'), $('.bar1')));
     const t = S.tab;
     $$('.tabp', view).forEach(p => (p.hidden = p.dataset.tab !== t));
     $('#kpis').hidden = t !== 'ov';
@@ -187,6 +191,7 @@ export function start(api: SectorApi, view: HTMLElement, opts: { example?: boole
     if (a.right - pop.offsetWidth < G) { pop.style.right = 'auto'; pop.style.left = '0' }
     pop.style.maxHeight = Math.max(160, innerHeight - a.bottom - 6 - G) + 'px';
     ($('.menu-item.on', pop) as HTMLElement | null)?.focus();
+    fitTouch($('.head'), $('.bar1'));
   }
   /* the last pick wins: an older date's file that arrives later is dropped (check 1 BD-5) */
   const latestPick = M.lastWins();
@@ -254,6 +259,9 @@ export function start(api: SectorApi, view: HTMLElement, opts: { example?: boole
     }
     initTips();
     scrollCues($('.bar1'));
+    // the touch areas are measured again where the page stopped scrolling: the tab bar stays over it (check 2 MX2-4)
+    let st = 0;
+    view.addEventListener('scroll', () => { clearTimeout(st); st = window.setTimeout(() => { fitTouch($('.head'), $('.bar1')); for (const card of CARDS) if (card.tab === S.tab) fitTouch(slots.get(card.id) ?? null) }, 100) }, { passive: true });
     // the cards follow their box (every width): drawn again when the page's width changes
     let w0 = view.clientWidth, rt = 0;
     new ResizeObserver(() => { const w = view.clientWidth; if (Math.abs(w - w0) < 2) return; w0 = w; clearTimeout(rt); rt = window.setTimeout(() => { redraw(); scrollCues($('.bar1')) }, 120) }).observe(view);

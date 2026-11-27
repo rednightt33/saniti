@@ -58,7 +58,7 @@ export const W = {
     na: 'No value: the files of this date do not give it for this row (a missing close, too few sessions, or no EMA yet)',
   },
   sort: {
-    tip: 'Click to sort · again to reverse · a third time to remove · click other columns to add sort levels (up to 3)',
+    tip: tap('Click to sort · again to reverse · a third time to remove · click other columns to add sort levels (up to 3)', 'Tap to sort · again to reverse · a third time to remove · tap other columns to add sort levels (up to 3)'),
     by: (levels: string[]) => `Sorted by ${levels.join(', then ')}`, clear: 'Clear sort',
     byName: 'Sort by sector name', byCol: (h: string) => `Sort by ${h}`,
   },
@@ -71,6 +71,9 @@ export const W = {
     title: 'Custom date range', from: 'From', to: 'To', compare: 'Compare with', cancel: 'Cancel', apply: 'Apply', custom: 'Custom',
     // check 1 OR-6, RP-1: the popover prints the card's own range, and a stored range is never replaced silently
     returnNote: 'A return is measured from the close of the session before From, as the Overview’s Custom.',
+    // check 2 OV2-3: the range's printed start is the base close; the note names both dates, so the From field (the first
+    // session) and the printed start agree in words
+    fromClose: (base: string, first: string) => `Measured from the ${base} close, the session before From (${first}), as the Overview’s Custom.`,
     none: (k: string) => `The Custom range has no session up to this date: ${k} is shown.`,
     clampStart: (d: string) => `The Custom range starts before the data: shown from ${d}.`,
     clampEnd: (d: string) => `The Custom range ends after the date shown: shown to ${d}.`,
@@ -101,8 +104,8 @@ export const W = {
   /* ---------- Overview ---------- */
   rc: {
     title: 'Cumulative return', sub: 'Return since the start of the period',
-    togTip: (on: boolean) => (on ? 'Coloured · click to set its line back to grey' : 'Grey · click to colour its line'),
-    ihTip: (on: boolean, m: string) => (on ? `Click to hide the ${m} line` : `Click to show the ${m} line`),
+    togTip: (on: boolean) => (on ? `Coloured · ${tap('click', 'tap')} to set its line back to grey` : `Grey · ${tap('click', 'tap')} to colour its line`),
+    ihTip: (on: boolean, m: string) => `${tap('Click', 'Tap')} to ${on ? 'hide' : 'show'} the ${m} line`,
     sectors: (n: number) => plural(n, 'sector'),
     hint: tap('Click a name to colour or grey its line · point at a sector in the list to highlight it', 'Tap a name to colour or grey its line'),
     many: 'Lines past the sixth colour are dashed',
@@ -125,7 +128,7 @@ export const W = {
     ex: (n: string, x: number | null, y: number | null, X: string, Y: string, q: string) => `${n} is ${pct(x, 1)} over ${X} and ${pct(y, 1)} over ${Y} (“${q}”); the ${Y} return is ${(y ?? 0) - (x ?? 0) >= 0 ? 'higher' : 'lower'} than the ${X} return`,
   },
   hx: {
-    title: 'Sector × horizon', sub: 'Return per horizon · click a column header to sort',
+    title: 'Sector × horizon', sub: `Return per horizon · ${tap('click', 'tap')} a column header to sort`,
     foot: (m: string) => `Colour scaled per column · bottom row: ${m}`,
     na: (h: string) => `No ${h} return: the data hold no close at the start or the end of this horizon`,
     dTitle: (m: string) => `Excess return vs ${m}`, dSub: (m: string) => `Sector return − ${m} return per horizon (pp)`,
@@ -196,7 +199,7 @@ export const W = {
     openInd: (n: string, open: boolean) => (open ? `Close the industries of ${n}` : `Open the industries of ${n}`),
     foot: (m: string) => `vs ${m} in pp · RS = rating 1–99`,
     dTitle: (s: string) => `${s} · stocks`,
-    read: (m: string) => `Returns are the stock's own. 5D vs ${m} = stock 5D return − ${m} 5D return. EMA50 = the close above or below its 50-day average. Click a ticker to open it in the Terminal.`,
+    read: (m: string) => `Returns are the stock's own. 5D vs ${m} = stock 5D return − ${m} 5D return. EMA50 = the close above or below its 50-day average. ${tap('Click', 'Tap')} a ticker to open it in the Terminal.`,
     ex: (n: string, r5: number | null, x5: number | null, e50: 0 | 1 | null, m: string) => `${n} moved ${pct(r5, 1)} in 5D, ${pp(x5)} vs ${m}; it closes ${e50 == null ? 'without an EMA50 yet' : e50 ? 'above its EMA50' : 'below its EMA50'}`,
   },
   rsL: {
@@ -222,14 +225,14 @@ export const W = {
     formulaTip: (m: string) => `Relative strength = 100 × (sector ÷ ${m}) ÷ its 20-session mean; momentum = 100 × relative strength ÷ its value 5 sessions earlier. Above 100 = above its own recent level.`,
     weekEnding: (d: string) => `week ending ${d}`,
     reading: (x: number, y: number) => `Relative strength ${x.toFixed(2)} · momentum ${y.toFixed(2)}`,
-    clickPin: 'Click to lock the sector', aria: 'Rotation map of the sectors', tlAria: 'Quadrant timeline of the sectors',
+    clickPin: tap('Click to lock the sector', 'Tap to lock the sector'), aria: 'Rotation map of the sectors', tlAria: 'Quadrant timeline of the sectors',
     foot: (hid: boolean) => tap(`Click a dot to lock the sector · ${hid ? 'point at a dot for names not shown' : 'point at a dot for its values'}`, 'Tap a dot to lock the sector and read its values'),
     noData: 'Not enough sessions for the rotation map on this date. Pick a later date.',
     stripLabel: (d: string, lvl: string, chg: string, tl: boolean, short = false) => `${d} · ${lvl} · ${chg}` + (short ? '' : ` over ${tl ? 'the period' : 'the tail'}`),
-    stripAria: (m: string) => `${m} weekly close; click a week to set the map date`,
+    stripAria: (m: string) => `${m} weekly close; ${tap('click', 'tap')} a week to set the map date`,
     // check 1 RP-6: the hover names the date a click sets (a week too early for the tail sets the first possible one)
     weekOf: (m: string, d: string) => `${m} · week to ${d}`, oneWeek: '1 week',
-    tooEarly: (d: string) => `Too early for this tail: a click sets the first map date with a full tail, ${d}`, setDate: (d: string) => tap(`Click to set the map date to ${d}`, `Tap to set the map date to ${d}`),
+    tooEarly: (d: string) => `Too early for this tail: a ${tap('click', 'tap')} sets the first map date with a full tail, ${d}`, setDate: (d: string) => tap(`Click to set the map date to ${d}`, `Tap to set the map date to ${d}`),
     inPhase: (s: string, k: string, q: string, d: string) => `${s}: ${k} weeks in ${q} as of ${d}`, phase: 'in phase',
     dTitle: (d: string) => `Rotation readings · ${d}`, dSub: 'One row per sector at the map date · Δ = change over 5 sessions',
     read: (m: string) => `Relative strength above 100 = stronger than its own recent level against ${m}; momentum above 100 = that strength is rising. Leading = both above 100, lagging = both below.`,
@@ -286,15 +289,15 @@ export const W = {
   /* ---------- Pair matrix ---------- */
   pmM: {
     title: 'Sector pair matrix', spread: 'Spread', corr: 'Correlation', leaderFirst: 'leader first',
-    subSp: (hz: string) => `Return row − return column, ${hz} (pp) · green = row ahead · click a cell to open the pair`,
-    subCo: (w: number) => `Correlation of daily returns, ${w}D · darker = moves together · click a cell to open the pair`,
+    subSp: (hz: string) => `Return row − return column, ${hz} (pp) · green = row ahead · ${tap('click', 'tap')} a cell to open the pair`,
+    subCo: (w: number) => `Correlation of daily returns, ${w}D · darker = moves together · ${tap('click', 'tap')} a cell to open the pair`,
     sortBy: (y: string) => `Sort rows by ${y}`, isB: (s: string) => `${s} is already B in the pair ratio`, makeA: (s: string) => `Make ${s} sector A of the pair`,
     // user decision UD79 1A: the chosen sector, cell or pair clicked again: no pair chosen (the automatic pair shows)
     unA: (s: string) => `${s} is sector A · ${tap('click', 'tap')} again to choose no pair`, unPair: tap('Click again to choose no pair', 'Tap again to choose no pair'),
-    corrW: (w: number) => `Corr ${w}D`, open: 'Click to open in the pair ratio',
-    footSp: 'Value = row return − column return (pp), not a ratio · rows and columns ordered by return · click column names to sort rows (each adds a level)',
+    corrW: (w: number) => `Corr ${w}D`, open: tap('Click to open in the pair ratio', 'Tap to open in the pair ratio'),
+    footSp: `Value = row return − column return (pp), not a ratio · rows and columns ordered by return · ${tap('click', 'tap')} column names to sort rows (each adds a level)`,
     // check 1 RP-7: in Correlation the order follows the shown window, and a negative value has its own colour
-    footCo: '1.00 = identical daily moves · 0 = unrelated · red = opposite moves · ordered by average correlation · click column names to sort rows',
+    footCo: `1.00 = identical daily moves · 0 = unrelated · red = opposite moves · ordered by average correlation · ${tap('click', 'tap')} column names to sort rows`,
     dTitle: (n: number) => `All ${n} pairs`,
     read: 'Spread = return of the sector ahead − return of the sector behind over the matrix period (pp). Corr near 1 = the two move together.',
     ex: (a: string, ra: number | null, b: string, rb: number | null, s: number | null, c: number | null) => `${a} returned ${pct(ra, 1)} and ${b} ${pct(rb, 1)}, a spread of ${pp(s)}; corr ${fnum(c)} = they ${(c ?? 0) >= 0.6 ? 'often' : 'rarely'} move together`,
@@ -311,7 +314,7 @@ export const W = {
     none: 'Not enough sessions for this pair and period. Pick a shorter MA or a later start.',
     aria: (a: string, b: string) => `Ratio of ${a} to ${b} with its moving average and band`,
     dTitle: (a: string, b: string) => `${a} / ${b} · daily log`, dSub: (n: number, ma: number) => `Last ${plural(n, 'session')} · MA${ma} band`,
-    read: 'Spread = A daily return − B daily return. Ratio = A ÷ B rebased to 100. A band reading beyond ±2σ = the ratio is unusually stretched from its moving average. Click a date to mark it on the chart.',
+    read: `Spread = A daily return − B daily return. Ratio = A ÷ B rebased to 100. A band reading beyond ±2σ = the ratio is unusually stretched from its moving average. ${tap('Click', 'Tap')} a date to mark it on the chart.`,
     ex: (d: string, a: string, ra: number | null, b: string, rb: number | null, sp: number | null, z: number | null) => `on ${d}, ${a} ${pct(ra)} and ${b} ${pct(rb)} → spread ${pp(sp)}; band ${fnum(z)} = ${Math.abs(z ?? 0) >= 2 ? 'stretched' : 'within the usual range'}`,
   },
   pmT: {
@@ -323,7 +326,7 @@ export const W = {
     exTip: (bm: string) => `Sector return − ${bm} return over the window (pp)`, alTip: (bm: string) => `Return not explained by ${bm}: sector return − beta × ${bm} return (pp)`,
     rowTip: (s: string) => `${tap('Click', 'Tap')} to make ${s} sector A of the pair`, rowUnTip: (s: string) => `${s} is sector A · ${tap('click', 'tap')} again to choose no pair`,
     autoA: 'sector A of the automatic pair (no pair chosen)',
-    foot: (bm: string, v: string) => `A / B = the pair in the pair ratio · click a row to make it A, again to choose no pair · dashed line = beta 1.0 · Δ beta red = more sensitive than before · ${bm} ${v} in the window`,
+    foot: (bm: string, v: string) => `A / B = the pair in the pair ratio · ${tap('click', 'tap')} a row to make it A, again to choose no pair · dashed line = beta 1.0 · Δ beta red = more sensitive than before · ${bm} ${v} in the window`,
     dTitle: (s: string) => `${s} · stocks`, dSub: (l: string, bm: string, sb: string) => `β ${l} vs ${bm} from each stock's daily closes · sector β ${sb}`,
     loading: 'Loading the stocks’ daily closes for their beta…', missing: 'The stocks’ daily closes of this sector are not published: their beta and correlation are not shown.',
     read: 'β = how much the stock moves per 1% move in the benchmark, from its daily closes over the window; corr near 1 = it moves closely with the benchmark.',
@@ -352,12 +355,12 @@ export const W = {
     showFoot: 'The main line (ink) also sets the selection of the other breadth cards',
     head: (lab: string, d: string) => `above ${lab} on ${d}`,
     legTip: (n: string, v: string, lab: string, d: string) => `${n}: ${v.replace('+', '')} above ${lab} on ${d}`,
-    pxTip: (m: string) => `${m} index level, right axis`, hideTip: (t: string, hidden: boolean) => `${t} · click to ${hidden ? 'show' : 'hide'}`,
+    pxTip: (m: string) => `${m} index level, right axis`, hideTip: (t: string, hidden: boolean) => `${t} · ${tap('click', 'tap')} to ${hidden ? 'show' : 'hide'}`,
     price: (m: string) => `${m} price (right)`, aria: (lab: string) => `% of stocks above ${lab}; the mouse wheel or + and − zoom, the arrow keys move`,
     foot: (hi: number, lo: number, ex: boolean) => `Green zone ≥ ${hi}% · red zone ≤ ${lo}%` + (ex ? '' : tap(' · scroll to zoom, drag to move', ' · + and − zoom')),
     zone: (v: number | null, hi: number, lo: number) => (v == null ? '' : v >= hi ? 'Strong zone' : v <= lo ? 'Weak zone' : 'Neutral zone'),
     dTitle: (w: string) => `${w} · daily log`, dSub: (n: number, ms: number) => `Last ${plural(n, 'session')} · % above EMA${ms}`,
-    read: 'The share of stocks closing above their moving average (of the stocks that have one); 70% or more = strong, 30% or less = weak. Δ = change in percentage points. Click a date to mark it on the chart.',
+    read: `The share of stocks closing above their moving average (of the stocks that have one); 70% or more = strong, 30% or less = weak. Δ = change in percentage points. ${tap('Click', 'Tap')} a date to mark it on the chart.`,
     ex: (d: string, b: number | null, ms: number, d5: number | null) => `on ${d}, ${b == null ? '—' : b.toFixed(1) + '%'} of the stocks closed above their EMA${ms}; Δ 5D ${pp(d5, 1)} = ${(d5 ?? 0) >= 0 ? 'more' : 'fewer'} stocks above it than 5 sessions earlier`,
   },
   brT: {
@@ -409,9 +412,10 @@ export const W = {
     // check 1 BD-11: the reason of a dash
     sinceNa: 'The status is older than the 300 sessions of data', distNa: (n: number) => `No EMA${n} yet: fewer than ${n} sessions of history`,
     more: (n: number) => `at least ${n}: the status began before the 300 sessions of data`,
-    tip: (ab: 0 | 1 | null, lab: string, days: string, since: string) => (ab == null ? `No ${lab} yet` : `${ab ? 'Above' : 'Below'} ${lab} for ${days} sessions, since ${since}`),
+    // check 2 BD2-3: a status older than the data has no start date; the sentence says so instead of "since <reason>"
+    tip: (ab: 0 | 1 | null, lab: string, days: string, since: string | null) => (ab == null ? `No ${lab} yet` : `${ab ? 'Above' : 'Below'} ${lab} for ${days} sessions${since ? `, since ${since}` : ': the status began before the 300 sessions of data'}`),
     dists: (a: string, b: string) => `Close vs EMA50 ${a} · EMA200 ${b}`,
-    foot: (lab: string) => `Distance = close vs EMA · status uses ${lab}, the “% above” of Breadth vs price · click a stock to open it in the Terminal`,
+    foot: (lab: string) => `Distance = close vs EMA · status uses ${lab}, the “% above” of Breadth vs price · ${tap('click', 'tap')} a stock to open it in the Terminal`,
   },
 };
 export const fmtDate = dateLabel;

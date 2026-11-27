@@ -10,11 +10,15 @@
    - `layout: 'c1'` (Rotation detail, "C1"): a compact list on the left and the detail on the right on one 52 px title
      band and one 36 px row grid, the card's controls in one row above both; sector chips on a phone;
    - `hideDetail` (Rotation map, V8): the Timeline takes the whole window, the readings table and its footer hidden;
-   - a detail with `limit` shows that many rows of its order (Stretched pairs' Show). */
+   - a detail with `limit` shows that many rows of its order (Stretched pairs' Show).
+   Check 2 (2026-11-27, verification/sector_analysis/check2/FIXES.md): a stacked window grows to its tables (`widen`,
+   OV2-1); a window whose detail is hidden is as tall as its card (`bare`, RP2-1); its touch areas are measured after each
+   draw (touch.ts, MX2-4). */
 import * as M from './model.ts';
 import { cloneState, type Card, type Ctx, type Detail, type State } from './ctx.ts';
 import { $, $$, esc, msNote, msTh, msWire, na, scrollCues, tipHide } from './ui.ts';
 import { W } from './words.ts';
+import { fitTouch } from './touch.ts';
 
 export interface WindowHost {
   ctx(S: State, win: boolean, redraw: () => void): Ctx & { alive: boolean };
@@ -40,7 +44,7 @@ export function openWindow(card: Card, page: Ctx, host: WindowHost, from: HTMLEl
   const Wd = phone ? vw : Math.min(vw - 48, c1 ? 1100 : stacked ? 1040 : card.wide ? 1440 : 1280), Hh = phone ? vh : Math.min(vh - 48, 820);
   el.style.width = Wd + 'px'; el.style.height = Hh + 'px';
   el.style.left = Math.max(0, (vw - Wd) / 2) + 'px'; el.style.top = Math.max(0, (vh - Hh) / 2) + 'px';
-  let c: Ctx & { alive: boolean }, cols = '', laid = false, fitH = 0, moved = false;
+  let c: Ctx & { alive: boolean }, cols = '', laid = false, fitH = 0, moved = false, wideW = 0;
   const draw = () => {
     if (!c.alive) return;
     host.render(card, left, c);
@@ -49,7 +53,7 @@ export function openWindow(card: Card, page: Ctx, host: WindowHost, from: HTMLEl
     $('.fw-st', el).textContent = s ? s.textContent : '';
     el.setAttribute('aria-label', h ? h.textContent || '' : card.id);
     const hide = !!card.hideDetail?.(c);
-    el.classList.toggle('nod', !card.detail || hide);
+    el.classList.toggle('nod', !card.detail || hide); el.classList.toggle('bare', hide);
     if (right) right.hidden = hide;
     if (foot) foot.hidden = hide;
     body.style.gridTemplateColumns = hide ? '' : cols;
@@ -59,6 +63,10 @@ export function openWindow(card: Card, page: Ctx, host: WindowHost, from: HTMLEl
     el.classList.toggle('stk-t', !phone && el.classList.contains('stk') && !!card.detail && (!!$('.tbl-wrap', left) || left.classList.contains('ctlo')));
     if (card.detail && right && !hide && !laid) layout();
     if (card.align && right) alignTables($('table', left) as HTMLTableElement | null, $('.fw-tb', right) as HTMLTableElement | null);
+    if (widen()) return;
+    // the cues of the window's scrollers once their tables have their final widths (aligned, widened)
+    scrollCues(el); requestAnimationFrame(() => c.alive && scrollCues(el));
+    requestAnimationFrame(() => requestAnimationFrame(() => c.alive && fitTouch(el)));
     // fitted now, and again once the card's chart and legend are drawn (a card draws its chart in the next frame)
     fit(); requestAnimationFrame(() => requestAnimationFrame(() => c.alive && fit()));
   };
@@ -73,11 +81,33 @@ export function openWindow(card: Card, page: Ctx, host: WindowHost, from: HTMLEl
     if (need > room * 0.58 || cardTable + need > room) { el.classList.add('stk'); el.style.width = Math.min(vw - 48, Math.max(Wd * 0.82, need + 2)) + 'px'; el.style.left = Math.max(0, (vw - el.offsetWidth) / 2) + 'px'; draw() }
     else if (need) { cols = `minmax(0,1fr) ${Math.max(need, 340)}px`; body.style.gridTemplateColumns = cols }
   }
+  /** a stacked window whose tables are wider than it (the drill-down with every industry open: 13 columns and a wider
+      first column) grows up to the screen less its margin, so no column is cut at its edge; on a screen still narrower the
+      tables keep their sideways scroll and its cue (check 2 OV2-1: 1062 px of tables in a 1012 px scroller, capped at
+      1040 px). Only grows; a window the viewer resized keeps the viewer's width. True when it grew (and drew again) */
+  function widen(): boolean {
+    if (phone || !el.classList.contains('stk')) return false;
+    if (wideW && el.style.width !== wideW + 'px') return false;
+    const over = Math.max(0, ...$$('.fw-tw, .tbl-wrap', el).filter(x => x.offsetParent !== null).map(x => x.scrollWidth - x.clientWidth));
+    const w = Math.min(vw - 48, Math.ceil(el.offsetWidth + over + 2));
+    if (over <= 1 || w <= el.offsetWidth + 1) return false;
+    el.style.width = w + 'px'; wideW = w;
+    if (!moved) el.style.left = Math.max(0, (vw - w) / 2) + 'px';
+    draw();                                               // the tables laid out again on the new width
+    return true;
+  }
   /** `fit`: the window as tall as its detail table, and never less than the card needs with its chart at its minimum.
       A window the viewer resized keeps the viewer's height */
   function fit() {
-    if (!card.fit || phone || !right || right.hidden || el.classList.contains('stk')) return;
     if (fitH && el.style.height !== fitH + 'px') return;
+    // a window whose detail is hidden (the Rotation map's Timeline, `bare`) is as tall as its card's content, so its legend
+    // is its bottom line (check 2 RP2-1: 108-293 px of blank under the dates, the legend 181 px above the window's edge)
+    if (el.classList.contains('bare') && !phone) {
+      const want = Math.round(Math.min(vh - 48, Math.max(320, el.offsetHeight - body.clientHeight + left.offsetHeight)));
+      if (Math.abs(want - el.offsetHeight) > 1) { el.style.height = want + 'px'; if (!moved) el.style.top = Math.max(0, (vh - want) / 2) + 'px' }
+      fitH = Math.round(parseFloat(el.style.height)); return;
+    }
+    if (!card.fit || phone || !right || right.hidden || el.classList.contains('stk')) return;
     const tw = $('.fw-tw', right), tb = $('.fw-tb', right), grow = $(card.fit[0], left) as HTMLElement | null;
     if (!tw || !tb || !grow) return;
     const rNeed = right.clientHeight - tw.clientHeight + tb.offsetHeight + 12;
@@ -229,7 +259,8 @@ function detail(D: Detail, c: Ctx, box: HTMLElement, foot: HTMLElement, redraw: 
         // a dash says why (check 1 BD-11: the same mechanism in the windows' tables)
         const v = r[x.k], NA = na(W.win.na), t = x.html ? (r[x.html] == null || r[x.html] === '—' ? NA : r[x.html]) : v == null || v === '—' ? NA : x.f ? x.f(v, r) : esc(v);
         const inner = x.term && r.t ? `<button type="button" class="tk" data-term="${esc(r.t)}" title="${esc(W.term.rowTip(r.t))}">${esc(r.t)}</button>` : x.b ? `<b>${t}</b>` : t;
-        return `<td class="${x.num ? '' : 'l'}${x.tone && typeof v === 'number' ? ' ' + M.cls(v) : ''}${x.hl ? ' hc' : ''}">${inner}</td>`;
+        // a toned figure takes the colour of its printed sign (check 2 BD2-4: "0.0 pp" was green from an unrounded +0.03)
+        return `<td class="${x.num ? '' : 'l'}${x.tone && typeof v === 'number' ? ' ' + (x.f ? M.clsText(v, x.f(v, r)) : M.cls(v)) : ''}${x.hl ? ' hc' : ''}">${inner}</td>`;
       }).join('');
       const on = !!(D.isSel && D.isSel(r));
       return `<tr class="${r.nm === c.D.market ? 'ih' : ''}${D.onRow ? ' ck' : ''}${on ? ' on' : ''}"${D.onRow ? ` data-i="${i}" tabindex="0" role="button" aria-pressed="${on}"` : ''}${q && !text(r).includes(q) ? ' hidden' : ''}>${cells}</tr>`;

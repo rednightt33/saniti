@@ -19,6 +19,7 @@ export function customRange(c: Ctx, btn: HTMLElement, cur: M.Range | null, set: 
     title: W.range.title, min: D.dates[lo], max: D.dates[D.E], note: o.note ?? (o.level ? undefined : W.range.returnNote),
     cur: cur || { a: D.dates[Math.max(lo, D.E - (o.dflt ?? (s.e - s.b)) + 1)], b: D.dates[D.E] },
     check: (a, b) => M.checkRange(D.dates, D.E, a, b, o),
+    noteOf: o.level || o.label || o.note ? undefined : r => (r.ok && r.span ? W.range.fromClose(M.dateIn(D.dates[r.span.base], D.ref), M.dateIn(D.dates[r.span.first], D.ref)) : W.range.returnNote),
     apply: r => { set(r); c.redraw() },
   });
 }
@@ -47,7 +48,7 @@ export const rcCard: Card = {
     el.innerHTML = H3(W.rc.title, W.rc.sub, SEG('w', '', periodOpts(['1M', '3M', 'YTD', 'C']), sp.key), c.win ? null : 'rcCard')
       + `<div class="ovx-b"><div class="ovx-lg">${D.names.map(n => `<button type="button" class="ovx-tog${sel.includes(n) ? ' on' : ''}${dashed.has(n) ? ' dsh' : ''}" data-tg="${esc(n)}" aria-pressed="${sel.includes(n)}"${col[n] ? ` style="--c:${col[n]}"` : ''} title="${esc(W.rc.togTip(sel.includes(n)))}"><i></i>${esc(D.short(n))}</button>`).join('')}`
       + `<button type="button" class="ovx-tog ihx${S.rcIh ? ' on' : ''}" data-tg="__ih" aria-pressed="${S.rcIh}" title="${esc(W.rc.ihTip(S.rcIh, D.market))}"><i></i>${esc(D.market)}</button></div>`
-      + `<div class="ovx-cr" style="--n:${rows.length}"><div class="ovx-cv" data-chart></div><div class="ovx-bl">${rows.map(r => `<div class="r${r.n === S.pin ? ' on' : ''}" data-n="${esc(r.n)}" role="button" tabindex="0" aria-pressed="${r.n === S.pin}"><span title="${esc(r.n)}">${esc(D.short(r.n))}</span><div class="tr"><i style="${(r.v as number) >= 0 ? 'left:50%' : 'right:50%'};width:${(Math.abs(r.v as number) / mx) * 50}%;background:${(r.v as number) >= 0 ? 'var(--up)' : 'var(--down)'}"></i></div><b class="${M.cls(r.v)}">${M.pct(r.v, 1)}</b></div>`).join('')}</div></div></div>`
+      + `<div class="ovx-cr" style="--n:${rows.length}"><div class="ovx-cv" data-chart></div><div class="ovx-bl">${rows.map(r => `<div class="r${r.n === S.pin ? ' on' : ''}" data-n="${esc(r.n)}" role="button" tabindex="0" aria-pressed="${r.n === S.pin}"><span title="${esc(r.n)}">${esc(D.short(r.n))}</span><div class="tr"><i style="${(r.v as number) >= 0 ? 'left:50%' : 'right:50%'};width:${(Math.abs(r.v as number) / mx) * 50}%;background:${(r.v as number) >= 0 ? 'var(--up)' : 'var(--down)'}"></i></div><b class="${M.cls(r.v, 1)}">${M.pct(r.v, 1)}</b></div>`).join('')}</div></div></div>`
       + `<div class="lgd"><span>${esc(M.rangeLabel(dates[0], dates[dates.length - 1], D.ref))}${DOT}${esc(W.sessions(sp.e - sp.b))}${DOT}${esc(W.rc.sectors(D.names.length))}</span>${rangeNote(sp.note)}<span class="sp"></span><span>${esc(dashed.size ? W.rc.many : W.rc.hint)}</span></div>`;
     onSeg(el, 'w', (v, b) => {
       if (v === 'C') { customRange(c, b, S.rcR, r => { S.rcW = 'C'; S.rcR = r; S.rcSel = null }); return }
@@ -106,7 +107,7 @@ export const mmCard: Card = {
   render(el, c) {
     const D = c.D, S = c.S, K = calc(D);
     const opts = (v: string, other: string) => `${AXES.map(h => `<option value="${h}"${h === v ? ' selected' : ''}${h === other ? ` disabled` : ''}>${h}</option>`).join('')}`;
-    el.innerHTML = H3(W.mm.title, W.mm.sub, `<select class="sx-sel" data-sel="x" aria-label="${esc(W.mm.xAxis)}">${opts(S.mmX, S.mmY)}</select><span class="plab">${esc(W.mm.vs)}</span><select class="sx-sel" data-sel="y" aria-label="${esc(W.mm.yAxis)}">${opts(S.mmY, S.mmX)}</select>`, c.win ? null : 'mmCard')
+    el.innerHTML = H3(W.mm.title, W.mm.sub, `<span class="sgrp"><span class="sxw"><select class="sx-sel" data-sel="x" aria-label="${esc(W.mm.xAxis)}">${opts(S.mmX, S.mmY)}</select></span><span class="plab">${esc(W.mm.vs)}</span><span class="sxw"><select class="sx-sel" data-sel="y" aria-label="${esc(W.mm.yAxis)}">${opts(S.mmY, S.mmX)}</select></span></span>`, c.win ? null : 'mmCard')
       + `<div class="ovx-b"><div class="ovx-cv mm" data-chart></div></div><div class="lgd"><span data-foot>${footNow(el, W.mm.foot(mmReading(c, S.mmX, S.mmY).corner, false))}</span></div>`;
     ($('[data-sel=x]', el) as HTMLSelectElement).onchange = e => { S.mmX = (e.target as HTMLSelectElement).value; c.redraw() };
     ($('[data-sel=y]', el) as HTMLSelectElement).onchange = e => { S.mmY = (e.target as HTMLSelectElement).value; c.redraw() };
@@ -185,7 +186,7 @@ export const hxCard: Card = {
     M.msSort(rows, SK, { sn: 1 }, DEF);
     el.innerHTML = H3(W.hx.title, W.hx.sub, '', c.win ? null : 'hxCard')
       + `<div class="hm-s" data-scroll="x"><div class="ovx-hm" data-hm>${msTh(SK, 'sn', esc(W.col.sector), 'hd l', W.sort.byName, { tag: 'div', def: DEF, txt: true })}${HZ.map((h, i) => msTh(SK, 'h' + i, h, 'hd', W.sort.byCol(h), { tag: 'div', def: DEF })).join('')}`
-      + rows.map(r => `<div class="nm${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" role="button" tabindex="0" aria-pressed="${r.n === S.pin}" title="${esc(r.n)}">${esc(r.sn)}</div>` + r.v.map((v: M.N, i: number) => (v == null ? `<div>${na(W.hx.na(HZ[i]))}</div>` : `<div class="c${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" data-tip="${esc(`<b>${esc(r.sn)}</b><br>${HZ[i]} ${M.pct(v)}`)}" style="${heat(v, cap[i])}">${M.pct(v, 1)}</div>`)).join('')).join('')
+      + rows.map(r => `<div class="nm${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" role="button" tabindex="0" aria-pressed="${r.n === S.pin}" title="${esc(r.n)}"><span>${esc(r.sn)}</span></div>` + r.v.map((v: M.N, i: number) => (v == null ? `<div>${na(W.hx.na(HZ[i]))}</div>` : `<div class="c${r.n === S.pin ? ' hl' : ''}" data-n="${esc(r.n)}" data-tip="${esc(`<b>${esc(r.sn)}</b><br>${HZ[i]} ${M.pct(v)}`)}" style="${heat(v, cap[i], 0, 1)}">${M.pct(v, 1)}</div>`)).join('')).join('')
       + `<div class="nm ih">${esc(D.market)}</div>` + ih.map((v, i) => `<div class="ih">${v == null ? na(W.hx.na(HZ[i])) : M.pct(v, 1)}</div>`).join('') + `</div></div>`
       + `<div class="lgd">${msNote(SK, LAB, { sn: 1 })}<span>${esc(W.hx.foot(D.market))}</span></div>`;
     msWire(el, SK, () => c.redraw(), DEF, '.hd[data-k]');
@@ -210,6 +211,15 @@ export const hxCard: Card = {
 
 /* ===================== the market map of one sector (logic.js L1191-1234) ===================== */
 const fitW = (t: string) => textW(t, '600 11px Inter, sans-serif') + 6;
+/** the lines a group's label takes in `w` px, its words wrapped as the browser wraps them (10 px semibold) */
+export function lines(text: string, w: number): number {
+  let n = 1, cur = '';
+  for (const word of text.split(' ')) {
+    const t = cur ? cur + ' ' + word : word;
+    if (cur && textW(t, '600 10px Inter, sans-serif') > w) { n++; cur = word } else cur = t;
+  }
+  return n;
+}
 const GROUP_FLOOR = 0.012;                // an industry under 1.2% of the sector's weight is drawn at 1.2%, so it has a tile (D08)
 export const mkCard: Card = {
   id: 'mkCard', tab: 'ov', cls: 'ov-wide',
@@ -231,12 +241,15 @@ export const mkCard: Card = {
       const cap = Math.max(...ms.map(x => Math.abs(x.v5))) || 1;
       let h = '';
       M.squarify(subs.map(s => ({ v: Math.max(s.w, tot * GROUP_FLOOR), o: s })), 0, 0, Wd, H).forEach(r => {
-        const s = r.o, gx = r.x + 1, gy = r.y + 1, gw = Math.max(0, r.w - 2), gh = Math.max(0, r.h - 2), lab = gw > 44 && gh > 30, top = Math.min(14, gh * 0.3);
+        const s = r.o, gx = r.x + 1, gy = r.y + 1, gw = Math.max(0, r.w - 2), gh = Math.max(0, r.h - 2), lab = gw > 44 && gh > 30;
+        // a name wider than its group wraps onto up to three 14 px lines while the group keeps most of its height for its
+        // stocks, and only then ends in "…" (check 2 MX2-9: "Healthcare Equipment & Su…" in a 93 px group at 360 px)
+        const need = lab ? lines(`${s.ind} ${M.ppx(s.v5)}`, gw - 6) : 1, nl = Math.max(1, Math.min(need, 3, Math.floor((gh * 0.45) / 14))), top = nl > 1 ? nl * 14 : Math.min(14, gh * 0.3);
         const gtip = `<b>${esc(s.ind)}</b><br>${esc(W.mk.gTip(s.s.length, M.weightText(D.weightBasis, s.w), M.ppx(s.v5) + ' pp', D.market))}`;
-        h += `<div class="mk-g${s.ind === S.mkSub ? ' on' : ''}" data-ind="${esc(s.ind)}" style="left:${gx}px;top:${gy}px;width:${gw}px;height:${gh}px"><span class="mk-gl" data-tip="${esc(gtip)}">${lab ? `${esc(s.ind)} <span class="${M.cls(s.v5)}">${M.ppx(s.v5)}</span>` : ''}</span>`
+        h += `<div class="mk-g${s.ind === S.mkSub ? ' on' : ''}" data-ind="${esc(s.ind)}" style="left:${gx}px;top:${gy}px;width:${gw}px;height:${gh}px"><span class="mk-gl${nl > 1 ? ' wr' : ''}"${nl > 1 ? ` style="height:${nl * 14}px;-webkit-line-clamp:${nl}"` : ''} data-tip="${esc(gtip)}">${lab ? `${esc(s.ind)} <span class="${M.cls(s.v5, 1)}">${M.ppx(s.v5)}</span>` : ''}</span>`
           + M.squarify(s.s.slice(0, 10).map(x => ({ v: x.w as number, o: x })), 0, top, gw, gh - top).map(k => {
             const x = k.o, tip = `<b>${esc(x.t)}</b> ${esc(x.n || '')}<br>${esc(s.ind)}<br>5D ${M.pct(x.r5d)} · ${esc(W.vs(D.market))} ${M.pp(x.v5)}<br>${esc(W.cap(D.weightLabel))} ${esc(M.weightText(D.weightBasis, x.w))}`;
-            return `<div class="mk-t" data-t="${esc(x.t)}" role="button" tabindex="0" aria-label="${esc(x.t)}" data-tip="${esc(tip)}" style="left:${k.x + 1}px;top:${k.y + 1}px;width:${Math.max(0, k.w - 2)}px;height:${Math.max(0, k.h - 2)}px;${heat(x.v5, cap)}">${k.w > fitW(x.t) && k.h > 24 ? `<b>${esc(x.t)}</b><span>${M.ppx(x.v5)}</span>` : k.w > fitW(x.t) && k.h > 13 ? `<b>${esc(x.t)}</b>` : ''}</div>`;
+            return `<div class="mk-t" data-t="${esc(x.t)}" role="button" tabindex="0" aria-label="${esc(x.t)}" data-tip="${esc(tip)}" style="left:${k.x + 1}px;top:${k.y + 1}px;width:${Math.max(0, k.w - 2)}px;height:${Math.max(0, k.h - 2)}px;${heat(x.v5, cap, 0, 1)}">${k.w > fitW(x.t) && k.h > 24 ? `<b>${esc(x.t)}</b><span>${M.ppx(x.v5)}</span>` : k.w > fitW(x.t) && k.h > 13 ? `<b>${esc(x.t)}</b>` : ''}</div>`;
           }).join('') + '</div>';
       });
       box.innerHTML = h;

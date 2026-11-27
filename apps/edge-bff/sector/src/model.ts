@@ -25,7 +25,13 @@ export const pctSigned = (v: N | undefined, d = 1) => (!fin(v) ? '—' : (v > 0 
 export const fnum = (v: N | undefined, d = 2) => (!fin(v) ? '—' : (v < 0 && +Math.abs(v).toFixed(d) !== 0 ? MINUS : '') + Math.abs(v).toFixed(d));
 /** an index level or a price with thousands commas */
 export const level = (v: N | undefined, d = 2) => (!fin(v) ? '—' : (v < 0 ? MINUS : '') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }));
-export const cls = (v: N | undefined) => (!fin(v) ? '' : v > 0 ? 'up' : v < 0 ? 'down' : '');
+/** up or down as the figure is printed with `dp` decimals (pct and pp print 2 by default): a value printed "0.00%" has no
+    colour (check 2 BD2-4, the same mechanism as the heat cells: the colour came from the unrounded value). `null` keeps
+    the unrounded sign, for pctSigned's "−0.0%" (check 1 BD-12) */
+export const cls = (v: N | undefined, dp: number | null = 2) => { if (!fin(v)) return ''; const r = dp == null ? v : +v.toFixed(dp); return r > 0 ? 'up' : r < 0 ? 'down' : '' };
+/** up or down of a figure as printed by a format function: its own sign when it prints one ("+1.2 pp", "−0.4%"), none
+    when every digit it prints is 0 ("0.0 pp"), else the value's sign ("▲3", "0.92") */
+export const clsText = (v: N | undefined, t: string) => (/^\+/.test(t) ? 'up' : /^[−-]/.test(t) ? 'down' : /\d/.test(t) && !/[1-9]/.test(t) ? '' : cls(v, null));
 function scaled(a: number, decimals: (unit: string) => number): string | null {
   for (const [u, f] of [['T', 1e12], ['B', 1e9], ['M', 1e6]] as const) {
     const x = a / f, d = decimals(u), r = Number(x.toFixed(d));
@@ -334,15 +340,18 @@ export function flagShare(flags: (0 | 1 | null)[]): { a: number; n: number; p: N
 }
 
 /** an axis range that one outlier cannot squeeze (check 1 RP-5: one stock at −56 pp packed 30 dots in a quarter of the
-    width): the values inside Tukey's far fences (quartiles ± 3 × the interquartile range), at least ±`pad`; a value
-    beyond is drawn hollow at the edge. With fewer than 8 values every value is inside. */
+    width): from the lowest to the highest value inside Tukey's fences (quartiles ± 1.5 × the interquartile range), at
+    least ±`pad`; a value beyond is drawn hollow at the edge. With fewer than 8 values every value is inside. */
 export function axisRange(v: number[], pad = 2): [number, number] {
   const s = v.filter(Number.isFinite).sort((a, b) => a - b);
   if (!s.length) return [-pad, pad];
   let lo = s[0], hi = s[s.length - 1];
   if (s.length >= 8) {
+    // check 2 RP2-2: Tukey's whiskers. The axis ends at the most extreme values inside quartile ± 1.5 IQR, not at a fence
+    // (± 3 IQR put the axis at −50.6 with no stock between −34 and −50.6, and the zero line at 81% of the width); the
+    // values past them are drawn hollow at the edge
     const q = (k: number) => s[Math.floor((s.length - 1) * k)], q1 = q(0.25), q3 = q(0.75), iq = q3 - q1;
-    lo = Math.max(lo, q1 - 3 * iq); hi = Math.min(hi, q3 + 3 * iq);
+    lo = s.find(x => x >= q1 - 1.5 * iq) ?? lo; hi = [...s].reverse().find(x => x <= q3 + 1.5 * iq) ?? hi;
   }
   return [Math.min(-pad, lo), Math.max(pad, hi)];
 }

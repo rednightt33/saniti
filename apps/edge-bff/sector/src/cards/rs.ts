@@ -8,7 +8,9 @@ import { customRange, periodOpts, rangeNote, SEL_SECTOR } from './ov.ts';
 import { W } from '../words.ts';
 
 const QBG: Record<M.Quad, string> = { Leading: 'var(--green-bg)', Weakening: 'var(--amber-bg)', Lagging: 'var(--red-bg)', Improving: 'var(--blue-bg)' };
-const QFG: Record<M.Quad, string> = { Leading: 'var(--green)', Weakening: 'var(--amber)', Lagging: 'var(--red)', Improving: 'var(--blue)' };
+// a tag's text on its tint takes the tag ink (design system decision 12, UD73 "4A"; check 2 BD2-2: Lagging 4.39:1 and
+// Improving 4.08:1 with --red / --blue)
+const QFG: Record<M.Quad, string> = { Leading: 'var(--green-tag)', Weakening: 'var(--amber-tag)', Lagging: 'var(--red-tag)', Improving: 'var(--blue-tag)' };
 export const quadTag = (q: M.Quad | null) => (q ? `<span class="tg" style="background:${QBG[q]};color:${QFG[q]}">${esc(W.quad[q])}</span>` : '—');
 const stockCols = (c: Ctx) => ({
   t: { k: 'name', l: W.col.ticker, b: true, term: true },
@@ -96,7 +98,7 @@ export const rsB: Card = {
       D.names.forEach(nm => {
         const d = a[nm] - b[nm], pk = nm === S.pin, col = pk ? 'var(--text)' : d >= 3 ? 'var(--up)' : d <= -3 ? 'var(--down)' : 'var(--sx-dim)', w = pk ? 2.2 : Math.abs(d) >= 3 ? 2 : 1.2;
         const tip = `<b>${esc(nm)}</b><br>${esc(W.rsB.tip(a[nm], dl(P0), b[nm], d))}<br>${n}D ${esc(W.vs(D.market))}: ${M.pp(K.rr(nm, n, P0))} → ${M.pp(K.rr(nm, n))}`;
-        o += `<g class="sl${pk ? ' pk' : ''}" data-n="${esc(nm)}" role="button" tabindex="0" aria-label="${esc(nm)}" data-tip="${esc(tip)}"><rect class="bg" x="0" y="${(Y(a[nm]) - rowH / 2).toFixed(1)}" width="${L - 2}" height="${rowH.toFixed(1)}" rx="4"/><rect class="bg" x="${R + 2}" y="${(Y(b[nm]) - rowH / 2).toFixed(1)}" width="${Wd - R - 2}" height="${rowH.toFixed(1)}" rx="4"/><line class="hit" x1="${L}" x2="${R}" y1="${Y(a[nm])}" y2="${Y(b[nm])}" stroke="transparent" stroke-width="12"/><line x1="${L}" x2="${R}" y1="${Y(a[nm])}" y2="${Y(b[nm])}" stroke="${col}" stroke-width="${w}"/><circle class="e" cx="${L}" cy="${Y(a[nm])}" r="3.5" fill="${col}"/><circle class="e" cx="${R}" cy="${Y(b[nm])}" r="3.5" fill="${col}"/>`
+        o += `<g class="sl${pk ? ' pk' : ''}" data-n="${esc(nm)}" role="button" tabindex="0" aria-label="${esc(nm)}" data-tip="${esc(tip)}"><rect class="bg" x="0" y="${(Y(a[nm]) - rowH / 2).toFixed(1)}" width="${L - 2}" height="${rowH.toFixed(1)}" rx="4"/><rect class="bg" x="${R + 2}" y="${(Y(b[nm]) - rowH / 2).toFixed(1)}" width="${Wd - R - 2}" height="${rowH.toFixed(1)}" rx="4"/><line class="hln" x1="${L}" x2="${R}" y1="${Y(a[nm])}" y2="${Y(b[nm])}" stroke="transparent" stroke-width="12"/><line x1="${L}" x2="${R}" y1="${Y(a[nm])}" y2="${Y(b[nm])}" stroke="${col}" stroke-width="${w}"/><circle class="e" cx="${L}" cy="${Y(a[nm])}" r="3.5" fill="${col}"/><circle class="e" cx="${R}" cy="${Y(b[nm])}" r="3.5" fill="${col}"/>`
           + `<g class="rk" style="--rc:${d >= 3 ? 'var(--up)' : d <= -3 ? 'var(--down)' : 'var(--text-2)'}"><circle cx="${L}" cy="${Y(a[nm])}" r="8.5"/><text x="${L}" y="${Y(a[nm]) + 3.5}">${a[nm]}</text><circle cx="${R}" cy="${Y(b[nm])}" r="8.5"/><text x="${R}" y="${Y(b[nm]) + 3.5}">${b[nm]}</text></g>`
           + `<text class="lb${pk ? ' b' : ''}" x="${L - 10}" y="${Y(a[nm]) + 4}" text-anchor="end">${a[nm]}  ${esc(D.short(nm))}</text><text class="lb${pk ? ' b' : ''}" x="${R + 10}" y="${Y(b[nm]) + 4}">${b[nm]}  ${esc(D.short(nm))} <tspan class="${d > 0 ? 'u' : d < 0 ? 'd' : 'n'}">${d > 0 ? '▲' + d : d < 0 ? '▼' + -d : '—'}</tspan></text></g>`;
       });
@@ -155,7 +157,7 @@ export const rsW: Card = {
     const f = (v: number) => (Math.abs(v) >= 10 ? M.sign(v) + Math.abs(v).toFixed(0) : M.ppx(v, 1));
     const cell = (nm: string, e: number) => {
       const v = val(nm, e); if (v == null) return '<div class="c">—</div>';
-      return `<div class="c${nm === S.pin ? ' pk' : ''}" data-tip="${esc(`<b>${esc(D.short(nm))}</b> · ${esc(M.rangeLabel(D.dates[e - 5], D.dates[e], D.ref))}<br>${esc(W.rsA.sector)} ${M.pct(M.ret(D.sec(nm), e, 5))}<br>${esc(D.market)} ${M.pct(M.ret(D.IH, e, 5))}<br>${esc(W.rsA.excess)} ${M.pp(v)}`)}" style="${heat(v, cap)}">${f(v)}</div>`;
+      return `<div class="c${nm === S.pin ? ' pk' : ''}" data-tip="${esc(`<b>${esc(D.short(nm))}</b> · ${esc(M.rangeLabel(D.dates[e - 5], D.dates[e], D.ref))}<br>${esc(W.rsA.sector)} ${M.pct(M.ret(D.sec(nm), e, 5))}<br>${esc(D.market)} ${M.pct(M.ret(D.IH, e, 5))}<br>${esc(W.rsA.excess)} ${M.pp(v)}`)}" style="${heat(v, cap, 0, Math.abs(v) >= 10 ? 0 : 1)}">${f(v)}</div>`;
     };
     const on = custom ? 'C' : S.rsWn === 'C' ? '8' : S.rsWn;
     el.innerHTML = H3(W.rsW.title, W.rsW.sub(D.market), SEG('w', '', [['4', '4W'], ['8', '8W'], ['C', W.range.custom]], on), c.win ? null : 'rsW')
@@ -163,7 +165,7 @@ export const rsW: Card = {
         const mo2 = M.MON[+D.dates[e].slice(5, 7) - 1], nw = j === 0 || mo2 !== M.MON[+D.dates[K[j - 1]].slice(5, 7) - 1];
         return msTh(SK, 'w' + e, `<i>${nw ? mo2 : ''}</i><b>${+D.dates[e].slice(8, 10)}</b>`, 'hd', W.rsW.headTip(M.dateLabel(D.dates[e], false, true)), { tag: 'div' });
       }).join('')}`
-      + rows.map(r => `<button type="button" class="nm${r.nm === S.pin ? ' pk' : ''}" data-n="${esc(r.nm)}" title="${esc(r.nm)}">${esc(r.sn)}</button>` + K.map(e => cell(r.nm, e)).join('')).join('') + `</div></div>`
+      + rows.map(r => `<button type="button" class="nm${r.nm === S.pin ? ' pk' : ''}" data-n="${esc(r.nm)}" title="${esc(r.nm)}"><span>${esc(r.sn)}</span></button>` + K.map(e => cell(r.nm, e)).join('')).join('') + `</div></div>`
       + `<div class="lgd">${msNote(SK, LAB, { sn: 1 }, W.rsW.defOrder(D.market))}<span>${esc(W.rsW.foot(K.length))}</span>${rangeNote(note)}<span class="sp"></span><span>${esc(K.length ? M.rangeLabel(D.dates[K[0] - 5], D.dates[e1], D.ref) : '')}</span></div>`;
     onSeg(el, 'w', (v, btn) => {
       // the popover prints the weeks the card will show (check 1 OR-6)
@@ -231,7 +233,7 @@ export const rsD: Card = {
     const LAB = Object.fromEntries(COLSx.map(x => [x[0], x[1]]));
     const sorted = M.msSort([...SEC], SK, { sn: 1 }, DEF);
     const NA = na(W.rsD.na);
-    const pc = (v: M.N) => (v == null ? NA : `<span class="${M.cls(v)}">${M.pct(v, 1)}</span>`), p1 = (v: M.N) => (v == null ? NA : `<span class="${M.cls(v)}">${M.ppx(v, 1)}</span>`);
+    const pc = (v: M.N) => (v == null ? NA : `<span class="${M.cls(v, 1)}">${M.pct(v, 1)}</span>`), p1 = (v: M.N) => (v == null ? NA : `<span class="${M.cls(v, 1)}">${M.ppx(v, 1)}</span>`);
     const tag = (x: DRow) => { const t = M.momTag(x.e1, x.eM, mo); return t ? `<span class="tg ${t[0]}" title="${esc(W.rsD.momTip(M.ppx(t[1], 2)))}">${esc(W.mom[t[0]])}</span>` : NA };
     const row = (x: DRow) => {
       const kids = !x.ind && IND.some(u => u.sector === x.nm), isOpen = open.has(x.nm);

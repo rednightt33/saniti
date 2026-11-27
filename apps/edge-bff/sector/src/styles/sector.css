@@ -72,6 +72,11 @@ svg{display:block;flex:none}
 .mss .rsr,.clr{border:0;background:none;padding:0;height:auto;font:inherit;color:var(--text);text-decoration:underline;text-underline-offset:2px;box-shadow:none}
 .dchip{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);font:inherit;font-size:var(--fs-2xs);font-weight:var(--fw-medium);color:var(--text-2);white-space:nowrap;box-shadow:none;cursor:help}
 .dchip i{width:6px;height:6px;border-radius:50%;background:var(--navy)}
+/* a segmented control keeps its options on one line: squeezed in a row it moves whole to the next line, never stacks its
+   own buttons (check 2 RP2-3 / MX2-2: "Changes" above "All columns" in the Rotation detail window's 52 px band) */
+.seg{flex-wrap:nowrap;flex:none}
+.sxw{display:inline-flex;min-width:0}                        /* a select's touch area is its wrapper's (touch.ts) */
+.sgrp{display:inline-flex;align-items:center;gap:var(--s-4);flex:none}.sgrp>.plab{flex:none;color:var(--text-3);font-size:var(--fs-12)}
 .sx-sel{height:var(--h-sm);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);padding:0 var(--s-4);font:inherit;font-size:var(--fs-12);font-weight:var(--fw-medium);color:var(--text);max-width:100%}
 .seg button[disabled]{opacity:.45;cursor:not-allowed}
 .ax{font-size:var(--fs-2xs);fill:var(--text-3);font-variant-numeric:tabular-nums}
@@ -92,7 +97,9 @@ svg text{font-family:var(--sans)}
 .tbl .na{color:var(--text-3)}
 .tc .tbl-wrap{flex:1 1 0;min-height:0;overflow:auto}
 th .sk,.hd .sk{margin-left:3px;white-space:nowrap}th .sk sup,.hd .sk sup{font-size:9px;margin-left:1px;font-weight:var(--fw-bold)}
-th.df .sk,.hd.df .sk{opacity:.45}
+/* the arrow of the order a table is in is text in its head's colour, so 4.5:1 or more (check 2 MX2-7: the default order's
+   arrow was drawn at 45% opacity, 1.9:1); the default order reads apart by its head's grey, a chosen column's head and
+   arrow are --text (.on) */
 [data-k][role=button]:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
 .tg{display:inline-block;padding:1px 6px;border-radius:4px;font-size:var(--fs-12);font-weight:var(--fw-semibold)}
 .tg.Gaining{background:var(--green-bg);color:var(--green-tag)}.tg.Fading{background:var(--red-bg);color:var(--red-tag)}.tg.Steady{background:var(--sel);color:var(--text-2)}
@@ -110,7 +117,7 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .rrg svg:has(rect[data-tip]:hover) rect[data-tip]:not(:hover){opacity:.45}
 .dvb>.r[data-n],.dots>.r[data-n],.adr>div[data-n]{border-radius:4px;margin-inline:-6px;padding-inline:6px;cursor:pointer}
 .dvb>.r[data-n]:hover,.dots>.r[data-n]:hover,.adr>div[data-n]:hover{background:var(--surface-2)}
-:is(.dvb .r,.dots .r,.adr>div,tr[role=button],.cpi,.ovx-bl .r,.ovx-hm .nm,.mk-t)[role=button]:focus-visible,.ovx-dot:focus-visible,.sl:focus-visible,.pt:focus-visible,circle.dt:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
+:is(.dvb .r,.dots .r,.adr>div,tr[role=button],.cpi,.ovx-bl .r,.ovx-hm .nm,.mk-t)[role=button]:focus-visible,.ovx-dot:focus-visible,.sl:focus-visible,.pt:focus-visible,g.dt:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
 .tbl tbody tr[role=button]{cursor:pointer}
 /* a sticky first cell has its own background: it follows the row's hover and selection (check 1 RP-11) */
 .rs-d .tbl tbody tr:hover>td:first-child,.br-t .tbl tbody tr:hover>td:first-child,.pm-t .tbl tbody tr:hover>td:first-child{background:var(--surface-2)}
@@ -191,7 +198,8 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .ovx-hm .hd{font-size:10.5px;color:var(--text-3);font-weight:var(--fw-semibold);cursor:pointer;user-select:none;min-height:18px}
 .ovx-hm .hd.l{justify-content:flex-start;padding-left:2px}
 .ovx-hm .hd.on{color:var(--text)}
-.ovx-hm .nm{justify-content:flex-start;font-weight:var(--fw-semibold);font-size:11.5px;padding-left:2px;color:var(--text);cursor:pointer;overflow:hidden;white-space:nowrap}
+.ovx-hm .nm{justify-content:flex-start;font-weight:var(--fw-semibold);font-size:11.5px;padding-left:2px;color:var(--text);cursor:pointer;white-space:nowrap}
+.ovx-hm .nm>span,.rsw .nm>span,.pmg .nm>span{min-width:0;overflow:hidden;white-space:nowrap}    /* the clip on the name, not the cell (touch areas) */
 .ovx-hm .c{cursor:pointer}
 .ovx-hm .ih{font-weight:var(--fw-semibold);color:var(--text)}.ovx-hm .nm.ih{color:var(--text-2);cursor:default}
 /* a locked sector is marked by its name cell; the other rows keep their colours (UD77: no dimming of the heat cells) */
@@ -200,6 +208,7 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .mk-g{position:absolute}
 .mk-g.on{box-shadow:0 0 0 2px var(--text);border-radius:3px;z-index:1}.mk-g.on>.mk-gl{color:var(--text);font-weight:var(--fw-bold)}
 .mk-gl{position:absolute;left:2px;top:0;max-width:calc(100% - 4px);height:14px;line-height:14px;font-size:10px;font-weight:var(--fw-semibold);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mk-gl.wr{white-space:normal;line-height:14px;display:-webkit-box;-webkit-box-orient:vertical;overflow-wrap:anywhere}   /* a name on 2-3 lines (check 2 MX2-9) */
 .mk-t{position:absolute;border-radius:3px;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;font-size:var(--fs-xs);line-height:1.2;text-align:center;cursor:pointer;outline:none}
 .mk-t b{font-weight:var(--fw-semibold)}.mk-t span{font-size:10px}
 .ovx-scl{display:inline-flex;align-items:center;gap:2px;color:var(--text-3)}
@@ -227,8 +236,8 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .slope{position:relative;min-height:300px}.slope>svg{position:absolute;inset:0}
 .slope .lb{font-size:12px;fill:var(--text-2)}.slope .lb.b{fill:var(--text);font-weight:var(--fw-bold)}.slope .hd{font-size:10.5px;fill:var(--text-3);font-weight:var(--fw-semibold)}
 .slope .u{fill:var(--green);font-weight:var(--fw-semibold)}.slope .d{fill:var(--red);font-weight:var(--fw-semibold)}.slope .n{fill:var(--text-3)}
-.slope .sl{cursor:pointer;outline:none}.slope .sl .bg{fill:transparent}
-.slope svg:has(.sl:hover) .sl:not(:hover){opacity:.3}.slope .sl:hover line:not(.hit){stroke-width:2.4}.slope .sl:hover .lb{font-weight:var(--fw-semibold);fill:var(--text)}
+.slope .sl{cursor:pointer}.slope .sl .bg{fill:transparent}
+.slope svg:has(.sl:hover) .sl:not(:hover){opacity:.3}.slope .sl:hover line:not(.hln){stroke-width:2.4}.slope .sl:hover .lb{font-weight:var(--fw-semibold);fill:var(--text)}
 .slope svg:has(.sl.pk):not(:has(.sl:hover)) .sl:not(.pk){opacity:.3}
 .slope .sl .rk{opacity:0;pointer-events:none}.slope .sl .rk circle{fill:var(--rc)}.slope .sl .rk text{fill:#fff;font-size:10px;font-weight:var(--fw-bold);text-anchor:middle}.slope .sl:hover .rk{opacity:1}.slope .sl:hover circle.e{opacity:0}
 .rlc{flex:1 1 0;min-height:220px;position:relative;cursor:crosshair}
@@ -239,7 +248,7 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .rsw .hd i{font-style:normal;font-size:11px;color:var(--text-3);font-weight:var(--fw-semibold);height:12px;line-height:12px}
 .rsw .hd b{font-weight:var(--fw-semibold);color:var(--text-2)}
 .rsw .hd.l{justify-content:flex-end;align-items:flex-start}
-.rsw .nm{position:sticky;left:0;z-index:1;background:var(--surface);border:0;font-family:inherit;color:var(--text);text-align:left;padding:0 0 0 2px;display:flex;align-items:center;justify-content:flex-start;font-weight:var(--fw-semibold);font-size:12px;border-radius:3px;height:auto;align-self:stretch;box-shadow:none;white-space:nowrap;overflow:hidden}
+.rsw .nm{position:sticky;left:0;z-index:1;background:var(--surface);border:0;font-family:inherit;color:var(--text);text-align:left;padding:0 0 0 2px;display:flex;align-items:center;justify-content:flex-start;font-weight:var(--fw-semibold);font-size:12px;border-radius:3px;height:auto;align-self:stretch;box-shadow:none;white-space:nowrap}
 .rsw>.hd:first-child{position:sticky;left:0;z-index:1;background:var(--surface)}
 .rsw .nm:hover,.rsw .nm.pk{background:var(--sel)}
 .rsw .nm.pk{font-weight:var(--fw-bold);box-shadow:inset 3px 0 0 var(--text)}
@@ -268,7 +277,7 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .rrg .lb{font-size:11px;font-weight:var(--fw-semibold);fill:var(--text);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}.rrg .lb.b{font-weight:var(--fw-bold)}
 .rrg .tl{opacity:var(--op);transition:opacity .12s ease}
 .rrg.hv .tl{opacity:.1}.rrg.hv .tl.on{opacity:1}
-.rrg .pt{cursor:pointer;outline:none}
+.rrg .pt{cursor:pointer}
 .rrg.lk .tl:not(.pk){opacity:.12}.rrg.lk .pt:not(.pk){opacity:.25}.rrg.lk text.lb:not(.b){opacity:.3}
 .rrg.sl .tl{opacity:.1}.rrg.sl .tl.on2{opacity:1}.rrg.sl .pt{opacity:.25}.rrg.sl .pt.on2{opacity:1}.rrg.sl .lb{opacity:.3}.rrg.sl .lb.on2{opacity:1}
 .rrg .tn{font-size:12px;font-weight:var(--fw-semibold);fill:var(--text);cursor:pointer}.rrg .tn.b{font-weight:var(--fw-bold)}
@@ -288,7 +297,7 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .rot-c .lb{font-size:11px;font-weight:var(--fw-semibold);fill:var(--text);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 .rot-c .lb.b{font-weight:var(--fw-bold);font-size:12px}
 .rot-c .lgd b{color:var(--text);font-weight:var(--fw-semibold)}
-circle.dt{cursor:pointer;outline:none}
+g.dt{cursor:pointer}
 
 /* ---------- Pair matrix ---------- */
 .pmg-s{flex:1 1 0;min-height:0;overflow:auto;padding:0 var(--s-8) var(--s-4)}
@@ -296,7 +305,7 @@ circle.dt{cursor:pointer;outline:none}
 .pmg>div,.pmg>button{display:flex;align-items:center;justify-content:center;font-size:11px;border-radius:3px;min-height:0;height:auto;font-variant-numeric:tabular-nums;border:0;padding:0 2px;font-family:inherit;box-shadow:none;line-height:1.2}
 .pmg .hd{font-size:10.5px;color:var(--text-3);font-weight:var(--fw-semibold);background:none}
 .pmg .hd.on{color:var(--text)}
-.pmg .nm{position:sticky;left:0;z-index:1;justify-content:flex-start;font-weight:var(--fw-semibold);font-size:12px;padding-left:2px;color:var(--text);background:var(--surface);white-space:nowrap;overflow:hidden}
+.pmg .nm{position:sticky;left:0;z-index:1;justify-content:flex-start;font-weight:var(--fw-semibold);font-size:12px;padding-left:2px;color:var(--text);background:var(--surface);white-space:nowrap}
 .pmg .nm.on{background:var(--sel);font-weight:var(--fw-bold);box-shadow:inset 3px 0 0 var(--text)}.pmg .nm.nb{cursor:default;color:var(--text-2)}
 .pmg .c.sel{box-shadow:inset 0 0 0 1.5px var(--text)}
 .pmg .dg{background:var(--surface-2);color:var(--text-3)}
@@ -438,7 +447,7 @@ circle.dt{cursor:pointer;outline:none}
 .fw-note{font-size:var(--fs-12);color:var(--amber);margin-bottom:6px}
 .fw-sel{display:inline-flex;align-items:center;gap:6px}
 .fw-q{display:inline-flex;align-items:center;gap:6px;height:var(--h-sm);padding:0 8px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-3);flex:none}
-.fw-q input{border:0;outline:0;background:none;font:inherit;font-size:12px;color:var(--text);width:150px;height:26px;padding:0;box-shadow:none}
+.fw-q input{border:0;outline:0;background:none;font:inherit;font-size:12px;color:var(--text);width:150px;height:26px;padding:0;box-shadow:none}   /* as wide on a phone: the placeholder whole (check 2 MX2-6) */
 .fw-tw{flex:1 1 auto;min-height:0;overflow:auto;scrollbar-gutter:stable}
 .fw-tb th,.fw-tb td{padding-left:6px!important;padding-right:6px!important;font-size:11.5px}
 .fw-tb th:first-child,.fw-tb td:first-child{padding-left:8px!important}.fw-tb th:last-child,.fw-tb td:last-child{padding-right:12px!important}
@@ -452,7 +461,7 @@ circle.dt{cursor:pointer;outline:none}
 .fw-f b{color:var(--text-2);font-weight:var(--fw-semibold)}
 .fw [data-card] .tbl-wrap{flex:1 1 auto}
 @media (max-width:640px){.fw{border-radius:0;resize:none;overflow-y:auto}.fw-h{cursor:default;padding-left:16px;position:sticky;top:0;z-index:3;background:var(--surface)}.fw-ti{flex-wrap:wrap;white-space:normal}.fw-st{white-space:normal}
-  .fw-c,.fw.stk .fw-c{flex:none;overflow:visible}.fw-r{padding:12px 16px 0}.fw-f{padding:8px 16px}.fw-q input{width:110px}}
+  .fw-c,.fw.stk .fw-c{flex:none;overflow:visible}.fw-r{padding:12px 16px 0}.fw-f{padding:8px 16px}}
 /* ---------- visual round 2 windows (user 2026-11-27, EXEC.md EXEC-SECTOR-ANALYSIS V1-V10; windows.ts) ---------- */
 /* a card that is only controls over its detail (Stretched pairs: the window shows only "Spread across horizons") */
 .fw.stk .fw-l.ctlo{min-height:0;padding-bottom:var(--s-4)}
@@ -464,6 +473,12 @@ circle.dt{cursor:pointer;outline:none}
 .fw.al .fw-tw,.fw.al .fw-l .tbl-wrap{scrollbar-gutter:stable;scrollbar-width:thin;overflow-x:auto}
 .fw.al .fw-tb td.l{max-width:none}
 .fw.al .fw-tb th:first-child,.fw.al .fw-tb td:first-child{padding-left:var(--s-8)!important}
+/* and one cell padding in both tables, so the text of a column starts and ends where the text above or below it does
+   (check 2 RP2-4: on the same column edges the lower table's right-aligned figures ended 4 px right of the upper's) */
+.fw.al :is(.fw-l .tbl,.fw-tb) :is(th,td){padding-left:4px!important;padding-right:4px!important}
+.fw.al :is(.fw-l .tbl,.fw-tb) :is(th,td):first-child{padding-left:var(--s-8)!important}
+.fw.al :is(.fw-l .tbl,.fw-tb) :is(th,td):last-child{padding-right:12px!important}
+.fw.al .rs-d .tbl tr.u>td:first-child{padding-left:42px!important}       /* an industry row stays indented under its sector */
 .fw.al .fw-tb .al-fill{padding:0!important}
 /* Rotation detail (C1): the card's controls in one row over both sides; the list (left) and the detail (right) on one
    52 px title band, one header line and 36 px rows with the same row lines */
@@ -490,11 +505,29 @@ circle.dt{cursor:pointer;outline:none}
   .fw.c1 .c1-chips{display:flex;gap:var(--s-3);overflow-x:auto;padding:var(--s-4) var(--s-6);border-bottom:1px solid var(--border);flex:none}
   .fw.c1 .fw-l>.card-h{flex-wrap:wrap}.fw.c1 .c1-hint{white-space:normal;margin-left:0}
   .fw.c1 .fw-r{flex:none}
+  /* on a phone there is no list beside the band to line up with: the band grows so its title and subtitle are whole (check
+     2 RP2-3 / MX2-2: "28 changes in 52 weeks · Industr…") */
+  .fw.c1 .fw-dh{height:auto;min-height:52px;padding-block:var(--s-4);flex-wrap:wrap}.fw.c1 .fw-dt span{white-space:normal}
 }
 /* the Rotation map in a window: its Timeline takes the whole window (the readings hidden, V8) */
 .fw.nod .fw-r[hidden],.fw .fw-f[hidden]{display:none}
-/* touch: the small single controls get a 44 px hit area without changing their look (check 1 MX-4, in part) */
-@media (pointer:coarse){.fwx,.rs-d .car,.fw-x{position:relative}.fwx::after,.rs-d .car::after,.fw-x::after{content:"";position:absolute;inset:-11px}.fw-x::after{inset:-9px}}
+/* and the window ends under its legend (check 2 RP2-1): the card is as tall as its content, the Timeline's box as tall as
+   the Timeline (.tlh, its height from rot.ts timeline); the same box in a card of the one-column layout (RP2-5) */
+.fw.bare .fw-c{align-items:start}.fw.bare .fw-l{min-height:0}
+.rrg.tlh{flex:none!important;min-height:0;height:var(--tlh,240px)}
+/* touch (UD72 "3A", decision 14; check 1 MX-4, check 2 MX2-4 / MX2-5): every small control's invisible tap area, up to
+   44 × 44 px; its four sides are measured from its neighbours by touch.ts (--hit-t/-r/-b/-l: the room to the nearest
+   target, half of it when that target has an area too; a side may take what the other side cannot, up to 44 px in all)
+   and are 0 until measured, so no two areas overlap.
+   The page's own controls take .hit there (touch.ts OWN); a control with a scrolled or clipped name keeps the clip on an
+   inner span, so its area is not clipped with it */
+@media (pointer:coarse){
+  :is(.seg button,.tog,.iconbtn,.btn.sm,.btn.xs,button.pill,.hit)::after{content:"";position:absolute;
+    top:max(calc(-1 * var(--hit-t,0px)),min(0px,calc(100% - 44px)));bottom:max(calc(-1 * var(--hit-b,0px)),min(0px,calc(100% - 44px)));
+    left:max(calc(-1 * var(--hit-l,0px)),min(0px,calc(100% - 44px)));right:max(calc(-1 * var(--hit-r,0px)),min(0px,calc(100% - 44px)))}
+  /* a field keeps its own taps over its wrapper's area (a select opens natively; the area around it opens it too) */
+  .hit>:is(select,input){position:relative;z-index:1}
+}
 
 /* ---------- narrow widths (last, so they win over the cards' own rules) ---------- */
 @media (max-width:900px){

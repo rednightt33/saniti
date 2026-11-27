@@ -12,7 +12,9 @@
    5 Rotation detail window (C1): one 52 px band and one row grid on both sides, a list that does not scroll sideways,
      Ctrl click adds, Clear returns to one, "All columns" has the card's five columns; chips on a phone.
    6 Stretched pairs window: only "Spread across horizons", its headers, Rank by / filter / Show driving it.
-   7 drill-down and Beta windows: every column edge of the lower table on a column edge of the upper one, nothing cut.
+   7 drill-down and Beta windows: every column edge of the lower table on a column edge of the upper one, nothing cut:
+     no ellipsis and no cell past its scroller's edge unless the window is as wide as the screen allows and its scroller
+     fades there (check 2 OV2-1); on a shared edge both tables' texts start or end at the same x (check 2 RP2-4).
    8 pair unselect (V10, UD79 1A): opens with no pair chosen (automatic pair, said), a second click unselects.
    9 Rotation map (V8): Map with the strip above a wide plot and its readings; Timeline over the whole window with square
      cells, the strip on the week columns, the dates under the grid.
@@ -259,11 +261,38 @@ for (const w of [1440, 1280, 1152, 390]) await step(`7 drill-down and Beta windo
     const m = await page.evaluate(() => {
       const e = t => [...t.querySelector('thead tr').children].flatMap(c => { const b = c.getBoundingClientRect(); return [b.left, b.right] });
       const top = document.querySelector('.fw .fw-l table'), bot = document.querySelector('.fw .fw-tb');
-      return { top: e(top), bot: e(bot), cut: [...document.querySelectorAll('.fw td, .fw th')].filter(x => getComputedStyle(x).textOverflow === 'ellipsis' && x.scrollWidth > x.clientWidth + 1).length, gut: [top.parentElement.clientWidth, bot.parentElement.clientWidth] };
+      // check 2 OV2-1: a cell clipped by its scroller's edge counts too, not only an ellipsis. A window is allowed a
+      // clipped column only when it is as wide as the screen allows (its margin, 24 px a side) and its scroller fades
+      // at that edge (the cue: nothing silently cut)
+      const fw = document.querySelector('.fw'), full = fw.getBoundingClientRect().width >= innerWidth - 48 - 2, clipped = [];
+      for (const sc of [top.parentElement, bot.parentElement]) {
+        const r = sc.getBoundingClientRect(), right = r.left + sc.clientLeft + sc.clientWidth;
+        const cueR = sc.classList.contains('xs-r'), cueL = sc.classList.contains('xs-l') || sc.classList.contains('xs-sl');
+        for (const x of sc.querySelectorAll('thead th, tbody tr:not([hidden]) td')) {
+          if (getComputedStyle(x).position === 'sticky') continue;
+          const b = x.getBoundingClientRect(); if (!b.width) continue;
+          if (b.right > right + 0.5 && !(full && cueR)) clipped.push(`"${x.textContent.trim().slice(0, 12)}" past the right edge by ${Math.round(b.right - right)} px${full ? '' : ' (the window could grow)'}${cueR ? '' : ', no cue'}`);
+          if (b.left < r.left - 0.5 && !(full && cueL)) clipped.push(`"${x.textContent.trim().slice(0, 12)}" past the left edge`);
+        }
+      }
+      const own = [...document.querySelectorAll('.fw td, .fw th')].filter(x => getComputedStyle(x).overflow !== 'visible' && x.scrollWidth > x.clientWidth + 1).length;
+      return { top: e(top), bot: e(bot), cut: [...document.querySelectorAll('.fw td, .fw th')].filter(x => getComputedStyle(x).textOverflow === 'ellipsis' && x.scrollWidth > x.clientWidth + 1).length + own, clipped: [...new Set(clipped)], gut: [top.parentElement.clientWidth, bot.parentElement.clientWidth], full };
     });
     const off = m.bot.filter(x => !m.top.some(y => Math.abs(x - y) <= 1));
     if (off.length) bad.push(`${card}${open2 ? ' open' : ''}: ${off.length} edges off the grid`);
     if (m.cut) bad.push(`${card}: ${m.cut} cells cut`);
+    if (m.clipped.length) bad.push(`${card}${open2 ? ' open' : ''}: ${m.clipped.length} cells clipped: ${m.clipped.slice(0, 3).join('; ')}`);
+    // check 2 RP2-4: on a shared edge the texts of both tables start (left) or end (right) at the same x
+    const pads = await page.evaluate(() => {
+      const cells = t => [...t.querySelector('thead tr').children].filter(c => !c.classList.contains('al-fill')).map(c => { const b = c.getBoundingClientRect(), s = getComputedStyle(c); return { l: b.left, r: b.right, il: b.left + parseFloat(s.paddingLeft), ir: b.right - parseFloat(s.paddingRight) } });
+      const a = cells(document.querySelector('.fw .fw-l table')), b = cells(document.querySelector('.fw .fw-tb')), out = [];
+      for (const x of b) for (const y of a) {
+        if (Math.abs(x.r - y.r) <= 1 && Math.abs(x.ir - y.ir) > 1) out.push(`right ${Math.round(x.ir - y.ir)}`);
+        if (Math.abs(x.l - y.l) <= 1 && Math.abs(x.il - y.il) > 1) out.push(`left ${Math.round(x.il - y.il)}`);
+      }
+      return out;
+    });
+    if (pads.length) bad.push(`${card}: texts off on shared edges (${pads.slice(0, 4).join(', ')})`);
     if (m.gut[0] !== m.gut[1]) bad.push(`${card}: scrollers ${m.gut[0]} vs ${m.gut[1]} px`);
     bad.push(...(await winFrame()).map(x => `${card}: ${x}`));
     await closeWin();
