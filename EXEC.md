@@ -18365,3 +18365,12 @@ yang ada di page sector, yang sifatnya top and bottom."
   (1) Rank by, All / Leader still ahead / Leader behind dan Show Top 7 / All tetap, dan sekarang mengatur tabel Spread
   across horizons (urutan, saring, jumlah baris) dengan aturan yang sama seperti kartu; (2) kolom "|1M|" dihapus; (3) kartu
   Stretched pairs di halaman tetap, hanya jendela yang berubah. Eksekusi menunggu konfirmasi user.
+- User 2026-11-27 (verbatim, 5 screenshot: bertanda 1 = prototipe Timeline dan Map, bertanda 2 = versi sekarang Map dan
+  Timeline): "Sector drill-down dan Beta and correlation: [...] Keep as is. / Untuk rotation MAP bisa refer ke screenshot 1
+  sebagai acuan, kita ke arah sana, detailnya ada di HTML. / Screenshot 2 adalah kondisi existing / Comprende?"
+  (a) Sector drill-down dan Beta and correlation: tidak ada perubahan susunan (tetap seperti di branch: tabel atas
+  dibatasi setengah jendela dengan scroll sendiri, cek 1 OR-11); kolom atas-bawah tetap disejajarkan bila disetujui.
+  (b) V8 Rotation map mengikuti prototipe (`scratchpad/sector/v2`, gambar audit `tab-rot_card-rotA_*`): mode Timeline di
+  jendela memakai seluruh lebar (tabel readings disembunyikan), sel persegi berjarak dengan sudut bulat, garis IHSG di
+  atas sejajar dengan kolom minggu, tanggal di bawah grid, "in phase" berwarna kuadran sekarang, legenda di bawah; mode
+  Map: garis IHSG di atas plot dan proporsi plot seperti prototipe, tabel readings tetap di kanan.
