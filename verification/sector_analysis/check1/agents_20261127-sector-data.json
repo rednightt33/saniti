@@ -1,0 +1,115 @@
+{
+ "run": "agents_20261127-sector-data",
+ "area": "data",
+ "model": "sonnet",
+ "checked": [
+  "sector-series (all 300 dates): breadth members/n50/a50/n200/a200/adv/unch/dec for IHSG + 11 sectors = 3,600 rows equal Feature_08_Group_Daily, 0 mismatches; 58 industries x 300 = 17,400 rows (level, members) equal the table, 0 mismatches.",
+  "Breadth recount from raw prices + Feature 04 + IDX_Stock_Universe on 2026-11-26, 2026-06-15 and 2025-09-02: 12 groups each, 0 mismatches against the series.",
+  "Index closes (IHSG, LQ45, 11 IDX sector indexes) x 300 dates equal Price_Stock_Indonesia_IDX within the 2-decimal rounding (max abs diff 0.005); dates equal the IHSG final-close calendar (300) and equal the Overview series dates; IHSG/LQ45/sector closes identical to overview-series; breadth % equals overview-series above_ema50/200 (max diff 0.005) and breadth_n equal on all 300 dates.",
+  "meta.dates = the 20 newest Feature_01 dates (2026-10-30..2026-11-26); prices_through = breadth_through = 2026-11-26 = max final IHSG date = max Feature 04 date.",
+  "Industry chain-linked levels recomputed independently (previous-date feature_08_weight, close/prev_close) for Banks, Coal, Consumer Electronics, Alternative Energy Equipment over 7 daily steps: equal to 4 decimals; DB-internal check level(t)/level(t-1)-1 = ret_1d_w/100 on 20,992 rows (max err 3e-16).",
+  "feature_08_weight = overview_stock_size: BBCA, IDEA, XSPI (7 sessions), GOTO weights equal sum(close*volume)/20 of the last 20 market sessions exactly (ratio 1.0000).",
+  "sector-day files 2026-11-26, 11-23, 11-17, 11-10, 11-05, 11-02, 10-30: stock set (838/835/833/835/834/836/831) equals universe 'stock' with a final close (no extra, no missing); close, volume, r1d, r5d, r1m (20), r3m (60) vs market-session calendar, weight, above_ema50/200 and d_ema50/200 (Feature 04 close/ema) recomputed for every stock, 0 mismatches; prior_date correct.",
+  "days50/days200/since50/since200: recounted from Feature 04 history for 21 tickers on 2026-11-26 (incl. 3 at the 300 cap: TPIA, SNLK, MKAP, and BBCA) and BBCA/BBRI/ASII on 11-10: all equal (BBCA 4 days since 2026-11-23, 252 since 2025-11-10); consistency over all 20 day files (31,604 stock-pairs): same status => days+1 and same since, flip => 1 and since = that date, 0 violations; 20 stocks capped at 300 show since null.",
+  "sector-stocks-<index> for all 11 sectors: dates = the 300 series dates, ticker sets equal the sector's stocks in IDX_Stock_Universe and in meta (93/139/122/78/100/39/56/56/79/41/38), sorted, sampled closes equal prices within 2-decimal rounding.",
+  "sector-meta: 11 sectors with the right index tickers, 58 industries each with a single sector equal to the universe, 862 stocks, names equal Company Name, 21 'Undefined' -> sector 'Other' and industry null, periods 1D..1Y as decision E, benchmarks IHSG/LQ45, weight_basis adv20_value.",
+  "SECTOR_FORMULAS.md 25 Nov examples (market 837/133/829/132, 197/187/453; Financials 98 22/14 24/31/43; Banks 46 12/5 12/10/24; ret_1d_w -1.593/-0.162/-0.129; weight_sum 9.39/2.80/2.74 T) equal Feature_08_Group_Daily on 2026-11-25.",
+  "Page (beta, Chromium, owner login), Overview tab at 26 Nov, 10 Nov and 30 Oct: IHSG 5D close/points/%, 'Beating IHSG 5D' (2/11, 1/11, 6/11), strongest sector (Health +1.35 pp; Industrials +0.78; Health), improving-rotation count (5, 1, 2), biggest rank gain (Energy 8, Basic Mat. 9, Health 9), 3M cumulative returns of 11 sectors, Sector x Horizon table (1D,1W,1M,3M,6M,YTD,1Y for 11 sectors + IHSG; YTD base 2025-12-30, 1Y base 2025-11-07) all equal my computation from sector-series.",
+  "Market map of Health and Energy: industry labels (Pharmaceuticals +2.3, Healthcare Providers -1.3, Equipment & Supplies -14.5; Coal +2.9 etc.) = weight-weighted (r5d - IHSG 5D) from the day file; tile values (KLBF +3.6, SIDO -1.5 ...) equal.",
+  "Relative Strength tab: Sector drill-down (3D,1W,1M,3M,YTD, vs IHSG 1M/3M, RS rating 1-99, Delta 4W, >EMA50, quadrant, momentum tag) for all 11 sectors; rank change 5D (since 19 Nov) and 10D (since 12 Nov); weekly excess heatmap (8 weeks, Financials/Health/Basic Mat.); Health top-10 stock lines (DKHH +26.5, PRDA +23.2 ... MMIX -62.3 since 3 Sep); 'Open all industries': 70 rows, 406 return cells (3D,1W,1M,3M,YTD, vs IHSG 1M/3M) equal industry-level returns, Delta 4W equal, >EMA50 for 5 sampled industries equal.",
+  "Rotation tab: relative strength and momentum of all 11 sectors, quadrants now / 5D / 10D ago, speed (distance in 5 sessions), angle (1W), 'last change' date and previous quadrant (all 11), Health stock quadrant counts (Leading 8, Improving 8, Weakening 1, Lagging 22) equal.",
+  "Pair Matrix tab: spread matrix 1M (spot checks Fin-Basic 15.7, Fin-Energy 10.1...), correlation 60D (Fin-Energy 0.78, NonCyc-Fin 0.94, Health-Basic 0.71), beta/corr/return/vs-benchmark/alpha/Delta beta for 11 sectors, 120D vs IHSG and vs LQ45 (identical to numpy), pair ratio Energy/Basic Mat. (spread 6M +12.1 pp, band 'above upper band', z 2.24 MA50), stretched pairs top 7 by |1M| (3D/1W/1M spreads), stock beta/corr/1M/weight window for Energy (GTSI 1.99/0.72, DEWA 1.98/0.75, BUMI 1.81/0.80, CBRE, HRUM) equal.",
+  "Breadth tab: IHSG % above EMA50 (17.5% -> '18%'), +0.3 pp vs 5 sessions (0.255), heatmap table Stocks/Up 1D/1W/1M/>EMA50/>EMA200/Delta EMA50 1W for all rows, Breadth by sector in all 3 measures (>EMA50, >IHSG 5D, >0% 5D), A/U/D 1D (310/202/322) and 1W (280/103/447), stock detail rows (IDEA, XSPI, ALDO, PKPK distances/days/since) equal; date picker 2026-11-10 and 2026-10-30 reload correctly (Prices to Tue 10 Nov, IHSG 5,125.73 +221.44 +4.52%; Fri 30 Oct 5,057.05 -382.21 -7.03%).",
+  "No random/seeded/constant figures found in apps/edge-bff/sector/src (grep Math.random/seed/fake/dummy); no EMA20 or RRG/RS-Ratio wording left."
+ ],
+ "findings": [
+  {
+   "id": "D-1",
+   "severity": "minor",
+   "title": "Industry rows and their sector row measure different things and can disagree in sign and size by tens of points",
+   "where": "Relative Strength > Sector drill-down / Open all industries; Feature_08_Group_Daily.index_level (SECTOR rows unused) vs official IDX sector index in sector-series.sector; SECTOR_FORMULAS.md section 6",
+   "steps": "Open Relative Strength, 'Open all industries'. Compare Technology (official IDXTECHNO 1M -9.7%) with its biggest industry Internet Applications & Services (19 members, 1M +9.4%), and Healthcare (-0.4%) with Pharmaceuticals (+8.9%) / Healthcare Providers (-10.6%). Over 252 sessions Transportation & Logistic is -18.2% on the official index but its 3 industries are -55% to -65%.",
+   "expected": "Either industry returns reconcile with their sector row, or the page says plainly that the sector row is the official free-float index and the industry rows a different, traded-value-weighted index.",
+   "actual": "The only note is 'an industry's returns come from the weighted index of its stocks'. The same traded-value chain index applied to whole sectors (Feature_08_Group_Daily SECTOR rows) differs from the official index by up to 48 pp over 1Y (Transport -66.5% vs -18.2%; Technology 1M +8.3% vs -9.7%; Healthcare 1M -11.6% vs -0.4%; Properties & Real Estate level 3.79 since 2021 vs official 650 / 922 = -29%). The SECTOR rows' index_level and the series adv/unch/dec are shipped/stored but no page figure uses them, so the divergence is only visible by comparing the two bases. Arithmetic is correct (recomputed to 4 decimals); this is a methodology/disclosure gap, the documented 1D example (-0.16% vs -0.31%) understates it.",
+   "evidence": "Queries on Feature_08_Group_Daily (SECTOR index_level at 2026-11-26, -20, -60, -252 sessions) vs sector-series.sector; c-script output in /tmp/.../sector_check1/agents_20261127-sector-data (pg/ind_all.txt for the page rows; Tech industries 1M: Internet +9.4, Software +2.8, Electronic Equip +6.7, IT Services -8.1, Networking -30.2, Computer Hardware -2.2)."
+  },
+  {
+   "id": "D-2",
+   "severity": "minor",
+   "title": "Breadth tab 1D advancers/decliners differ from the Overview and Feature 08 for the same market and date",
+   "where": "Breadth > Advancers and decliners (1D), Breadth heatmap 'Up 1D'; apps/edge-bff/sector/src/cards/br.ts aud(); CONTRACT section 2/3.2 (adv_1d, series adv/unch/dec)",
+   "steps": "Open Breadth on 26 Nov: 'IHSG (all)' 1D shows 310 up / 202 flat / 322 down, share 310/834. Open the Overview for the same date: advancers 311, unchanged 204, decliners 323 (838 stocks). Financials: page 27/34/36 of 97, Feature 08 27/35/36 of 98.",
+   "expected": "The same market/day counts on both pages (the contract says Feature 08 breadth must equal the Overview's), or a visible note that the page counts only stocks with a bar on the previous market session.",
+   "actual": "The page derives 1D counts from r1d, which is null when the stock has no bar on the previous market session (BBMD, DUTI, RONY, SURE on 26 Nov: thin stocks that did not trade on 25 Nov), so 4 stocks drop out of the denominator and the flat count loses 2. The series' adv/unch/dec (which equal the Overview) are downloaded but unused. Same mechanism makes 1W/1M denominators 830/829 vs 838.",
+   "evidence": "overview-day-2026-11-26 breadth {'advancers':311,'decliners':323,'unchanged':204}; sector-series.breadth.IHSG adv/unch/dec[-1] = 311/204/323 = Feature_08_Group_Daily; page text pg/tab4.txt 'IHSG (all) 310 202 322 310/834'; r1d null list from sector-day-2026-11-26."
+  },
+  {
+   "id": "D-3",
+   "severity": "minor",
+   "title": "Stock detail 'Days' counts the stock's own bars, so it contradicts the 'Since' date for thinly traded stocks",
+   "where": "Breadth > Stock detail columns Days / Since; words.ts:348 daysTip 'Sessions in the current status'; sector.py status runs over Feature 04 rows",
+   "steps": "Open Breadth > Stock detail, find INPS (EMA50, 'Above ... 19 ... 27 Aug'). Count market sessions 27 Aug to 26 Nov: 66.",
+   "expected": "'Days' = sessions (the tooltip says sessions) consistent with 'Since'.",
+   "actual": "INPS shows 19 days since 27 Aug (19 Feature 04/price bars in that span, 66 market sessions). Of 1,646 status runs that start inside the 300-session window on 26 Nov, 98 (6%) have days != market sessions since the 'since' date, up to 57 off (PPGL EMA200 48 vs 105; INPS EMA200 206 vs 263; TRUE EMA50 95 vs 151). SECTOR_FORMULAS.md section 7 documents 'baris Feature 04 saham itu sendiri' but the page tooltip does not.",
+   "evidence": "day-file recount (since vs series calendar): 98/1646; DB: INPS 19 Feature_04 rows and 19 price rows vs 66 IHSG sessions between 2026-08-27 and 2026-11-26."
+  },
+  {
+   "id": "D-4",
+   "severity": "nit",
+   "title": "Industry RS rating is ranked among all 58 industries, the sector rating among 11 sectors; neither the page nor the formulas say so",
+   "where": "Relative Strength > Sector drill-down industry rows; SECTOR_FORMULAS.md 8.2 ('urutan selisih 1M di antara 11 sektor')",
+   "steps": "'Open all industries'; Pharmaceuticals (Healthcare) shows RS 89, Education & Support Services 99, Healthcare Providers 23.",
+   "expected": "Rating scale stated (or ranked within the parent sector).",
+   "actual": "Ratings of all 58 industries equal round(1+98*(58-1-k)/57) by 1M excess vs IHSG (0 mismatches over 58 rows), so a 99 in Consumer Cyclicals sits beside a sector 99 on a different scale; the subtitle reads 'per sector'.",
+   "evidence": "c6.py: ranking within parent sector gives 52 mismatches, ranking among all 58 gives 0."
+  },
+  {
+   "id": "D-5",
+   "severity": "nit",
+   "title": "Company names are published as in the source with odd casing ('Pt ...')",
+   "where": "sector-meta stocks.name (3 stocks: AADI 'Pt Adaro Andalan Indonesia Tbk', 'Pt Cipta Sarana Medika Tbk.', 'Pt Yupi Indo Jelly Gum Tbk'); IDX_Stock_Universe.\"Company Name\"",
+   "steps": "Open a stock window/tooltip for AADI.",
+   "expected": "'PT ...' like the other 859 names.",
+   "actual": "'Pt ...' (equal to the universe value, so a source-data inconsistency passed through).",
+   "evidence": "sector-meta.json names vs IDX_Stock_Universe (0 diffs, 3 start with 'Pt ')."
+  },
+  {
+   "id": "D-6",
+   "severity": "nit",
+   "title": "Closes are rounded to 2 decimals in sector-series and sector-stocks but carried at full precision in sector-day",
+   "where": "sector-stocks-<index>.close, sector-series.index/sector vs sector-day.close/r1m",
+   "steps": "Compare SINI 2025-09-02: stocks file 2460.0 vs price table 2459.9978; ELPI 306.03 vs 306.02724.",
+   "expected": "One precision for one price, or a stated rounding.",
+   "actual": "Max difference 0.005 (relative up to ~1e-4 on sub-100 prices); page stock lines/betas use the rounded values, the day file's r1m/r5d the raw ones. Effect on displayed figures is below their rounding; Industrials (168/2100 sampled cells) and Transportation (256/2100) show it. The Overview series rounds the same way, so it is consistent with the Overview.",
+   "evidence": "sampled sector-stocks closes vs Price_Stock_Indonesia_IDX; index closes max abs diff 0.005000000000109."
+  },
+  {
+   "id": "D-7",
+   "severity": "nit",
+   "title": "Market rows count 8 'Other' (Undefined-sector) stocks that no sector row shows, without a note",
+   "where": "Breadth heatmap table: 'IHSG (all)' 838 vs the 11 sector rows summing 830; Breadth by sector omits 'Other'",
+   "steps": "Add the Stocks column of the 11 sector rows: 830; IHSG (all) shows 838.",
+   "expected": "A footnote that 8 stocks without an IDX-IC sector (e.g. XCIS, XSPI, AKKU, GTBO) are in the market row only.",
+   "actual": "No note on the page; meta.stocks.sector = 'Other' for 21 stocks (8 trading on 26 Nov), and Breadth by sector's 'Other' bucket exists in my recount (43% > IHSG 5D) but is not drawn.",
+   "evidence": "pg/tab4.txt heatmap rows; sector-meta Other count 21; day file 2026-11-26."
+  },
+  {
+   "id": "D-8",
+   "severity": "nit",
+   "title": "Industry level is NULL (not carried) on dates without members, so returns whose base or end falls there read '—'",
+   "where": "sector-series.industry['Alternative Energy Equipment'].level on 2026-09-16 and 09-21..09-25 (members 0); CONTRACT 2 says the level carries",
+   "steps": "Choose a Custom range in Relative Strength whose base session is 2026-09-21 and open industries.",
+   "expected": "The last level is used (contract: 'the level carries').",
+   "actual": "The table stores NULL on those dates and the page's ret() returns null; 6 null levels in 17,400 cells; not visible at the 20 selectable dates with fixed periods today, but a Custom range or a thinly traded industry hits it.",
+   "evidence": "sector-series null scan: 6 nulls, all Alternative Energy Equipment; Feature_08_Group_Daily index_level NULL rows: 2,014 over 81,606 INDUSTRY rows."
+  }
+ ],
+ "not_checked": [
+  "Custom date ranges (Cumulative Return, Rank change, Weekly heatmap, Beta Custom) were read from code only, not driven in the browser.",
+  "Rotation map tail points (weekly 4W/8W/12W) and the Timeline view: only the end-point values (strength, momentum, quadrants, direction, speed) were recomputed.",
+  "'Open in Terminal' and any saving control were not touched (rules); free/guest example behaviour (decision J) is outside this area.",
+  "Phone width (390 px) figures were not read; same code path.",
+  "Day files for dates other than 11-26, 11-23, 11-17, 11-10, 11-05, 11-02, 10-30 were checked only through the day-to-day consistency of days/since, not recomputed against the database."
+ ],
+ "artifacts": "/tmp/claude-0/-home-user-saniti/69134002-63a3-50cf-b627-09d8a66d6a07/scratchpad/sector_check1/agents_20261127-sector-data"
+}
