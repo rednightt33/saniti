@@ -1,0 +1,130 @@
+{
+ "run": "agents_20261127-sector-rotpm",
+ "area": "rotation-pair-matrix",
+ "model": "sonnet",
+ "checked": [
+  "Data: /api/v1/sector/index + sector-meta, sector-series, sector-day-2026-11-26, sector-stocks-idxenergy/idxhealth downloaded in the owner session; all figures below recomputed in Python from those files with the SECTOR_FORMULAS.md / model.ts formulas.",
+  "Recomputed and equal to the page (2 decimals): rotation map relative strength and momentum of all 11 sectors at 26 Nov, and Financials/Energy at 19 Nov, 29 Oct and at map date 4 May (tooltips); tail points per week; quadrant now / 5D ago / 10D / 1M ago and 'Last change from X . date' of all 11 sectors; speed over 5/10/20 sessions (N01 fixed: Basic Mat. 6.17 / 6.26 / 5.96 pattern, Previous 1M shows 20-session speed); direction degrees and speed of 1W/2W/4W tiles (Basic Mat. 63 deg 6.17; Energy 64 deg 5.70; Health 343 deg 1.63; 4W Property 175 deg 6.51); all 11 tiles present in every window (D05 fixed); IHSG strip tooltips (4 Nov 2025 week +1.84%, D18 fixed) and the 'over the tail' change (+2.8%, -0.8% at 4 May).",
+  "Stock momentum quadrant (Health): 39 dots, quadrant counts 8/8/1/22 vs IHSG and 9/3/5/22 vs sector index, KLBF/SIDO/RSCH x,y values; benchmark switch; dot click popup (Close only; 'Open in Terminal' NOT clicked); window sector select, row click, search.",
+  "Pair matrix: spread 5D/1M/3M (Financials-Energy -0.92/+8.32/+18.33), correlation 20/60/120D (0.57/0.78/0.73), Custom range valid and invalid messages (start after end, >365 days, <10 days for beta), column-header multi-level sort, row-name click (A), disabled B-name, cell click opens pair.",
+  "Pair ratio: Energy/Basic Mat. 6M tooltip values (ratio 104.4, MA50 101.6, band 97.8-105.5, returns +34.2%/+28.6% on 3 Sep; 112.4/106.2/100.3-112.1 on 20 Nov), spread 6M +12.1, band position, z 2.24 -> 'above the upper band'; Health/Basic daily log z 1.87 and vs MA50 +15.93% in the window; periods 3M/6M/1Y/Custom, MA20/MA50, swap, A/B selects incl. same-sector pick, 1Y start-moved note (D10 fixed for 1Y and for custom).",
+  "Beta & correlation: beta, delta beta, corr, return, vs bench, alpha of Financials/Technology/Basic Mat. (and all 11 at IHSG 120D) for IHSG and LQ45 x 20/60/120/252 sessions; custom window; stock betas from sector-stocks-idxenergy (GTSI 1.99, DEWA 1.98, CUAN 1.89, BUMI 1.81, ADRO 0.79) vs IHSG 120D; window with LQ45 60D loaded the stocks file.",
+  "Stretched pairs: top 7 / all 55 per 3D, 1W, 1M, filters Leader still ahead / behind (counts 36/19 at 1W, 44/11 at 3D, disabled at 1M as designed), 3-level sort + Clear sort, row click -> pair matrix selection, window with 1D..3M columns.",
+  "Floating windows of rotA, rotD, rotB, rotC, pmM, pmR, pmT, pmS: open, content, Esc, drag (clamped at the sidebar), How to read + example, search, table sorts; window 'Rotation readings' of rotA follows the map date.",
+  "Header date pick (19 Nov): rotation values, matrix cell, correlation, beta table and stretched pairs recomputed and equal.",
+  "Looks: 1440x900, 1280x800, 1152x800 light; dark theme at 1440 and 1152 (NOTE: Playwright color_scheme=dark did not switch the page, so dark was checked by setting data-theme=dark on the iframe document, without touching saved preferences). No horizontal page scroll, no console errors/warnings, no HTTP >=400 in any step. 'RRG', 'RS-Ratio', 'JdK', 'undefined', 'NaN', '[object' not found in text, titles or tooltips of the two tabs.",
+  "Design defects for these tabs: D04, D05, D10, D15, D17, D18, N01, N07, N08 verified fixed; D11 only partly (see RP-6); D16 fixed for the paths tested (Clear clears highlight and lock)."
+ ],
+ "findings": [
+  {
+   "id": "RP-1",
+   "severity": "major",
+   "title": "A custom range that starts before the first session is accepted but silently ignored: Pair matrix shows 3M figures labelled 'C', Beta shows 120D figures labelled 'Custom'",
+   "where": "Pair matrix > Sector pair matrix (Spread, Custom) and Beta and correlation (Custom); apps/edge-bff/sector/src/cards/pm.ts betaSpan (fallback to 120) and K.span fallback; ov.ts customRange",
+   "steps": "Pair matrix tab. Sector pair matrix > Spread > Custom, From 2025-08-15, To 2026-06-30 > Apply. Then Beta and correlation > Custom, same dates > Apply. (Start 2025-09-03 works and gives 194D.)",
+   "expected": "Either the popup rejects/clamps the range (data starts 2 Sep 2025 so the first usable base is 2 Sep) or the cards compute the chosen range and label it with its dates.",
+   "actual": "The popup shows '3 Sep 2025 - 30 Jun 2026 . 194 trading days' and accepts. Matrix subtitle reads 'Return row - return column, C (pp) ...' (internal code 'C' leaks), footer '3 Sep - 26 Nov', Financials/Energy cell +18.3 = the 3M value (the chosen 194-session spread would be +5.3/+6.6). Beta subtitle reads 'from Custom daily returns', footer '8 Jun - 26 Nov' = the 120D window, Custom chip stays selected.",
+   "evidence": "Screenshot scratchpad sector_check1/agents_20261127-sector-rotpm/custom_before_first_session.png; probe p29.py output: 'M sub: Return row - return column, C (pp) ... FinEn +18.3', 'T sub: ... from Custom daily returns | 8 Jun - 26 Nov'; contrast start 2025-09-03 -> 'from 194D daily returns', FinEn +5.3 (expected from the files +6.57 for base 3 Sep, +5.3 for base 2 Sep). Code: pm.ts betaSpan falls to w=120 when s.base < 0."
+  },
+  {
+   "id": "RP-2",
+   "severity": "minor",
+   "title": "Rotation map Timeline: sector names overlap each other, '26 Nov' collides with 'in phase', and the card has a large empty area below the grid",
+   "where": "Rotation > Rotation map > Timeline (src/cards/rot.ts timeline(): rh = min(.., max(cw,10)))",
+   "steps": "Rotation tab at 1440x900 > Timeline.",
+   "expected": "Rows tall enough for the 11px sector labels, no overlapping axis labels, the grid using the card height.",
+   "actual": "11 rows are about 10px high; labels Financials/Industrials/Non-Cyc/Transport/Cons. Cyc/Property ... are stacked with overlapping glyphs; the right axis labels read '26 Novin phase' (overlap); about 140px of blank card below the grid. The IHSG strip axis and the timeline axis show the same dates twice.",
+   "evidence": "Screenshot rot_timeline.png (1440x900 light). Same rows height at any width because rh is capped by the column width."
+  },
+  {
+   "id": "RP-3",
+   "severity": "minor",
+   "title": "After picking a map date on the IHSG strip, Rotation detail and the stock quadrant stay on the latest date while the map and Direction & speed move, with no indication",
+   "where": "Rotation > Rotation detail ('Quadrant now vs 5D ago', 'Current quadrant', 'Last change') and stock momentum quadrant; rot.ts rotB uses E, rotA/rotD use mapDate(c)",
+   "steps": "Rotation tab > click the middle of the IHSG strip (map date becomes 4 May) and read the three cards.",
+   "expected": "Either all cards follow the map date or the cards that do not say so (e.g. 'as of 26 Nov').",
+   "actual": "Map subtitle '4 May . tail 4W', Direction & speed 'week to 4 May', but Rotation detail still says 'Quadrant now vs 5D ago' with the 26 Nov rows (Industrials Weakening, 'from Leading . 26 Nov'). The reader cannot tell the table is not the map's date. (The Rotation readings window does follow the map date, so the card and its window disagree.)",
+   "evidence": "Screenshot rot_map_oldate.png; DOM text of .card.rot-b unchanged after the strip click (p5.py output 'B card ... Industrials Weakening ... from Leading . 26 Nov'); window title 'Rotation readings . 11 May' for the map date 11 May."
+  },
+  {
+   "id": "RP-4",
+   "severity": "minor",
+   "title": "Pair matrix card clips its last row ('Basic Mat.') at 1440x900 and 1280x800; the 11x11 matrix needs an inner scroll of 23px",
+   "where": "Pair matrix > Sector pair matrix (.pmg-s, card height 430px)",
+   "steps": "Pair matrix tab at 1440x900 or 1280x800, look at the bottom row of the matrix.",
+   "expected": "All 11 rows visible without scrolling (they are on 1152 wide).",
+   "actual": "Last row half hidden behind the footnote; .pmg-s scrollHeight 292 > clientHeight 269 (overflow-y auto) at 1440 and 1280. The Top 7 table of Stretched pairs has the same cut (7th row partly hidden).",
+   "evidence": "Screenshots first_Pair_matrix.png (1440) and Pair_matrix_1280_light_bottom.png; DOM probe p22.py: 1440x900 s:[292,269], 1280x800 s:[292,269], 1152x800 s:[329,329]."
+  },
+  {
+   "id": "RP-5",
+   "severity": "minor",
+   "title": "Stock momentum quadrant: x-axis title touches the card border, quadrant names are covered by dots and labels, one outlier squeezes the chart",
+   "where": "Rotation > Health . stock momentum quadrant (rotC)",
+   "steps": "Rotation tab at 1440x900, scroll to the card (default Health, IHSG).",
+   "expected": "Axis title inside the plot area, quadrant names readable.",
+   "actual": "'1M vs IHSG ->' is drawn on the line that separates the chart from the legend; 'LEADING' is overprinted by the KLBF dot and label and 'LAGGING' by the MMIX dot ('LAG(dot)MMIX'); with RSCH at -56 pp the vertical zero line sits at the right edge and about 30 dots are packed in the right 25% of the width.",
+   "evidence": "Screenshots rot_quad_dotclick.png and D_Rotation_1440_bottom.png (x title at y~817 on the border), D_Rotation_1152_bottom.png (LAGGING/MMIX overlap)."
+  },
+  {
+   "id": "RP-6",
+   "severity": "minor",
+   "title": "Map date and its weeks are printed without a year although they can be a year back; hover offers weeks the click cannot select",
+   "where": "Rotation > Rotation map subtitle / Direction & speed subtitle / IHSG strip",
+   "steps": "Rotation tab > Tail 4W > click the far left of the IHSG strip. Hover the first weeks of the strip.",
+   "expected": "'11 Nov 2025' (the data cover Nov 2025 to Nov 2026, so '11 Nov' is ambiguous: D11 of the audit) ; hover only invites a click where a click works.",
+   "actual": "Subtitle 'Relative strength x momentum vs IHSG . 11 Nov . tail 4W' and 'The move on the map over the week to 11 Nov' are Nov 2025 data. Hovering the week of 4 Nov 2025 says 'Click to set the map date' but the click lands on 11 Nov 2025 (clamped to the first date with a full tail), and the left 12W click lands on 5 Jan with the same year-less label.",
+   "evidence": "p23.py output 'left edge 4W: ... . 11 Nov . tail 4W' and 'left edge 12W: ... 5 Jan . tail 12W'; strip tooltip at x=46: 'IHSG . week to 4 Nov 2025 ... Click to set the map date'."
+  },
+  {
+   "id": "RP-7",
+   "severity": "nit",
+   "title": "Correlation mode: row/column order and the tooltip's 'Spread' use a hidden period",
+   "where": "Pair matrix > Sector pair matrix > Correlation",
+   "steps": "Spread > 3M, then Correlation > 60D; hover a cell.",
+   "expected": "Order explained in the footnote, or tied to the visible window.",
+   "actual": "Rows and columns stay ordered by the last Spread period (3M) while the period buttons are hidden; the footnote of Correlation says nothing about the order; the cell tooltip lists 'Spread 3M +18.33 pp' next to 'Corr 60D'. Negative correlations get no fill at all.",
+   "evidence": "Screenshot pm_corr.png (order Fin, NonCyc, Health, Trans... differs from the 1M order); p11.py tooltip text 'Spread 3M +18.33 pp Corr 60D 0.78'."
+  },
+  {
+   "id": "RP-8",
+   "severity": "nit",
+   "title": "Beta: 'Delta beta' shows a dash for the 1Y window with no reason on the card",
+   "where": "Pair matrix > Beta and correlation, window 1Y (and any window longer than half of the 300 sessions)",
+   "steps": "Window 1Y.",
+   "expected": "A short reason (needs two windows of history) in the header tip or footnote.",
+   "actual": "All 11 rows show a dash; the header tip only says 'Beta now - beta over the previous window of the same length'.",
+   "evidence": "p15.py: 'IHSG 1Y ... Basic Mat.B | 1.38 | | | -- | 0.85 ...'; words.ts dBetaTip."
+  },
+  {
+   "id": "RP-9",
+   "severity": "nit",
+   "title": "'Heading' words reuse the quadrant names with another meaning",
+   "where": "Rotation readings window (rotA) and Direction & speed window",
+   "steps": "Open the Rotation map window; look at Non-Cyc.",
+   "expected": "Heading names that cannot be confused with the quadrant column.",
+   "actual": "Non-Cyc: Quadrant 'Lagging', Heading 'Weakening'; Financials: Quadrant 'Weakening', Heading 'Weakening'; two different meanings (direction vs quadrant) in adjacent columns.",
+   "evidence": "Screenshot win_rotA.png; M.heading() labels in model.ts (Weakening, Strengthening, Turning up...)."
+  },
+  {
+   "id": "RP-10",
+   "severity": "nit",
+   "title": "The 'Formula' chip of the Rotation map is a title-only tooltip",
+   "where": "Rotation > Rotation map footer ('Formula' .dchip)",
+   "steps": "Click or Tab to the Formula chip.",
+   "expected": "Readable on touch and by keyboard (or a window).",
+   "actual": "Click does nothing, no focus stop; the formula only appears as the browser's title tooltip after hovering.",
+   "evidence": "p6.py: element is <span class=dchip title='Relative strength = 100 x ...'> with no handler; screenshot rot_formula.png shows no popup after click."
+  },
+  {
+   "id": "RP-11",
+   "severity": "nit",
+   "title": "Beta window: stock table has room for only about two rows; hovered row's first cell is not shaded",
+   "where": "Pair matrix > Beta and correlation > expand window (1440x900)",
+   "steps": "Expand the card; hover a sector row.",
+   "expected": "A usable stock table; uniform row hover.",
+   "actual": "The sector table takes about 450px and leaves two visible stock rows (GTSI, DEWA) before an inner scroll; the hovered row (Non-Cyc) is shaded from the Beta column on but not in the Sector cell.",
+   "evidence": "Screenshot win_pmT.png."
+  }
+ ]
+}
