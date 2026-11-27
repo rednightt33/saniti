@@ -8892,6 +8892,25 @@ in its staleness check.
   job screener-worker). Moved through each file's line diff from `53b4fafb` (none fell inside a changed hunk); the pointer
   test passes.
 
+### M574 — A page checker printed the value of `BACKTEST_WORKER_KEY` to its tool output while reading the owner's login (2026-11-27; open: rotation asked, UD70)
+
+- **Symptom (checker `agents_20261127-sector-brdt`, its own collateral note):** to read the beta owner's login it ran
+  `railway variable list` for edge-bff without capturing the output, so the CLI printed the variables: the value of
+  `BACKTEST_WORKER_KEY` (and the non-secret `BACKTEST_MAX_RESULT_BYTES`, `BACKTEST_TIMEOUT_SECONDS`; cut before
+  `BACKTEST_WORKER_URL`). The value went to the session's tool output only, not to a file, the journal or Git.
+- **Verified root cause:** the checkers' brief said "sign in exactly as `beta_sector.py` does" (that script reads the
+  variables into memory and prints none); nothing gave them a helper that returns only the named login variables, so an
+  agent could run the raw CLI and print every value of the service. **Class:** reading one secret by a command that prints
+  all of a service's variables.
+- **Exposure:** `BACKTEST_WORKER_KEY` is defined on backtest-worker and referenced by `edge-bff` and `edge-bff-live`
+  (`scripts/railway_reference_consumers.py`); backtest-worker has no public domain and edge-bff reaches it at a
+  `railway.internal` address, so the key cannot be used from outside the project's private network.
+- **Solution (proposed):** (1) rotate the key with the user's approval: a new value on backtest-worker, then redeploy
+  backtest-worker, edge-bff and edge-bff-live (AGENTS.md "Security"); (2) one helper that reads only named variables into
+  memory and never prints a value, used by every checker brief instead of the raw CLI.
+- **Status:** open, waiting for the user (UD70).
+- **Lesson:** a checker reads a secret only through a helper that names the variable and prints nothing.
+
 ### M573 — The shared pgweb login cache rewritten in another format broke the Postgres restart check (2026-11-26; fixed the same day, no code change)
 
 - **Symptom:** every `scripts/onboarding/run_job.sh` job ended with `POSTGRES_MEMORY_CHECK` followed by a
