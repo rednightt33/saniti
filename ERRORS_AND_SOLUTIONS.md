@@ -11530,7 +11530,7 @@ in its staleness check.
   10 s); 1 failed, 1,291 passed. The commit changed no part of that path (the Sector, Watchlist, Screener and Backtest
   pages' texts and `shared/touch-words.ts`; not the shell, the Terminal or the bundle route), and `72c09231` passed it
   (run 46029338198). Here, on `e79caada` with a disposable Postgres 16 and the CI's Chromium build: 3 passed, three runs
-  of 3 of 3. The failed job was re-run. The suspected cause above (the focus taken in a `requestAnimationFrame`) stays
+  of 3 of 3. The failed job was re-run: attempt 2 green (run 46047453925, attempt 2). The suspected cause above (the focus taken in a `requestAnimationFrame`) stays
   unconfirmed; its check (the shell's `document.activeElement` read before Escape on a failing run) is still to be added.
 
 - **Found by:** the first CI runs of edge-bff's browser tests after M509: run 44663513713 (commit `b969529b`, Playwright
