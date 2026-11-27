@@ -18360,3 +18360,8 @@ yang ada di page sector, yang sifatnya top and bottom."
   dihapus, jendela hanya berisi "Spread across horizons"; judul kolom menjadi "Spread 1D", "Spread 3D", "Spread 1W",
   "Spread 2W", "Spread 1M", "Spread 3M". Ditanyakan: nasib kontrol tabel atas (Rank by, All / Leader still ahead / Leader
   behind, Show), judul "|1M|", dan apakah kartu Stretched pairs di halaman ikut berubah.
+- Jawaban user 2026-11-27 (verbatim): "1. Keep as is, ini jadi nanti fungsi cepat untuk sort Spread across horizons / 2.
+  Hapus saja / 3. A / COnfirm before execution. Anything else?"
+  (1) Rank by, All / Leader still ahead / Leader behind dan Show Top 7 / All tetap, dan sekarang mengatur tabel Spread
+  across horizons (urutan, saring, jumlah baris) dengan aturan yang sama seperti kartu; (2) kolom "|1M|" dihapus; (3) kartu
+  Stretched pairs di halaman tetap, hanya jendela yang berubah. Eksekusi menunggu konfirmasi user.
