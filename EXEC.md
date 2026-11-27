@@ -18321,3 +18321,10 @@ yang ada di page sector, yang sifatnya top and bottom."
 - UD78 (opsi 1): di jendela atas-bawah, tabel atas menciut ke baris terpilih (semua kolomnya tetap), tombol "All N ▾"
   membukanya lagi, ‹ › pindah pilihan; daftar bawah mendapat sisa ruang. Satu artifact contoh per jendela atas-bawah
   (Sector drill-down, Beta and correlation, Rotation detail, Stretched pairs, Breadth heatmap table) dikirim untuk dicek.
+  Artifact (angka contoh, kolom sama dengan jendela sekarang, semua tabel muat di 1440 px): Sector drill-down
+  https://claude.ai/artifact/4YQcUi3NdM9UzcwUmGYMFB; Beta and correlation https://claude.ai/artifact/L3RKm3h9qpNcmLp1qa5on9;
+  Rotation detail (pilih beberapa sektor dengan Ctrl/Cmd) https://claude.ai/artifact/R8iwLpkfndC7mvmcsUD6oH; Stretched
+  pairs https://claude.ai/artifact/WspTU5KnA7hLyzM9JaDkMT; Breadth heatmap table
+  https://claude.ai/artifact/BVdVVTPL1U5pXLdiR7MbH3. Dua yang terakhir tidak punya pilihan sektor: usulan agen (ditanyakan)
+  menciutkan tabel atas ke pasangan yang dipakai Pair ratio / ke IHSG (all) + sektor yang dikunci, dan menandai baris itu
+  di tabel bawah.
