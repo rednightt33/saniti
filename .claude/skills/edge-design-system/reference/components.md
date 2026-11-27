@@ -55,7 +55,8 @@ Example: Overview KPI strip (`overview/src/app.ts`).
 ```html
 <div class="seg" role="group" aria-label="View"><button type="button">Table</button><button type="button" class="on" aria-pressed="true">Cards</button></div>
 ```
-`.seg.sm` (22 px) inside card headers. The selected button is raised white on the grey track (decision 3).
+`.seg.sm` (22 px) inside card headers. The selected button is raised white on the grey track (decision 3). On a touch
+screen each button takes 44 px of height to a tap (decision 14), its width stopping at its neighbours.
 
 ## Tabs (switching views or lists)
 ```html
@@ -93,13 +94,32 @@ The spec's button catalog (`.btn.solid/.soft/.outline` × `tone-*`) exists for s
 <span class="pill" style="background:var(--text);color:var(--surface)"><svg class="ic ic-sm"><use href="#i-radar"/></svg>Radar S6</span>
 ```
 Corporate action = `.pill.info` with the calendar icon; Radar hit = ink pill (user 2026-11-16). 20 px high, 11 px/600.
+A tag's text on its tint is the tag ink, 4.5:1 (decision 12): `.pill.pos/.neg/.warn/.info` take it; a page's own tag
+writes `background:var(--green-bg);color:var(--green-tag)` (never `color:var(--green)` on the tint).
 
 ## Fields
 ```html
 <label class="field"><span>List name</span><input class="inp" value="Core"></label>
 <input class="inp custom" value="25">   <!-- a parameter changed from its default: blue text -->
 ```
-Focus: the border line goes and the soft shadow `--shadow` shows, no ring: the Terminal's selected state (decision 8, changed 2026-11-26). Errors under the field: `<small class="ferr">` in `--red`, naming the fix.
+Focus: the border line goes and the soft shadow `--shadow` shows, no ring: the Terminal's selected state (decision 8, changed 2026-11-26), by mouse and by Tab, a select opened with the mouse included (decision 13). Errors under the field: `<small class="ferr">` in `--red`, naming the fix.
+
+## Focus ring (every control that is not a field)
+```css
+.my-row:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}   /* or box-shadow:inset 0 0 0 2px var(--focus-ring) */
+```
+Keyboard only, neutral grey (decision 13): `--focus-ring` is `--text-3`, transparent while the last input was a mouse, a
+pen or a finger (`data-modality="pointer"` on `<html>`, written by `apps/edge-bff/shared/focus-modality.ts`, which every
+page entry imports). Never `var(--blue)` in a focus rule. Wrong: `.row:focus-visible{outline:2px solid var(--blue)}` (a blue
+ring after every click that gives the row the focus back).
+
+## Touch hit area (a page's own small control)
+```html
+<button class="chip hit" type="button">Banks</button>   <!-- 44 × 44 px to a tap on a touch screen, nothing drawn -->
+<div class="chips" style="--hit-y:4px">…</div>          <!-- a row 8 px apart: each area stops halfway -->
+```
+Decision 14: `.hit` (and the shared small controls) get an invisible `::after` box under `pointer: coarse`; it never
+moves the layout. A control whose `::after` draws something takes the area on a wrapper instead.
 
 ## Table
 ```html

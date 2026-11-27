@@ -14,20 +14,31 @@ dark = block(spec, r':root\.dark,:root\[data-theme="dark"\]')
 light2 = block(spec[spec.index('5. TOKEN TAMBAHAN'):], r':root')
 dark2 = block(spec[spec.index('5. TOKEN TAMBAHAN'):], r':root\.dark,:root\[data-theme="dark"\]')
 canon_l = block(canon, r":root")
+# the canonical layer's own colour tokens (decision 12, 2026-11-27: --text-3 and the tag ink) replace the spec's in the
+# artifact, as the later layer does on the pages; a dark value written var(--x) is read as the dark value of --x
+for m in re.finditer(r'(?m)^:root\{([^}]*)\}', canon):
+    for k, v in re.findall(r'--([a-z0-9-]+)\s*:\s*([^;]+);?', m.group(1)):
+        if re.match(r'^#[0-9a-fA-F]{3,8}$', v.strip()) and (k in light or k.endswith('-tag')): light[k] = v   # chart-grid/-base: added below
+for m in re.finditer(r'(?m)^:root\.dark,:root\[data-theme="dark"\]\{([^}]*)\}', canon):
+    for k, v in re.findall(r'--([a-z0-9-]+)\s*:\s*([^;]+);?', m.group(1)):
+        ref = re.match(r'^var\(--([a-z0-9-]+)\)$', v.strip())
+        dark[k] = dark.get(ref.group(1), v) if ref else v
 COLOR_RX = re.compile(r'^(#[0-9a-fA-F]{3,8}|rgba?\([0-9., ]+\))$')
 USAGE = {
  'bg': 'Page background (light #fafafa, dark #0a0a0a).', 'surface': 'Cards, tables, inputs, dialogs.', 'surface-2': 'Table row hover, kbd, the track of a segmented control, chart track.',
  'hover': 'Hover of buttons and menu items.', 'sel': 'Selected neutral item: pill, tab count, open menu trigger, empty day box.', 'border': 'Every 1px line: cards, tables, inputs.', 'border-2': 'Lines on hover; the ring of the raised segment.',
  'text': 'Primary text and important numbers on bg, surface. Also the ink of the primary button and the underline of the selected tab.', 'text-2': 'Secondary text, button labels, on surface.',
- 'text-3': 'Captions, table headers, axis labels, the purpose line. 3.3:1 on surface in light, 4.3:1 in dark: below 4.5:1, kept exact from the source; use for non-essential text only.',
+ 'text-3': 'Captions, table headers, axis labels, the purpose line; the keyboard focus ring (--focus-ring). 4.5:1 or more on every surface token in both themes (canonical decision 12, 2026-11-27; the spec file says #8f8f8f / #7c7c7c).',
  'green': 'Up / positive text (+1.78%), .pill.pos.', 'red': 'Down / negative text (−1.33%), .pill.neg, destructive buttons.', 'up': 'Up candles, bars, lines, sparklines, filled day boxes.', 'down': 'Down candles, bars, lines, sparklines.',
- 'blue': 'Focus outline, links, a value changed from its default (.inp.custom), .pill.info.', 'amber': 'Warnings; the broker-date pill (.pill.warn).', 'violet': 'Chart accent.', 'navy': 'Chart accent; local brokers.',
+ 'blue': 'Links, a value changed from its default (.inp.custom). Never a focus ring (canonical decision 13: --focus-ring, grey, keyboard only).', 'amber': 'Warnings; the broker-date pill (.pill.warn).', 'violet': 'Chart accent.', 'navy': 'Chart accent; local brokers.',
  'green-bg': 'Background of .pill.pos.', 'red-bg': 'Background of .pill.neg.', 'blue-bg': 'Background of .pill.info, text selection.', 'amber-bg': 'Background of .pill.warn.',
+ 'green-tag': 'Text of a green tag on --green-bg (.pill.pos): 4.5:1 on the tint (canonical decision 12). Up figures stay --green.', 'red-tag': 'Text of a red tag on --red-bg (.pill.neg): 4.5:1 on the tint. Down figures stay --red.',
+ 'blue-tag': 'Text of a blue tag on --blue-bg (.pill.info): 4.5:1 on the tint.', 'amber-tag': 'Text of an amber tag on --amber-bg (.pill.warn): 4.5:1 on the tint.',
  'c1': 'Chart series 1 (in this order).', 'c2': 'Chart series 2.', 'c3': 'Chart series 3.', 'c4': 'Chart series 4.', 'c5': 'Chart series 5.', 'c6': 'Chart series 6.',
  'up-bg': 'Volume bars and area fills, up.', 'down-bg': 'Volume bars and area fills, down.', 'violet-bg': 'Soft violet fill.', 'navy-bg': 'Soft navy fill.',
  'chart-grid': 'Horizontal gridlines of hand-made SVG charts.', 'chart-base': 'Zero / base line of SVG charts.'}
 colors = []
-order = list(light) + [k for k in light2 if k not in light]
+order = list(light) + [k for k in light2 if k not in light]   # (the canonical tokens added to light above come last)
 for k in order:
     v = light.get(k, light2.get(k)); dv = dark.get(k, dark2.get(k))
     if not v or not COLOR_RX.match(v.strip()): continue

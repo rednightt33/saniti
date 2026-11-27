@@ -2,7 +2,8 @@
    Plain browser script: sets window.EdgeDS. In a Vite/TypeScript page, copy the functions you need into the page's
    model.ts (EDGE's pages keep their own copies; this file is the reference, not a shared runtime dependency).
    Sources: apps/edge-bff/overview/src/model.ts (sign, num, pct, rp, amount, cls, colorOf),
-   overview/src/app.ts (spark 64×26, lineChart, ticks 1/2/2.5/5/10), watchlist/src/model.ts (fluid spark). */
+   overview/src/app.ts (spark 64×26, lineChart, ticks 1/2/2.5/5/10), watchlist/src/model.ts (fluid spark),
+   apps/edge-bff/shared/focus-modality.ts and company-name.ts (trackFocusModality, companyName; 2026-11-27). */
 (function (G) {
   'use strict';
   /* ---------------- numbers (decision 7: en-US digits, U+2212 minus, Rp with T/B/M) ---------------- */
@@ -113,6 +114,18 @@
     return '<div class="heat">' + values.map(function (v) { return '<i style="background:' + (v >= 0 ? 'var(--up)' : 'var(--down)') + ';opacity:' + (0.18 + 0.82 * Math.abs(v) / m).toFixed(2) + '" title="' + sign(v) + Math.abs(v) + '"></i>'; }).join('') + '</div>';
   }
 
+  /* ---------------- decision 13 and UD71 (the user 2026-11-27): the reference copies of apps/edge-bff/shared ---------------- */
+  /** the focus ring follows the last input: data-modality="pointer" | "keyboard" on <html> (shared/focus-modality.ts);
+      the canonical layer turns --focus-ring transparent under "pointer" */
+  function trackFocusModality(win) {
+    var root = win.document.documentElement, set = function (m) { if (root.dataset.modality !== m) root.dataset.modality = m; };
+    win.addEventListener('pointerdown', function () { set('pointer'); }, true);
+    win.addEventListener('keydown', function (e) { if (!e.ctrlKey && !e.altKey && !e.metaKey) set('keyboard'); }, true);
+  }
+  /** a company name the source writes "Pt …" shows as "PT …" (shared/company-name.ts) */
+  function companyName(name) { return typeof name === 'string' && name.indexOf('Pt ') === 0 ? 'PT ' + name.slice(3) : name; }
+
   G.EdgeDS = { MINUS: MINUS, sign: sign, num: num, pct: pct, price: price, rp: rp, amount: amount, cls: cls, dateLabel: dateLabel,
-               changeColor: changeColor, spark: spark, trend: trend, ticks: ticks, lines: lines, hbars: hbars, kofn: kofn, heat: heat };
+               changeColor: changeColor, spark: spark, trend: trend, ticks: ticks, lines: lines, hbars: hbars, kofn: kofn, heat: heat,
+               trackFocusModality: trackFocusModality, companyName: companyName };
 })(typeof window !== 'undefined' ? window : this);

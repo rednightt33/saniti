@@ -6,13 +6,15 @@ Watchlist's lines and add the new page beside them. Read `AGENTS.md` first (plan
 
 ## 1. The page itself: a Vite + TypeScript sub-app
 - Copy `watchlist/` structure: `index.html` (icon sprite from `../assets/icons.svg`, `<div id="view">`),
-  `src/main.ts` (theme from `localStorage['edge-auth-monitor-theme']`, follows the `storage` event),
+  `src/main.ts` (theme from `localStorage['edge-auth-monitor-theme']`, follows the `storage` event; it imports
+  `../../shared/focus-modality.ts`, as every test entry does: the focus ring of decision 13, `tests/test_focus_ring.py`),
   `src/app.ts` (render), `src/model.ts` (pure functions: formats, layout, the tests' target), `src/api.ts` (the only
   data path, same origin, session cookie, CSRF on writes), `src/types.ts`, `src/styles/<page>.css`,
   `vite.config.ts` (base `/<page>-app/`, one classic IIFE script at the end of `<body>`: the sub-app CSP forbids inline
   scripts), `tests/` (`model.test.ts`, `bundle.test.mjs`, a `fixture/` build with made-up data).
 - CSS: the spec and canonical layer first (copy `spec-v1.2.css` + `edge-canonical.css` into `src/styles/` or import
-  them), then the page CSS. No framework.
+  them), then the page CSS. No framework. A company name the page shows is read through `../../shared/company-name.ts`
+  (`companyName`, UD71; `tests/test_company_name.py`).
 - No navigation of its own: the shell draws the rail. To open another page, post `{type:"edge-nav", route}` to the
   parent (shell `static/index.html`, "edge-nav" listener).
 - Every browser storage key the page uses gets its entry in `shared/edge-session.ts` (`STORAGE`, kind `browser` or

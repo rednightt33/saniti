@@ -3,6 +3,7 @@
    outlier note are Feature 07's rows (radar-board-*); the page picks the rows of the chosen level and gate, narrows
    them to the chosen universe and search, and formats them. */
 import type { Board, Days, FilterFile, FilterMeta, Gate, Level, Meta, Rule, Status } from './types.ts';
+import { companyName } from '../../shared/company-name.ts';   // UD71: a name "Pt …" shows as "PT …"
 
 export const LEVELS: Level[] = ['loose', 'standard', 'strict'];
 export const LEVEL_LABEL = ['Loose', 'Standard', 'Strict'];
@@ -70,7 +71,7 @@ export function stockFacts(meta: Meta, board: Board) {
   const col = new Map(board.measures.columns.map((c, i) => [c, i] as [string, number]));
   return {
     has: (t: string) => at.has(t),
-    name: (t: string) => meta.names[t] || t,
+    name: (t: string) => companyName(meta.names[t]) || t,
     close: (t: string) => (at.has(t) ? board.stocks.close[at.get(t)] : null),
     chg: (t: string) => (at.has(t) ? board.stocks.chg_1d[at.get(t)] : null),
     spark: (t: string) => (at.has(t) ? board.stocks.spark[at.get(t)] : []),

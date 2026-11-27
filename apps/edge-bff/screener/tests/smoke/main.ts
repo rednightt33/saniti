@@ -9,6 +9,7 @@
      ?hostile=1                                 markup in a company name and a sector (rendered as text only)
      ?brokerloading=12                          the broker data still loading, 12 sessions so far (flow refused FLOW_UNAVAILABLE)
      ?stocklists=none                           a publication without the index and group lists (none | broken) */
+import '../../../shared/focus-modality.ts';   // UD75: the focus ring follows the last input (no ring after a mouse or a touch)
 import '../../src/styles/screener.css';
 import '../../../terminal/src/styles/spin.css';
 import { bootPage } from '../../src/app.ts';

@@ -2,6 +2,7 @@
    (apps/terminal-publisher/overview.py, OVERVIEW_FORMULAS.md); this module only picks the rows of the user's universe,
    period and metric, sums or weights them, and orders them. Pure functions, tested in tests/model.test.ts. */
 import type { Day, Meta, Series, StocksFile } from './types.ts';
+import { companyName } from '../../shared/company-name.ts';   // UD71: a name "Pt …" shows as "PT …"
 
 export const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -96,7 +97,7 @@ export function rows(meta: Meta, day: Day): Row[] {
   for (let k = 0; k < s.i.length; k++) {
     const i = s.i[k];
     if (meta.stocks.ticker[i] == null) continue;   // a position another publication's meta does not hold: no row
-    out.push({ t: meta.stocks.ticker[i], name: meta.stocks.name[i], sector: meta.stocks.sector[i], close: s.close[k], size: s.size[k],
+    out.push({ t: meta.stocks.ticker[i], name: companyName(meta.stocks.name[i]), sector: meta.stocks.sector[i], close: s.close[k], size: s.size[k],
                ret: { '1D': s.r1d[k], '5D': s.r5d[k], '1M': s.r1m[k] },
                fnet: { '1D': s.fnet_1d[k], '5D': s.fnet_5d[k], '1M': s.fnet_1m[k], '3M': s.fnet_3m[k] },
                ema50: s.above_ema50[k], ema200: s.above_ema200[k] });

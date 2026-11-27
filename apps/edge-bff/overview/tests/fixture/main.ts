@@ -1,5 +1,6 @@
 /* EXEC-OVERVIEW O5, fixture build only (vite --mode fixture): the page on saved Overview files of a local rehearsal
    (tests/fixture/save.py), for the look check. Never part of the production bundle (tests/bundle.test.mjs). */
+import '../../../shared/focus-modality.ts';   // UD75: the focus ring follows the last input (no ring after a mouse or a touch)
 import '../../src/styles/overview.css';
 import { start } from '../../src/app.ts';
 import type { OverviewApi } from '../../src/types.ts';

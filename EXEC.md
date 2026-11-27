@@ -16963,6 +16963,30 @@ dipakai accross chat sebagai referencec?"
   (garis jadi transparan, bayangan lembut `--shadow`), bukan garis abu; aturan (11) tetap (Terminal tidak diubah oleh
   sistem ini), dengan catatan bahwa state hover, fokus dan terpilih Terminal menjadi modelnya. Backtest dan Screener
   ikut diubah (ERRORS M570). Salinan claude.ai diterbitkan ulang.
+- **Perubahan 2026-11-27 (EXEC-SECTOR-ANALYSIS, register UD71-UD75; user, verbatim: "Untuk nama perusahaan PT, tambah
+  satu aturan tampilan saja. 3A, 4A, 5B."; "1a / 2a / ..."; cakupan UD75: "1A, 2A + hapus peredupan, 3A / masukan
+  exec"; go: "A, go kerjakan semuanya di branch - then assign 5 sonnets 5.5 medium to check again"):** tiga keputusan
+  baru di lapisan kanonik (`edge-canonical.css`; spec v1.2 tetap apa adanya, lapisan kanonik yang datang sesudahnya
+  menimpa cincin biru dan `--text-3`-nya), berlaku untuk semua halaman EDGE kecuali Terminal (aturan 11):
+  (12) kontras, UD73 "4A": `--text-3` terang #8f8f8f → #6b6b6b (`--gray-600`; 3,23 → 5,33:1 di putih, 4,63:1 di
+  `--sel`), gelap #7c7c7c → #8a8a8a (3,77 → 4,55:1 di `--sel`); teks tag di atas tint-nya memakai token baru
+  `--green-tag` #087855, `--red-tag` #c92535, `--blue-tag` #0064d8, `--amber-tag` #ad5009 (≥ 4,55:1 di atas tint pada
+  `--surface`, `--bg`, `--surface-2`; dulu 4,19-4,46 / 4,13-4,40 / 3,82-4,10 / 4,29-4,57), gelap = warnanya sendiri
+  (sudah ≥ 4,6:1); `--green`/`--red` angka naik-turun tidak berubah;
+  (13) cincin fokus, UD75 "1a" cakupan "1A": fokus lewat mouse, pena atau sentuh tanpa cincin; fokus lewat keyboard satu
+  cincin abu netral 2 px (`--focus-ring` = `--text-3`), tidak pernah biru; kotak isian (input, select, textarea) tidak
+  pernah bercincin, termasuk select yang dibuka dengan mouse (aturan 8); mekanisme: `apps/edge-bff/shared/focus-modality.ts`
+  (shell: `static/edge-boot.js`) menulis `data-modality="pointer"|"keyboard"` di `<html>`, dan `--focus-ring` menjadi
+  transparan di bawah `"pointer"`, jadi tombol yang menerima fokus kembali sesudah jendela ditutup dengan mouse tidak
+  bercincin (V1, V5);
+  (14) area sentuh, UD72 "3A": di layar sentuh (`pointer: coarse`) kontrol kecil bersama (`.seg` button, `.tog`,
+  `.iconbtn`, `.btn.sm`/`.xs`, pill tombol, `.switch`, kelas `.hit`) mendapat area ketuk 44 × 44 px yang tidak terlihat,
+  tanpa perubahan tampilan atau tata letak; berhenti di tengah jarak ke tetangga (`--hit-x`/`--hit-y`).
+  Ditambah satu aturan tampilan nama, UD71 (b): nama perusahaan "Pt …" tampil "PT …" (`shared/company-name.ts`; basis data
+  dan publisher tidak berubah). `SKILL.md` aturan 8 dan 11-14, `reference/components.md`, `reference/new-page.md`,
+  `showcase.html`, `edge-ds.js` dan salinan di Admin dan Sector diperbarui dalam satu commit; halaman yang memuat spec
+  v1.2 di CSS-nya sendiri (Overview, Watchlist, Radar, Screener, Backtest) dan shell diubah di tempat. Status: dibangun di
+  branch, diuji oleh pembuatnya saja (aturan 8); artifact claude.ai belum dibangun ulang.
 
 ### Hasil (2026-11-18)
 - Repo: `.claude/skills/edge-design-system/`: `SKILL.md` (aturan), `assets/` (spec-v1.2.css, edge-canonical.css,

@@ -2,6 +2,7 @@
    gives the market with markup in its strings, ?flow=1 the market with flow available, ?wide=1 the market with eight
    more stocks that every preview and run leaves out and one without price files (stub.ts stubApi); ?slowcat=ms a
    catalog that answers that late (EXEC-BACKTEST-LOAD: the page draws at once, the lists say they are loading). */
+import '../../../shared/focus-modality.ts';   // UD75: the focus ring follows the last input (no ring after a mouse or a touch)
 import '../../src/styles/backtest.css';
 import '../../../terminal/src/styles/spin.css';
 import '../../src/styles/design.css';

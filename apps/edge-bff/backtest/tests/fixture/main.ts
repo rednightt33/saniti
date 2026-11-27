@@ -2,6 +2,7 @@
    and mock-up engine (api.ts). /backtest-app/?fixture=reference starts the way the reference does, with one run at
    load (its last statement, run(false)); without the parameter the page starts like production ("Not run yet"). The
    portfolio's picked stocks at load are the reference's "Demo 10", its default universe (PF7). */
+import '../../../shared/focus-modality.ts';   // UD75: the focus ring follows the last input (no ring after a mouse or a touch)
 import '../../src/styles/backtest.css';
 import '../../../terminal/src/styles/spin.css';
 import '../../src/styles/design.css';

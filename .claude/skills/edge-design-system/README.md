@@ -7,7 +7,11 @@
 
 ## Decisions it encodes (user, 2026-11-18; `EXEC.md` EXEC-DESIGN-SYSTEM)
 "C" (both places), then "v1.2, contoh pola disesuaikan token, 11 usulan setuju, go": spec v1.2 is the base, the 11
-canonical choices of `SKILL.md`, and the user's design proposals taken as patterns adapted to the tokens.
+canonical choices of `SKILL.md`, and the user's design proposals taken as patterns adapted to the tokens. Decisions 12-14
+(the user 2026-11-27, EXEC-SECTOR-ANALYSIS register UD71-UD75, "4A", "1a" + "1A", "3A"; `EXEC.md` EXEC-DESIGN-SYSTEM): the
+grey and the tag ink at 4.5:1, the keyboard-only grey focus ring, the 44 px touch hit areas, in `edge-canonical.css`
+(spec v1.2 stays verbatim; the canonical layer, a later layer, replaces its blue focus ring and its `--text-3`), and the
+name rule "Pt …" → "PT …" (`apps/edge-bff/shared/company-name.ts`).
 
 ## Where it came from
 - `assets/spec-v1.2.css`: EDGE Design Spec v1.2, verbatim (`edge-design-spec-type-A.css` given by the user 2026-11-17).
@@ -16,7 +20,8 @@ canonical choices of `SKILL.md`, and the user's design proposals taken as patter
   tooltips, and the patterns of the proposals (`edge-homepage-cards_3.html`, `right-panel-candidates_screener_dan_backtest.html`,
   `1_2.html` Foreign × Domestic window, `2_2.html` Verdict change drivers, `flow_day_count_options.html`).
 - `assets/edge-ds.js`: the formatters of `apps/edge-bff/overview/src/model.ts` and the chart helpers of
-  `overview/src/app.ts` and `watchlist/src/model.ts`.
+  `overview/src/app.ts` and `watchlist/src/model.ts`; `EdgeDS.trackFocusModality` and `EdgeDS.companyName` are the
+  reference copies of `apps/edge-bff/shared/focus-modality.ts` and `shared/company-name.ts` (decision 13, UD71).
 - `assets/icons.svg`: the sprite of `apps/edge-bff/overview/index.html`.
 - The full as-is capture of every page (offline pages, screenshots, per-chart and per-component inventories,
   literal values outside the spec) is the "EDGE Reference Pack" of 2026-11-17, kept outside Git (it holds market data).

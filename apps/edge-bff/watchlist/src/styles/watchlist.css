@@ -39,7 +39,7 @@
   /* Teks */
   --text:#171717;          /* utama, angka penting */
   --text-2:#4d4d4d;        /* sekunder, label tombol */
-  --text-3:#8f8f8f;        /* keterangan, header tabel */
+  --text-3:#6b6b6b;        /* keterangan, header tabel (2026-11-27, UD73: #8f8f8f read 3.23:1; 4.5:1 on every surface) */
 
   /* Semantik pasar (IDX: hijau naik, merah turun) */
   --green:#087f5b;  --green-bg:rgba(8,153,129,.10);   /* teks naik / pill positif */
@@ -47,6 +47,7 @@
   --up:#089981;     --down:#f23645;                  /* candle, bar, garis chart */
   --blue:#0070f3;   --blue-bg:rgba(0,112,243,.08);    /* fokus, link, nilai Custom */
   --amber:#b45309;  --amber-bg:rgba(245,166,35,.14);  /* peringatan */
+  --green-tag:#087855; --red-tag:#c92535; --blue-tag:#0064d8; --amber-tag:#ad5009;  /* a tag's text on its tint, 4.5:1 (UD73) */
   --violet:#7928ca; --navy:#17348c;                  /* aksen chart, broker lokal */
 
   /* Seri chart (urutan tetap) */
@@ -94,6 +95,8 @@
   --shadow:0 1px 2px rgba(0,0,0,.06),0 8px 20px -8px rgba(0,0,0,.22);          /* hover tombol/kartu */
   --shadow-lg:0 12px 40px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.06);   /* popover, dialog */
   --ring:0 0 0 3px var(--blue-bg);
+  --focus-ring:var(--text-3);  /* the keyboard focus ring, grey; transparent after a mouse or a touch (UD75) */
+  --focus-border:transparent; --focus-shadow:var(--shadow);  /* decision 8: a field being filled, no border line, the soft shadow (UD75: no blue) */
 
   /* Lapisan */
   --z-sticky:40; --z-pop:60; --z-modal:80; --z-toast:99;
@@ -102,14 +105,16 @@
 :root.dark,:root[data-theme="dark"]{
   --bg:#0a0a0a; --surface:#111111; --surface-2:#161616; --hover:#1c1c1c; --sel:#232323;
   --border:#262626; --border-2:#333333;
-  --text:#ededed; --text-2:#b4b4b4; --text-3:#7c7c7c;
+  --text:#ededed; --text-2:#b4b4b4; --text-3:#8a8a8a;
   --green:#3ecf8e; --green-bg:rgba(62,207,142,.12); --red:#ff6369; --red-bg:rgba(255,99,105,.12);
   --blue:#52a8ff; --blue-bg:rgba(82,168,255,.12); --amber:#f5b041; --amber-bg:rgba(245,176,65,.14);
+  --green-tag:var(--green); --red-tag:var(--red); --blue-tag:var(--blue); --amber-tag:var(--amber);
   --violet:#bf7af0; --navy:#7d9bff;
   --shadow:0 1px 2px rgba(0,0,0,.5),0 8px 24px -8px rgba(0,0,0,.7);
   --shadow-lg:0 16px 48px -12px rgba(0,0,0,.8),0 0 0 1px #2a2a2a;
   color-scheme:dark;
 }
+:root[data-modality="pointer"]{--focus-ring:transparent}   /* UD75: no ring after a mouse or a touch (shared/focus-modality.ts) */
 }
 
 /* ---------------------------------------------------------------------
@@ -127,7 +132,8 @@ small{font-size:var(--fs-sm);color:var(--text-3)}
 a{color:var(--blue);font-weight:var(--fw-medium);text-decoration:none}
 a:hover{text-decoration:underline}
 hr{border:0;border-top:1px solid var(--border);margin:var(--s-6) 0}
-:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+:is(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=button],[type=submit],[type=reset],[type=image]),select,textarea):focus-visible{outline:none}   /* UD75: a field keeps its selected state */
 ::selection{background:var(--blue-bg)}
 
 /* tombol polos = tombol sekunder */
@@ -142,7 +148,7 @@ input:where([type="text"],[type="number"],[type="search"],[type="email"],[type="
   font:inherit;color:var(--text);height:var(--h-md);min-width:0;border:1px solid var(--border);border-radius:var(--r-md);
   background:var(--surface);padding:0 var(--s-5);font-size:var(--fs-base);outline:none}
 textarea{height:auto;padding:var(--s-4) var(--s-5);resize:vertical}
-input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:var(--ring)}
+input:focus,select:focus,textarea:focus{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
 input[type="checkbox"],input[type="radio"],input[type="range"]{accent-color:var(--text)}
 label{font-size:var(--fs-sm);color:var(--text-3);font-weight:var(--fw-medium)}
 
@@ -202,10 +208,10 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;bac
 
 /* Pill (status/angka) dan Tog (chip filter yang bisa diklik) */
 .pill{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 var(--s-4);border-radius:var(--r-pill);font-size:var(--fs-xs);font-weight:var(--fw-semibold);background:var(--sel);color:var(--text-2);white-space:nowrap}
-.pill.pos{background:var(--green-bg);color:var(--green)}
-.pill.neg{background:var(--red-bg);color:var(--red)}
-.pill.warn{background:var(--amber-bg);color:var(--amber)}
-.pill.info{background:var(--blue-bg);color:var(--blue)}
+.pill.pos{background:var(--green-bg);color:var(--green-tag)}
+.pill.neg{background:var(--red-bg);color:var(--red-tag)}
+.pill.warn{background:var(--amber-bg);color:var(--amber-tag)}
+.pill.info{background:var(--blue-bg);color:var(--blue-tag)}
 .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .tog{height:26px;padding:0 var(--s-5);border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);box-shadow:none;font-size:var(--fs-12);font-weight:var(--fw-medium);color:var(--text-2)}
 .tog:hover:not(:disabled){border-color:var(--border-2);box-shadow:none;color:var(--text)}
@@ -217,7 +223,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;bac
 .field small{font-size:var(--fs-2xs);color:var(--text-3)}
 .inp,.sel{height:var(--h-md);width:100%;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);padding:0 var(--s-5);font-size:var(--fs-base);outline:none;min-width:0}
 .inp.sm,.sel.sm{height:var(--h-sm);font-size:var(--fs-12);padding:0 var(--s-4)}
-.inp:focus,.sel:focus{border-color:var(--blue);box-shadow:var(--ring)}
+.inp:focus,.sel:focus{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
 .inp.custom{border-color:var(--blue);color:var(--blue);font-weight:var(--fw-semibold)}  /* nilai ≠ default */
 
 /* Tabel data */
@@ -436,7 +442,7 @@ html,body{min-height:100%}
 .nl{width:600px}
 .nl .dialog-body{gap:var(--s-8)}
 .tkbox{display:flex;flex-wrap:wrap;gap:var(--s-2);align-items:center;min-height:var(--h-md);padding:3px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
-.tkbox:focus-within{border-color:var(--blue);box-shadow:var(--ring)}
+.tkbox:focus-within{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
 .tkbox .ch{height:24px;padding:0 2px 0 var(--s-4);border-radius:var(--r-sm)}
 .chx{display:inline-grid;place-items:center;width:18px;height:18px;padding:0;border:0;border-radius:var(--r-xs);background:none;box-shadow:none;color:var(--text-3)}
 .chx .ic{width:12px;height:12px}
@@ -593,3 +599,17 @@ tr.enter td{animation:wlfade .3s ease;background:var(--surface-2)}
 .card.fileerr strong{font-weight:var(--fw-semibold);color:var(--amber)}
 .card.fileerr span{flex:1;min-width:200px;color:var(--text-2);font-size:var(--fs-12)}
 .pad-note{padding:var(--s-6) 18px}
+
+/* ===== EDGE design system, canonical layer decision 14 (the user 2026-11-27, UD72 "3A": every EDGE page), as in
+   .claude/skills/edge-design-system/assets/edge-canonical.css: on a touch screen the small shared controls take a
+   44 x 44 px hit area, an invisible box around them, so nothing moves and nothing changes look (the layer keeps the
+   page's own rules first; tests/test_focus_ring.py compares this block with the system's) ===== */
+@layer edge-canonical {
+@media (pointer:coarse){
+  :is(.seg button,.tog,.iconbtn,.btn.sm,.btn.xs,button.pill,.hit){position:relative}
+  :is(.seg button,.tog,.iconbtn,.btn.sm,.btn.xs,button.pill,.hit)::after,.switch::before{content:"";position:absolute;
+    top:max(calc(-1 * var(--hit-y,22px)),min(0px,calc(50% - 22px)));bottom:max(calc(-1 * var(--hit-y,22px)),min(0px,calc(50% - 22px)));
+    left:max(calc(-1 * var(--hit-x,22px)),min(0px,calc(50% - 22px)));right:max(calc(-1 * var(--hit-x,22px)),min(0px,calc(50% - 22px)))}
+  .seg{--hit-x:0px}
+}
+}
