@@ -18335,3 +18335,8 @@ yang ada di page sector, yang sifatnya top and bottom."
   Breadth heatmap table https://claude.ai/artifact/XFtpk2DcbNjTFrT7jshTuA. Ukuran di jendela 720 px (layar 1440 × 900):
   tabel atas 336 px, ruang bawah 4 baris saham (Sector drill-down, Beta, Rotation detail), 7 baris (Stretched pairs), 3
   baris (Breadth heatmap table). Pilihan antara opsi 1 dan 2 menunggu user.
+- User 2026-11-27 (verbatim): "Khusus untuk breadth heatmap table di takeout dari expanable yang di edit in terms of top
+  and bottomnya. [...] Next up tlg di save as HTML kirim ke saya instead of artifacts, kecuali saya minta."
+  Breadth heatmap table dikeluarkan dari perubahan atas-bawah (tetap seperti sekarang). Usulan desain berikutnya dikirim
+  sebagai file HTML, bukan artifact, kecuali user meminta artifact. Kolom tabel atas dan bawah di semua mock disejajarkan
+  (komentar user di artifact: "kolomnya harus align in terms of jarak").
