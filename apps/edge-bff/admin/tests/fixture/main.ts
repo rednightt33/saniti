@@ -1,5 +1,6 @@
 /* Phase 4, the admin page's look check (npm run build:fixture -> dist-fixture/): the real page on made-up accounts and
    tickets held in memory, without edge-bff. The code step takes 123456. Never part of dist/ (tests/bundle.test.mjs). */
+import '../../../shared/focus-modality.ts';   // UD75: the focus ring follows the last input (no ring after a mouse or a touch)
 import '../../src/styles/admin.css';
 import { AdminError } from '../../src/api.ts';
 import { start } from '../../src/app.ts';

@@ -1,5 +1,6 @@
 /* EXEC-SECTOR-ANALYSIS S4: the production entry. The page follows EDGE's one theme (the shell's key, as the Overview) and
    reads its data from edge-bff only (src/api.ts). */
+import '../../shared/focus-modality.ts';   // UD75: the focus ring follows the last input (no ring after a mouse or a touch)
 import './styles/sector.css';
 import { example, live } from './api.ts';
 import { exampleMode } from '../../shared/example-view.ts';

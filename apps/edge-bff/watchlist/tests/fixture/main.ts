@@ -4,6 +4,7 @@
    A local look check may put a file built from a rehearsal database in data/ (never committed: market data):
    data/watchlist-stocks.json, data/lists.json ({name: [tickers]}) and data/logos/<TICKER>.png.
    Never part of the production bundle (tests/bundle.test.mjs). ?theme=dark, ?empty=1 (a first visit: no list). */
+import '../../../shared/focus-modality.ts';   // UD75: the focus ring follows the last input (no ring after a mouse or a touch)
 import '../../src/styles/watchlist.css';
 import { start } from '../../src/app.ts';
 import { WatchlistError } from '../../src/api.ts';

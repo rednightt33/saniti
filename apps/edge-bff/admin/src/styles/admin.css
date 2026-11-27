@@ -53,7 +53,7 @@ html,body{min-height:100%}
 .tbl td.cap .sub{display:block;color:var(--text-3);font-size:var(--fs-xs)}
 .linklike{all:unset;cursor:pointer;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%}
 .linklike:hover{text-decoration:underline}
-.linklike:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:var(--r-xs)}
+.linklike:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;border-radius:var(--r-xs)}   /* decision 13: keyboard only, grey */
 .warn-text{color:var(--amber, var(--text-2))}
 .card-f{display:flex;align-items:center;gap:var(--s-4);flex-wrap:wrap}
 .pill+.pill{margin-left:var(--s-2)}

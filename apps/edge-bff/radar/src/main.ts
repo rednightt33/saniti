@@ -1,6 +1,7 @@
 /* EXEC-RADAR R7: the production entry. The page follows EDGE's one theme (the shell's key, as the Screener) and reads
    its data from edge-bff only (src/api.ts). */
 import '../../shared/example-storage.ts';       // 3e: first, so an example keeps nothing of the browser (ERRORS M527)
+import '../../shared/focus-modality.ts';   // UD75: the focus ring follows the last input (no ring after a mouse or a touch)
 import './styles/radar.css';
 import { example, live } from './api.ts';
 import { start } from './app.ts';

@@ -1,6 +1,7 @@
 /* Phase 4, the admin page (CONTRACT.md 10; the user, 2026-11-22: "1A, 2B, 3A"): the production entry. The page follows
    EDGE's one theme (the shell's key, as the other pages) and reads its data from edge-bff only (src/api.ts). The ticket of
    its own address (?ticket=<id>, which the shell passes from /admin?ticket=<id>) opens first. */
+import '../../shared/focus-modality.ts';   // UD75: the focus ring follows the last input (no ring after a mouse or a touch)
 import './styles/admin.css';
 import { live } from './api.ts';
 import { start } from './app.ts';

@@ -3,6 +3,7 @@
    check. Never part of the production bundle (tests/bundle.test.mjs). ?example=1 opens the example's view.
    Test hooks of the look check (tests/look/check1.mjs, check 1 of 2026-11-27): ?slow=<date>:<ms> answers that date's day
    file late (BD-5, two quick picks), ?fail=1 refuses every read (MX-7, the header while only an error shows). */
+import '../../../shared/focus-modality.ts';   // UD75: the focus ring follows the last input (no ring after a mouse or a touch)
 import '../../src/styles/sector.css';
 import { start } from '../../src/app.ts';
 import { SectorError } from '../../src/api.ts';

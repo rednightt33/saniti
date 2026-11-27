@@ -32,7 +32,7 @@
 .btabs [role=tab]{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;height:36px;padding:0 7px;margin-bottom:-1px;border-bottom:2px solid transparent;color:var(--text-3);font-size:var(--fs-3);font-weight:500;white-space:nowrap}
 .btabs [role=tab]:hover{color:var(--text)}
 .btabs [role=tab][aria-selected=true]{color:var(--text);font-weight:600;border-bottom-color:var(--text)}
-.btabs [role=tab]:focus-visible{outline:2px solid var(--text-3);outline-offset:-4px;border-radius:6px}
+.btabs [role=tab]:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-4px;border-radius:6px}
 .btabs .n{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--sel);color:var(--text-2);font-size:var(--fs-1);font-weight:600}
 .btabs [aria-selected=true] .n{background:var(--text);color:var(--surface)}
 
@@ -73,7 +73,7 @@
 .condlist .cond{display:grid;gap:5px;padding:9px 10px;margin:0;border:1px solid var(--border);border-radius:8px;background:var(--surface);box-shadow:none;overflow:visible;cursor:pointer;transition:box-shadow .15s,border-color .15s}
 .condlist .cond:hover{border-color:var(--border-2)}
 .condlist .cond.x{cursor:default;border-color:var(--border-2);box-shadow:var(--shadow);gap:7px;padding:10px 12px}
-.condlist .cond:focus-visible{outline:1.5px solid var(--text-3);outline-offset:1px}
+.condlist .cond:focus-visible{outline:1.5px solid var(--focus-ring);outline-offset:1px}
 .condlist .cond.off{background:var(--surface-2)}
 .condlist .cond.off .cond-h b{color:var(--text-3)}
 .condlist .cond-h{display:flex;align-items:center;gap:7px;padding:0;background:none;border:0}
@@ -84,7 +84,7 @@
 .condlist .cond-h .x{width:22px;height:22px;margin-right:-4px}
 .condlist .msum{font-size:var(--fs-2);line-height:1.35;color:var(--text-3);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .condlist .cond.x .msum{-webkit-line-clamp:3}
-.condlist .cf-stat{justify-self:start;max-width:100%;overflow:hidden;text-overflow:ellipsis;padding:1px 8px;border:0;border-radius:999px;background:var(--green-bg);color:var(--green);font-size:var(--fs-1);font-weight:500}
+.condlist .cf-stat{justify-self:start;max-width:100%;overflow:hidden;text-overflow:ellipsis;padding:1px 8px;border:0;border-radius:999px;background:var(--green-bg);color:var(--green-tag);font-size:var(--fs-1);font-weight:500}
 .condlist .cf-stat b{font-weight:600}
 .condlist .cf-stat:empty,.condlist .cf-stat[hidden]{display:none}
 .condlist .cond:not(.x)>.cond-b{display:none}
@@ -302,7 +302,7 @@ body.bx .condlist{grid-template-columns:repeat(2,minmax(0,1fr));align-items:star
 .xs-tg{position:absolute;z-index:3;width:28px;height:16px;padding:0;border:0;border-radius:999px;background:var(--border-2);cursor:pointer;transition:background .15s}
 .xs-tg span{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #0003;transition:left .15s}
 .xs-tg.on{background:var(--text)}.xs-tg.on span{left:14px}
-.xs-tg:focus-visible{outline:2px solid var(--text-3);outline-offset:2px}
+.xs-tg:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 
 /* app header removed: the app fills the window */
 .app{height:100%!important}
@@ -319,7 +319,7 @@ body.bx .condlist{grid-template-columns:repeat(2,minmax(0,1fr));align-items:star
 #cw .seg button{height:26px;padding:0 9px;border:0;border-radius:6px;background:none;font-size:12px;color:var(--text-2);box-shadow:none}
 #cw .seg button.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 2px #00000014,0 0 0 1px var(--border-2)}
 #cw .pill,#cwPop .pill{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:11.5px;font-weight:500;white-space:nowrap}
-#cw .pill.pos{background:var(--green-bg);color:var(--green)}#cw .pill.warn{background:var(--amber-bg,#fff4e0);color:var(--amber,#a15c00)}#cw .pill.neu{background:var(--sel);color:var(--text-2)}
+#cw .pill.pos{background:var(--green-bg);color:var(--green-tag)}#cw .pill.warn{background:var(--amber-bg,#fff4e0);color:var(--amber-tag,#a15c00)}#cw .pill.neu{background:var(--sel);color:var(--text-2)}
 #cw .qnl .pill{height:18px;font-size:10.5px;margin-left:4px}
 #cw .btn.sm,#cwPop .btn.sm{height:28px;padding:0 10px;font-size:12px}
 #cwPop .btn.dark{background:var(--text);color:var(--surface);border-color:var(--text)}
@@ -357,7 +357,7 @@ body.bx .condlist{grid-template-columns:repeat(2,minmax(0,1fr));align-items:star
 #cw .qrail{display:flex;flex-direction:column;gap:2px;overflow:auto;padding:10px 8px}
 #cw .qri{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:6px 10px;border-radius:6px;font-size:12.5px;font-weight:500;color:var(--text-2);cursor:pointer;line-height:1.25}
 #cw .qri:hover{background:var(--hover);color:var(--text)}
-#cw .qri:focus-visible{outline:2px solid var(--text-3);outline-offset:-2px}
+#cw .qri:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
 #cw .qri .lab{flex:1;min-width:0}
 #cw .qri .c{flex:none;min-width:22px;height:22px;padding:0 6px;border-radius:999px;display:inline-grid;place-items:center;background:var(--text);color:var(--surface);font-size:10.5px;font-weight:700}
 #cw .qri.on{background:color-mix(in srgb,var(--text) 9%,var(--surface));box-shadow:inset 3px 0 0 var(--text);color:var(--text);font-weight:600}
@@ -404,13 +404,13 @@ body.bx .condlist{grid-template-columns:repeat(2,minmax(0,1fr));align-items:star
 #cw .qcus .ico{width:14px;height:14px}
 #cw .qcus .n{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--sel);font-size:10.5px;font-weight:700;display:inline-grid;place-items:center}
 #cw .qcus.chg{border-style:solid;border-color:color-mix(in srgb,var(--blue) 45%,transparent)}
-#cw .qcus.chg .n{background:var(--blue-bg);color:var(--blue)}
+#cw .qcus.chg .n{background:var(--blue-bg);color:var(--blue-tag)}
 #cw .qact{height:32px;min-width:72px;padding:0 10px;font-size:13px;font-weight:500;justify-self:end}
-#cw .qact.on{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent);background:var(--green-bg)}
+#cw .qact.on{color:var(--green-tag);border-color:color-mix(in srgb,var(--green) 45%,transparent);background:var(--green-bg)}
 #cw .qact .q-on{display:inline-flex;align-items:center;gap:4px}
 #cw .qact .q-on .ico{width:14px;height:14px}
 #cw .qact .q-rm{display:none}
-#cw .qact.on:hover{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent);background:var(--red-bg);box-shadow:none}
+#cw .qact.on:hover{color:var(--red-tag);border-color:color-mix(in srgb,var(--red) 45%,transparent);background:var(--red-bg);box-shadow:none}
 #cw .qact.on:hover .q-on{display:none}
 #cw .qact.on:hover .q-rm{display:inline}
 #cw .qna{justify-self:end}
@@ -484,7 +484,7 @@ body.bx .condlist{grid-template-columns:repeat(2,minmax(0,1fr));align-items:star
 .bs .exb-h small{font-size:11.5px;line-height:1.35;color:var(--text-3)}
 .bs .exn{width:24px;height:24px;border-radius:6px;background:var(--text);color:var(--surface);font-size:12px;font-weight:700;display:grid;place-items:center;font-variant-numeric:tabular-nums}
 .bs .exb-h .pill{margin-top:2px;height:20px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--sel);color:var(--text-3);display:inline-flex;align-items:center}
-.bs .exb-h .pill.pos{background:var(--green-bg);color:var(--green)}
+.bs .exb-h .pill.pos{background:var(--green-bg);color:var(--green-tag)}
 .bs .exb.is-off{background:var(--surface-2)}
 .bs .exb.is-off .exn{background:var(--sel);color:var(--text-3)}
 .bs .exb.is-off .exb-h b{color:var(--text-2)}
@@ -514,7 +514,7 @@ body.bx .condlist{grid-template-columns:repeat(2,minmax(0,1fr));align-items:star
   /* Teks */
   --text:#171717;          /* utama, angka penting */
   --text-2:#4d4d4d;        /* sekunder, label tombol */
-  --text-3:#8f8f8f;        /* keterangan, header tabel */
+  --text-3:#6b6b6b;        /* keterangan, header tabel (2026-11-27, UD73: #8f8f8f read 3.23:1; 4.5:1 on every surface) */
 
   /* Semantik pasar (IDX: hijau naik, merah turun) */
   --green:#087f5b;  --green-bg:rgba(8,153,129,.10);   /* teks naik / pill positif */
@@ -522,6 +522,7 @@ body.bx .condlist{grid-template-columns:repeat(2,minmax(0,1fr));align-items:star
   --up:#089981;     --down:#f23645;                  /* candle, bar, garis chart */
   --blue:#0070f3;   --blue-bg:rgba(0,112,243,.08);    /* fokus, link, nilai Custom */
   --amber:#b45309;  --amber-bg:rgba(245,166,35,.14);  /* peringatan */
+  --green-tag:#087855; --red-tag:#c92535; --blue-tag:#0064d8; --amber-tag:#ad5009;  /* a tag's text on its tint, 4.5:1 (UD73) */
   --violet:#7928ca; --navy:#17348c;                  /* aksen chart, broker lokal */
 
   /* Seri chart (urutan tetap) */
@@ -569,6 +570,7 @@ body.bx .condlist{grid-template-columns:repeat(2,minmax(0,1fr));align-items:star
   --shadow:0 1px 2px rgba(0,0,0,.06),0 8px 20px -8px rgba(0,0,0,.22);          /* hover tombol/kartu */
   --shadow-lg:0 12px 40px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.06);   /* popover, dialog */
   --ring:0 0 0 3px var(--blue-bg);
+  --focus-ring:var(--text-3);  /* the keyboard focus ring, grey; transparent after a mouse or a touch (UD75) */
 
   /* Lapisan */
   --z-sticky:40; --z-pop:60; --z-modal:80; --z-toast:99;
@@ -577,14 +579,16 @@ body.bx .condlist{grid-template-columns:repeat(2,minmax(0,1fr));align-items:star
 :root.dark,:root[data-theme="dark"],:root[data-theme=dark]{
   --bg:#0a0a0a; --surface:#111111; --surface-2:#161616; --hover:#1c1c1c; --sel:#232323;
   --border:#262626; --border-2:#333333;
-  --text:#ededed; --text-2:#b4b4b4; --text-3:#7c7c7c;
+  --text:#ededed; --text-2:#b4b4b4; --text-3:#8a8a8a;
   --green:#3ecf8e; --green-bg:rgba(62,207,142,.12); --red:#ff6369; --red-bg:rgba(255,99,105,.12);
   --blue:#52a8ff; --blue-bg:rgba(82,168,255,.12); --amber:#f5b041; --amber-bg:rgba(245,176,65,.14);
+  --green-tag:var(--green); --red-tag:var(--red); --blue-tag:var(--blue); --amber-tag:var(--amber);
   --violet:#bf7af0; --navy:#7d9bff;
   --shadow:0 1px 2px rgba(0,0,0,.5),0 8px 24px -8px rgba(0,0,0,.7);
   --shadow-lg:0 16px 48px -12px rgba(0,0,0,.8),0 0 0 1px #2a2a2a;
   color-scheme:dark;
 }
+:root[data-modality="pointer"]{--focus-ring:transparent}   /* UD75: no ring after a mouse or a touch (shared/focus-modality.ts) */
 
 /* Port note (Tahap D): the design file's block went on with a stray "}" and then "@layer edge-base { ... }" (the EDGE
    base styles of plain elements). A browser reads that stray brace as the start of a rule whose selector is
@@ -635,10 +639,10 @@ body.bx .condlist{grid-template-columns:repeat(2,minmax(0,1fr));align-items:star
 
 /* Pill (status/angka) dan Tog (chip filter yang bisa diklik) */
 .pill{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 var(--s-4);border-radius:var(--r-pill);font-size:var(--fs-xs);font-weight:var(--fw-semibold);background:var(--sel);color:var(--text-2);white-space:nowrap}
-.pill.pos{background:var(--green-bg);color:var(--green)}
-.pill.neg{background:var(--red-bg);color:var(--red)}
-.pill.warn{background:var(--amber-bg);color:var(--amber)}
-.pill.info{background:var(--blue-bg);color:var(--blue)}
+.pill.pos{background:var(--green-bg);color:var(--green-tag)}
+.pill.neg{background:var(--red-bg);color:var(--red-tag)}
+.pill.warn{background:var(--amber-bg);color:var(--amber-tag)}
+.pill.info{background:var(--blue-bg);color:var(--blue-tag)}
 .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .tog{height:26px;padding:0 var(--s-5);border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);box-shadow:none;font-size:var(--fs-12);font-weight:var(--fw-medium);color:var(--text-2)}
 .tog:hover:not(:disabled){border-color:var(--border-2);box-shadow:none;color:var(--text)}
@@ -701,7 +705,8 @@ body.bx .condlist{grid-template-columns:repeat(2,minmax(0,1fr));align-items:star
 :root{--field:var(--surface);--field-b:var(--border);--field-h:var(--border-2);--pane:var(--surface-2);--chipbtn:var(--sel);--chipbtn-h:var(--hover);--card-sh:none;--dn:var(--down);--navy-c:var(--navy);
   --fs-1:var(--fs-xs);--fs-2:var(--fs-12);--fs-3:var(--fs-base);--fs-4:var(--fs-lg);--fs-5:16px;--fs-6:20px}
 html,body{font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
-:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+:is(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=button],[type=submit],[type=reset],[type=image]),select,textarea):focus-visible{outline:none}   /* UD75: a field keeps its selected state */
 /* cards and panels: border 1px, radius 12, no shadow */
 .card,.lastrun,.builder,#sigCard,#resCard,#sigTrades{border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:none}
 .card-h h3,.card-h strong,.xt-h h3{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
@@ -758,7 +763,7 @@ html,body{font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);font-
 #cw .qcus{height:28px;padding:0 11px;font-size:12px;gap:5px;color:var(--text-2);background:var(--surface)}
 #cw .qact{justify-self:end;height:32px;min-width:64px;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px;font-weight:500;color:var(--text);white-space:nowrap}
 #cw .qact.on{color:var(--green);border-color:color-mix(in srgb,var(--green) 40%,transparent);background:var(--surface)}
-#cw .qrow.isadd:hover .qact.on{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent);background:var(--red-bg)}
+#cw .qrow.isadd:hover .qact.on{color:var(--red-tag);border-color:color-mix(in srgb,var(--red) 45%,transparent);background:var(--red-bg)}
 #cw .qcols{padding-left:22px;padding-right:10px}
 #cwPop{box-shadow:0 20px 60px #00000047,0 0 0 1px #0000000a}
 #cw input[type=number]::-webkit-inner-spin-button,#cw input[type=number]::-webkit-outer-spin-button{opacity:.35}
@@ -783,7 +788,7 @@ html,body{font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);font-
 #cw .qwin.xs-sc #cwStrat{display:none!important}
 #cw .qwin.xs-sc .qstab{display:flex;flex-direction:column;align-items:center;gap:8px;margin:12px 6px;padding:10px 0;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:600 12.5px var(--sans);cursor:pointer;align-self:stretch;justify-content:flex-start;min-height:0}
 #cw .qwin.xs-sc .qstab:hover{border-color:var(--text-3);background:var(--surface-2)}
-#cw .qwin.xs-sc .qstab:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+#cw .qwin.xs-sc .qstab:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 #cw .qstab span{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap}
 #cw .qstab i{font-style:normal;display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--text);color:var(--surface);font-size:10.5px;font-weight:700}
 #cw .qstab svg,#cw .qs-col svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
@@ -809,7 +814,7 @@ html,body{font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);font-
 .searchbox.adder-open .sb-go{margin-left:auto;display:inline-flex;align-items:center;gap:2px;font-size:12px;font-weight:600;color:var(--blue);white-space:nowrap}
 .searchbox.adder-open .sb-go svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.2}
 .searchbox.adder-open:hover{border-color:var(--blue);background:var(--blue-bg);box-shadow:0 2px 10px #00000014}
-.searchbox.adder-open:focus-visible{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 25%,transparent)}
+.searchbox.adder-open:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 
 
 /* ==== design block 6 ==== */
@@ -827,16 +832,16 @@ html,body{font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);font-
 #xsHd .xh-k b{display:inline;font-weight:600}
 #xsHd .xh-k .up{color:var(--green)}#xsHd .xh-k .down{color:var(--red)}
 #xsHd .xh-mu{color:var(--text-3)}
-#xsHd .xh-st{display:inline-flex;height:18px;align-items:center;padding:0 6px;border-radius:999px;background:var(--amber-bg);color:var(--amber);font-size:10.5px;font-weight:600;margin:2px 0 4px}
+#xsHd .xh-st{display:inline-flex;height:18px;align-items:center;padding:0 6px;border-radius:999px;background:var(--amber-bg);color:var(--amber-tag);font-size:10.5px;font-weight:600;margin:2px 0 4px}
 #xsHd .xs-add{margin-top:auto;width:100%;height:32px;flex:none;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:8px;background:var(--blue);color:#fff;border:1px solid var(--blue);font:600 13px var(--sans);cursor:pointer}
 #xsHd .xs-add:hover{background:color-mix(in srgb,var(--blue) 88%,#000);border-color:color-mix(in srgb,var(--blue) 88%,#000)}
-#xsHd .xs-add:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+#xsHd .xs-add:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 #xsHd .xs-add svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
 #xsHd #runTop{margin-top:0;width:100%;height:32px;justify-content:center;flex:none}
 .xinfo{position:relative;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:2px;color:var(--text-3);cursor:help;border-radius:50%;outline:none}
 .xinfo svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .xinfo:hover,.xinfo:focus-visible{color:var(--text)}
-.xinfo:focus-visible{box-shadow:0 0 0 2px var(--blue)}
+.xinfo:focus-visible{box-shadow:0 0 0 2px var(--focus-ring)}
 .xinfo-tip{position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-60%);width:240px;padding:8px 10px;border-radius:8px;background:var(--text);color:var(--surface);font-size:12px;font-weight:400;line-height:1.45;white-space:normal;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s;z-index:60;box-shadow:0 4px 14px rgba(0,0,0,.15)}
 .xinfo:hover .xinfo-tip,.xinfo:focus .xinfo-tip{opacity:1;visibility:visible}
 .viewbar,.viewbar .in.tabsrow{border-bottom:0!important;box-shadow:none!important}
@@ -933,3 +938,17 @@ html,body{font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);font-
 #cw .qbox .sel{max-width:100%;flex:0 0 auto}
 #cw .qt .qbox{flex-wrap:wrap;row-gap:4px;min-width:0;max-width:100%}
 #cw .qrow .qt{flex-wrap:wrap;row-gap:6px}
+
+/* ===== EDGE design system, canonical layer decision 14 (the user 2026-11-27, UD72 "3A": every EDGE page), as in
+   .claude/skills/edge-design-system/assets/edge-canonical.css: on a touch screen the small shared controls take a
+   44 x 44 px hit area, an invisible box around them, so nothing moves and nothing changes look (the layer keeps the
+   page's own rules first; tests/test_focus_ring.py compares this block with the system's) ===== */
+@layer edge-canonical {
+@media (pointer:coarse){
+  :is(.seg button,.tog,.iconbtn,.btn.sm,.btn.xs,button.pill,.hit){position:relative}
+  :is(.seg button,.tog,.iconbtn,.btn.sm,.btn.xs,button.pill,.hit)::after,.switch::before{content:"";position:absolute;
+    top:max(calc(-1 * var(--hit-y,22px)),min(0px,calc(50% - 22px)));bottom:max(calc(-1 * var(--hit-y,22px)),min(0px,calc(50% - 22px)));
+    left:max(calc(-1 * var(--hit-x,22px)),min(0px,calc(50% - 22px)));right:max(calc(-1 * var(--hit-x,22px)),min(0px,calc(50% - 22px)))}
+  .seg{--hit-x:0px}
+}
+}

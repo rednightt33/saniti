@@ -3,6 +3,7 @@
 // public build (the Terminal's src/lab/none.ts), its src/lab/index.ts in the lab build edge-bff serves only to the admin
 import '@edge-lab';
 import '../../shared/example-storage.ts';       // 3e: next (after the lab module, 3f), so an example keeps nothing of the browser (ERRORS M527)
+import '../../shared/focus-modality.ts';   // UD75: the focus ring follows the last input (no ring after a mouse or a touch)
 import './styles/backtest.css';
 import '../../terminal/src/styles/spin.css';   // EXEC-BACKTEST-SPIN: the loading ring every rack page shares
 import './styles/design.css';                  // Tahap D: the user's design file (decision 2a), over the page's own styles
