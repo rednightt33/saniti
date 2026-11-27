@@ -7,6 +7,7 @@ import type {
   UniverseRow, ValueTest, Versions,
 } from './core/contract.ts';
 import { UNIVERSE_DEFAULTS } from './core/contract.ts';
+import { companyName } from '../../shared/company-name.ts';   // UD71: a name "Pt …" shows as "PT …"
 import type { ScreenerApi } from './api/types.ts';
 import type { Entry } from './entries.ts';
 import { fromWire, toWire, type Card } from './forms.ts';
@@ -45,9 +46,9 @@ export interface Row {
   status: 'match' | 'near' | 'universe'; met: number; need: number; remarks: ResultRow['remarks']; cells: ResultRow['cells'];
   stale: boolean; last_bar_date: string;
 }
-export const rowOfUniverse = (u: UniverseRow): Row => ({ ticker:u.ticker, name:u.name, sector:u.sector, industry:u.industry, last:u.last,
+export const rowOfUniverse = (u: UniverseRow): Row => ({ ticker:u.ticker, name:companyName(u.name), sector:u.sector, industry:u.industry, last:u.last,
   chg_1d_pct:u.chg_1d_pct, adv20_idr:u.adv20_idr, status:'universe', met:0, need:0, remarks:u.remarks, cells:[], stale:u.stale, last_bar_date:u.last_bar });
-export const rowOfResult = (r: ResultRow): Row => ({ ticker:r.ticker, name:r.name, sector:r.sector, industry:r.industry, last:r.last,
+export const rowOfResult = (r: ResultRow): Row => ({ ticker:r.ticker, name:companyName(r.name), sector:r.sector, industry:r.industry, last:r.last,
   chg_1d_pct:r.chg_1d_pct, adv20_idr:r.adv20_idr, status:r.status, met:r.met, need:r.need, remarks:r.remarks, cells:r.cells, stale:r.stale, last_bar_date:r.last_bar_date });
 
 /** The current result the table shows (the prototype's R). */

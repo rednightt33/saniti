@@ -20,6 +20,7 @@ import { colorOf } from './builder.ts';
 import { toast } from './dialogs.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
 import { ApiFailure, isAbort } from './api/types.ts';
+import { companyName } from '../../shared/company-name.ts';   // UD71: a name "Pt …" shows as "PT …"
 import { savePanel, TERMINAL_SYMBOL } from './storage.ts';
 import { searchMatches } from '../../backtest/src/picked.ts';
 import { perfPlot } from './layout/perf.ts';
@@ -168,7 +169,7 @@ export function renderDetails() {
     $('dacts').hidden = true; return;
   }
   askPreview();
-  const a = previewAnswer(), name = a ? (row?.name ?? urow?.name) : (row?.name ?? urow?.name), sector = row?.sector ?? urow?.sector, industry = row?.industry ?? urow?.industry;
+  const a = previewAnswer(), name = companyName(row?.name ?? urow?.name), sector = row?.sector ?? urow?.sector, industry = row?.industry ?? urow?.industry;
   const A = screenedCards(), last = a ? a.bars.c[a.bars.c.length - 1] : row?.last ?? urow?.last ?? null, d1 = row?.chg_1d_pct ?? urow?.chg_1d_pct ?? null;
   const lastBar = row?.last_bar_date ?? urow?.last_bar ?? null;
   const remarks = a?.remarks ?? row?.remarks ?? urow?.remarks ?? [];
@@ -272,7 +273,7 @@ function renderMethod(): string {
 let lookIdx = 0;
 function drawLookup(q: string) {
   const box = document.getElementById('pvsug'), inp = document.getElementById('pvq'); if (!box) return;
-  const rows = (ctx.universe?.rows || []).map(r => ({ ticker:r.ticker, name:r.name || '' }));
+  const rows = (ctx.universe?.rows || []).map(r => ({ ticker:r.ticker, name:companyName(r.name) || '' }));
   const { shown } = searchMatches(rows as any, q, 8);
   if (!q.trim()) { box.hidden = true; inp?.setAttribute('aria-expanded', 'false'); return }
   const matchSet = new Set((ctx.R?.rows || []).filter(r => r.status === 'match').map(r => r.ticker));

@@ -3,6 +3,7 @@
    tests/model.test.ts: labels and number formats, the indicators the file's catalog offers, a list's indicators, the
    filters, the badges, the search and the bodies that undo a deletion. */
 import type { CatalogItem, CreateBody, EventRow, Limit, RadarFile, StocksFile, WList } from './types.ts';
+import { companyName } from '../../shared/company-name.ts';   // UD71: a name "Pt …" shows as "PT …"
 
 export const NB = ' ', MINUS = '−', DOT = ' · ';
 /** the card shows the first CARD_IND indicators of a list; the table shows all (the design's) */
@@ -88,7 +89,7 @@ export interface Stock {
 export function stocks(f: StocksFile): Map<string, Stock> {
   const m = new Map<string, Stock>();
   f.ticker.forEach((t, i) => m.set(t, {
-    t, n: f.name[i] || '', sec: f.sector[i] || '', known: true, last: f.last[i] ?? null, r1d: f.r1d[i] ?? null,
+    t, n: companyName(f.name[i]) || '', sec: f.sector[i] || '', known: true, last: f.last[i] ?? null, r1d: f.r1d[i] ?? null,
     r1m: f.r1m[i] ?? null, trend: f.trend[i] || [], ev: f.events[t] || [], rd: f.radar[t] || [], i,
   }));
   return m;

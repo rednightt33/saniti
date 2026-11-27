@@ -11,13 +11,14 @@ import { S } from './state.ts';
 import { addTickers, filtering, groupLabel, groupStocks, limitText, searchMatches, stocksOf, stocksText, type Stock } from './picked.ts';
 import { markStale, renderNav, updateViewbar } from './builder.ts';
 import { refreshSignals } from './signals.ts';
+import { companyName } from '../../shared/company-name.ts';   // UD71: a name "Pt …" shows as "PT …"
 
 /** the note of a portfolio without a picked stock (the picker, the signal table) */
 export const NO_STOCK = 'No stock picked yet. Search for a stock or filter by a group to add one.';
 const PLUS = '<path d="M12 5v14M5 12h14"/>', CROSS = '<path d="M6 6l12 12M18 6 6 18"/>';
 const max = () => CAT.limits.max_portfolio_tickers;
 const stocks = () => stocksOf(CAT);
-const nameOf = (s: Stock) => s.name || '';
+const nameOf = (s: Stock) => companyName(s.name) || '';
 
 /* a grouping's select: "Any <Grouping>", each value with its number of stocks, then the unclassified ones (never a
    value of their own: the catalog counts them apart, PF6). Option values are positions, so no catalog string goes

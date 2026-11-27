@@ -4,6 +4,7 @@
    industry aggregates of the day. The formulas are the user's final prototype's (verification/sector_analysis/final/
    formulas.md, the logic.js line numbers there), with the decisions of CONTRACT section 1 (periods E, no EMA20 C1, weights D1). */
 import type { Breadth, Day, Meta, N, SectorInfo, Series } from './types.ts';
+import { companyName } from '../../shared/company-name.ts';   // UD71: a name "Pt …" shows as "PT …"
 export type { N };
 
 /* ===================== numbers and dates (en-US digits, U+2212 minus; the design system's formats) ===================== */
@@ -472,7 +473,7 @@ export function makeData(meta: Meta, series: Series, day: Day): Data {
   for (let k = 0; k < s.i.length; k++) {
     const i = s.i[k], t = meta.stocks.ticker[i];
     if (t == null) continue;                    // a position another publication's meta does not hold: no row
-    rows.push({ i, t, n: meta.stocks.name[i], sec: meta.stocks.sector[i], ind: meta.stocks.industry?.[i] ?? null,
+    rows.push({ i, t, n: companyName(meta.stocks.name[i]), sec: meta.stocks.sector[i], ind: meta.stocks.industry?.[i] ?? null,
                 close: s.close?.[k] ?? null, vol: s.volume?.[k] ?? null, r1d: s.r1d?.[k] ?? null, r5d: s.r5d?.[k] ?? null,
                 r1m: s.r1m?.[k] ?? null, r3m: s.r3m?.[k] ?? null, w: s.weight?.[k] ?? null,
                 e50: s.above_ema50?.[k] ?? null, e200: s.above_ema200?.[k] ?? null, d50: s.d_ema50?.[k] ?? null, d200: s.d_ema200?.[k] ?? null,

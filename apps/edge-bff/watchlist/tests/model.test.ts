@@ -237,3 +237,10 @@ describe('the Radar file of its own (EXEC-MU-ACCOUNTS Phase 3d, ERRORS M476)', (
     expect(M.stocks(m.file).get('AAAA')!.rd).toEqual(['S2', 'S7']);
   });
 });
+
+describe('company names (UD71, shared/company-name.ts)', () => {
+  it('shows a name the source writes "Pt …" as "PT …" on every card, row and search result (they read Stock.n)', () => {
+    const m = M.stocks({ ...file, name: ['Pt Yupi Indo Jelly Gum Tbk', 'Bank B Tbk', ''] });
+    expect(['AAAA', 'BBBB', 'CCCC'].map(t => m.get(t)!.n)).toEqual(['PT Yupi Indo Jelly Gum Tbk', 'Bank B Tbk', '']);
+  });
+});

@@ -73,3 +73,10 @@ describe('the detail', () => {
     expect(runs(file, meta.filters[0], 1, 'broad', 'TLKM')).toEqual([]);
   });
 });
+
+describe('company names (UD71, shared/company-name.ts)', () => {
+  it('shows a name the source writes "Pt …" as "PT …", and the code when the meta holds no name', () => {
+    const f = stockFacts({ ...meta, names: { AADI: 'Pt Adaro Andalan Indonesia Tbk', BBCA: 'Bank Central Asia' } }, board);
+    expect([f.name('AADI'), f.name('BBCA'), f.name('TLKM')]).toEqual(['PT Adaro Andalan Indonesia Tbk', 'Bank Central Asia', 'TLKM']);
+  });
+});
