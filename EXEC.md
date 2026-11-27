@@ -16767,6 +16767,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD66 | (answered 2026-11-26: "a1 / b ok / c 1 / d1 … / e ok / f released … / g ok jd open in terminal / h hapus / i ok / j …", EXEC-SECTOR-ANALYSIS) PLAN.md SECTOR-ANALYSIS (2026-11-26): the Sector Analysis page from the user's prototype. A: this page vs ROTATION_SPEC.md (median, equal-weight market benchmark, three lenses) and the "RRG"/"RS-Ratio" names; B: the prototype's synthetic data replaced by real data; C: EMA20 (not in the database); D: the industry and treemap weight (trading value, median, or market cap that is not in the database); E: 1M = 20 or 21 sessions, 1Y = 250 or 252; F: the release path of a new tab (a lab tab is held, LAB_TAB_HELD_UNTIL); G: where Open in Screener goes; H: the hidden cards; I: the date picker (latest only, or 20 dates like the Overview); J: who may open it (plans, visitors' example). Each with the agent's recommendation | 2026-11-26 with context | the build of the page | before the build starts |
   | UD67 | (answered 2026-11-26: "1A 2A 3 go") EXEC-SECTOR-ANALYSIS (2026-11-26): (1) what "Open in Terminal" opens (the selected sector's index, e.g. IDXFINANCE, IHSG when none; a stock row or dot opens that stock); (2) the names "Relative Rotation Graph", "RS-Ratio", "RS-Momentum" (RRG Research marks) replaced by neutral names or kept; (3) the go for S0-S4 on the branch and S1 on the dev database | 2026-11-26 with context | the build of the page | before the build starts |
   | UD68 | EXEC-SECTOR-ANALYSIS (2026-11-27): the live promotion of Sector Analysis, which the user tied to the 5 Sonnet agents' findings being fixed ("Promosi ke live once temuan agent sonnet dibereskan"); the beta deploy of the fixes and the move of `live` are each asked with context when the fixes are done (a re-check of those fixes, rule 8, is asked then too) | 2026-11-27 | the live site's Sector Analysis | when the fixes of the check are done |
+  | UD69 | EXEC-SECTOR-ANALYSIS (2026-11-27): the visual improvements the user wants on the Sector Analysis page ("Ada beberapa visual that we can improve"): which cards and what change, to be fixed in the same round as the 5 Sonnet agents' findings | 2026-11-27 | the fix round; the live promotion (UD68) | before the fix round closes |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -18191,3 +18192,7 @@ ke live once temuan agent sonnet dibereskan".
 - Uji ulang item RECHECK.md yang menunggu: ditunda (user: "keep it pending dulu").
 - Live: sesudah temuan pemeriksaan ini dibereskan; deploy beta perbaikan dan pemindahan `live` tetap meminta
   konfirmasi user saat itu (AGENTS.md "Deploys").
+
+**Keputusan user 2026-11-27 (verbatim):** "Jangan promosi ke live duul. Bereskan temuan agent sonnet dulu. Ada beberapa
+visual that we can improve." Live ditahan; putaran perbaikan berisi temuan 5 agen Sonnet ditambah perbaikan visual dari
+user (rinciannya menunggu user, register UD69).
