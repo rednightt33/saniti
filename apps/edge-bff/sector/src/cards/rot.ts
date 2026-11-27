@@ -9,7 +9,7 @@ import { TOUCH, W } from '../words.ts';
 
 /* one hue per quadrant (the prototype's Rotation colours, as tokens) */
 const QC: Record<M.Quad, string> = { Leading: 'var(--up)', Weakening: 'var(--amber-400)', Lagging: 'var(--down)', Improving: 'var(--blue)' };
-const QT: Record<M.Quad, string> = { Leading: 'var(--green)', Weakening: 'var(--amber)', Lagging: 'var(--red)', Improving: 'var(--blue)' };
+const QT: Record<M.Quad, string> = { Leading: 'var(--green-tag)', Weakening: 'var(--amber-tag)', Lagging: 'var(--red-tag)', Improving: 'var(--blue-tag)' };
 const QB: Record<M.Quad, string> = { Leading: 'color-mix(in srgb,var(--up) 7%,transparent)', Weakening: 'color-mix(in srgb,var(--amber-400) 8%,transparent)', Lagging: 'color-mix(in srgb,var(--down) 6%,transparent)', Improving: 'color-mix(in srgb,var(--blue) 6%,transparent)' };
 export const rotQ = (q: M.Quad | null) => (q ? `<span class="rq" style="--c:${QC[q]};--t:${QT[q]}">${esc(W.quad[q])}</span>` : '—');
 /** the 52 weekly points of the strip and the timeline: every 5 sessions back from the date */

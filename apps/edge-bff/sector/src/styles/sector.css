@@ -35,7 +35,7 @@ svg{display:block;flex:none}
 .ddpop .menu-item .ck{width:14px;color:var(--text)}
 .boot{display:flex;align-items:center;gap:var(--s-4);padding:var(--s-10) 0;color:var(--text-2)}
 .boot[hidden],#body[hidden]{display:none}
-.boot .err{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--red-bg);color:var(--red);font-weight:var(--fw-semibold);font-size:var(--fs-xs)}
+.boot .err{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--red-bg);color:var(--red-tag);font-weight:var(--fw-semibold);font-size:var(--fs-xs)}
 .ml-loading{display:inline-flex;align-items:center;gap:var(--s-4)}
 .ml-spin{width:14px;height:14px;flex:none;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sx-spin .7s linear infinite}
 @keyframes sx-spin{to{transform:rotate(360deg)}}
@@ -93,11 +93,11 @@ svg text{font-family:var(--sans)}
 .tc .tbl-wrap{flex:1 1 0;min-height:0;overflow:auto}
 th .sk,.hd .sk{margin-left:3px;white-space:nowrap}th .sk sup,.hd .sk sup{font-size:9px;margin-left:1px;font-weight:var(--fw-bold)}
 th.df .sk,.hd.df .sk{opacity:.45}
-[data-k][role=button]:focus-visible{outline:2px solid var(--text-3);outline-offset:-2px}
+[data-k][role=button]:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
 .tg{display:inline-block;padding:1px 6px;border-radius:4px;font-size:var(--fs-12);font-weight:var(--fw-semibold)}
-.tg.Gaining{background:var(--green-bg);color:var(--green)}.tg.Fading{background:var(--red-bg);color:var(--red)}.tg.Steady{background:var(--sel);color:var(--text-2)}
+.tg.Gaining{background:var(--green-bg);color:var(--green-tag)}.tg.Fading{background:var(--red-bg);color:var(--red-tag)}.tg.Steady{background:var(--sel);color:var(--text-2)}
 .tag{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:var(--fw-semibold)}
-.tag.pos{background:var(--green-bg);color:var(--green)}.tag.neg{background:var(--red-bg);color:var(--red)}.tag.neu{background:var(--sel);color:var(--text-2)}
+.tag.pos{background:var(--green-bg);color:var(--green-tag)}.tag.neg{background:var(--red-bg);color:var(--red-tag)}.tag.neu{background:var(--sel);color:var(--text-2)}
 .rq{display:inline-block;padding:1px 8px;border-radius:999px;font-size:var(--fs-12);font-weight:var(--fw-semibold);line-height:18px;color:var(--t);background:color-mix(in srgb,var(--c) 13%,transparent)}
 .pab{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;background:var(--text);color:var(--surface);font-size:10px;font-weight:var(--fw-bold);line-height:16px;vertical-align:1px}
 .tk{border:0;background:none;padding:0;height:auto;font:inherit;font-weight:var(--fw-semibold);color:var(--text);text-decoration:underline;text-decoration-color:var(--border-2);text-underline-offset:3px;box-shadow:none;cursor:pointer}
@@ -110,7 +110,7 @@ th.df .sk,.hd.df .sk{opacity:.45}
 .rrg svg:has(rect[data-tip]:hover) rect[data-tip]:not(:hover){opacity:.45}
 .dvb>.r[data-n],.dots>.r[data-n],.adr>div[data-n]{border-radius:4px;margin-inline:-6px;padding-inline:6px;cursor:pointer}
 .dvb>.r[data-n]:hover,.dots>.r[data-n]:hover,.adr>div[data-n]:hover{background:var(--surface-2)}
-:is(.dvb .r,.dots .r,.adr>div,tr[role=button],.cpi,.ovx-bl .r,.ovx-hm .nm,.mk-t)[role=button]:focus-visible,.ovx-dot:focus-visible,.sl:focus-visible,.pt:focus-visible,circle.dt:focus-visible{outline:2px solid var(--text-3);outline-offset:-2px}
+:is(.dvb .r,.dots .r,.adr>div,tr[role=button],.cpi,.ovx-bl .r,.ovx-hm .nm,.mk-t)[role=button]:focus-visible,.ovx-dot:focus-visible,.sl:focus-visible,.pt:focus-visible,circle.dt:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
 .tbl tbody tr[role=button]{cursor:pointer}
 /* a sticky first cell has its own background: it follows the row's hover and selection (check 1 RP-11) */
 .rs-d .tbl tbody tr:hover>td:first-child,.br-t .tbl tbody tr:hover>td:first-child,.pm-t .tbl tbody tr:hover>td:first-child{background:var(--surface-2)}
@@ -329,7 +329,7 @@ circle.dt{cursor:pointer;outline:none}
 .bxl.ihp i{width:12px;height:0;border-radius:0;border-top:1.5px dashed var(--text-3);background:none}
 .bhc{flex:none;padding:0 var(--s-8);position:relative;cursor:crosshair}
 .bhc.bz{flex:1 1 auto;min-height:200px;margin-bottom:var(--s-2);touch-action:pan-y;outline:none}.bhc.bz.drag{cursor:grabbing}
-.bhc.bz:focus-visible{box-shadow:inset 0 0 0 2px var(--text-3);border-radius:4px}
+.bhc.bz:focus-visible{box-shadow:inset 0 0 0 2px var(--focus-ring);border-radius:4px}
 .bms{height:var(--h-sm);display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:200px;padding:0 8px 0 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font:inherit;font-size:12.5px;font-weight:var(--fw-medium);color:var(--text);box-shadow:none}
 .bms .bmn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bms .bmc{display:inline-grid;place-items:center;min-width:22px;height:18px;padding:0 5px;border-radius:9px;background:var(--text);color:var(--surface);font-size:11px;font-weight:var(--fw-semibold)}
