@@ -18410,3 +18410,9 @@ yang ada di page sector, yang sifatnya top and bottom."
   `5d811a27` (keputusan design system 12-14: cincin fokus abu hanya lewat keyboard, kontras `--text-3` dan tinta tag, area
   sentuh 44 px; aturan nama "PT"; `verification/edge_states/round2_focus_contrast.mjs`), penggabungan `8282e624`. Terbuka
   untuk putaran perbaikan: area sentuh kontrol rapat milik Sector dan tombol segmen Radar yang bertumpuk.
+- Salinan design system di claude.ai dibangun ulang dari folder skill (README langkah 3): versi 7,
+  https://claude.ai/artifact/SQwji2RLWXAf8ZKEcfcNww. Cek 2 dimulai 2026-11-27: 5 agen Sonnet, tingkat berpikir medium (pilihan
+  user), area: Overview + Relative strength + data (`agents_20261127-sector-r2-ovrs`), Rotation + Pair matrix (`-r2-rotpm`),
+  Breadth + tanggal + kepala + fokus (`-r2-brdt`), ponsel + gelap + sentuh + contoh (`-r2-mobex`), halaman EDGE lain
+  (`agents_20261127-edge-r2-wide`); masing-masing menguji ulang baris ledger cek 1 areanya dengan temuan aslinya (aturan 8),
+  pada build lokal branch dengan file terbitan 26 Nov (tanpa login).
