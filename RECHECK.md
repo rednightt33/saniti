@@ -17,7 +17,7 @@ kunci run + id temuan.
 - Hasilnya (fixed, partly, not fixed, cannot tell) ditulis ke ledger di tugas yang sama, lalu file ini ditulis
   ulang.
 
-## Menunggu uji ulang: 270 item
+## Menunggu uji ulang: 271 item
 
 "Berjalan di" adalah tempat commit perbaikan berjalan (`verification/records/deployed_commits.json`): live, beta,
 branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada commit yang disebut).
@@ -39,7 +39,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | Screener dan Backtest: re-check ronde 3 harga terdistorsi (ERRORS M568) | EXEC-PRICE-DISTORTION | 4 | 4 | 0 | 0 | 0 | 0 |
 | Backtest, Screener dan Terminal: state fokus dan terpilih mengikuti Terminal, pilihan yang terpotong (ERRORS M570) | EXEC-VISUAL-STATES | 2 | 2 | 0 | 0 | 0 | 0 |
 | Sector Analysis: nama file keluarga sector/ (ERRORS M572) | EXEC-SECTOR-ANALYSIS | 1 | 0 | 0 | 0 | 1 | 0 |
-| Sector Analysis: cek 1 halaman (5 agen Sonnet medium, 27 Nov 2026) | EXEC-SECTOR-ANALYSIS | 50 | 0 | 0 | 49 | 1 | 0 |
+| Sector Analysis: cek 1 halaman (5 agen Sonnet medium, 27 Nov 2026) | EXEC-SECTOR-ANALYSIS | 51 | 0 | 0 | 50 | 1 | 0 |
 
 ### Akun dan keamanan: re-check ronde 1 (R1) (40)
 
@@ -336,7 +336,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 |---|---|---|---|---|---|
 | `errors/M572` | The contract named the per-sector files with the index ticker in capitals, which terminal-api never serves | `e7d510b6` | bukan kode | M572 | 0 |
 
-### Sector Analysis: cek 1 halaman (5 agen Sonnet medium, 27 Nov 2026) (50)
+### Sector Analysis: cek 1 halaman (5 agen Sonnet medium, 27 Nov 2026) (51)
 
 | Kunci | Temuan | Commit perbaikan | Berjalan di | ERRORS | Ronde uji ulang sebelumnya |
 |---|---|---|---|---|---|
@@ -362,8 +362,8 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | `agents_20261127-sector-mobex/MX-1` | Breadth 'Stock detail': numbers cut to '+104....' on phones | `29535145` | branch | M575 | 0 |
 | `agents_20261127-sector-mobex/MX-2` | Wide tables scroll sideways inside their card with no cue; most columns are hidden on a phone | `29535145` | branch | M575 | 0 |
 | `agents_20261127-sector-mobex/MX-3` | Fifth tab 'Breadth' is invisible on a 390 phone (no scroll cue on the tab bar) | `29535145` | branch | M575 | 0 |
-| `agents_20261127-sector-mobex/MX-4` | Touch targets well below 32-44 px | `29535145` | branch | M575 | 0 |
-| `agents_20261127-sector-mobex/MX-5` | Contrast below 4.5:1 for small texts (light: whole page; dark: chart end labels and Breadth counts) | `29535145` | branch | M575 | 0 |
+| `agents_20261127-sector-mobex/MX-4` | Touch targets well below 32-44 px | `29535145`, `c8c10f34`, `0c59f38d` | branch | M575 | 0 |
+| `agents_20261127-sector-mobex/MX-5` | Contrast below 4.5:1 for small texts (light: whole page; dark: chart end labels and Breadth counts) | `29535145`, `c8c10f34`, `0c59f38d`, `8282e624` | branch | M575 | 0 |
 | `agents_20261127-sector-mobex/MX-6` | Date menu has no arrow-key navigation | `29535145` | branch | M575 | 0 |
 | `agents_20261127-sector-mobex/MX-7` | When the data cannot load, header controls look live but do nothing | `29535145` | branch | M575 | 0 |
 | `agents_20261127-sector-mobex/MX-8` | Phone window text refers to things not present on a phone | `29535145` | branch | M575 | 0 |
@@ -390,12 +390,13 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | `agents_20261127-sector-rotpm/RP-9` | 'Heading' words reuse the quadrant names with another meaning | `29535145` | branch | M575 | 0 |
 | `agents_20261127-sector-rotpm/RP-10` | The 'Formula' chip of the Rotation map is a title-only tooltip | `29535145` | branch | M575 | 0 |
 | `agents_20261127-sector-rotpm/RP-11` | Beta window: stock table has room for only about two rows; hovered row's first cell is not shaded | `29535145` | branch | M575 | 0 |
+| `agents_20261127-sector-data/D-5` | Company names are published as in the source with odd casing ('Pt ...') | `b99bce73` | branch | M575 | 0 |
 
 ## Hitungan per status
 
 | Status | Arti | Jumlah |
 |---|---|---|
-| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 270 |
+| `waiting` | sudah diperbaiki, menunggu uji ulang oleh agen selain pembuatnya | 271 |
 | `fixed` | diuji ulang agen lain: beres | 130 |
 | `partly` | diuji ulang agen lain: sebagian beres, sisanya belum diperbaiki | 2 |
 | `not_fixed` | diuji ulang agen lain: belum beres | 0 |
@@ -403,7 +404,7 @@ branch (belum di-deploy), bukan kode (catatan saja), tanpa commit (tidak ada com
 | `open` | belum diperbaiki | 90 |
 | `accepted` | diterima user apa adanya | 4 |
 | `obsolete` | tidak berlaku lagi | 5 |
-| **Total** | | **501** |
+| **Total** | | **502** |
 
 Dari 90 baris `open`, 25 punya baris pemilik di PLAN.md atau EXEC.md dan 65 belum
 (aturan 1: setiap bagian yang terbuka butuh pemilik dan pemicu).

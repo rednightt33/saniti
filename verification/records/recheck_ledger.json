@@ -12318,9 +12318,11 @@
     "M575"
    ],
    "fix_commits": [
-    "29535145"
+    "29535145",
+    "c8c10f34",
+    "0c59f38d"
    ],
-   "fix_note": "29535145: On a touch screen: 44 px hit areas for the expand buttons, drill-down chevrons, the window's close button, and a 28 px hit circle for the rotation map's dots, with no visual change (verdict in FIXES.md: fixed in part; the rest needs the user)",
+   "fix_note": "29535145: On a touch screen: 44 px hit areas for the expand buttons, drill-down chevrons, the window's close button, and a 28 px hit circle for the rotation map's dots, with no visual change (verdict in FIXES.md: fixed in part; the rest needs the user) Round 2 (UD72 \"3A\"): the shared small controls get a 44 px touch area under pointer:coarse in the canonical layer of every EDGE page but the Terminal (c8c10f34, 0c59f38d); the Sector page's own dense controls and the Radar's stacked segment buttons are still below 44 px (round-2 check).",
    "runs_on": "branch",
    "author_test": "none automated (CSS under `pointer: coarse`) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "waiting",
@@ -12343,9 +12345,12 @@
     "M575"
    ],
    "fix_commits": [
-    "29535145"
+    "29535145",
+    "c8c10f34",
+    "0c59f38d",
+    "8282e624"
    ],
-   "fix_note": "29535145: End labels mix their colour with the text colour (2.67:1 → 4.5:1 or more); dark ink on the A/U/D bars (3.57/3.90 → 5.0/4.6); heat and correlation ink per theme (verdict in FIXES.md: the page's part fixed; the shared tokens need the user)",
+   "fix_note": "29535145: End labels mix their colour with the text colour (2.67:1 → 4.5:1 or more); dark ink on the A/U/D bars (3.57/3.90 → 5.0/4.6); heat and correlation ink per theme (verdict in FIXES.md: the page's part fixed; the shared tokens need the user) Round 2 (UD73 \"4A\"): --text-3 #8f8f8f to #6b6b6b (dark #7c7c7c to #8a8a8a) and tag inks --green-tag/--red-tag/--blue-tag/--amber-tag at 4.5:1 or more on every EDGE page but the Terminal (c8c10f34, 0c59f38d, 8282e624).",
    "runs_on": "branch",
    "author_test": "check1.test \"MX-5 (the page's own part)\"; a contrast probe of every text at 390 px (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "waiting",
@@ -13004,6 +13009,31 @@
    "recheck_action": "Reproduce the original finding (Expand the card; hover a sector row.) on the beta once these commits run there; look for the same mechanism elsewhere (the drill-down, heatmap table and beta sticky cells); run the tests of the files the fix touched (vitest and tests/look/check1.mjs in apps/edge-bff/sector).",
    "tested_out_by": "none",
    "evidence": "verification/sector_analysis/check1/agents_20261127-sector-rotpm.json (RP-11); verification/sector_analysis/check1/FIXES.md",
+   "from": "fix"
+  },
+  {
+   "key": "agents_20261127-sector-data/D-5",
+   "execution": "EXEC-SECTOR-ANALYSIS",
+   "area": "Sector Analysis: cek 1 halaman (5 agen Sonnet medium, 27 Nov 2026)",
+   "run": "agents_20261127-sector-data",
+   "finding_id": "D-5",
+   "title": "Company names are published as in the source with odd casing ('Pt ...')",
+   "finding": "agents_20261127-sector-data, sonnet, D-5, nit: Company names are published as in the source with odd casing ('Pt ...'). sector-meta stocks.name (3 stocks: AADI 'Pt Adaro Andalan Indonesia Tbk', 'Pt Cipta Sarana Medika Tbk.', 'Pt Yupi Indo Jelly Gum Tbk'); IDX_Stock_Universe.\"Company Name\" Open a stock window/tooltip for AADI. 'PT ...' like the other 859 names. 'Pt ...' (equal to the universe value, so a source-data inconsistency passed through).",
+   "errors": [
+    "M575"
+   ],
+   "fix_commits": [
+    "b99bce73"
+   ],
+   "fix_note": "b99bce73: UD71 (\"tambah satu aturan tampilan saja\"): shared/company-name.ts shows a leading \"Pt \" as \"PT \" on every EDGE page but the Terminal (Overview, Watchlist, Radar, Sector, Screener, Backtest); the database and the publisher are unchanged.",
+   "runs_on": "branch",
+   "author_test": "apps/edge-bff tests/test_company_name.py, each page's company-name unit test, verification/edge_states/round2_focus_contrast.mjs (name step on 5 pages)",
+   "status": "waiting",
+   "open_row": "",
+   "recheck": [],
+   "recheck_action": "Open a page that lists AADI, DKHH or YUPI (Sector drill-down, Screener results, Watchlist) and check the name reads \"PT ...\"; check the Terminal is unchanged.",
+   "tested_out_by": "none",
+   "evidence": "verification/sector_analysis/check1/agents_20261127-sector-data.json (D-5); EXEC.md register UD71",
    "from": "fix"
   }
  ]

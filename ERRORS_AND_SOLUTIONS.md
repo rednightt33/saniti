@@ -8926,6 +8926,12 @@ in its staleness check.
   `RECHECK.md`; a re-check runs only with the user's approval, model and effort (AGENTS.md rule 8). Open parts, asked
   with context: D-5 company names "Pt …" from the source table (UD71), MX-4 the shared small controls on touch (UD72),
   MX-5 the shared grey and tag tokens' contrast (UD73), MX-9 the Greek glyphs Δ σ β (UD74).
+- **Round 2 (2026-11-27, on the branch, tested by its author only):** the user answered UD71-UD74. D-5 fixed by one
+  display rule (`shared/company-name.ts`, `b99bce73`); MX-5's shared part fixed (`--text-3` #8f8f8f → #6b6b6b, dark
+  #7c7c7c → #8a8a8a, tag inks `--green-tag`/`--red-tag`/`--blue-tag`/`--amber-tag`, `c8c10f34`, `0c59f38d`, `8282e624`);
+  MX-4's shared part fixed (44 px touch areas under `pointer:coarse` in the canonical layer, `c8c10f34`, `0c59f38d`),
+  still open: the Sector page's own dense controls and the Radar's stacked segment buttons (the round-2 check names them);
+  MX-9 kept as the user chose ("5B"). Every EDGE page but the Terminal ("Terminal jangan disentuh").
 - **Lesson:** a page's look check covers a chart whose box changes after its first draw and every scroller's cue, at
   each frame width of the shell; a page's count of a figure another page shows reads the same series.
 
