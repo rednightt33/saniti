@@ -8892,7 +8892,7 @@ in its staleness check.
   job screener-worker). Moved through each file's line diff from `53b4fafb` (none fell inside a changed hunk); the pointer
   test passes.
 
-### M577 — The beta's build of `72c09231` fails three times on Railway's build cache: S3 GetObject 416 InvalidRange (2026-11-27; open: the way out is asked, UD82)
+### M577 — The beta's build of `72c09231` fails three times on Railway's build cache: S3 GetObject 416 InvalidRange (2026-11-27; fixed the same day by one build without the cache, UD82 "A")
 
 - **Symptom:** after `main` moved `aabb6530` → `72c09231` (the user's go for this round: "deploy ke main afterwards"),
   the `edge-bff` (beta) deployments `4293697a` (GitHub trigger, 15:57 UTC), `135d085e` (redeploy from source) and
@@ -8911,12 +8911,17 @@ in its staleness check.
 - **Class:** any GitHub-connected Railway service whose build imports a cached object that the store can no longer
   serve: every app with a Dockerfile (edge-bff, edge-bff-live, screener-worker, the orc and governors); a retry of the
   same commit does not help, the deploy holds while the old deployment keeps serving.
-- **Solution:** asked (UD82): a build without the cache (`NO_CACHE=1` on `edge-bff`, a variable change that redeploys
-  the beta, removed after one SUCCESS), waiting and retrying later, or Railway's support.
+- **Solution:** the user chose "A" (UD82): `NO_CACHE=1` on `edge-bff` (set with `--skip-deploys`), one build of
+  `72c09231` (`20bb4c1a`, SUCCESS 16:20:31 UTC), then `NO_CACHE` deleted (no deploy followed). That build passing
+  confirms the suspected cause: the unreadable object was in the build cache, not in the code. Whether the cache now
+  serves again is shown by the next build with the cache (the next push to `main`, or the live move, which builds
+  `edge-bff-live` with its own cache); if it fails the same way, the same one-build way out applies
+  (RAILWAY_CHANGELOG 2026-11-27, rollback).
+- **Status:** fixed; the beta runs `72c09231`.
 - **Lesson:** after a push to `main`, read the deployment of each service to its end, not only CI; a deploy can fail
   outside the code while the old version keeps serving, so `/version` is the check that the beta moved.
 
-### M576 — Sector Analysis check 2: 27 findings of five checkers on the visual round 2 (2026-11-27; fixed on the branch in `90bf33f0`, `3a597e76`, not deployed; two parts asked, UD80-UD81)
+### M576 — Sector Analysis check 2: 27 findings of five checkers on the visual round 2 (2026-11-27; fixed in `90bf33f0`, `3a597e76`, on the beta since 2026-11-27 (`72c09231`); two parts asked, UD80-UD81)
 
 - **Symptom (runs `agents_20261127-sector-r2-{ovrs,rotpm,brdt,mobex}` and `agents_20261127-edge-r2-wide`, Sonnet medium,
   the user's order of 2026-11-27; journals in `verification/sector_analysis/check2/`):** 27 findings on the branch's
@@ -8946,7 +8951,7 @@ in its staleness check.
   (52 steps, its new steps failing on the code before the fix), `apps/edge-bff/tests/test_focus_ring.py`. Run on the
   merged branch `6ae428b6`: sector vitest 101/101, look check1 29/29, round2 39/39, check2 32/32 on the fixture; on the
   26 Nov files round2 39/39, check2 32/32, check1 28/29 (MX-7 needs the fixture's failure hook); the EDGE oracle 52/52.
-- **Status:** fixed on the session branch, not deployed (the beta deploy follows, the user's go of 2026-11-27). Each fix
+- **Status:** fixed, on the beta since 2026-11-27 (`72c09231`; ERRORS M577 for its build), not on the live site. Each fix
   was tested by its author only: the 21 keys are rows of `verification/records/recheck_ledger.json` (status waiting,
   errors M576) and of `RECHECK.md`; a re-check runs only with the user's approval, model and effort (AGENTS.md rule 8).
   Open parts, asked with context: the windows' stacking threshold (OV2-2: 1100 px, so a 1152 px screen stacks; UD80);
@@ -8956,7 +8961,7 @@ in its staleness check.
   that page's densest layout; a reset that follows a shared rule is caught by a specificity test, not by eye; a colour
   or word shown for a value is derived from what is printed and from the input in use.
 
-### M575 — Sector Analysis check 1: 52 findings of five page checkers on the beta (2026-11-27; fixed on the branch in `29535145`, `1ccbe90d`, not deployed; four parts asked, UD71-UD74)
+### M575 — Sector Analysis check 1: 52 findings of five page checkers on the beta (2026-11-27; fixed in `29535145`, `1ccbe90d`, on the beta since 2026-11-27 (`72c09231`); four parts answered, UD71-UD74)
 
 - **Symptom (runs `agents_20261127-sector-{data,ovrs,rotpm,brdt,mobex}`, Sonnet medium, the user's order of
   2026-11-27; journals in `verification/sector_analysis/check1/`):** 52 findings, 6 major, 21 minor, 25 nit, on the
@@ -8985,7 +8990,7 @@ in its staleness check.
   `tests/check1.test.ts` (21 tests, each failing on the code before `29535145`) and `tests/look/check1.mjs` (Playwright,
   5 widths × light/dark plus 19 interaction steps; 29 of 29 fail before, 29 of 29 pass after, 27 of 27 on the real
   published files).
-- **Status:** fixed on the session branch, not deployed (the beta deploy is asked, UD68). Each fix was tested by its
+- **Status:** fixed, on the beta since 2026-11-27 (`72c09231`), not on the live site (UD68). Each fix was tested by its
   author only: the 50 findings with a fix are rows of `verification/records/recheck_ledger.json` (status waiting) and of
   `RECHECK.md`; a re-check runs only with the user's approval, model and effort (AGENTS.md rule 8). Open parts, asked
   with context: D-5 company names "Pt …" from the source table (UD71), MX-4 the shared small controls on touch (UD72),

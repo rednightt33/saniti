@@ -1,5 +1,32 @@
 # Railway changelog
 
+## 2026-11-27 — The beta on `72c09231`: Sector Analysis visual round 2 and check 2's fixes (EXEC-SECTOR-ANALYSIS, ERRORS M576), after one build without the cache (ERRORS M577); the live site unchanged on `53b4fafb`
+
+- **The user's words (2026-11-27):** "A, go kerjakan semuanya di branch - then assign 5 sonnets 5.5 medium to check
+  again. Fix apabila temuan, deploy ke main afterwards." (this round's deploy), then "A" for the build without the cache
+  (register UD82).
+- **Before:** no deployment waiting or building on the beta's or the live site's service; CI of `72c09231` on the session branch
+  green (Backend tests 46023869193, look-ahead gate 46023869259, generated files 46023869227, record statuses
+  46023869207; image builds and page smoke green on `d4e29125`, 46022276319, 46022276149).
+- **`main` `aabb6530` → `72c09231`** 15:56 UTC (fast-forward; only `apps/edge-bff` changed under `apps/`, so no other
+  service builds).
+- **Three builds of `edge-bff` FAILED** (`4293697a` GitHub trigger 15:57, `135d085e` redeploy from source, `db54cdfa`
+  redeploy of the commit): "failed to compute cache key … S3: GetObject … 416 … InvalidRange: sha256:b1dd3d11…" on every
+  COPY from the context (ERRORS M577). The beta kept serving `aabb6530` throughout.
+- **`NO_CACHE=1` set on `edge-bff`** (dev, `--skip-deploys`) 16:19 UTC, then a redeploy of commit `72c09231` (`railway redeploy --commit`):
+  `edge-bff` `20bb4c1a` SUCCESS 16:20:31 UTC. **`NO_CACHE` deleted** 16:20:59 UTC (no deploy followed; the running
+  deployment never reads it); variable names read back (47, no `NO_CACHE`); `railway config plan --environment dev`:
+  up to date.
+- **Checks:** the beta's `/version` `72c09231`, `/ready` 200; the Sector page's bundle `index-BQx3LeM4.js` = the local
+  build of `72c09231`; every page path 200 (`/sector-app/`, `/overview-app/`, `/watchlist-app/`, `/radar-app/`,
+  `/screener-app/`, `/backtest-app/`, `/admin`, `/edge-boot.js`, `/edge-session.js`); a guest at 1440 and 390 px sees
+  the sign-in page, its only failed request the expected 401 of `/api/v1/auth/session`. No logged-in check (ERRORS M574:
+  no checker reads the owner's login). The live site `/version` `53b4fafb`, `/ready` 200.
+- **CI of `72c09231` on `main`:** generated files 46029338146, record statuses 46029338159, image builds 46029338114,
+  page smoke 46029338091, look-ahead gate 46029338206 green; Backend tests 46029338198 running at the time of writing.
+- **Rollback:** redeploy `edge-bff` from `aabb6530` (`railway redeploy --commit aabb6530…`; if the cache error returns,
+  with `NO_CACHE=1` for that one build). No migration in this round.
+
 ## 2026-11-27 — The beta on `aabb6530`: Sector Analysis (EXEC-SECTOR-ANALYSIS) — capabilities migration, terminal-api, terminal-publisher and its first `sector` publication, `main` (edge-bff, feature-04-worker, telegram-monitor); the live site unchanged on `53b4fafb`
 
 - **The user's words (2026-11-27):** "Gas." (steps 1-4 of the beta deploy as asked with context: the capabilities

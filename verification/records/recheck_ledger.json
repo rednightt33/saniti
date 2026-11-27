@@ -11765,7 +11765,7 @@
     "29535145"
    ],
    "fix_note": "29535145: The range label printed before the draw; a chart box that changes size, or a chart taller than its box, is drawn again (bounded) (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"layout 1280 …\" (a chart taller than its box fails) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -11798,7 +11798,7 @@
     "29535145"
    ],
    "fix_note": "29535145: The stock detail sizes to its content, no ellipsis; narrower than its card it scrolls with a cue (verdict in FIXES.md: fixed (also closes BD-3, mobex MX-1))",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"layout …\" (a cut cell fails) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -11831,7 +11831,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Same (verdict in FIXES.md: fixed with another key: brdt/BD-2)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"layout 1440 …\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -11864,7 +11864,7 @@
     "29535145"
    ],
    "fix_note": "29535145: 480 px, a 100 px name column: fits at 1152; a cue when narrower (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"OR-2 BD-4\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -11897,7 +11897,7 @@
     "29535145"
    ],
    "fix_note": "29535145: `M.lastWins` in the date pick (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"BD-5\"; look \"BD-5\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -11930,7 +11930,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Same as D-2; 1W/1M cells and rows name who is not counted (verdict in FIXES.md: fixed with another key: data/D-2)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"D-2 (with brdt BD-6)\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -11963,7 +11963,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Its Custom range shows from its first session; a preset of n sessions shows n; popover = card (verdict in FIXES.md: fixed with another key: ovrs/OR-6 (its level-chart part here))",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"OR-6\"; look \"RP-1 OR-6 BD-7\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -11996,7 +11996,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Placed in the viewport down to its bottom, a cue, Esc closes it (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"BD-8\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12029,7 +12029,7 @@
     "29535145"
    ],
    "fix_note": "29535145: `M.menuStep`: arrows, Home, End (verdict in FIXES.md: fixed (also closes mobex MX-6))",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"BD-9\"; look \"BD-9 BD-10\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12062,7 +12062,7 @@
     "29535145"
    ],
    "fix_note": "29535145: `S.date` in the address, opened on load, dropped when no longer listed (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"BD-10\"; look \"BD-9 BD-10\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12095,7 +12095,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Each dash carries its reason (\"No EMA200 yet\", \"older than the 300 sessions\"; \"N+\" explained) (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"BD-11\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "partly",
    "open_row": "",
@@ -12128,7 +12128,7 @@
     "29535145"
    ],
    "fix_note": "29535145: `M.pctSigned` for distances (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"BD-12\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12162,7 +12162,7 @@
     "1ccbe90d"
    ],
    "fix_note": "29535145 1ccbe90d: A note whenever industries are open: sector rows = official IDX index, industry rows = EDGE's index weighted by the file's weight label, can move unlike its sector; the industry tooltip says \"not an IDX index\"; the method kept (D1); `SECTOR_FORMULAS.md` section 6 with the 26 Nov examples (`1ccbe90d`) (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"D-1, D-4\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12196,7 +12196,7 @@
     "1ccbe90d"
    ],
    "fix_note": "29535145 1ccbe90d: `audOf`: 1D = `M.aud1d` (Feature 08, = the Overview: 311/204/323 on 26 Nov); the window's subtitle is the card's counts and its note names the stocks the day file cannot place; 1W/1M say their denominator (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"D-2 (with brdt BD-6)\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12230,7 +12230,7 @@
     "1ccbe90d"
    ],
    "fix_note": "29535145 1ccbe90d: Chosen: market sessions, the meaning of \"days in status\" beside \"Since\" and of the tooltip. `M.statusSessions`: sessions from Since to the page's date; the own count only as the lower bound of \"N+\"; tooltip \"Market sessions …\"; `SECTOR_FORMULAS.md` section 7 (INPS: 19 rows, 66 sessions) (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"D-3\"; look \"BD-11\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12264,7 +12264,7 @@
     "1ccbe90d"
    ],
    "fix_note": "29535145 1ccbe90d: The industry note and the RS header tip: \"an industry among all N industries\"; `SECTOR_FORMULAS.md` 8.2 (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"D-1, D-4\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12331,7 +12331,7 @@
     "1ccbe90d"
    ],
    "fix_note": "29535145 1ccbe90d: `D.other`; the \"IHSG (all)\" row of the heatmap and of A/U/D tells it in its tooltip; `SECTOR_FORMULAS.md` 8.5 (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"D-7\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12365,7 +12365,7 @@
     "1ccbe90d"
    ],
    "fix_note": "29535145 1ccbe90d: `D.indLevel` = `M.carryLevels` (the contract: \"the level carries\") for every industry figure; `sector.py` not needed (verdict in FIXES.md: fixed (in the page))",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"D-8\" (Alternative Energy Equipment, 6 null dates) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12398,7 +12398,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Same as BD-2 (verdict in FIXES.md: fixed with another key: brdt/BD-2)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"layout 390/360 …\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12431,7 +12431,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Same as OR-2 (verdict in FIXES.md: fixed with another key: ovrs/OR-2)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"layout 390/360 …\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "partly",
    "open_row": "",
@@ -12464,7 +12464,7 @@
     "29535145"
    ],
    "fix_note": "29535145: The scroll cue on the tab bar; the chosen tab scrolled into view (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"layout 390/360 …\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12499,7 +12499,7 @@
     "0c59f38d"
    ],
    "fix_note": "29535145: On a touch screen: 44 px hit areas for the expand buttons, drill-down chevrons, the window's close button, and a 28 px hit circle for the rotation map's dots, with no visual change (verdict in FIXES.md: fixed in part; the rest needs the user) Round 2 (UD72 \"3A\"): the shared small controls get a 44 px touch area under pointer:coarse in the canonical layer of every EDGE page but the Terminal (c8c10f34, 0c59f38d); the Sector page's own dense controls and the Radar's stacked segment buttons are still below 44 px (round-2 check).",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "none automated (CSS under `pointer: coarse`) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "partly",
    "open_row": "",
@@ -12535,7 +12535,7 @@
     "8282e624"
    ],
    "fix_note": "29535145: End labels mix their colour with the text colour (2.67:1 → 4.5:1 or more); dark ink on the A/U/D bars (3.57/3.90 → 5.0/4.6); heat and correlation ink per theme (verdict in FIXES.md: the page's part fixed; the shared tokens need the user) Round 2 (UD73 \"4A\"): --text-3 #8f8f8f to #6b6b6b (dark #7c7c7c to #8a8a8a) and tag inks --green-tag/--red-tag/--blue-tag/--amber-tag at 4.5:1 or more on every EDGE page but the Terminal (c8c10f34, 0c59f38d, 8282e624).",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"MX-5 (the page's own part)\"; a contrast probe of every text at 390 px (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12568,7 +12568,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Same as BD-9 (verdict in FIXES.md: fixed with another key: brdt/BD-9)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"BD-9\"; look \"BD-9 BD-10\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12601,7 +12601,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Off until the data is in and while only an error shows (\"No data\") (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"MX-7\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12634,7 +12634,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Touch wording (\"Tap …\"); a window's own hint; a phone window scrolls as one under a sticky title that wraps (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"MX-8\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12667,7 +12667,7 @@
     "29535145"
    ],
    "fix_note": "29535145: `M.hzRead` + `mmReading`: the name follows which axis is shorter (YTD by its sessions); corners, legend, window Reading, How to read; equal lengths read neutrally (\"Up on 1M only\") (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"OR-1\"; look \"OR-1\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12700,7 +12700,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Cell padding 5→4 px (fits at 1440); a scroll cue on every scroller (`ui.ts` `scrollCues`: an edge fade; a sticky column's shadow on the left) (verdict in FIXES.md: fixed (also closes mobex MX-2))",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"OR-2 BD-4\"; look \"layout …\" (a scroller without a cue fails) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "partly",
    "open_row": "",
@@ -12733,7 +12733,7 @@
     "29535145"
    ],
    "fix_note": "29535145: `data-scroll-key` (the weeks shown) and \"was at the end\": a new set of weeks opens on the newest (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"OR-3\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12766,7 +12766,7 @@
     "29535145"
    ],
    "fix_note": "29535145: An Esc stack (`escPush`/`escTop`), run before the date menu and a window's Esc; focus returns to the tile (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"OR-4 OR-5\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12799,7 +12799,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Width to content (200–320 px); a value never breaks (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"OR-4 OR-5\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12832,7 +12832,7 @@
     "29535145"
    ],
    "fix_note": "29535145: `checkRange` prints the card's own label (`M.spanLabel`), with a line on the base close; the weekly heatmap prints its weeks; a level chart (breadth) its first session (verdict in FIXES.md: fixed (also closes brdt BD-7))",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"OR-6\"; model.test; look \"RP-1 OR-6 BD-7\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12865,7 +12865,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Titles wrap (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"layout …\" (no ellipsis on a title) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12898,7 +12898,7 @@
     "29535145"
    ],
    "fix_note": "29535145: `fitWeeks`: a narrower name and week column when needed; otherwise whole columns with the sticky column's shadow (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"OR-8 OR-12\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12931,7 +12931,7 @@
     "29535145"
    ],
    "fix_note": "29535145: \"returned −11.3%\"; the rank's window named; Rank change's note plain (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"OR-9\"; model.test (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12964,7 +12964,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Lines past the sixth colour are dashed, their legend swatch too, and the legend says so (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"OR-10\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -12997,7 +12997,7 @@
     "29535145"
    ],
    "fix_note": "29535145: A table card takes at most 48% of a stacked window and scrolls; the detail gets the rest (verdict in FIXES.md: fixed (also closes rotpm RP-11))",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"OR-11 RP-11\" (2 rows before, 7 after) (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -13030,7 +13030,7 @@
     "29535145"
    ],
    "fix_note": "29535145: \"the strongest sector … until you lock one\" moved to the subtitle; a dashed swatch for the index line; the weekly legend shortened (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"OR-8 OR-12\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -13063,7 +13063,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Refused as the Overview's (\"Pick dates from … to …\"); a stored range is clamped with a note on the card, or the card's default with a note (`customSpan`); `plabel` never \"C\" (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"RP-1\", \"RP-1, the same mechanism in Rank change\"; model.test; look \"RP-1 OR-6 BD-7\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -13096,7 +13096,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Rows share the card's height (16–28 px); \"in phase\" heads its column; the timeline's dates only when the IHSG strip is hidden (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"RP-2\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "partly",
    "open_row": "",
@@ -13129,7 +13129,7 @@
     "29535145"
    ],
    "fix_note": "29535145: It follows the map date and says so; the stock quadrant (the day's returns) says \"as of\" the page's date (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"RP-3\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -13162,7 +13162,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Matrix rows at least 18 px; pair rows 30 px; a bottom cue on any list that scrolls (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"RP-4\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -13195,7 +13195,7 @@
     "29535145"
    ],
    "fix_note": "29535145: A legend known only after a draw keeps its last text (`footNow`/`footSet`) and a chart is drawn again when its box changes; names drawn last with a halo, labels keep clear; `M.axisRange` (quartiles ± 3 IQR) (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"RP-5\"; look \"RP-5\", \"layout …\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "partly",
    "open_row": "",
@@ -13228,7 +13228,7 @@
     "29535145"
    ],
    "fix_note": "29535145: `M.dateIn` (the year when not the page's); one `target()` for hover and click, the tooltip names the date set (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"RP-6\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -13261,7 +13261,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Ordered by the shown window's average correlation; the tooltip shows the correlation only; negatives in red; the legend says so (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"RP-7 RP-8\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -13294,7 +13294,7 @@
     "29535145"
    ],
    "fix_note": "29535145: The dash carries its reason; the header tip says when (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"RP-7 RP-8\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -13327,7 +13327,7 @@
     "29535145"
    ],
    "fix_note": "29535145: Headings renamed (\"Both up\", \"Both down\"); none is a quadrant's name (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check1.test \"RP-9\"; model.test (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -13360,7 +13360,7 @@
     "29535145"
    ],
    "fix_note": "29535145: A button with a read-out on hover, tap and focus; not locked in the example (verdict in FIXES.md: fixed)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"RP-10\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -13393,7 +13393,7 @@
     "29535145"
    ],
    "fix_note": "29535145: The window split of OR-11; the sticky cell follows the row's hover (verdict in FIXES.md: fixed with another key: ovrs/OR-11 (and its own sticky-cell part))",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look \"OR-11 RP-11\" (apps/edge-bff/sector: tests/check1.test.ts, tests/look/check1.mjs on the fixture build; also on the published files locally)",
    "status": "fixed",
    "open_row": "",
@@ -13426,7 +13426,7 @@
     "b99bce73"
    ],
    "fix_note": "b99bce73: UD71 (\"tambah satu aturan tampilan saja\"): shared/company-name.ts shows a leading \"Pt \" as \"PT \" on every EDGE page but the Terminal (Overview, Watchlist, Radar, Sector, Screener, Backtest); the database and the publisher are unchanged.",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "apps/edge-bff tests/test_company_name.py, each page's company-name unit test, verification/edge_states/round2_focus_contrast.mjs (name step on 5 pages)",
    "status": "fixed",
    "open_row": "",
@@ -13459,7 +13459,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: windows.ts widen(): a stacked window grows to its tables up to the screen less 48 px and draws again; the window's scroll cues set after the tables are aligned; round2.mjs step 7 fails on a cell past its scroller unless the window is at its widest and cues. Real 26 Nov: 1440/1280 window 1110 px, tables 1082/1082; 1152 window 1048 px, tables 1080 in 1020 with the cue (limit) (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "round2.mjs step 7 (fixture and real) (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13484,7 +13484,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: the Custom popover's note names the base close and the From date and follows the dates typed (W.range.fromClose, openRange noteOf) (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check2.test, check2.styles, look check2 \"OV2-3\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13509,7 +13509,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: a window whose detail is hidden (bare) is as tall as its card; the Timeline's box takes the Timeline's height (.rrg.tlh, tlHeight); rows square unless the screen is too short (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look check2 \"RP2-1\" (1440/1280/1152, both ways), check2.test, round2 step 9 (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13534,7 +13534,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: quadrant names along their quadrant's edges, the first place no dot touches; stock names 3 px apart; axisRange ends at Tukey's 1.5 IQR whiskers (zero line 67-70% on 26 Nov, was 81-82%). Limit: LEADING touches DGNS at 390/360 (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check2.test \"RP2-2\", look check2 \"RP2-2\" (4 widths), check1 RP-5 (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13559,7 +13559,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: one cell padding (4 px; first 16, last 12) in both tables of an aligned window; industry rows keep their indent (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "round2 step 7 (texts on shared edges), check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13584,7 +13584,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: a Timeline card on the page grid fills its height with its rows; in the one-column layout the card is as tall as the Timeline (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look check2 \"RP2-5\" (1440, 1152, 390) (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13609,7 +13609,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: the outline:none of .slope .sl and .rrg .pt removed (they beat the focus rule at equal specificity) (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check2.styles \"BD2-1\", look check2 \"BD2-1 MX2-3\", verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"every Tab stop draws the grey ring\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13634,7 +13634,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: rs.ts QFG on the tag inks (--green-tag, --amber-tag, --red-tag, --blue-tag) (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check2.styles \"BD2-2\", verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"every tab's tinted text reads 4.5:1\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13659,7 +13659,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: words.ts brD.tip: no first session -> \": the status began before the 300 sessions of data\" (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check2.test, check2.styles, look check2 \"BD2-3\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13684,7 +13684,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: heat/corrHeat take the printed decimals; the up/down text colour too (M.cls dp, M.clsText); every heat table and figure (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "check2.test \"BD2-4\", look check2 \"BD2-4\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13709,7 +13709,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: .c1-chips is a cued scroller; a window's cues set after its tables are laid out (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look check2 \"MX2-1\" (every scroller of every tab and window, 390/360) (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13734,7 +13734,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: the page's .seg keeps one line and moves whole (flex-wrap:nowrap; flex:none); on a phone the C1 band grows (min 52 px), its subtitle wraps (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look check2 \"RP2-3 MX2-2\", check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13760,7 +13760,7 @@
     "3a597e76"
    ],
    "fix_note": "90bf33f0 3a597e76: src/touch.ts: every small control's area measured from its neighbours (up to 44 px; to the next target, half way to another area; inside the pinned tab bar and its clip; 44 px shared between the sides), refitted after every draw, scroll and resize; chart dots get transparent circles; selects open from their wrapper; name clips on inner spans (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"sector: touch hit areas, no layout change, no overlap\"; check2.test \"MX2-4 / MX2-5\" (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13785,7 +13785,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: the outer buttons of a segmented control reach outward to the next target; inner ones keep their width (they touch); heights 44 px where the row has room (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "as MX2-4 (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13810,7 +13810,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: label and control wrap together (.sgrp, Momentum x vs y, Breadth Show); the phone search keeps 150 px (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look check2 \"MX2-6\", check2.test, check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13835,7 +13835,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: the default order's arrow drawn without its 45% opacity (text, >= 4.5:1) (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look check2 \"MX2-7\", check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13860,7 +13860,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: 18 mouse texts and tips through tap(); the other pages' mouse words on touch are an open part (FIXES.md) (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look check2 \"MX2-8\", check2.styles (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13885,7 +13885,7 @@
     "90bf33f0"
    ],
    "fix_note": "90bf33f0: a group's name wraps onto up to three 14 px lines when wider than its group (the group keeps 55% for its tiles) (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "look check2 \"MX2-9\", check2.test (apps/edge-bff/sector: vitest (tests/check2.test.ts, tests/check2.styles.test.mjs), tests/look/check2.mjs and tests/look/round2.mjs on the fixture build and on the 26 Nov files served locally)",
    "status": "waiting",
    "open_row": "",
@@ -13910,7 +13910,7 @@
     "3a597e76"
    ],
    "fix_note": "3a597e76: static/index.html: the settings select and input, compare search, search box and every text field take the field state (line transparent, --shadow), never the 3 px ring; a checkbox the keyboard ring (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"the logged-in shell's fields take the field state\"; tests/test_focus_ring.py (verification/edge_states/round2_focus_contrast.mjs (every page's fixture build))",
    "status": "waiting",
    "open_row": "",
@@ -13935,7 +13935,7 @@
     "3a597e76"
    ],
    "fix_note": "3a597e76: backtest.css .addc:hover and design.css .sb-go on --blue-tag (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"backtest: text on a blue hover tint reads 4.5:1\" (verification/edge_states/round2_focus_contrast.mjs (every page's fixture build))",
    "status": "waiting",
    "open_row": "",
@@ -13960,7 +13960,7 @@
     "3a597e76"
    ],
    "fix_note": "3a597e76: radar.css: on a phone the stacked filter rows reach 7 px (half the gap), the first 11 px up, the last 9 px down (40/36/38 px); the Watchlist list menu and Screener Previous page buttons reach 6 px toward their neighbour (verdict in verification/sector_analysis/check2/FIXES.md)",
-   "runs_on": "branch",
+   "runs_on": "beta",
    "author_test": "verification/edge_states/round2_focus_contrast.mjs (every page's fixture build) \"touch hit areas, no layout change, no overlap\" (overlaps fail) (verification/edge_states/round2_focus_contrast.mjs (every page's fixture build))",
    "status": "waiting",
    "open_row": "",

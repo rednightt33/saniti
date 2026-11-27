@@ -18431,3 +18431,9 @@ yang ada di page sector, yang sifatnya top and bottom."
   1.100 px (OV2-2; layar 1.152 px menumpuk) — register UD80; (2) kata "click"/"hover" di layar sentuh pada Watchlist (1),
   Screener (sekitar 10, termasuk "double-click to reset") dan Backtest (sekitar 6) — halaman Sector sudah memakai "Tap"
   (MX2-8) — register UD81. Saat dijawab: dibangun atau ditutup dan dicatat di ERRORS M576.
+- **Beta deploy (2026-11-27, the user's go "deploy ke main afterwards", then "A" for UD82):** `main` `aabb6530` →
+  `72c09231`; three builds of `edge-bff` FAILED on Railway's build cache (ERRORS M577); one build without the cache
+  (`NO_CACHE=1`, then deleted) SUCCESS 16:20 UTC. The beta runs `72c09231` (`/version`, `/ready` 200; the Sector bundle
+  equals the local build); the live site stays on `53b4fafb` (UD68, held: "Jangan promosi ke live duul"). RAILWAY_CHANGELOG
+  2026-11-27; `deployed_commits.json` beta `72c09231`; RECHECK.md: the 71 rows of check 1 and check 2 run on the beta,
+  waiting for a re-check the user approves (rule 8).
