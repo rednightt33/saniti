@@ -18477,4 +18477,13 @@ yang ada di page sector, yang sifatnya top and bottom."
   grafik kecil, vs yday), kartu saham berjajar ke kanan dan digeser ke samping dengan isyarat geser.
 - R-V2 detail filter: tombol Table | Cards di baris judul Candidates (seperti Watchlist), tampilan kartu; isi kartu dan
   apakah pilihan diingat menunggu jawaban user setelah artifact (UD86 (2), (3)).
+- R-V3 jumlah saham per filter (user 2026-11-28, verbatim: "Kemudian untuk jumlah saham di setiap radar bisa follow contoh
+  nomor 2 pada2. Black pill with the word HTML terampil."; file user `radar_count_options.html`, opsi 2): di kepala setiap
+  filter papan Radar, jumlah saham tampil sebagai pill hitam berisi kata, misalnya "6 stocks" / "13 stocks" (tinggi 20 px,
+  padding 0 8 px, sudut penuh, latar `--text`, teks `--surface`, 11 px semibold), agar angka tidak terbaca sebagai skor atau
+  peringkat; nol saham: pill abu (`--sel`, teks `--text-3`), "0 stocks". Menggantikan titik-titik dan angka di kepala kolom.
+- Artifact prototipe R-V2 (Table | Cards): https://claude.ai/artifact/2q6RANeiRs1JYx9pJxwnpz (versi 3). Masukan user di
+  artifact 2026-11-28: teks pill kartu tepat di tengah (versi 2); kartu terpilih dibalik warnanya, tema terang → kartu gelap,
+  tema gelap → kartu terang, bukan border hitam (versi 3, "dibalik saja as if dia jadi black theme"). Isi kartu (UD86 2A) dan
+  ingat pilihan (3A) menunggu konfirmasi user atas artifact.
 - Halaman Radar di `apps/edge-bff/radar`; beta dulu, live hanya atas permintaan user.
