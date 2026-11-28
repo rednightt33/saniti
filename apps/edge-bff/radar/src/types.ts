@@ -45,4 +45,7 @@ export interface RadarIndex { finished_at: string | null; files: Record<string, 
 export interface RadarApi {
   index(): Promise<RadarIndex>;
   file<T>(name: string, sha: string): Promise<T>;
+  /** the Terminal's issuer logos (ticker → version), {} when unreadable or in the example */
+  logos?(): Promise<Record<string, string>>;
+  logoSrc?(ticker: string, version: string): string;
 }

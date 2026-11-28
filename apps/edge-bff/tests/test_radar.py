@@ -164,7 +164,9 @@ def test_relayed_bytes_are_kept_by_sha_and_an_unchanged_file_answers_304(gw):
 
 def test_the_radar_page_and_its_csp_and_the_capability(gw, settings, store):
     page = gw.get('/radar-app/')
-    assert page.status_code == 200 and "connect-src 'self'" in page.headers['content-security-policy']
+    # EXEC-RADAR-VIEW: the Watchlist's policy, so the page reads the Terminal's issuer logo list (a presigned bucket URL)
+    assert page.status_code == 200 and page.headers['content-security-policy'] == main.WATCHLIST_CSP
+    assert "connect-src 'self' https://*.t3.storageapi.dev;" in page.headers['content-security-policy']
     assert gw.get('/radar-app/assets/index-abc123.js').headers['cache-control'].endswith('immutable')
     assert gw.get('/radar-app/assets/..%2Fsecret.js').status_code == 404
     login(gw)

@@ -138,7 +138,8 @@ SCREENER_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
 # EXEC-WATCHLIST L5: the Watchlist page shows the Terminal's issuer logos; their list is the Terminal's reference file
 # (GET /api/terminal/v1/reference/logos answers a presigned URL on the bucket), so the page takes the Terminal page's
 # policy: the Screener's plus connect-src to the bucket (a host EDGE already uses; no new one). The images come from
-# /api/terminal/v1/logo/<T> on this origin.
+# /api/terminal/v1/logo/<T> on this origin. The Radar page too, since EXEC-RADAR-VIEW (the user 2026-11-28: "tambahin asset
+# logo ya disini"): the same logos through shared/issuer-logos.ts.
 WATCHLIST_CSP = TERMINAL_CSP
 CONV = r'^conv_[0-9a-f]{32}$'
 CHOICES = r'^(QUICK_SUMMARY|ANALYSIS|RESEARCH|EXPLORE|FACT|CLARIFY|INSIGHT|CONTINUE|APPROVE|NEW_TOPIC)$'
@@ -558,7 +559,7 @@ def create_app(settings=None, store=None, orc=None):
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard). Re-check R2-19: the shell has no inline
         # script (static/edge-boot.js, static/edge-app.js), so script-src is 'self' alone, and form-action is 'self'
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/', '/sector-app/', '/admin-app/')) else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith(('/watchlist-app/', '/radar-app/')) else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/overview-app/', '/sector-app/', '/admin-app/')) else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
         return response
 
     # ERRORS R2-25: added last, so it is the outermost middleware: an exception no handler expected is answered 503

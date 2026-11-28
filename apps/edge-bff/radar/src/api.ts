@@ -2,6 +2,7 @@
    asked for with its sha256, so the browser keeps it for good under that URL and a newer publication is a new URL. */
 import { accessText, isAccessRefusal, readError } from '../../shared/edge-session.ts';
 import type { RadarApi, RadarIndex } from './types.ts';
+import { issuerLogoSrc, readIssuerLogos } from '../../shared/issuer-logos.ts';
 
 export class RadarError extends Error {
   constructor(public code: string, message: string, public status: number) { super(message) }
@@ -31,7 +32,8 @@ const pageApi = (base: string): RadarApi => ({
   index: () => getJson<RadarIndex>(`${base}/index`),
   file: <T>(name: string, sha: string) => getJson<T>(`${base}/file/${encodeURIComponent(name)}?sha=${sha}`),
 });
-export const live = pageApi('/api/v1/radar');
+// the Terminal's issuer logos (EXEC-RADAR-VIEW): the Watchlist's list and images; a viewer without them sees monograms
+export const live: RadarApi = { ...pageApi('/api/v1/radar'), logos: () => readIssuerLogos(() => getJson('/api/terminal/v1/reference/logos')).catch(() => ({})), logoSrc: issuerLogoSrc };
 /* EXEC-MU-ACCOUNTS 3e, the example mode (user 2026-11-21; ERRORS M527): the files of the page's opening view on one past
    date, for <tab>.example (edge-bff app/examples.py), in the same shapes as the live files */
 export const example = pageApi('/api/v1/examples/radar');
@@ -41,6 +43,7 @@ export function cached(api: RadarApi): RadarApi & { reset(): void } {
   const files = new Map<string, Promise<any>>();
   return {
     index: () => api.index(),
+    logos: api.logos, logoSrc: api.logoSrc,
     file<T>(name: string, sha: string): Promise<T> {
       const k = `${name}@${sha}`;
       if (!files.has(k)) files.set(k, api.file<T>(name, sha).catch(e => { files.delete(k); throw e }));

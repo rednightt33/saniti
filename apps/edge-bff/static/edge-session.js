@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=869192580ed828e9839006d1eb6c06b5f9212463ef147b17800df0eea0c8db5f by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=1c8d51c8c99ed5354eac48b41620b5b240cebea83eca7b42ae00563d3204fcd2 by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -132,7 +132,9 @@ var EdgeSession = (() => {
     { key: "scr.colorder", match: "exact", area: "local", kind: "browser", where: "Screener", what: "column order" },
     // the Watchlist (watchlist/src)
     { key: "edge.watchlist.view", match: "exact", area: "local", kind: "user", sync: true, cap: "watchlist.view", where: "Watchlist", what: "the open list id and Table or Cards" },
-    { key: "edge.watchlist.logos", match: "exact", area: "local", kind: "user", cache: true, where: "Watchlist", what: "issuer logo list (12 hours; a reference file the plan reads, so it leaves with the account: re-check R1-17)" }
+    { key: "edge.watchlist.logos", match: "exact", area: "local", kind: "user", cache: true, where: "Watchlist, Radar", what: "issuer logo list (12 hours; a reference file the plan reads, so it leaves with the account: re-check R1-17; shared/issuer-logos.ts)" },
+    // the Radar (radar/src)
+    { key: "edge.radar.view", match: "exact", area: "local", kind: "browser", where: "Radar", what: "Candidates shown as Table or Cards (EXEC-RADAR-VIEW)" }
   ]);
   function classify(key, area = "local") {
     let best = null;

@@ -6,6 +6,7 @@
      /api/terminal/v1/reference/logos, /logo/<T>  the Terminal's issuer logos (as apps/edge-bff/terminal/src/data/live.ts)
    A refusal keeps edge-bff's {error: {code, field, message}}: the page shows its message, which names the fix. */
 import { accessText, edge, isAccessRefusal, readError, SessionError } from '../../shared/edge-session.ts';
+import { issuerLogoSrc, readIssuerLogos } from '../../shared/issuer-logos.ts';
 import type { AddAnswer, CreateBody, ListsAnswer, WList, WatchlistApi, WatchlistIndex } from './types.ts';
 
 export class WatchlistError extends Error {
@@ -50,31 +51,7 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
 const L = '/api/v1/watchlist/lists';
 const enc = encodeURIComponent;
 
-/* the logo list: read at most every LOGO_HOURS per browser (each read of a reference file counts against the terminal
-   account's quota, as the Terminal's); a per-viewer convenience, so a blocked storage only costs one more read */
-const LOGO_KEY = 'edge.watchlist.logos', LOGO_HOURS = 12;
-async function readLogos(): Promise<Record<string, string>> {
-  try {
-    const c = JSON.parse(localStorage.getItem(LOGO_KEY) || 'null');
-    if (c && typeof c.at === 'number' && Date.now() - c.at < LOGO_HOURS * 3600e3 && c.map && typeof c.map === 'object') return c.map;
-  } catch { /* storage off or unreadable: read the list */ }
-  const ref = await call<{ url: string; sha256: string | null }>('GET', '/api/terminal/v1/reference/logos');
-  const r = await fetch(ref.url);
-  if (!r.ok) throw new Error('logos');
-  const bytes = new Uint8Array(await r.arrayBuffer());
-  if (ref.sha256 && crypto?.subtle) {
-    const got = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
-    if (got !== ref.sha256) throw new Error('logos');                // not the announced file: monograms
-  }
-  const text = bytes[0] === 0x1f && bytes[1] === 0x8b
-    ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
-    : new TextDecoder().decode(bytes);
-  const doc = JSON.parse(text);
-  const map: Record<string, string> = {};
-  (doc.ticker || []).forEach((t: string, i: number) => { if (doc.sha256?.[i]) map[t] = String(doc.sha256[i]).slice(0, 12) });
-  try { localStorage.setItem(LOGO_KEY, JSON.stringify({ at: Date.now(), map })) } catch { /* storage off */ }
-  return map;
-}
+/* the logo list: shared/issuer-logos.ts (the Radar reads the same list under the same key) */
 
 export const live: WatchlistApi = {
   index: () => call<WatchlistIndex>('GET', '/api/v1/watchlist/index'),
@@ -87,8 +64,8 @@ export const live: WatchlistApi = {
   remove: async id => (await call<{ deleted: WList }>('DELETE', `${L}/${enc(id)}`)).deleted,
   addTickers: (id, tickers, position) => call<AddAnswer>('POST', `${L}/${enc(id)}/tickers`, position == null ? { tickers } : { tickers, position }),
   removeTicker: (id, ticker) => call<void>('DELETE', `${L}/${enc(id)}/tickers/${enc(ticker)}`),
-  logos: () => readLogos().catch(() => ({})),
-  logoSrc: (t, v) => `/api/terminal/v1/logo/${enc(t)}?v=${enc(v)}`,
+  logos: () => readIssuerLogos(() => call<{ url: string; sha256: string | null }>('GET', '/api/terminal/v1/reference/logos')).catch(() => ({})),
+  logoSrc: issuerLogoSrc,
 };
 
 /* EXEC-MU-ACCOUNTS 3e, the example mode (user 2026-11-21; ERRORS M527): the files of the page's opening view on the

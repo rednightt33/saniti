@@ -340,7 +340,7 @@ if (PAGES.includes('backtest')) for (const theme of ['light', 'dark']) await ste
 });
 
 /* ---------- the real case: the Sector page's window, closed with the mouse and with Esc ---------- */
-for (const theme of ['light', 'dark']) await step(`sector ${theme}: the expand button after its window closes`, async () => {
+if (PAGES.includes('sector')) for (const theme of ['light', 'dark']) await step(`sector ${theme}: the expand button after its window closes`, async () => {
   const { ctx, page } = await open('sector', theme);
   try {
     await page.evaluate(LIB);

@@ -60,7 +60,9 @@ def registry():
 
 
 def sources():
-    files = [ROOT / p for p in SHELL] + [SHARED]
+    # every shared module, not only the registry: a page's storage call can live in shared/ (shared/issuer-logos.ts, the
+    # logo list the Watchlist and the Radar read, EXEC-RADAR-VIEW 2026-11-28)
+    files = [ROOT / p for p in SHELL] + sorted((ROOT / 'shared').glob('*.ts'))
     for app in APPS:
         files += sorted((ROOT / app / 'src').rglob('*.ts'))
     return {str(f.relative_to(ROOT)): f.read_text() for f in files}

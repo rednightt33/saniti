@@ -958,3 +958,73 @@ html,body{width:auto;height:100%;overflow:hidden}
   .bar-t .f .seg button{--hit-y:7px}
   .bar-t [data-seg="gate"] button::after{top:-11px}.bar-t [data-seg="show"] button::after{bottom:-9px}
 }
+
+/* EXEC-RADAR-VIEW prototype: the Candidates as cards (the Watchlist's card) */
+.vsw button{display:inline-flex;align-items:center;gap:5px}.vsw .ic{width:14px;height:14px}
+.rcg{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--s-6);padding:0 var(--s-8) var(--s-8);overflow:auto;min-height:0}
+.rc{padding:var(--s-6) var(--s-7) var(--s-7);display:flex;flex-direction:column;gap:var(--s-4);cursor:pointer;text-align:left}
+.rc:hover{border-color:var(--border-2)}.rc.on{box-shadow:inset 0 0 0 1.5px var(--text)}.rc.nm{opacity:.78}
+.rc .hd{display:flex;align-items:flex-start;gap:var(--s-4);min-width:0}
+.rc .id{display:flex;flex-direction:column;min-width:0;flex:1;line-height:1.25}
+.rc .symb{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
+.rc .nm{font-size:var(--fs-12);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc .px{display:flex;align-items:baseline;gap:var(--s-4)}.rc .px b{font-size:var(--fs-xl);font-weight:var(--fw-semibold)}
+.rc .px .chg{font-size:var(--fs-md);font-weight:var(--fw-medium)}.rc .px .cd{margin-left:auto}
+.rc .rsp{display:block;width:100%;height:40px}.rc .nospark{height:40px;display:grid;place-items:center;font-size:var(--fs-12);color:var(--text-3)}
+.rc .chips{display:flex;flex-wrap:wrap;gap:var(--s-3)}
+.rc .chip{display:inline-flex;gap:var(--s-3);align-items:center;height:24px;line-height:1;padding:0 9px;border-radius:var(--r-pill);background:var(--surface-2);font-size:var(--fs-12);white-space:nowrap}
+.rc .chip span{color:var(--text-3)}.rc .chip b{font-weight:var(--fw-semibold)}
+.rc .ft{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap;margin-top:auto;padding-top:var(--s-4);border-top:1px solid var(--border);min-height:28px}
+.rc .ft .al{font-size:var(--fs-2xs);margin-right:2px}.rc .grow{flex:1}
+.rcsep{grid-column:1/-1;font-size:var(--fs-12);color:var(--text-3);font-weight:var(--fw-semibold);padding-top:var(--s-4)}
+
+[data-dmet] .mn{color:var(--text-3);font-weight:var(--fw-regular);margin-left:3px;font-variant-numeric:tabular-nums}[data-dmet] .on .mn{color:inherit}
+
+/* the day's chips: a fixed box of three rows (22 px chips, 6 px gaps) that scrolls, so the card keeps one height on every date
+   (artifact comment 2026-11-28: "dibuat fix saja 3 row misalkan, scrollable") */
+.dchips{height:78px;max-height:none;overscroll-behavior:contain}
+
+/* the Candidates head and the table's column heads stay at the top once the charts above have scrolled out of view
+   (user 2026-11-28: "kolom headernya freeze, tapi kondisinya adalah kalau bagian chart kita sudah tenggelam saja"): both
+   are sticky inside the Candidates card, so they hold only while the card itself fills the top of the page; the table
+   is not a scroll box of its own where it fits (a phone keeps its sideways scroll and the heads scroll with it) */
+.ct{overflow:visible}
+.ct-head{position:sticky;top:0;z-index:4;background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0}
+.ct-head.stuck{box-shadow:0 1px 0 var(--border)}
+.ct-head .sth{display:none;position:absolute;top:100%;overflow:hidden;background:var(--surface);box-shadow:0 1px 0 var(--border)}
+.ct-head.stuck .sth{display:block}.ct-head.stuck{box-shadow:none}
+.ct-head .sth .tbl th{position:static}
+/* the logo place: a round monogram, the Watchlist's fallback (the issuer logo from the Terminal's route on the page) */
+.slg{display:inline-grid;place-items:center;flex:none;border-radius:50%;background:var(--sel);color:var(--text-2);font-size:var(--fs-xs);font-weight:var(--fw-semibold)}
+.tkr{display:flex;align-items:center;gap:var(--s-5)}.tkt{min-width:0}
+.rc .hd{align-items:center}
+.pv .card-h .slg{margin-right:2px}
+/* the column heads sort (the Sector page's look) */
+.ct .tbl th[data-k]{cursor:pointer;user-select:none}.ct .tbl th[data-k]:hover,.ct .tbl th.on{color:var(--text)}
+.ct .tbl th[data-k]:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
+.ct .tbl th .sk{margin-left:3px;white-space:nowrap}.ct .tbl th .sk sup{font-size:9px;margin-left:1px;font-weight:var(--fw-bold)}
+.mss{color:var(--text-2)}.mss .rsr{border:0;background:none;padding:0;height:auto;font:inherit;color:var(--text);text-decoration:underline;text-underline-offset:2px;box-shadow:none;cursor:pointer}
+.ct-head .conds{grid-column:1/-1;padding:0}
+.ki .kt{display:inline-flex;align-items:center;gap:var(--s-3);min-width:0}.ki .kt .slg{font-size:10px}
+.cpill{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:var(--text);color:var(--surface);font-size:11px;font-weight:600;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}.cpill.z{background:var(--sel);color:var(--text-3)}
+
+/* EXEC-RADAR-VIEW R-V1 (user 2026-11-28, UD86 "1A"): the board is one row per filter, its head at the left and its stock
+   cards side by side to the right, scrolling sideways with a fade at the side that has more (replaces the columns) */
+.kb{display:flex;flex-direction:column;gap:var(--s-5);min-height:0;grid-template-columns:none;overflow:visible}
+.kb>.kc{flex:none;display:grid;grid-template-columns:232px minmax(0,1fr);min-height:0;scroll-snap-align:none}
+.kc .kh{border-bottom:0;border-right:1px solid var(--border);border-radius:var(--r-xl) 0 0 var(--r-xl);display:flex;flex-direction:column;justify-content:space-between}
+.kl{flex-direction:row;align-items:stretch;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.kl>.ki{flex:0 0 172px}.kl>.empty-col{align-self:center;margin:0 var(--s-4)}
+.kl.xs-r{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
+.kl.xs-l{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px);mask-image:linear-gradient(90deg,transparent,#000 40px)}
+.kl.xs-l.xs-r{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,transparent,#000 40px,#000 calc(100% - 40px),transparent)}
+img.slg{object-fit:cover;background:var(--surface-2)}
+@media (max-width:720px){
+ .kb{display:flex;flex-direction:column;overflow:visible;scroll-snap-type:none}
+ .kb>.kc{flex:none;grid-template-columns:minmax(0,1fr);min-height:0}
+ .kc .kh{border-right:0;border-bottom:1px solid var(--border);border-radius:var(--r-xl) var(--r-xl) 0 0}
+ .kl>.ki{flex-basis:156px}
+}
+.kc .kh{align-items:stretch;text-align:left}
+.kl>.ki{display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;text-align:left;flex-basis:184px}
+.kl>.ki .t2{flex-wrap:wrap;row-gap:3px}

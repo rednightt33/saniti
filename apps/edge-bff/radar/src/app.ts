@@ -14,6 +14,18 @@ const $$ = <T extends Element = HTMLElement>(s: string, r: ParentNode = document
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const ic = (n: string, c = 'ic ic-sm') => `<svg class="${c}"><use href="#i-${n}"/></svg>`;
 const num = (x: number | null, d = 1) => (x == null ? '—' : x.toFixed(d));
+/** a stock's monogram: its first letter in a circle, where it has no logo (the Watchlist's) */
+const mono = (t: string, size: number) => `<span class="slg" style="width:${size}px;height:${size}px" aria-hidden="true">${esc(t.charAt(0))}</span>`;
+type Level = [string, number, number?];
+const MAX_LEVELS = 3;
+const ascending = (dir: number, txt: boolean) => (txt ? dir > 0 : dir < 0);
+function msClick(SK: Level[], key: string): void {
+  const ix = SK.findIndex(x => x[0] === key);
+  if (ix < 0) { if (SK.length >= MAX_LEVELS) SK.shift(); SK.push([key, 1, 1]) }
+  else if (SK[ix][1] === (SK[ix][2] ?? 1)) SK[ix][1] = -SK[ix][1];
+  else SK.splice(ix, 1);
+}
+const SORT_TIP = 'Click to sort · again to reverse · a third time to remove · click other columns to add sort levels (up to 3)';
 const px = (x: number | null) => (x == null ? '—' : Math.round(x).toLocaleString('en-US'));
 const sg = (x: number | null, d = 2) => (x == null ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%');
 const pt = (x: number | null, d = 1) => (x == null ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + ' pt');
@@ -25,49 +37,57 @@ const pc = (x: number | null) => (x == null ? '—' : 'P' + x.toFixed(x >= 99.95
 const cl = (x: number | null) => (x == null ? '' : x > 0 ? 'up' : x < 0 ? 'down' : '');
 
 type Facts = ReturnType<typeof stockFacts>;
-type Col = [string, (t: string, g: Gate, r?: Row) => string, ((t: string, g: Gate) => string)?];
+type Col = [string, (t: string, g: Gate, r?: Row) => string, ((t: string, g: Gate) => string)?, ((t: string, g: Gate, r?: Row) => number | null)?];
 
 /* the filters' own columns (RADAR_PAGE_SPEC.md section 5): which Feature 07 measure each shows, formatted */
 function ownColumns(column: string, F: Facts): Col[] {
   const m = (t: string, k: string) => F.measure(t, k);
   const g2 = (k: string) => (t: string, g: Gate) => m(t, `${k}_${g}`);
-  const f5: Col = ['Foreign 5D', t => rp(m(t, 'foreign_net_5d')), t => cl(m(t, 'foreign_net_5d'))];
-  const days: Col = ['Buy days', t => (m(t, 'buy_days_5d') == null ? '—' : `${m(t, 'buy_days_5d')}/5`)];
+  // each column: its head, the printed figure, its up/down class, and its value (the column-head sort reads the value)
+  const f5: Col = ['Foreign 5D', t => rp(m(t, 'foreign_net_5d')), t => cl(m(t, 'foreign_net_5d')), t => m(t, 'foreign_net_5d')];
+  const days: Col = ['Buy days', t => (m(t, 'buy_days_5d') == null ? '—' : `${m(t, 'buy_days_5d')}/5`), undefined, t => m(t, 'buy_days_5d')];
+  const v = (k: string) => (t: string) => m(t, k);
   switch (column) {
-    case 'S1': return [f5, ['of buying', t => num(m(t, 'foreign_ratio_5d')) + '%'], ['vs own 1Y', t => pc(m(t, 'foreign_net_5d_pct252'))],
-                       ['z', t => num(m(t, 'foreign_net_5d_z252'), 2)], days];
-    case 'S2': return [f5, ['Ratio now', t => num(m(t, 'foreign_ratio_5d')) + '%'], ['5 sessions ago', t => num(m(t, 'foreign_ratio_5d_prev')) + '%'],
-                       ['Change', t => pt(m(t, 'foreign_ratio_5d_change'))], ['Rank', (t, g) => pc(g2('s2_rank')(t, g))]];
-    case 'S3': return [['Net buyers', t => px(m(t, 's3_net_buyers'))], ['Top 3 − even', t => num(m(t, 's3_cr3_excess'), 3)],
-                       ['Group rank', (t, g) => pc(g2('s3_group_rank')(t, g))],
-                       ['Intensity', t => (m(t, 's3_intensity') == null ? '—' : (100 * m(t, 's3_intensity')).toFixed(1) + '%')],
-                       ['Rank', (t, g) => pc(g2('s3_intensity_rank')(t, g))], f5];
-    case 'S6': return [f5, ['Ratio', t => num(m(t, 'foreign_ratio_5d')) + '%'], ['vs own 1Y', t => pc(m(t, 'foreign_ratio_5d_pct252'))], days];
-    case 'S6D': return [['Ratio', t => num(m(t, 'foreign_ratio_5d')) + '%'], ['Ratio change', t => pt(m(t, 'foreign_ratio_5d_change'))],
-                        ['vs own 1Y', t => pc(m(t, 'foreign_ratio_5d_pct252'))], ['Rank change', t => pt(m(t, 'foreign_ratio_5d_pct252_change'))], f5];
-    case 'S7': return [['FL34 before', t => num(m(t, 'fl34_5d_prev'))], ['FL34 now', t => num(m(t, 'fl34_5d'))],
-                       ['Change', t => pt(m(t, 'fl34_5d') == null || m(t, 'fl34_5d_prev') == null ? null : m(t, 'fl34_5d') - m(t, 'fl34_5d_prev'))],
-                       ['Institutional net', t => rp(m(t, 'inst_net_5d')), t => cl(m(t, 'inst_net_5d'))],
-                       ['of buying', t => num(m(t, 'inst_share_5d')) + '%']];
-    case 'S8': return [['Foreign 1D', t => rp(m(t, 'foreign_net_1d')), t => cl(m(t, 'foreign_net_1d'))],
-                       ['Robust z', t => { const a = [m(t, 'rz_foreign_ratio_1d'), m(t, 'rz_net_vs_adv20')].filter(v => v != null); return a.length ? Math.max(...a).toFixed(1) : '—' }],
-                       ['of ADV20', t => num(m(t, 'net_vs_adv20'), 0) + '%'], ['vs own', t => pc(m(t, 'net_1d_pct252'))],
-                       ['Level', (_t, _g, r) => (r?.status === 'hit' ? (r.strong ? 'Strong' : 'Watch') : '—')]];
+    case 'S1': return [f5, ['of buying', t => num(m(t, 'foreign_ratio_5d')) + '%', undefined, v('foreign_ratio_5d')], ['vs own 1Y', t => pc(m(t, 'foreign_net_5d_pct252')), undefined, v('foreign_net_5d_pct252')],
+                       ['z', t => num(m(t, 'foreign_net_5d_z252'), 2), undefined, v('foreign_net_5d_z252')], days];
+    case 'S2': return [f5, ['Ratio now', t => num(m(t, 'foreign_ratio_5d')) + '%', undefined, v('foreign_ratio_5d')], ['5 sessions ago', t => num(m(t, 'foreign_ratio_5d_prev')) + '%', undefined, v('foreign_ratio_5d_prev')],
+                       ['Change', t => pt(m(t, 'foreign_ratio_5d_change')), undefined, v('foreign_ratio_5d_change')], ['Rank', (t, g) => pc(g2('s2_rank')(t, g)), undefined, (t, g) => g2('s2_rank')(t, g)]];
+    case 'S3': return [['Net buyers', t => px(m(t, 's3_net_buyers')), undefined, v('s3_net_buyers')], ['Top 3 − even', t => num(m(t, 's3_cr3_excess'), 3), undefined, v('s3_cr3_excess')],
+                       ['Group rank', (t, g) => pc(g2('s3_group_rank')(t, g)), undefined, (t, g) => g2('s3_group_rank')(t, g)],
+                       ['Intensity', t => (m(t, 's3_intensity') == null ? '—' : (100 * m(t, 's3_intensity')).toFixed(1) + '%'), undefined, v('s3_intensity')],
+                       ['Rank', (t, g) => pc(g2('s3_intensity_rank')(t, g)), undefined, (t, g) => g2('s3_intensity_rank')(t, g)], f5];
+    case 'S6': return [f5, ['Ratio', t => num(m(t, 'foreign_ratio_5d')) + '%', undefined, v('foreign_ratio_5d')], ['vs own 1Y', t => pc(m(t, 'foreign_ratio_5d_pct252')), undefined, v('foreign_ratio_5d_pct252')], days];
+    case 'S6D': return [['Ratio', t => num(m(t, 'foreign_ratio_5d')) + '%', undefined, v('foreign_ratio_5d')], ['Ratio change', t => pt(m(t, 'foreign_ratio_5d_change')), undefined, v('foreign_ratio_5d_change')],
+                        ['vs own 1Y', t => pc(m(t, 'foreign_ratio_5d_pct252')), undefined, v('foreign_ratio_5d_pct252')], ['Rank change', t => pt(m(t, 'foreign_ratio_5d_pct252_change')), undefined, v('foreign_ratio_5d_pct252_change')], f5];
+    case 'S7': return [['FL34 before', t => num(m(t, 'fl34_5d_prev')), undefined, v('fl34_5d_prev')], ['FL34 now', t => num(m(t, 'fl34_5d')), undefined, v('fl34_5d')],
+                       ['Change', t => pt(fl34d(t)), undefined, fl34d],
+                       ['Institutional net', t => rp(m(t, 'inst_net_5d')), t => cl(m(t, 'inst_net_5d')), v('inst_net_5d')],
+                       ['of buying', t => num(m(t, 'inst_share_5d')) + '%', undefined, v('inst_share_5d')]];
+    case 'S8': return [['Foreign 1D', t => rp(m(t, 'foreign_net_1d')), t => cl(m(t, 'foreign_net_1d')), v('foreign_net_1d')],
+                       ['Robust z', t => { const x = rz(t); return x == null ? '—' : x.toFixed(1) }, undefined, rz],
+                       ['of ADV20', t => num(m(t, 'net_vs_adv20'), 0) + '%', undefined, v('net_vs_adv20')], ['vs own', t => pc(m(t, 'net_1d_pct252')), undefined, v('net_1d_pct252')],
+                       ['Level', (_t, _g, r) => (r?.status === 'hit' ? (r.strong ? 'Strong' : 'Watch') : '—'), undefined, (_t, _g, r) => (r?.status === 'hit' ? (r.strong ? 2 : 1) : null)]];
     default: return [];
   }
+  function fl34d(t: string) { return m(t, 'fl34_5d') == null || m(t, 'fl34_5d_prev') == null ? null : m(t, 'fl34_5d') - m(t, 'fl34_5d_prev') }
+  function rz(t: string) { const a = [m(t, 'rz_foreign_ratio_1d'), m(t, 'rz_net_vs_adv20')].filter((x): x is number => x != null); return a.length ? Math.max(...a) : null }
 }
 
 interface State {
   uni: string; gate: Gate; lv: number; show: 'all' | 'new' | 'multi'; q: string; variant: string; last: string; date: string;
-  detail: { sort: 'own' | 'new'; prev: '3M' | '6M' | '1Y'; q: string; day: number; col: string };
+  detail: { sort: 'own' | 'new'; prev: '3M' | '6M' | '1Y'; q: string; day: number; col: string; view: 'table' | 'cards'; met: 'all' | 'full' | 'part'; sk: Level[] };
 }
 
 export function start(api: RadarApi, view: HTMLElement, opts: { example?: boolean } = {}) {
   const files = cached(api);
+  // EXEC-RADAR-VIEW (user 2026-11-28: "tambahin asset logo ya disini"): the Terminal's issuer logos, the Watchlist's list
+  let LOGOS: Record<string, string> = {};
+  const slg = (t: string, size: number) => LOGOS[t] && api.logoSrc ? `<img class="slg" src="${esc(api.logoSrc(t, LOGOS[t]))}" alt="" width="${size}" height="${size}" data-t="${esc(t)}">` : mono(t, size);
+  document.addEventListener('error', e => { const img = e.target as HTMLImageElement; if (img?.tagName === 'IMG' && img.classList.contains('slg')) img.outerHTML = mono(img.dataset.t || '?', img.width || 20) }, true);
   let index: RadarIndex, meta: Meta, days: Days, board: Board, F: Facts, cols: Column[];
   const fileCache = new Map<string, FilterFile>();
   const ST: State = { uni: 'all', gate: 'broad', lv: 1, show: 'all', q: '', variant: '', last: 'S1', date: '',
-                      detail: { sort: 'own', prev: '1Y', q: '', day: 0, col: '' } };
+                      detail: { sort: 'own', prev: '1Y', q: '', day: 0, col: '', view: (() => { try { return localStorage.getItem('edge.radar.view') === 'cards' ? 'cards' : 'table' } catch { return 'table' } })() as 'table' | 'cards', met: 'all', sk: [] } };
   let toastT = 0;
   const toast = (m: string) => { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = window.setTimeout(() => (t.hidden = true), 3200) };
 
@@ -110,7 +130,7 @@ export function start(api: RadarApi, view: HTMLElement, opts: { example?: boolea
     const lo = Math.min(...a), hi = Math.max(...a), up = a[a.length - 1] >= a[0], W = 46, H = 16, n = a.length - 1;
     return `<svg class="ks" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${t} price, last ${a.length} sessions, ${up ? 'up' : 'down'}"><polyline fill="none" stroke="${up ? 'var(--up)' : 'var(--down)'}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" points="${a.map((x, i) => (i / n * (W - 2) + 1).toFixed(1) + ',' + (1 + (hi - x) / ((hi - lo) || 1) * (H - 2)).toFixed(1)).join(' ')}"/></svg>`;
   };
-  const countMark = (n: number) => `<span class="cnt8 ${n ? '' : 'z'}" aria-hidden="true">${'<i></i>'.repeat(Math.min(n, 10))}${n > 10 ? `<em>+${n - 10}</em>` : ''}<b>${n}</b></span>`;
+  const countMark = (n: number) => `<span class="cpill${n ? '' : ' z'}" aria-hidden="true">${n} stock${n === 1 ? '' : 's'}</span>`;
   const dayTag = (d: number | null) => (d === 1 ? '<span class="tag new">New</span>' : `<span class="tag">Day ${d ?? '—'}</span>`);
   const flagTag = (r: Row) => (r.flag ? `<span class="tag warn" title="${esc(r.flag)}">Outlier</span>` : '');
 
@@ -194,11 +214,13 @@ export function start(api: RadarApi, view: HTMLElement, opts: { example?: boolea
        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)">${sparkBars(h, 70, 18)}<span class="${isDefault() ? cl(d) : ''}" style="font-size:var(--fs-xs)">${f.own_levels && ST.lv !== 1 ? '<span class="muted" title="S8 has its own levels: Strong and Watch">own levels</span>' : isDefault() ? `${d >= 0 ? '+' : '−'}${Math.abs(d)} vs yday` : '<span class="muted">filtered</span>'}</span></div></button>
       <div class="kl">${hs.map(hr => {
         const o = alsoIn(c, hr.t, sets), lvl = f.own_levels && !hr.strong ? '<span class="tag" title="Large and unusual, below the top 5% of its own history">Watch</span>' : '';
-        return `<button class="ki" data-open="${esc(c.id)}" data-stock="${esc(hr.t)}" aria-label="${esc(hr.t)}, ${sg(F.chg(hr.t))}"><div class="t"><b>${esc(hr.t)}</b><span class="${cl(F.chg(hr.t))}">${sg(F.chg(hr.t))}</span></div><div class="t2">${dayTag(hr.run)}${lvl}${o.length ? `<span class="tag" title="Also in ${o.map(g => g.label).join(', ')}">+${o.length}</span>` : ''}${flagTag(hr)}<span class="ksp" title="Price, last 20 sessions">${priceSpark(hr.t)}</span></div></button>`;
+        return `<button class="ki" data-open="${esc(c.id)}" data-stock="${esc(hr.t)}" aria-label="${esc(hr.t)}, ${sg(F.chg(hr.t))}"><div class="t"><span class="kt">${slg(hr.t, 20)}<b>${esc(hr.t)}</b></span><span class="${cl(F.chg(hr.t))}">${sg(F.chg(hr.t))}</span></div><div class="t2">${dayTag(hr.run)}${lvl}${o.length ? `<span class="tag" title="Also in ${o.map(g => g.label).join(', ')}">+${o.length}</span>` : ''}${flagTag(hr)}<span class="ksp" title="Price, last 20 sessions">${priceSpark(hr.t)}</span></div></button>`;
       }).join('') || `<p class="empty-col">${emptyCol()}</p>`}</div></section>`;
     }).join('');
     if (!tot) kb.insertAdjacentHTML('beforeend', `<div class="kb-empty card"><b>No stocks match these settings.</b><span class="muted">Try All stocks, the Broad gate or the Loose level.</span><button class="btn sm" id="rst">Reset settings</button></div>`);
     const r = $('#rst'); if (r) r.onclick = () => { Object.assign(ST, { uni: 'all', gate: 'broad', lv: 1, show: 'all', q: '' }); renderRadar() };
+    // EXEC-RADAR-VIEW R-V1 (UD86 "1A"): a filter is a row, its stock cards scroll sideways; a fade marks the side with more
+    $$('.kl', kb).forEach(l => { const cue = () => { l.classList.toggle('xs-r', l.scrollLeft + l.clientWidth < l.scrollWidth - 1); l.classList.toggle('xs-l', l.scrollLeft > 1) }; l.addEventListener('scroll', cue, { passive: true }); cue() });
     $$('[data-open]', kb).forEach(b => (b.onclick = () => go(`#/filter/${b.dataset.open}${b.dataset.stock ? '?s=' + b.dataset.stock : ''}`)));
   }
   const emptyCol = () => ST.q ? 'No match for this search.' : ST.uni !== 'all' ? `None in ${esc(uniLabel()[0])} today.` : ST.show !== 'all' ? 'None with this view.' : `None pass at the ${LEVEL_LABEL[ST.lv]} level.`;
@@ -207,36 +229,89 @@ export function start(api: RadarApi, view: HTMLElement, opts: { example?: boolea
   function renderDetail(colId: string, stock: string | null) {
     const c = cols.find(x => x.id === colId);
     if (!c) return renderMissing(`Filter ${esc(colId)}`);
-    if (ST.detail.col !== colId) { ST.detail.day = 0; ST.detail.q = ''; ST.detail.col = colId }
+    if (ST.detail.col !== colId) { ST.detail.day = 0; ST.detail.q = ''; ST.detail.col = colId; ST.detail.sk = [] }
     ST.last = colId;
     const f = filterOf(c);
     document.title = `EDGE — Radar · ${c.label}`;
     const C = conditions(meta, f, ST.lv), own = ownColumns(c.id, F);
     const qn = ST.detail.q.trim().toLowerCase(), keep = (r: Row) => !qn || (r.t + ' ' + F.name(r.t)).toLowerCase().includes(qn);
     const L = lists(board, f, ST.lv, ST.gate, keepUni);
-    const rows = L.hits.filter(keep), nr = L.near.filter(keep);
+    const allHits = L.hits.filter(keep), allNear = L.near.filter(keep);
+    // the Met switch: every candidate, only the stocks that meet every condition, or only those that meet all but one
+    const rows = ST.detail.met === 'part' ? [] : allHits, nr = ST.detail.met === 'full' ? [] : allNear;
     if (ST.detail.sort === 'new') rows.sort((a, b) => (a.run ?? 0) - (b.run ?? 0) || (b.sort ?? -Infinity) - (a.sort ?? -Infinity));
+    // the column heads' sort (the Sector page's multi-level sort): the hits and the near misses each in that order
+    const SK = ST.detail.sk, TXT: Record<string, 1> = { stock: 1 };
+    const LABS: Record<string, string> = { stock: 'Stock', cond: 'Conditions', d1: '1D', run: 'In radar', also: 'Also in' };
+    own.forEach((oc, i) => (LABS['o' + i] = oc[0]));
+    const sets0 = hitSets();
+    const val = (r: Row, k: string): any => k === 'stock' ? r.t : k === 'cond' ? metBits(r.met, C.length).filter(Boolean).length : k === 'd1' ? F.chg(r.t)
+      : k === 'run' ? (r.status === 'near' ? null : r.run ?? null) : k === 'also' ? alsoIn(c, r.t, sets0).length : own[+k.slice(1)][3]?.(r.t, ST.gate, r) ?? null;
+    if (SK.length) {
+      const cmp = (p: Row, q: Row) => { for (const [k, dir] of SK) { const a = val(p, k), b = val(q, k); if (a == null && b == null) continue; if (a == null) return 1; if (b == null) return -1; const d = TXT[k] ? dir * String(a).localeCompare(String(b)) : -dir * (a - b); if (d) return d } return 0 };
+      rows.sort(cmp); nr.sort(cmp);
+    }
+    const sth = (k: string, cls = '') => { const ix = SK.findIndex(x => x[0] === k), on = ix >= 0, up = on && ascending(SK[ix][1], !!TXT[k]);
+      return `<th class="${cls}${on ? ' on' : ''}" data-k="${k}" role="button" tabindex="0" title="${esc(SORT_TIP)}" aria-sort="${on ? (up ? 'ascending' : 'descending') : 'none'}">${esc(LABS[k])}${on ? `<span class="sk">${up ? '↑' : '↓'}${SK.length > 1 ? `<sup>${ix + 1}</sup>` : ''}</span>` : ''}</th>` };
+    const sortNote = SK.length ? ` · <span class="mss"><button class="rsr" type="button" title="${esc('Sorted by ' + SK.map(([k, d]) => `${LABS[k] || k} ${ascending(d, !!TXT[k]) ? '↑' : '↓'}`).join(', then '))}">Clear sort</button></span>` : '';
     const sel = rows.find(r => r.t === stock) || nr.find(r => r.t === stock) || rows[0];
     const sets = hitSets();
     view.innerHTML = `<div class="head"><div><p class="crumb"><button class="lk" data-go="#/radar">${ic('chevl')}Radar</button></p><h1 style="display:flex;align-items:center;gap:var(--s-5)">${esc(c.label)} · ${esc(f.name)}</h1><p class="muted">${esc(f.question)}</p></div>
      <div class="actions">${statusPills()}${dateBtn()}<button class="btn" data-act="follow">${ic('saved')}Follow</button></div></div>
     <div class="note-read card">${ic('info')}<span><b>How to read it.</b> ${esc(f.warning)} ${f.own_levels ? 'S8 uses its own levels, so the Level switch does not change it.' : ''}</span></div>
-    <div class="top3"><div class="card"><div class="card-h chart-h"><h3>Stocks found per day</h3><span class="lg"><i class="sw bar"></i>Stocks found (left)</span><span class="lg"><i class="sw ln"></i>IHSG (right)</span><span class="grow"></span><span class="hint">Last ${days.dates.length} sessions · select a bar to see that day</span></div><div class="hist" id="h60"></div></div>
+    <div class="top3"><div class="card"><div class="card-h chart-h"><h3>Stocks found per day</h3><span class="lg"><i class="sw bar"></i>Stocks found (right)</span><span class="lg"><i class="sw ln"></i>IHSG (left)</span><span class="grow"></span><span class="hint">Last ${days.dates.length} sessions · select a bar to see that day</span></div><div class="hist" id="h60"></div></div>
      <div class="card tdy" id="tdy"></div></div>
-    <div class="dg"><div class="card ct"><div class="ct-head"><div class="card-h"><h3>Candidates</h3><span class="hint">${qn ? `${rows.length} of ${L.hits.length}` : rows.length} stocks${f.own_levels ? '' : ` meet all ${C.length}`}${nr.length ? ` · ${nr.length} near miss${nr.length > 1 ? 'es' : ''}` : ''} · ${LEVEL_LABEL[ST.lv]} · ${ST.gate === 'broad' ? 'Broad' : 'Liquid'} gate</span></div>
+    <div class="dg"><div class="card ct"><div class="ct-head"><div class="card-h"><h3>Candidates</h3><span class="hint">${qn ? `${allHits.length} of ${L.hits.length}` : allHits.length} stocks${f.own_levels ? '' : ` meet all ${C.length}`}${allNear.length ? ` · ${allNear.length} near miss${allNear.length > 1 ? 'es' : ''}` : ''} · ${LEVEL_LABEL[ST.lv]} · ${ST.gate === 'broad' ? 'Broad' : 'Liquid'} gate${sortNote}</span></div>
       <div class="ct-r">${c.variants.length > 1 ? `<div class="sortg"><span class="lbl" id="dmL">Change in</span><div class="seg sm" role="radiogroup" aria-labelledby="dmL" data-dseg="variant">${c.variants.map(v => `<button role="radio" aria-checked="${v.id === f.id}" class="${v.id === f.id ? 'on' : ''}" data-v="${v.id}">${esc(v.variant)}</button>`).join('')}</div></div>` : ''}
+       <div class="sortg"><span class="lbl" id="mtL">Met</span><div class="seg sm" role="group" aria-labelledby="mtL" data-dmet>${([['all', 'All', allHits.length + allNear.length], ['full', 'Fully met', allHits.length], ['part', 'Partly met', allNear.length]] as const).map(([v, l, n]) => `<button type="button" data-v="${v}" class="${ST.detail.met === v ? 'on' : ''}" aria-pressed="${ST.detail.met === v}" title="${v === 'full' ? `Meet every condition${f.own_levels ? '' : ` (all ${C.length})`}` : v === 'part' ? 'Meet all but one condition (near misses)' : 'Every candidate'}">${l} <span class="mn">${n}</span></button>`).join('')}</div></div>
+       <div class="seg sm vsw" role="group" aria-label="View" data-dview>${(['table', 'cards'] as const).map(v => `<button type="button" data-v="${v}" class="${ST.detail.view === v ? 'on' : ''}" aria-pressed="${ST.detail.view === v}">${ic(v === 'table' ? 'table' : 'grid')}${v === 'table' ? 'Table' : 'Cards'}</button>`).join('')}</div>
        <label class="srch">${ic('search')}<input id="cq" placeholder="Find a ticker or name" value="${esc(ST.detail.q)}" aria-label="Find a candidate" autocomplete="off"></label>${uniBtn('btn sm uni', true)}
        <div class="sortg"><span class="lbl" id="soL">Sort</span><div class="seg sm" role="radiogroup" aria-labelledby="soL" data-dseg="sort">${[['own', 'By ' + f.sort_label], ['new', 'New first']].map(([v, l]) => `<button role="radio" aria-checked="${ST.detail.sort === v}" class="${ST.detail.sort === v ? 'on' : ''}" data-v="${v}">${esc(l)}</button>`).join('')}</div></div></div></div>
       <div class="conds">${C.map(r => `<span><i>${esc(r.cond)}</i>${esc(r.label)}</span>`).join('')}</div>
-      <div class="tbl-wrap"><table class="tbl" id="tb"></table></div></div>
+      ${ST.detail.view === 'cards' ? '<div class="rcg" id="cg"></div>' : '<div class="tbl-wrap"><table class="tbl" id="tb"></table></div>'}</div>
      <div class="card pv" id="pv" aria-live="polite"></div></div>`;
     const dots = (r: Row) => { const m = metBits(r.met, C.length); return `<span class="dots" aria-label="${m.filter(Boolean).length} of ${m.length} conditions met">${m.map((x, k) => `<i class="${x ? '' : 'off'}" title="${esc(C[k]?.label)}: ${x ? 'met' : 'not met'}">${COND_KEYS[k]}</i>`).join('')}</span>` };
     const also = (t: string) => alsoIn(c, t, sets).map(g => `<span class="tag">${esc(g.label)}</span>`).join('') || '<span class="muted">—</span>';
-    const row = (r: Row, nm = false) => `<tr tabindex="0" data-s="${esc(r.t)}" class="${r === sel ? 'on' : ''} ${nm ? 'nm' : ''}" aria-selected="${r === sel}"><td class="l tk"><b>${esc(r.t)}</b><small>${esc(F.name(r.t))}</small></td><td>${dots(r)}</td><td class="${nm ? '' : cl(F.chg(r.t))}">${sg(F.chg(r.t))}</td>
+    const row = (r: Row, nm = false) => `<tr tabindex="0" data-s="${esc(r.t)}" class="${r === sel ? 'on' : ''} ${nm ? 'nm' : ''}" aria-selected="${r === sel}"><td class="l tk"><span class="tkr">${slg(r.t, 28)}<span class="tkt"><b>${esc(r.t)}</b><small>${esc(F.name(r.t))}</small></span></span></td><td>${dots(r)}</td><td class="${nm ? '' : cl(F.chg(r.t))}">${sg(F.chg(r.t))}</td>
       ${own.map(oc => `<td class="${oc[2] && !nm ? oc[2](r.t, ST.gate) : ''}">${oc[1](r.t, ST.gate, r)}</td>`).join('')}<td class="l">${nm ? '<span class="tag">Near miss</span>' : dayTag(r.run)}${flagTag(r)}</td><td class="l">${also(r.t)}</td></tr>`;
-    $('#tb').innerHTML = `<thead><tr><th class="l">Stock</th><th>Conditions</th><th>1D</th>${own.map(oc => `<th>${oc[0]}</th>`).join('')}<th class="l">In radar</th><th class="l">Also in</th></tr></thead><tbody>` +
-      (rows.map(r => row(r)).join('') || `<tr><td colspan="${own.length + 5}" class="l muted" style="height:80px;text-align:center">${qn ? `No candidate matches “${esc(ST.detail.q.trim())}”.` : `No stock passes at the ${LEVEL_LABEL[ST.lv]} level with this gate and universe.`}</td></tr>`) +
+    const line = (t: string) => { const a = F.spark(t).filter((x): x is number => x != null); if (a.length < 2) return '<div class="nospark">No price line</div>'; const lo = Math.min(...a), hi = Math.max(...a), w = 300, h = 40;
+      return `<svg class="rsp" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="${a[a.length - 1] >= a[0] ? 'var(--up)' : 'var(--down)'}" stroke-width="1.5" vector-effect="non-scaling-stroke" points="${a.map((v, i) => (i / (a.length - 1) * w).toFixed(1) + ',' + (2 + (hi - v) / (hi - lo || 1) * (h - 4)).toFixed(1)).join(' ')}"/></svg>` };
+    const card = (r: Row, nm = false) => `<div class="card rc${r === sel ? ' on' : ''}${nm ? ' nm' : ''}" tabindex="0" role="button" data-s="${esc(r.t)}" aria-pressed="${r === sel}"><div class="hd">${slg(r.t, 32)}<div class="id"><b class="symb">${esc(r.t)}</b><span class="nm">${esc(F.name(r.t))}</span></div>${nm ? '<span class="tag">Near miss</span>' : dayTag(r.run)}</div>
+      <div class="px"><b>${px(F.close(r.t))}</b><span class="chg ${cl(F.chg(r.t))}">${sg(F.chg(r.t))}</span><span class="cd">${dots(r)}</span></div>${line(r.t)}
+      <div class="chips">${own.slice(0, 4).map(oc => `<span class="chip"><span>${esc(oc[0])}</span><b class="${oc[2] && !nm ? oc[2](r.t, ST.gate) : ''}">${oc[1](r.t, ST.gate, r)}</b></span>`).join('')}</div>
+      <div class="ft">${flagTag(r)}<span class="grow"></span>${alsoIn(c, r.t, sets).length ? `<span class="muted al">Also in</span>${also(r.t)}` : ''}</div></div>`;
+    if (ST.detail.view === 'cards') {
+      $('#cg').innerHTML = (rows.map(r => card(r)).join('') || (ST.detail.met === 'part' && nr.length ? '' : `<div class="card empty">${qn ? `No candidate matches “${esc(ST.detail.q.trim())}”.` : `No stock passes at the ${LEVEL_LABEL[ST.lv]} level with this gate and universe.`}</div>`))
+        + (nr.length ? `<div class="rcsep">Near misses · all but one condition met</div>` + nr.map(r => card(r, true)).join('') : '');
+      $$('#cg .rc').forEach(el => { const pick = () => { history.replaceState(null, '', `#/filter/${encodeURIComponent(colId)}?s=${encodeURIComponent(el.dataset.s)}`); renderDetail(colId, el.dataset.s) }; el.onclick = pick; el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick() } } });
+    } else
+    $('#tb').innerHTML = `<thead><tr>${sth('stock', 'l')}${sth('cond')}${sth('d1')}${own.map((_oc, i) => sth('o' + i)).join('')}${sth('run', 'l')}${sth('also', 'l')}</tr></thead><tbody>` +
+      (rows.map(r => row(r)).join('') || (ST.detail.met === 'part' && nr.length ? '' : `<tr><td colspan="${own.length + 5}" class="l muted" style="height:80px;text-align:center">${qn ? `No candidate matches “${esc(ST.detail.q.trim())}”.` : `No stock passes at the ${LEVEL_LABEL[ST.lv]} level with this gate and universe.`}</td></tr>`)) +
       (nr.length ? `<tr class="sep"><td colspan="${own.length + 5}" class="l">Near misses · all but one condition met</td></tr>` + nr.map(r => row(r, true)).join('') : '') + '</tbody>';
+    // the column heads: a copy hangs under the sticky Candidates head once the table's own heads scrolled under it
+    { const ch = $('.ct-head', view) as HTMLElement | null, ct = $('.ct', view) as HTMLElement | null;
+      if (ch && ct) { const set = () => ct.style.setProperty('--cth', ch.offsetHeight + 'px'); set(); new ResizeObserver(set).observe(ch);
+        ch.style.top = -(parseFloat(getComputedStyle(view).paddingTop) || 0) + 'px';   // the page's top padding: no row shows above the head
+        const tb = $('#tb', view) as HTMLTableElement | null, wrap = tb?.parentElement as HTMLElement | undefined;
+        const cd = $('.conds', view) as HTMLElement | null; if (cd && cd.parentElement !== ch) ch.appendChild(cd);   // the same head stuck or not
+        let box = ch.querySelector('.sth') as HTMLElement | null;
+        if (tb && wrap) {
+          if (!box) { box = document.createElement('div'); box.className = 'sth'; box.setAttribute('aria-hidden', 'true'); ch.appendChild(box) }
+          const fill = () => { const ths = [...tb.querySelectorAll('thead th')] as HTMLElement[], cb = ch.getBoundingClientRect(), wb = wrap.getBoundingClientRect();
+            box!.style.left = (wb.left - cb.left) + 'px'; box!.style.width = wb.width + 'px';
+            box!.innerHTML = `<table class="tbl" style="width:${Math.max(tb.offsetWidth, wrap.clientWidth)}px;table-layout:fixed"><colgroup>${ths.map(x => `<col style="width:${x.getBoundingClientRect().width}px">`).join('')}</colgroup><thead>${tb.tHead ? tb.tHead.innerHTML : ''}</thead></table>`;
+            box!.scrollLeft = wrap.scrollLeft; $$('th[data-k]', box!).forEach(x => x.setAttribute('tabindex', '-1')); wireSort(box!) };
+          fill(); new ResizeObserver(fill).observe(wrap);
+          wrap.addEventListener('scroll', () => { box!.scrollLeft = wrap.scrollLeft }, { passive: true });
+        } else if (box) box.innerHTML = '';
+        const th = tb?.querySelector('thead th') as HTMLElement | null;
+        const mark = () => ch.classList.toggle('stuck', !!th && th.getBoundingClientRect().top < ch.getBoundingClientRect().bottom - 1);
+        view.addEventListener('scroll', mark, { passive: true }); mark() } }
+    function wireSort(root: HTMLElement) { $$('th[data-k]', root).forEach(x => { const go = () => { msClick(ST.detail.sk, x.dataset.k as string); renderDetail(colId, sel?.t || null) }; x.onclick = e => { e.stopPropagation(); go() }; x.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go() } } }) }
+    const tbE = $('#tb', view) as HTMLElement | null; if (tbE) wireSort(tbE);
+    $$('.mss .rsr', view).forEach(b => (b.onclick = () => { ST.detail.sk = []; renderDetail(colId, sel?.t || null) }));
+    $$('[data-dmet] button', view).forEach(b => (b.onclick = () => { const v = b.dataset.v as 'all' | 'full' | 'part'; if (v === ST.detail.met) return; ST.detail.met = v; renderDetail(colId, null) }));
+    $$('[data-dview] button', view).forEach(b => (b.onclick = () => { const v = b.dataset.v as 'table' | 'cards'; if (v === ST.detail.view) return; ST.detail.view = v; try { localStorage.setItem('edge.radar.view', v) } catch { /* storage off */ } renderDetail(colId, sel?.t || null) }));
     $$('#tb tr[data-s]').forEach(tr => {
       const pick = () => { history.replaceState(null, '', `#/filter/${encodeURIComponent(colId)}?s=${encodeURIComponent(tr.dataset.s)}`); renderDetail(colId, tr.dataset.s); ($(`#tb tr[data-s="${tr.dataset.s}"]`) as HTMLElement)?.focus() };
       tr.onclick = pick;
@@ -252,7 +327,7 @@ export function start(api: RadarApi, view: HTMLElement, opts: { example?: boolea
     const cq = $<HTMLInputElement>('#cq');
     cq.oninput = () => { const p = cq.selectionStart; ST.detail.q = cq.value; renderDetail(colId, sel?.t || null); const n = $<HTMLInputElement>('#cq'); n.focus(); n.setSelectionRange(p, p) };
     ($('[data-act=uni]') as HTMLElement).onclick = e => uniMenu(e.currentTarget as HTMLElement, () => renderDetail(colId, stock));
-    $$('[data-dseg]', view).forEach(s => (s.onclick = e => { const b = (e.target as HTMLElement).closest('button') as HTMLButtonElement; if (!b) return; if (s.dataset.dseg === 'variant') ST.variant = b.dataset.v; else ST.detail.sort = b.dataset.v as any; renderDetail(colId, sel?.t || null); ($(`[data-dseg=${s.dataset.dseg}] .on`) as HTMLElement)?.focus() }));
+    $$('[data-dseg]', view).forEach(s => (s.onclick = e => { const b = (e.target as HTMLElement).closest('button') as HTMLButtonElement; if (!b) return; if (s.dataset.dseg === 'variant') ST.variant = b.dataset.v; else { ST.detail.sort = b.dataset.v as any; ST.detail.sk = [] } renderDetail(colId, sel?.t || null); ($(`[data-dseg=${s.dataset.dseg}] .on`) as HTMLElement)?.focus() }));
   }
 
   async function withFile(f: FilterMeta, then: (file: FilterFile) => void) {
@@ -271,13 +346,13 @@ export function start(api: RadarApi, view: HTMLElement, opts: { example?: boolea
     const el = $('#h60'); if (!el) return;
     const N = days.dates.length, H60 = counts(days, f, ST.lv, ST.gate, N - 1, N), IH = days.ihsg.map(v => v ?? NaN);
     const cs = getComputedStyle(el), W = Math.round(el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) || 600,
-      H = Math.max(112, Math.round(el.clientHeight - parseFloat(cs.paddingBottom))), m = Math.max(1, ...H60), PL = 28, PR = 46, bw = (W - PL - PR) / Math.max(1, N);
+      H = Math.max(112, Math.round(el.clientHeight - parseFloat(cs.paddingBottom))), m = Math.max(1, ...H60), PL = 46, PR = 28, bw = (W - PL - PR) / Math.max(1, N);
     const selI = dateIndex() - ST.detail.day, valid = IH.filter(v => !isNaN(v)),
       lo = (valid.length ? Math.min(...valid) : 0) - 40, hi = (valid.length ? Math.max(...valid) : 1) + 40, yI = (v: number) => 6 + (1 - (v - lo) / (hi - lo)) * (H - 24);
     let s = `<line x1="${PL}" x2="${W - PR}" y1="${H - 18}" y2="${H - 18}" stroke="var(--border)"/>`;
     const most = Math.max(2, Math.floor((H - 26) / 22)), step = Math.max(1, niceStep(m, most));   // QA: no overlapping labels
-    for (let v = 0; v <= m; v += step) s += `<text x="20" y="${H - 14 - v / m * (H - 26)}" text-anchor="end" font-size="10.5" fill="var(--text-3)">${v}</text>`;
-    if (valid.length) { const ist = niceStep(Math.max(...valid) - Math.min(...valid), most); for (let t = Math.ceil(Math.min(...valid) / ist) * ist; t <= Math.max(...valid); t += ist) s += `<text x="${W - PR + 8}" y="${yI(t) + 3.5}" font-size="10.5" fill="var(--text-3)">${t.toLocaleString('en-US')}</text>` }
+    for (let v = 0; v <= m; v += step) s += `<text x="${W - PR + 6}" y="${H - 14 - v / m * (H - 26)}" font-size="10.5" fill="var(--text-3)">${v}</text>`;
+    if (valid.length) { const ist = niceStep(Math.max(...valid) - Math.min(...valid), most); for (let t = Math.ceil(Math.min(...valid) / ist) * ist; t <= Math.max(...valid); t += ist) s += `<text x="${PL - 6}" y="${yI(t) + 3.5}" text-anchor="end" font-size="10.5" fill="var(--text-3)">${t.toLocaleString('en-US')}</text>` }
     H60.forEach((v, i) => { const h = v / m * (H - 26); s += `<rect x="${PL + i * bw + (bw > 3 ? 1 : 0)}" y="${H - 18 - h}" width="${Math.max(1, bw - (bw > 3 ? 2 : .5))}" height="${h}" rx="${bw > 3 ? 1 : 0}" fill="${i === selI ? 'var(--text)' : i === dateIndex() ? 'var(--gray-500)' : 'var(--gray-300)'}"/>` });
     const pts = IH.map((v, i) => (isNaN(v) ? null : `${(PL + (i + .5) * bw).toFixed(1)},${yI(v).toFixed(1)}`)).filter(Boolean).join(' ');
     if (pts) s += `<polyline fill="none" stroke="var(--ihsg)" stroke-width="1.5" stroke-linejoin="round" points="${pts}"/>`;
@@ -301,7 +376,7 @@ export function start(api: RadarApi, view: HTMLElement, opts: { example?: boolea
     const now = new Set(lists(board, f, ST.lv, ST.gate).hits.map(h => h.t));
     const ts = [...mem.keys()].filter(keepUni).sort();
     p.innerHTML = `<div class="dh"><b>${dayLabel(d)}${today ? ' · result date' : ''}</b><span class="muted">${plural(ts.length, 'stock')}</span>${today ? '' : `<button class="lk" data-today>Back to ${dayLabel(ST.date, false)}</button>`}</div>
-     <div class="dchips">${ts.map(t => `<button class="tkc ${now.has(t) ? (today && mem.get(t) === 1 ? 'nw' : '') : 'gone'}" data-t="${esc(t)}">${esc(t)}</button>`).join('') || '<span class="muted">No stocks this day.</span>'}</div>${today ? '' : '<p class="dleg"><span class="tkc">BBCA</span> still in on the result date <span class="tkc gone">BBCA</span> no longer in</p>'}`;
+     <div class="dchips">${ts.map(t => `<button class="tkc ${now.has(t) ? (today && mem.get(t) === 1 ? 'nw' : '') : 'gone'}" data-t="${esc(t)}">${esc(t)}</button>`).join('') || '<span class="muted">No stocks this day.</span>'}</div>${today ? '<p class="dleg"><span class="tkc nw">BBCA</span> entered on this date <span class="tkc">BBCA</span> already in</p>' : '<p class="dleg"><span class="tkc">BBCA</span> still in on the result date <span class="tkc gone">BBCA</span> no longer in</p>'}`;   // a legend line on every date, so the card keeps one height whatever date is picked (artifact comment 2026-11-28)
     const bt = $('[data-today]', p) as HTMLElement; if (bt) bt.onclick = () => { ST.detail.day = 0; drawHist(c, f) };
     $$('.dchips .tkc', p).forEach(ch => (ch.onclick = () => { const t = ch.dataset.t; if (!now.has(t)) { toast(`${t} is not in ${c.label} on ${dayLabel(ST.date, false)}, so it has no row in Candidates.`); return } history.replaceState(null, '', `#/filter/${encodeURIComponent(c.id)}?s=${encodeURIComponent(t)}`); renderDetail(c.id, t) }));
   }
@@ -348,7 +423,7 @@ export function start(api: RadarApi, view: HTMLElement, opts: { example?: boolea
           <div class="kv2" style="margin-top:var(--s-3)"><span><b style="color:var(--text)">${act}</b> ${act === 1 ? 'day' : 'days'} found · <b style="color:var(--text)">${vis.length}</b> ${vis.length === 1 ? 'run' : 'runs'} in ${ST.detail.prev}</span></div><div style="margin-top:var(--s-3)">${recent}</div>`;
       } else chart = `<p class="muted">${t} has no price line in ${c.label}'s history${sel.status === 'near' ? ' (a near miss is not in the filter yet)' : ''}.</p>`;
     }
-    pv.innerHTML = `<div class="card-h"><h3>${esc(t)}</h3><span class="hint">${esc(F.name(t))}</span><span class="grow"></span><b style="font-weight:var(--fw-semibold)">${px(close)}</b><span class="${cl(chg)}" style="font-size:var(--fs-12)">${sg(chg)}</span></div>
+    pv.innerHTML = `<div class="card-h">${slg(t, 24)}<h3>${esc(t)}</h3><span class="hint">${esc(F.name(t))}</span><span class="grow"></span><b style="font-weight:var(--fw-semibold)">${px(close)}</b><span class="${cl(chg)}" style="font-size:var(--fs-12)">${sg(chg)}</span></div>
      ${sel.flag ? `<div class="flagnote">${ic('info')}<span>${esc(sel.flag)}. Check for a block trade or corporate action before reading the flow.</span></div>` : ''}
      <div class="sec"><div style="display:flex;align-items:center;gap:var(--s-4);margin-bottom:var(--s-4)"><span class="eyebrow2" style="margin:0">When ${esc(c.label)} found it</span><span style="flex:1"></span><div class="seg sm" role="radiogroup" aria-label="Range" data-pv>${['3M', '6M', '1Y'].map(r => `<button role="radio" aria-checked="${ST.detail.prev === r}" class="${ST.detail.prev === r ? 'on' : ''}" data-v="${r}">${r}</button>`).join('')}</div></div>${chart}</div>
      <div class="acts"><button class="btn sm primary" data-act="term">Open ${esc(t)} in Terminal</button></div>`;
@@ -403,6 +478,7 @@ export function start(api: RadarApi, view: HTMLElement, opts: { example?: boolea
       F = stockFacts(meta, board);
     } catch (e) { renderError(e); return }
     route();
+    if (api.logos && !opts.example) void api.logos().then(m => { LOGOS = m || {}; if (Object.keys(LOGOS).length) route() });
   }
   addEventListener('hashchange', route);
   return { boot, rerender: () => (meta ? route() : undefined) };
