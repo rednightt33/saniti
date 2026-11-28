@@ -183,13 +183,16 @@ def test_a_visitor_sees_the_radar_example_as_a_view_of_its_day(site, chromium):
     assert files == set(radar_example()), urls
     # no tooltip to show: no title attribute and no SVG <title> in the page
     no_title_after_hover(page, frame)
-    # it scrolls: the wheel over the board's list moves the element that scrolls it (the page's own scroller)
+    # it scrolls: the wheel over the board's list moves the element that scrolls it. Since EXEC-RADAR-VIEW (the user
+    # 2026-11-28, UD86 "1A") a filter is a row whose stock cards scroll sideways, so the wheel's sideways turn (a trackpad,
+    # Shift with a mouse wheel) moves the row; the example's lock must not swallow it
     frame.locator('text=T000').first.hover()
-    scrolled = """() => [...document.querySelectorAll('*')].filter(e => e.scrollHeight > e.clientHeight + 2
-        && /(auto|scroll)/.test(getComputedStyle(e).overflowY)).map(e => e.scrollTop)
+    scrolled = """() => [...document.querySelectorAll('*')].filter(e => (e.scrollHeight > e.clientHeight + 2
+        && /(auto|scroll)/.test(getComputedStyle(e).overflowY)) || (e.scrollWidth > e.clientWidth + 2
+        && /(auto|scroll)/.test(getComputedStyle(e).overflowX))).map(e => e.scrollTop + e.scrollLeft)
         .concat([document.scrollingElement.scrollTop])"""
     before = frame.locator('body').evaluate(scrolled)
-    page.mouse.wheel(0, 600)
+    page.mouse.wheel(600, 0)
     page.wait_for_timeout(400)
     after = frame.locator('body').evaluate(scrolled)
     assert len(before) > 1 and sum(after) > sum(before), (before, after)
