@@ -18496,4 +18496,11 @@ yang ada di page sector, yang sifatnya top and bottom."
   kiri = harga IHSG, Y axis kanan = jumlah signal", v8); tempat logo emiten di panel kanan, baris tabel dan kartu ("tambahin
   asset logo ya disini", "untuk disini juga", v8; prototipe memakai monogram, halaman asli memakai logo dari rute
   Terminal seperti Watchlist).
+- User 2026-11-28 (verbatim): "Pengambilan pada saat tenggelam dan tidak tenggelam beda. ... Kalau kita klik kolom header,
+  maka dia juga bisa nge-sort. Multiple function sortnya (baik visual dan fungsi) bisa buat sama seperti sektor analisis
+  saja." Prototipe v9: kepala yang membeku sama persis dengan saat tidak membeku (baris keterangan kondisi A-D ikut, judul
+  kolom selebar tabel); klik judul kolom mengurutkan seperti halaman Sector: klik = urut, klik lagi = balik, klik ketiga =
+  hapus, kolom lain menambah tingkat sampai 3 (angka tingkat kecil di panah), "Sorted by … · Clear sort" di baris
+  keterangan; berlaku untuk Table dan Cards, hits dan near misses masing-masing; tombol By z-score / New first menghapus
+  urutan kolom. Di halaman asli angka urutan diambil dari nilai ukuran (measure), bukan dari teks yang dicetak.
 - Halaman Radar di `apps/edge-bff/radar`; beta dulu, live hanya atas permintaan user.
