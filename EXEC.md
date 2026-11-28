@@ -18507,4 +18507,5 @@ yang ada di page sector, yang sifatnya top and bottom."
   terlalu panjang, ketika kita zoom in, gambarnya jadi ngaco"; v10): baris keterangan hanya menampilkan "Clear sort"
   (urutan tingkat ada di panah judul kolom dan di tooltip tombol). Beda dari halaman Sector yang menulis "Sorted by …".
   Tempat logo emiten juga di kartu saham papan Radar ("disini juga tambah company logo", v11).
+  R-V3 pill jumlah saham ("N stocks", hitam; "0 stocks" abu) dipasang di kepala filter papan Radar di prototipe (v12).
 - Halaman Radar di `apps/edge-bff/radar`; beta dulu, live hanya atas permintaan user.
