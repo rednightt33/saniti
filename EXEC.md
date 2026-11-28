@@ -16784,6 +16784,7 @@ Order of the services (CONTRACT 17, rollback floors):
   | UD83 | (answered 2026-11-28: "1A": Custom on Relative return, Stretched pairs and Advancers and decliners; the Sector drill-down unchanged) EXEC-SECTOR-ANALYSIS V11 (2026-11-28): "panel di SS 1 tambah custom period": the screenshot holds four panels; three have a period switch without Custom (Relative return 3D/5D/10D, Stretched pairs Rank by 3D/1W/1M, Advancers and decliners 1D/1W/1M) and the Sector drill-down has fixed columns (3D, 1W, 1M, 3M, YTD) and no switch. Which panels get Custom, and for the drill-down what Custom means (an added column, or a switch of its return columns) | 2026-11-28 with context | V11 | before V11 is built |
   | UD84 | (answered 2026-11-28: "2A (Δ tetap 1W)": an added column "Up <range>" beside Up 1M; Δ EMA50 stays 1W) EXEC-SECTOR-ANALYSIS V12 (2026-11-28): "panel di SS 2 tambah custom": the Breadth heatmap table has fixed columns Up 1D, Up 1W, Up 1M (a period), > EMA50 and > EMA200 (a status on the date, not a period) and Δ EMA50 1W. Custom as an added column "Up <range>" beside Up 1M (the range from the Custom popover), or a switch that replaces Up 1D/1W/1M; and whether Δ EMA50 takes the range too. Each stock's close over the range comes from the eleven sector stock files (no publisher change; about 1 MB more on the first Custom) | 2026-11-28 with context | V12 | before V12 is built |
   | UD85 | (answered 2026-11-28: "3B": every IHSG row of the Sector page without the grey band, as an unhovered row) EXEC-SECTOR-ANALYSIS V13 (2026-11-28): "yang saya buletin tidak perlu di kasih background IHSG aka samakan dengan unhovered state": the IHSG (all) row of the Breadth heatmap table is drawn on the grey band (`sector.css` `.br-t tr.all`); the Advancers and decliners card and the windows' detail tables (`.fw-tb tr.ih`) draw their IHSG row on grey too. The Breadth heatmap table only, or every IHSG row of the page | 2026-11-28 with context | V13 | before V13 is built |
+  | UD86 | EXEC-RADAR-VIEW (2026-11-28): (1) the Radar board: each filter a row (its head at the left, its stock cards in a row to the right) instead of a column; (2) the filter detail's Candidates: a Table / Cards switch like the Watchlist's; open details: (2) what a card holds (the filter's first four figures, or figures the user picks per filter), (3) whether the switch is remembered per browser | 2026-11-28 with context | EXEC-RADAR-VIEW | (1) answered "1A": one row per filter, its cards scroll sideways with a cue; (2) and (3): the user asked for an artifact first ("Untuk 2A dan 3A coba kasih saya artifactsnya saja dulu") |
 - **Carried open parts (AGENTS.md "Findings and fixes", rule 1: a part left open has an owner and a trigger).** From
   the test-out of 2026-11-22 (`wf_c72ae04c-a73`) and its fix round:
 
@@ -18463,3 +18464,17 @@ yang ada di page sector, yang sifatnya top and bottom."
   dari file saham sektor (tanpa perubahan publisher); Δ EMA50 tetap 1W. V13 (UD85 B) semua baris IHSG di halaman Sector
   tanpa latar abu, sama dengan baris yang tidak di-hover (Breadth heatmap table, Advancers and decliners, tabel detail
   jendela). Belum dikerjakan: menunggu go eksekusi.
+
+## EXEC-RADAR-VIEW — papan Radar horizontal dan tampilan kartu di detail filter (permintaan 2026-11-28; belum dieksekusi)
+
+- User 2026-11-28 (verbatim): "Sekarang tampilan radar sama dengan screenshot yang saya kasih. Bisa nggak kita buat
+  menyesuaikan screenshot nomor 2? Which is kalau kondisi sekarang, dia itu vertikal ke bawah. Tapi bisa nggak diganti jadi
+  horizontal saja, seperti pada screenshot kedua. ... Misalnya kita klik S1, ... Bisa nggak dikasih menu atau toggle, di
+  mana apabila kita mentoggle, akan merubah view menjadi seperti cards pada screenshot nomor 2 terlampir. Untuk detail
+  desainnya bisa refer ke watchlist untuk cards-nya. Mungkin untuk toggle-nya bisa taruh di somewhere di screenshot nomor 3."
+  Lalu: "1A / Untuk 2A dan 3A coba kasih saya artifactsnya saja dulu".
+- R-V1 papan (UD86 1A): satu baris per filter (S1, S2, S3, S6, S6Δ, S7, S8), kepala filter di kiri (kode, judul, jumlah,
+  grafik kecil, vs yday), kartu saham berjajar ke kanan dan digeser ke samping dengan isyarat geser.
+- R-V2 detail filter: tombol Table | Cards di baris judul Candidates (seperti Watchlist), tampilan kartu; isi kartu dan
+  apakah pilihan diingat menunggu jawaban user setelah artifact (UD86 (2), (3)).
+- Halaman Radar di `apps/edge-bff/radar`; beta dulu, live hanya atas permintaan user.
