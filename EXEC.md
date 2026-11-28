@@ -18486,4 +18486,14 @@ yang ada di page sector, yang sifatnya top and bottom."
   artifact 2026-11-28: teks pill kartu tepat di tengah (versi 2); kartu terpilih dibalik warnanya, tema terang → kartu gelap,
   tema gelap → kartu terang, bukan border hitam (versi 3, "dibalik saja as if dia jadi black theme"). Isi kartu (UD86 2A) dan
   ingat pilihan (3A) menunggu konfirmasi user atas artifact.
+- Masukan user berikutnya di artifact dan chat (2026-11-28), dibangun di prototipe (versi 4-8): kartu terpilih kembali ke border
+  hitam ("kembalikan spt sediakala", v4); tombol Met: All / Fully met (lolos semua kondisi) / Partly met (kurang satu
+  kondisi, near miss) dengan jumlahnya, di Table dan Cards (v5; data Radar hanya menyimpan baris kurang satu kondisi);
+  kotak badge saham Today in S1 tetap 3 baris dan bisa di-scroll (v6); kartu Today in S1 setinggi tetap di setiap tanggal
+  yang diklik di grafik, baris keterangan selalu ada (v7); kepala Candidates dan judul kolom membeku di atas setelah
+  grafik tergulir keluar ("kolom headernya freeze, tapi kondisinya adalah kalau bagian chart kita sudah tenggelam saja"),
+  judul kolom ikut geser samping tabel (v8); sumbu grafik ditukar: kiri harga IHSG, kanan jumlah saham ("tuker, Y axis
+  kiri = harga IHSG, Y axis kanan = jumlah signal", v8); tempat logo emiten di panel kanan, baris tabel dan kartu ("tambahin
+  asset logo ya disini", "untuk disini juga", v8; prototipe memakai monogram, halaman asli memakai logo dari rute
+  Terminal seperti Watchlist).
 - Halaman Radar di `apps/edge-bff/radar`; beta dulu, live hanya atas permintaan user.
