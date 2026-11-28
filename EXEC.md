@@ -18509,3 +18509,9 @@ yang ada di page sector, yang sifatnya top and bottom."
   Tempat logo emiten juga di kartu saham papan Radar ("disini juga tambah company logo", v11).
   R-V3 pill jumlah saham ("N stocks", hitam; "0 stocks" abu) dipasang di kepala filter papan Radar di prototipe (v12).
 - Halaman Radar di `apps/edge-bff/radar`; beta dulu, live hanya atas permintaan user.
+- **Go 2026-11-28 (user, verbatim: "go kerjakan semuanya di branch, deploy ke main afterwards"):** dikerjakan di branch:
+  EXEC-SECTOR-ANALYSIS V11-V13 (UD83 "1A", UD84 "2A (Δ tetap 1W)", UD85 "3B") dan EXEC-RADAR-VIEW seluruhnya seperti
+  artifact versi 12 (R-V1 papan horizontal UD86 "1A"; R-V2 Table | Cards dengan isi kartu dan pilihan diingat seperti
+  artifact; R-V3 pill jumlah saham; tombol Met; kotak badge 3 baris; kartu Today setinggi tetap; kepala dan judul kolom
+  membeku; sort judul kolom bertingkat dengan "Clear sort"; sumbu IHSG kiri; logo emiten). Sesudahnya push `main` (beta
+  edge-bff); live tidak bergerak.
