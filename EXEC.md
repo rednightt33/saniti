@@ -18503,4 +18503,7 @@ yang ada di page sector, yang sifatnya top and bottom."
   hapus, kolom lain menambah tingkat sampai 3 (angka tingkat kecil di panah), "Sorted by … · Clear sort" di baris
   keterangan; berlaku untuk Table dan Cards, hits dan near misses masing-masing; tombol By z-score / New first menghapus
   urutan kolom. Di halaman asli angka urutan diambil dari nilai ukuran (measure), bukan dari teks yang dicetak.
+  Lalu (user, verbatim: "tidak perlu ada tampilan seperti screenshot terlampir. Cukup tulisan clear sort saja. ... kalau
+  terlalu panjang, ketika kita zoom in, gambarnya jadi ngaco"; v10): baris keterangan hanya menampilkan "Clear sort"
+  (urutan tingkat ada di panah judul kolom dan di tooltip tombol). Beda dari halaman Sector yang menulis "Sorted by …".
 - Halaman Radar di `apps/edge-bff/radar`; beta dulu, live hanya atas permintaan user.
